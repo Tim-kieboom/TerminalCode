@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::{key_controller::key_controller::KeyController, window::Window};
+use crate::{key_controller::key_controller::KeyController, session::FileContext, window::Window};
 
 pub mod file_handler;
 
@@ -25,6 +25,13 @@ impl TextEditor {
     }
 }
 impl Window for TextEditor {
+
+    fn on_insert(&mut self, _file_context: &FileContext) {}
+
+    fn new_key_controller<'a>(&'a mut self, file_context: &'a mut FileContext) -> KeyController<'a> {
+        KeyController::new(&mut self.cursor, &mut self.buffer, file_context)
+    }
+
     fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
         let area = frame.area();
         let chunks = Layout::default()
@@ -43,10 +50,6 @@ impl Window for TextEditor {
         let mut cursor = self.cursor;
         cursor.line = cursor.line.saturating_add(1);
         frame.set_cursor_position(cursor);
-    }
-
-    fn new_key_controller<'a>(&'a mut self, file_saved: &'a mut bool) -> KeyController<'a> {
-        KeyController::new(&mut self.cursor, &mut self.buffer, file_saved)
     }
 }
 

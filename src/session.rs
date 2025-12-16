@@ -12,7 +12,7 @@ use ratatui::{
     backend::CrosstermBackend,
     style::{Color, Style},
 };
-use std::{io::Stdout, path::PathBuf};
+use std::{io::Stdout, path::{Path, PathBuf}};
 
 type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
 
@@ -20,11 +20,15 @@ type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
 pub struct Session {
     terminal: StdTerminal,
 
-    base_path: PathBuf,
+    file_context: FileContext,
     window_stack: Vec<WindowKind>,
+}
 
-    file_saved: bool,
-    file_path: Option<PathBuf>,
+#[derive(Debug, Default)]
+pub struct FileContext {
+    pub file_saved: bool,
+    pub base_path: PathBuf,
+    pub file_path: Option<PathBuf>,
 }
 
 impl Session {
@@ -47,12 +51,12 @@ impl Session {
         let main_window = WindowKind::TextEditor(TextEditor::new());
         Ok(Self {
             terminal,
-
-            base_path,
             window_stack: vec![main_window],
-
-            file_path: None,
-            file_saved: true,
+            file_context: FileContext {
+                base_path,
+                file_path: None,
+                file_saved: true,
+            },
         })
     }
 
@@ -82,9 +86,7 @@ impl Session {
                 Self::draw_ui(
                     frame,
                     current_window(&mut self.window_stack),
-                    &self.base_path,
-                    &self.file_path,
-                    self.file_saved,
+                    &self.file_context
                 )
             })?;
         }
@@ -96,7 +98,7 @@ impl Session {
 
         let session_event = {
             let window = current_window(&mut self.window_stack);
-            let mut key_controller = window.new_key_controller(&mut self.file_saved);
+            let mut key_controller = window.new_key_controller(&mut self.file_context);
 
             match key_controller.handle_input(input_event) {
                 Some(val) => val,
@@ -107,6 +109,11 @@ impl Session {
         match session_event {
             SessionEvent::Exit => return Ok(Loop::Break),
 
+            SessionEvent::OnRemove
+            | SessionEvent::OnInsert => {
+                current_window(&mut self.window_stack)
+                    .on_insert(&self.file_context);
+            }
             SessionEvent::Back => {
                 if self.window_stack.len() > 1 {
                     self.window_stack.pop();
@@ -118,11 +125,11 @@ impl Session {
                     _ => unreachable!("window_stack[0] should be TextEditor"),
                 };
 
-                if let Some(path) = &self.file_path {
+                if let Some(path) = &self.file_context.file_path {
                     editor.save_file(path)?;
                 }
 
-                self.file_saved = true;
+                self.file_context.file_saved = true;
             }
             SessionEvent::OpenLookup => {
                 if !matches!(
@@ -141,23 +148,28 @@ impl Session {
     fn draw_ui<Win: Window>(
         frame: &mut Frame,
         window: &mut Win,
-        base_path: &PathBuf,
-        file_path: &Option<PathBuf>,
-        file_saved: bool,
+        file_context: &FileContext,
     ) {
         use ratatui::style::Modifier;
         use ratatui::text::Span;
         use ratatui::widgets::{Block, Borders};
 
-        let end_span = if let Some(path) = file_path.as_ref() {
-            let saved = if file_saved { "" } else { "*" };
+        fn relative_to<'a>(base: &Path, path: &'a Path) -> Option<&'a Path> {
+            path.strip_prefix(base).ok()
+        }
+
+        let end_span = if let Some(path) = file_context.file_path.as_ref() {
+            let saved = if file_context.file_saved { "" } else { "*" };
+            let relative_path = relative_to(&file_context.base_path, path)
+                .unwrap_or(&Path::new(""));
+            
             Span::styled(
-                format!("-{}{saved} ⟧ {}", path.display(), base_path.display()),
+                format!("-{}{saved} ⟧ {}", relative_path.display(), file_context.base_path.display()),
                 Style::default().fg(Color::Cyan),
             )
         } else {
             Span::styled(
-                format!(" ⟧ {}", base_path.display()),
+                format!(" ⟧ {}", file_context.base_path.display()),
                 Style::default().fg(Color::Cyan),
             )
         };

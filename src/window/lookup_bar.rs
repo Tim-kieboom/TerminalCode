@@ -11,8 +11,7 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::{
-    key_controller::key_controller::KeyController,
-    window::{Window, text_editor::Cursor},
+    key_controller::key_controller::KeyController, session::FileContext, window::{Window, text_editor::Cursor}
 };
 
 #[derive(Debug, Clone, Default)]
@@ -62,8 +61,13 @@ impl LookupBar {
     }
 }
 impl Window for LookupBar {
-    fn new_key_controller<'a>(&'a mut self, file_saved: &'a mut bool) -> KeyController<'a> {
-        KeyController::new(&mut self.cursor, &mut self.search_buffer, file_saved)
+
+    fn on_insert(&mut self, file_context: &FileContext) {
+        self.scan_files(&file_context.base_path);
+    }
+
+    fn new_key_controller<'a>(&'a mut self, file_context: &'a mut FileContext) -> KeyController<'a> {
+        KeyController::new(&mut self.cursor, &mut self.search_buffer, file_context)
     }
 
     fn draw_ui(&mut self, frame: &mut Frame, header: Block) {

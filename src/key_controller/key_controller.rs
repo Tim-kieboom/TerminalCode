@@ -1,60 +1,63 @@
-use crate::{key_controller::InputEvent, window::text_editor::Cursor};
+use crate::{key_controller::{InputEvent, InsertKind}, session::FileContext, window::text_editor::Cursor};
 
 pub enum SessionEvent {
     Exit,
     Back,
     SaveFile,
+    OnInsert,
+    OnRemove,
     OpenLookup,
 }
 
 pub struct KeyController<'a> {
     cursor: &'a mut Cursor,
     buffer: &'a mut Vec<String>,
-    file_saved: &'a mut bool,
+    file_context: &'a mut FileContext,
 }
 impl<'a> KeyController<'a> {
     pub fn new(
         cursor: &'a mut Cursor,
         buffer: &'a mut Vec<String>,
-        file_saved: &'a mut bool,
+        file_context: &'a mut FileContext,
     ) -> Self {
         Self {
             cursor,
             buffer,
-            file_saved,
+            file_context,
         }
     }
 
     pub fn handle_input(&mut self, event: InputEvent) -> Option<SessionEvent> {
-        //helper to early exit if window is one line
-        fn expect_multi_line<'a>(this: &KeyController<'a>) -> Option<()> {
-            if this.buffer.len() == 1 {
-                None
-            } else {
-                Some(())
-            }
-        }
 
         match event {
-            InputEvent::None => (),
-            InputEvent::Left => self.move_left(1),
-            InputEvent::Right => self.move_right(1),
+            InputEvent::Left => {
+                self.move_left(1);
+            }
+            InputEvent::Right => {
+                self.move_right(1);
+            }
             InputEvent::Up => {
-                expect_multi_line(self)?;
                 self.move_up();
             }
             InputEvent::Down => {
-                expect_multi_line(self)?;
                 self.move_down();
             }
+            InputEvent::Enter => {
+                self.split_next_line();
+                return Some(SessionEvent::OnInsert)
+            }
+            InputEvent::Remove => {
+                self.remove_current();
+                return Some(SessionEvent::OnRemove)
+            }
+            InputEvent::Insert(insert) => {
+                self.insert(insert);
+                return Some(SessionEvent::OnInsert)
+            }
+
+            InputEvent::None => return None,
             InputEvent::Exit => return Some(SessionEvent::Exit),
             InputEvent::Back => return Some(SessionEvent::Back),
-            InputEvent::Enter => {
-                expect_multi_line(self)?;
-                self.split_next_line();
-            }
-            InputEvent::Remove => self.remove_current(),
-            InputEvent::Insert(char) => self.insert_char(char),
             InputEvent::SaveFile => return Some(SessionEvent::SaveFile),
             InputEvent::OpenLookup => return Some(SessionEvent::OpenLookup),
         };
@@ -129,7 +132,7 @@ impl<'a> KeyController<'a> {
         self.cursor.line += 1;
         self.cursor.offset = 0;
 
-        *self.file_saved = false;
+        self.file_context.file_saved = false;
     }
 
     /// normal `backspace`
@@ -148,16 +151,24 @@ impl<'a> KeyController<'a> {
             self.cursor.offset = prev_len as u16;
         }
 
-        *self.file_saved = false;
+        self.file_context.file_saved = false;
     }
 
-    fn insert_char(&mut self, char: char) {
+    fn insert(&mut self, insert: InsertKind) {
+
+        let mut buffer = [0u8; 4];
+        let text = match &insert {
+            InsertKind::Char(char) => &*char.encode_utf8(&mut buffer),
+            InsertKind::String(string) => string,
+            InsertKind::UpperCase(to_uppercase) => &to_uppercase.to_string(),
+        };
+        
         let row = self.cursor.line as usize;
         let column = self.cursor.offset as usize;
 
-        self.buffer[row].insert(column, char);
-        self.cursor.offset += 1;
+        self.buffer[row].insert_str(column, text);
+        self.cursor.offset += text.len() as u16;
 
-        *self.file_saved = false;
+        self.file_context.file_saved = false;
     }
 }

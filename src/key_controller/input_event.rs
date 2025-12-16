@@ -1,4 +1,4 @@
-use crate::key_controller::InputEvent;
+use crate::key_controller::{InputEvent, InsertKind};
 use crossterm::event::{Event, KeyEventKind, KeyModifiers};
 
 pub fn get_input_event(event: Event) -> InputEvent {
@@ -16,7 +16,8 @@ pub fn get_input_event(event: Event) -> InputEvent {
             Right => InputEvent::Right,
             Enter => InputEvent::Enter,
             Backspace => InputEvent::Remove,
-            Char(c) if key.modifiers.is_empty() => InputEvent::Insert(c),
+            Char(c) if key.modifiers.is_empty() => InputEvent::Insert(InsertKind::Char(c)),
+            Char(c) if key.modifiers == KeyModifiers::SHIFT => InputEvent::Insert(InsertKind::UpperCase(c.to_uppercase())),
 
             Esc => return InputEvent::Exit,
             Char(c) => key_combine(c, key.modifiers),
