@@ -1,11 +1,10 @@
-mod popups;
+mod key_controller;
 mod session;
-mod text_editor;
+mod window;
 
-use std::{env, io::stdout};
-use anyhow::Result;
 use crate::session::Session;
-
+use anyhow::Result;
+use std::{env, io::stdout};
 
 fn main() -> Result<()> {
     let base_path = env::current_exe()?;

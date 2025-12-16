@@ -1,34 +1,65 @@
-use anyhow::Result;
-use crossterm::event::{Event, KeyEventKind, KeyModifiers};
-use crate::text_editor::TextEditor;
+use crate::{key_controller::InputEvent, window::text_editor::Cursor};
 
-impl TextEditor {
+pub enum SessionEvent {
+    Exit,
+    Back,
+    SaveFile,
+    OpenLookup,
+}
 
-    pub fn handle_event(&mut self, event: Event) -> Result<SessionEvent> {
-        use crossterm::event::KeyCode::*;
+pub struct KeyController<'a> {
+    cursor: &'a mut Cursor,
+    buffer: &'a mut Vec<String>,
+    file_saved: &'a mut bool,
+}
+impl<'a> KeyController<'a> {
+    pub fn new(
+        cursor: &'a mut Cursor,
+        buffer: &'a mut Vec<String>,
+        file_saved: &'a mut bool,
+    ) -> Self {
+        Self {
+            cursor,
+            buffer,
+            file_saved,
+        }
+    }
 
-        if let Event::Key(key) = event {
-
-            if key.kind != KeyEventKind::Press {
-                return Ok(SessionEvent::None)
-            }
-
-            match key.code {
-                Up => self.move_up(),
-                Down => self.move_down(),
-                Left => self.move_left(1),
-                Right => self.move_right(1),
-                Enter => self.split_next_line(),
-                Backspace => self.remove_current(),
-                Char(c) if key.modifiers.is_empty() => self.insert_char(c),
-                
-                Esc => return Ok(SessionEvent::Exit),
-                Char(c) => return self.key_combine(c, key.modifiers), 
-                _ => {}
+    pub fn handle_input(&mut self, event: InputEvent) -> Option<SessionEvent> {
+        //helper to early exit if window is one line
+        fn expect_multi_line<'a>(this: &KeyController<'a>) -> Option<()> {
+            if this.buffer.len() == 1 {
+                None
+            } else {
+                Some(())
             }
         }
 
-        Ok(SessionEvent::None)
+        match event {
+            InputEvent::None => (),
+            InputEvent::Left => self.move_left(1),
+            InputEvent::Right => self.move_right(1),
+            InputEvent::Up => {
+                expect_multi_line(self)?;
+                self.move_up();
+            }
+            InputEvent::Down => {
+                expect_multi_line(self)?;
+                self.move_down();
+            }
+            InputEvent::Exit => return Some(SessionEvent::Exit),
+            InputEvent::Back => return Some(SessionEvent::Back),
+            InputEvent::Enter => {
+                expect_multi_line(self)?;
+                self.split_next_line();
+            }
+            InputEvent::Remove => self.remove_current(),
+            InputEvent::Insert(char) => self.insert_char(char),
+            InputEvent::SaveFile => return Some(SessionEvent::SaveFile),
+            InputEvent::OpenLookup => return Some(SessionEvent::OpenLookup),
+        };
+
+        None
     }
 
     fn move_up(&mut self) {
@@ -64,15 +95,13 @@ impl TextEditor {
         }
     }
 
-    pub fn move_right(&mut self, amount: u16) {
+    fn move_right(&mut self, amount: u16) {
         let current_line = self.cursor.line as usize;
         let line_len = self.buffer[current_line].len() as u16;
 
         if self.cursor.offset + amount <= line_len {
             self.cursor.offset += amount;
-        } 
-
-        else if (current_line + 1) < self.buffer.len() {
+        } else if (current_line + 1) < self.buffer.len() {
             let mut leftover = amount - (line_len - self.cursor.offset);
             self.cursor.line += 1;
             self.cursor.offset = 0;
@@ -82,12 +111,11 @@ impl TextEditor {
                 leftover = next_len;
             }
             self.cursor.offset = leftover;
-        } 
-        else {
+        } else {
             self.cursor.offset = line_len;
         }
     }
-    
+
     /// normal `enter`
     fn split_next_line(&mut self) {
         let line = self.cursor.line as usize;
@@ -101,7 +129,7 @@ impl TextEditor {
         self.cursor.line += 1;
         self.cursor.offset = 0;
 
-        self.file_saved = false;
+        *self.file_saved = false;
     }
 
     /// normal `backspace`
@@ -120,7 +148,7 @@ impl TextEditor {
             self.cursor.offset = prev_len as u16;
         }
 
-        self.file_saved = false;
+        *self.file_saved = false;
     }
 
     fn insert_char(&mut self, char: char) {
@@ -130,25 +158,6 @@ impl TextEditor {
         self.buffer[row].insert(column, char);
         self.cursor.offset += 1;
 
-        self.file_saved = false;
+        *self.file_saved = false;
     }
-
-    fn key_combine(&mut self, char: char, modifier: KeyModifiers) -> Result<SessionEvent> {
-
-        if char == 'p' && modifier == KeyModifiers::CONTROL {
-            return Ok(SessionEvent::OpenLookup)
-        }
-        if char == 's' && modifier == KeyModifiers::CONTROL {
-            self.save_file()?;
-        }
-
-        Ok(SessionEvent::None)
-    }
-
-}
-
-pub enum SessionEvent {
-    None,
-    Exit,
-    OpenLookup,
 }
