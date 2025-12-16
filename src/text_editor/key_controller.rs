@@ -4,30 +4,31 @@ use crate::text_editor::TextEditor;
 
 impl TextEditor {
 
-    pub fn handle_event(&mut self, event: Event) -> Result<Loop> {
+    pub fn handle_event(&mut self, event: Event) -> Result<SessionEvent> {
         use crossterm::event::KeyCode::*;
 
         if let Event::Key(key) = event {
 
             if key.kind != KeyEventKind::Press {
-                return Ok(Loop::Continue)
+                return Ok(SessionEvent::None)
             }
 
             match key.code {
-                Esc => return Ok(Loop::Break),
+                Up => self.move_up(),
+                Down => self.move_down(),
+                Left => self.move_left(1),
+                Right => self.move_right(1),
                 Enter => self.split_next_line(),
                 Backspace => self.remove_current(),
                 Char(c) if key.modifiers.is_empty() => self.insert_char(c),
-                Char(c) => self.key_combine(c, key.modifiers)?, 
-                Left => self.move_left(1),
-                Right => self.move_right(1),
-                Up => self.move_up(),
-                Down => self.move_down(),
+                
+                Esc => return Ok(SessionEvent::Exit),
+                Char(c) => return self.key_combine(c, key.modifiers), 
                 _ => {}
             }
         }
 
-        Ok(Loop::Continue)
+        Ok(SessionEvent::None)
     }
 
     fn move_up(&mut self) {
@@ -132,21 +133,22 @@ impl TextEditor {
         self.file_saved = false;
     }
 
-    fn key_combine(&mut self, char: char, modifier: KeyModifiers) -> Result<()> {
+    fn key_combine(&mut self, char: char, modifier: KeyModifiers) -> Result<SessionEvent> {
 
         if char == 'p' && modifier == KeyModifiers::CONTROL {
-
+            return Ok(SessionEvent::OpenLookup)
         }
         if char == 's' && modifier == KeyModifiers::CONTROL {
             self.save_file()?;
         }
 
-        Ok(())
+        Ok(SessionEvent::None)
     }
 
 }
 
-pub enum Loop {
-    Break,
-    Continue,
+pub enum SessionEvent {
+    None,
+    Exit,
+    OpenLookup,
 }

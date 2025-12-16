@@ -14,6 +14,7 @@ impl TextEditor {
     pub fn new() -> Self {
         Self{
             file_saved: true,
+            buffer: vec![String::new()],
             ..Default::default()
         }
     }

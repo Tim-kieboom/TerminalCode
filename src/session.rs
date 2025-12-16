@@ -13,7 +13,7 @@ use ratatui::{
 use std::{
     io::Stdout, path::PathBuf,
 };
-use crate::{text_editor::key_controller::Loop, text_editor::TextEditor};
+use crate::{popups::{PopupKind, lookup_bar::LookupBar}, text_editor::{TextEditor, key_controller::SessionEvent}};
 
 type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
 
@@ -23,10 +23,12 @@ const BOTTOM_HEADER: &str = "['ESC' exit] ['ctr+p' lookup] ['ctr+`' terminal]";
 pub struct Session {
     terminal: StdTerminal,
     editor: TextEditor,
+    popups: PopupKind,
+    base_path: PathBuf,
 }
 
 impl Session {
-    pub fn new(mut stdout: Stdout) -> Result<Self> {
+    pub fn new(mut stdout: Stdout, base_path: PathBuf) -> Result<Self> {
         use crossterm::terminal::Clear;
         const CLEAR_EXISTING_ECHOS: Clear = Clear(ClearType::All);
 
@@ -44,6 +46,8 @@ impl Session {
 
         Ok(Self{
             terminal,
+            base_path,
+            popups: PopupKind::Empty,
             editor: TextEditor::new(),
         })
     }
@@ -61,26 +65,24 @@ impl Session {
         result
     }
 
-    pub fn load_file(&mut self, path: PathBuf) -> Result<()> {
-        self.editor.load_file(path)
-    }
-
     fn run_loop(&mut self) -> Result<()> {
         
         loop {
             let event = event::read()?;
             
             match self.editor.handle_event(event)? {
-                Loop::Break => break,
-                Loop::Continue => {
-                    self.terminal.draw(|f| Self::draw_ui(f, &self.editor))?;
-                }
+                SessionEvent::Exit => break,
+                SessionEvent::None => (),
+                SessionEvent::OpenLookup => {
+                    self.popups = PopupKind::LookupBar(LookupBar::new());
+                },
             }
+            self.terminal.draw(|f| Self::draw_ui(f, &self.editor, &mut self.popups))?;
         }
         Ok(())
     }
 
-    fn draw_ui(frame: &mut Frame, text_editor: &TextEditor) {
+    fn draw_ui(frame: &mut Frame, text_editor: &TextEditor, popups: &mut PopupKind) {
         use ratatui::layout::Direction;
         use ratatui::widgets::{Block, Borders};
         use ratatui::text::{Span};
@@ -92,11 +94,12 @@ impl Session {
             .constraints([Length(area.height - 1), Length(1)].as_ref())
             .split(area);
 
+        popups.draw_ui(frame);
         
         let end_span = if let Some(path) = text_editor.file_path.as_ref() {
             let saved = if text_editor.file_saved {""} else {"*"};
             Span::styled(format!("-{}{saved} ⟧", path.as_os_str().display()), Style::default().fg(Color::Cyan))
-        }else {
+        } else {
             Span::styled(" ⟧", Style::default().fg(Color::Cyan))
         };
 
