@@ -11,6 +11,7 @@ pub enum SessionEvent {
     OnInsert,
     OnRemove,
     OpenLookup,
+    OpenCommandPrompt,
 }
 
 pub fn handle_input<T: Window>(
@@ -35,17 +36,17 @@ pub fn handle_input<T: Window>(
     match done_event {
         KeyDoneKind::None => (),
         KeyDoneKind::CloseWindow => return Ok(Some(SessionEvent::Back)),
-    } 
+    }
 
     match event {
-        InputEvent::Enter
-        | InputEvent::Insert(_) => Ok(Some(SessionEvent::OnInsert)),
+        InputEvent::Enter | InputEvent::Insert(_) => Ok(Some(SessionEvent::OnInsert)),
         InputEvent::Remove => Ok(Some(SessionEvent::OnRemove)),
-        
+
         InputEvent::Exit => Ok(Some(SessionEvent::Exit)),
         InputEvent::Back => Ok(Some(SessionEvent::Back)),
         InputEvent::SaveFile => Ok(Some(SessionEvent::SaveFile)),
         InputEvent::OpenLookup => Ok(Some(SessionEvent::OpenLookup)),
+        InputEvent::OpenCommandPrompt => Ok(Some(SessionEvent::OpenCommandPrompt)),
 
         _ => Ok(None),
     }

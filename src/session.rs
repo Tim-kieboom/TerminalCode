@@ -1,9 +1,8 @@
 use crate::{
-    key_controller::{
+    context::{FileContext, SharedContext}, key_controller::{
         input_event::get_input_event,
         key_controller::{SessionEvent, handle_input},
-    },
-    window::{Window, WindowKind, lookup_bar::LookupBar, text_editor::TextEditor},
+    }, window::{Window, WindowKind, command_prompt::CommandPrompt, lookup_bar::LookupBar, text_editor::TextEditor}
 };
 use anyhow::Result;
 use crossterm::{
@@ -16,8 +15,7 @@ use ratatui::{
     style::{Color, Style},
 };
 use std::{
-    io::Stdout,
-    path::{Path, PathBuf},
+    io::Stdout, path::{Path, PathBuf}
 };
 
 type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
@@ -25,16 +23,8 @@ type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
 #[derive(Debug)]
 pub struct Session {
     terminal: StdTerminal,
-
-    file_context: FileContext,
+    context: SharedContext,
     window_stack: Vec<WindowKind>,
-}
-
-#[derive(Debug, Default)]
-pub struct FileContext {
-    pub file_saved: bool,
-    pub base_path: PathBuf,
-    pub file_path: Option<PathBuf>,
 }
 
 impl Session {
@@ -54,15 +44,18 @@ impl Session {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
-        let main_window = WindowKind::TextEditor(TextEditor::new());
+        let file_context = FileContext {
+            base_path,
+            file_path: None,
+            file_saved: true,
+        };
+
+        let context = SharedContext::new(file_context);
+        let main_window = WindowKind::TextEditor(TextEditor::new(context.clone()));
         Ok(Self {
+            context,
             terminal,
             window_stack: vec![main_window],
-            file_context: FileContext {
-                base_path,
-                file_path: None,
-                file_saved: true,
-            },
         })
     }
 
@@ -92,7 +85,7 @@ impl Session {
                 Self::draw_ui(
                     frame,
                     current_window(&mut self.window_stack),
-                    &self.file_context,
+                    &self.context,
                 )
             })?;
         }
@@ -113,28 +106,46 @@ impl Session {
         match session_event {
             SessionEvent::Exit => return Ok(Loop::Break),
 
-            SessionEvent::OnRemove | SessionEvent::OnInsert => {
-                current_window(&mut self.window_stack).on_insert(&self.file_context);
+            SessionEvent::OnRemove => {
+                current_window(&mut self.window_stack).on_remove();
+            }
+            SessionEvent::OnInsert => {
+                current_window(&mut self.window_stack).on_insert();
             }
             SessionEvent::Back => {
-                if self.window_stack.len() > 1 {
-                    let window = self.window_stack.pop().unwrap();
-                    match window {
-                        WindowKind::TextEditor(_) => (),
-                        WindowKind::LookupBar(lookup_bar) => if let Some(path) = lookup_bar.pick_entry {
-                            main_window(&mut self.window_stack)
-                                .load_file(path)?
-                        }
+                let window_amount = self.window_stack.len();
+                if window_amount <= 1 {
+                    return Ok(Loop::None)
+                }
+                self.window_stack.pop();
+                
+                let file_context = &mut self.context.borrow_mut().file_context;
+                let main = main_window(&mut self.window_stack);
+                if window_amount == 2 && main.file != file_context.file_path {
+                    
+                    match &file_context.file_path {
+                        Some(path) => main.load_file(path.clone())?,
+                        None => main.set_to_no_file(),
                     }
                 }
             }
             SessionEvent::SaveFile => {
-                if let Some(path) = &self.file_context.file_path {
-                    main_window(&mut self.window_stack)
-                        .save_file(path)?;
+                
+                let file_context = &mut self.context.borrow_mut().file_context;
+                if let Some(path) = &file_context.file_path {
+                    main_window(&mut self.window_stack).save_file(path)?;
                 }
 
-                self.file_context.file_saved = true;
+                file_context.file_saved = true;
+            }
+            SessionEvent::OpenCommandPrompt => {
+                if !matches!(
+                    current_window(&mut self.window_stack),
+                    WindowKind::CommandPrompt(_)
+                ) {
+                    let command_prompt = CommandPrompt::new(self.context.clone());
+                    self.window_stack.push(WindowKind::CommandPrompt(command_prompt));
+                }
             }
             SessionEvent::OpenLookup => {
                 if !matches!(
@@ -142,7 +153,7 @@ impl Session {
                     WindowKind::LookupBar(_)
                 ) {
                     self.window_stack
-                        .push(WindowKind::LookupBar(LookupBar::new()));
+                        .push(WindowKind::LookupBar(LookupBar::new(self.context.clone())));
                 }
             }
         }
@@ -150,7 +161,7 @@ impl Session {
         Ok(Loop::None)
     }
 
-    fn draw_ui<Win: Window>(frame: &mut Frame, window: &mut Win, file_context: &FileContext) {
+    fn draw_ui<Win: Window>(frame: &mut Frame, window: &mut Win, context: &SharedContext) {
         use ratatui::style::Modifier;
         use ratatui::text::Span;
         use ratatui::widgets::{Block, Borders};
@@ -158,6 +169,8 @@ impl Session {
         fn relative_to<'a>(base: &Path, path: &'a Path) -> Option<&'a Path> {
             path.strip_prefix(base).ok()
         }
+
+        let file_context = &context.borrow().file_context;
 
         let end_span = if let Some(path) = file_context.file_path.as_ref() {
             let saved = if file_context.file_saved { "" } else { "*" };

@@ -17,7 +17,6 @@ pub fn get_input_event(event: Event) -> InputEvent {
             Enter => InputEvent::Enter,
             Backspace => InputEvent::Remove,
             Char(char) => handle_char(char, key.modifiers),
-
             Esc => {
                 if key.modifiers == KeyModifiers::SHIFT {
                     return InputEvent::Exit;
@@ -47,8 +46,14 @@ fn handle_char(char: char, modifiers: KeyModifiers) -> InputEvent {
 fn key_combine(char: char, modifiers: KeyModifiers) -> InputEvent {
     if modifiers == KeyModifiers::CONTROL {
         match char {
-            'p' => InputEvent::OpenLookup,
             's' => InputEvent::SaveFile,
+            'p' => InputEvent::OpenLookup,
+            '`' => InputEvent::OpenCommandPrompt,
+            _ => InputEvent::None,
+        }
+    } else if modifiers == KeyModifiers::ALT {
+        match char {
+            '1' => InputEvent::OpenCommandPrompt,
             _ => InputEvent::None,
         }
     } else {

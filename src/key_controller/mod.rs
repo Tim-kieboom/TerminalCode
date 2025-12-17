@@ -39,6 +39,7 @@ pub enum InputEvent {
     SaveFile,
 
     OpenLookup,
+    OpenCommandPrompt,
 }
 
 #[derive(Debug, Clone)]

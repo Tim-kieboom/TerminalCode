@@ -11,31 +11,37 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::{
-    key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
-    session::FileContext,
-    window::{Window, text_editor::Cursor},
+    context::SharedContext, key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls}, window::{Window, text_editor::Cursor}
 };
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LookupBar {
+    pub(crate) cursor: Cursor,
     // type is [String; 1] so that search buffer can be used as &[String] in fucntions
     pub(crate) search_buffer: [String; 1],
-    pub(crate) selected_result: usize,
-    pub(crate) search_results: Vec<PathBuf>,
-    pub(crate) cursor: Cursor,
-    pub(crate) pick_entry: Option<PathBuf>,
+    pub(crate) current_entry: usize,
+    pub(crate) entries: Vec<PathBuf>,
+    pub(crate) context: SharedContext,
 }
 impl LookupBar {
-    pub fn new() -> Self {
+    pub fn new(context: SharedContext) -> Self {
         Self {
             search_buffer: [String::new()],
-            ..Default::default()
+            current_entry: 0,
+            entries: vec![],
+            cursor: Cursor::default(),
+            context,
         }
     }
 
-    pub fn scan_files(&mut self, base_path: &PathBuf) {
+    pub fn scan_files(&mut self) {
         let matcher = SkimMatcherV2::default();
-        self.search_results.clear();
+        self.entries.clear();
+
+        let base_path = &self.context
+            .borrow()
+            .file_context
+            .base_path;
 
         for entry in WalkDir::new(base_path)
             .max_depth(3)
@@ -46,23 +52,28 @@ impl LookupBar {
             if entry.path().is_file()
                 && matcher.fuzzy_match(&path, &self.search_buffer[0]).is_some()
             {
-                self.search_results.push(entry.path().to_path_buf());
+                self.entries.push(entry.path().to_path_buf());
             }
         }
-        self.selected_result = 0;
+        self.current_entry = 0;
     }
 
     pub fn pick_entry(&mut self) -> Result<Option<PathBuf>> {
-        if self.search_results.get(self.selected_result).is_some() {
-            let path = std::mem::take(&mut self.search_results[self.selected_result]);
+        if self.entries.get(self.current_entry).is_some() {
+            let path = std::mem::take(&mut self.entries[self.current_entry]);
             return Ok(Some(path));
         }
         Ok(None)
     }
 }
 impl Window for LookupBar {
-    fn on_insert(&mut self, file_context: &FileContext) {
-        self.scan_files(&file_context.base_path);
+
+    fn on_insert(&mut self) {
+        self.scan_files();
+    }
+    
+    fn on_remove(&mut self) {
+        self.scan_files();
     }
 
     fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
@@ -104,7 +115,7 @@ impl Window for LookupBar {
         frame.render_widget(input, overlay_area[0]);
 
         let items: Vec<ListItem> = self
-            .search_results
+            .entries
             .iter()
             .enumerate()
             .map(|(i, path)| {
@@ -114,7 +125,7 @@ impl Window for LookupBar {
                     .to_string_lossy()
                     .to_string();
 
-                let prefix = if i == self.selected_result {
+                let prefix = if i == self.current_entry {
                     Style::default()
                         .fg(Color::Yellow)
                         .add_modifier(Modifier::BOLD)
@@ -130,7 +141,7 @@ impl Window for LookupBar {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(format!(" {} matches ", self.search_results.len())),
+                    .title(format!(" {} matches ", self.entries.len())),
             )
             .highlight_style(
                 Style::default()
@@ -154,13 +165,13 @@ impl Window for LookupBar {
 
 impl KeyController for LookupBar {
     fn move_up(&mut self) -> Result<KeyDoneKind> {
-        self.selected_result = self.selected_result.saturating_sub(1);
+        self.current_entry = self.current_entry.saturating_sub(1);
         Ok(KeyDoneKind::None)
     }
 
     fn move_down(&mut self) -> Result<KeyDoneKind> {
-        let last_index = self.search_results.len()-1;
-        self.selected_result = (self.selected_result+1).min(last_index);
+        let last_index = self.entries.len() - 1;
+        self.current_entry = (self.current_entry + 1).min(last_index);
         Ok(KeyDoneKind::None)
     }
 
@@ -176,7 +187,7 @@ impl KeyController for LookupBar {
 
     fn enter(&mut self) -> Result<KeyDoneKind> {
         let path = self.pick_entry()?;
-        self.pick_entry = path;
+        self.context.borrow_mut().file_context.file_path = path;
         Ok(KeyDoneKind::CloseWindow)
     }
 

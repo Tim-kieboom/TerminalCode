@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use ratatui::{
     Frame,
@@ -7,30 +9,43 @@ use ratatui::{
 };
 
 use crate::{
-    key_controller::{KeyController, KeyDoneKind, default_controls},
-    session::FileContext,
-    window::Window,
+    context::SharedContext, key_controller::{KeyController, KeyDoneKind, default_controls}, window::Window
 };
 
 pub mod file_handler;
 
 const BOTTOM_HEADER: &str = "['shift+ESC' exit] ['ctr+p' lookup] ['ctr+`' terminal]";
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct TextEditor {
-    pub(crate) buffer: Vec<String>,
+    pub(crate) file: Option<PathBuf>,
     pub(crate) cursor: Cursor,
+    pub(crate) buffer: Vec<String>,
+    pub(crate) context: SharedContext,
 }
 impl TextEditor {
-    pub fn new() -> Self {
+    pub fn new(context: SharedContext) -> Self {
         Self {
+            file: None,
+            context,
+            cursor: Cursor::default(),
             buffer: vec![String::new()],
-            ..Default::default()
         }
+    }
+
+    pub fn mark_file_unsaved(&mut self) {
+        self.context.borrow_mut().file_context.file_saved = false;
     }
 }
 impl Window for TextEditor {
-    fn on_insert(&mut self, _file_context: &FileContext) {}
+
+    fn on_insert(&mut self) {
+        self.mark_file_unsaved();
+    }
+    
+    fn on_remove(&mut self) {
+        self.mark_file_unsaved();
+    }
 
     fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
         let area = frame.area();

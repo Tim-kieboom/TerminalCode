@@ -3,12 +3,12 @@ use ratatui::{Frame, widgets::Block};
 
 use crate::{
     key_controller::{InsertKind, KeyController, KeyDoneKind},
-    session::FileContext,
-    window::{lookup_bar::LookupBar, text_editor::TextEditor},
+    window::{command_prompt::CommandPrompt, lookup_bar::LookupBar, text_editor::TextEditor},
 };
 
 pub mod lookup_bar;
 pub mod text_editor;
+pub mod command_prompt;
 
 macro_rules! impl_window_for_enum {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {
@@ -65,14 +65,20 @@ macro_rules! impl_window_for_enum {
         }
 
         impl Window for $enum_name {
-            fn on_insert(&mut self, file_context: &FileContext) {
-              match self {
+            fn on_insert(&mut self) {
+                match self {
                     $(
-                        $enum_name::$variant(inner) => inner.on_insert(file_context),
+                        $enum_name::$variant(inner) => inner.on_insert(),
                     )*
                 }
             }
-
+            fn on_remove(&mut self) {
+                match self {
+                    $(
+                        $enum_name::$variant(inner) => inner.on_insert(),
+                    )*
+                }
+            }
             fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
                 match self {
                     $(
@@ -85,16 +91,19 @@ macro_rules! impl_window_for_enum {
 }
 
 pub trait Window: KeyController {
-    fn on_insert(&mut self, file_context: &FileContext);
+    fn on_insert(&mut self);
+    fn on_remove(&mut self);
     fn draw_ui(&mut self, frame: &mut Frame, header: Block);
 }
 
 #[derive(Debug)]
 pub enum WindowKind {
-    TextEditor(TextEditor),
     LookupBar(LookupBar),
+    TextEditor(TextEditor),
+    CommandPrompt(CommandPrompt)
 }
 impl_window_for_enum!(WindowKind {
-    TextEditor,
     LookupBar,
+    TextEditor,
+    CommandPrompt
 });
