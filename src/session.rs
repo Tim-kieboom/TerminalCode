@@ -1,5 +1,8 @@
 use crate::{
-    key_controller::{input_event::get_input_event, key_controller::SessionEvent},
+    key_controller::{
+        input_event::get_input_event,
+        key_controller::{SessionEvent, handle_input},
+    },
     window::{Window, WindowKind, lookup_bar::LookupBar, text_editor::TextEditor},
 };
 use anyhow::Result;
@@ -12,7 +15,10 @@ use ratatui::{
     backend::CrosstermBackend,
     style::{Color, Style},
 };
-use std::{io::Stdout, path::{Path, PathBuf}};
+use std::{
+    io::Stdout,
+    path::{Path, PathBuf},
+};
 
 type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
 
@@ -86,7 +92,7 @@ impl Session {
                 Self::draw_ui(
                     frame,
                     current_window(&mut self.window_stack),
-                    &self.file_context
+                    &self.file_context,
                 )
             })?;
         }
@@ -94,13 +100,11 @@ impl Session {
     }
 
     fn handle_input(&mut self, event: Event) -> Result<Loop> {
-        let input_event = get_input_event(event);
-
         let session_event = {
+            let input_event = get_input_event(event);
             let window = current_window(&mut self.window_stack);
-            let mut key_controller = window.new_key_controller(&mut self.file_context);
 
-            match key_controller.handle_input(input_event) {
+            match handle_input(window, input_event)? {
                 Some(val) => val,
                 None => return Ok(Loop::None),
             }
@@ -109,24 +113,25 @@ impl Session {
         match session_event {
             SessionEvent::Exit => return Ok(Loop::Break),
 
-            SessionEvent::OnRemove
-            | SessionEvent::OnInsert => {
-                current_window(&mut self.window_stack)
-                    .on_insert(&self.file_context);
+            SessionEvent::OnRemove | SessionEvent::OnInsert => {
+                current_window(&mut self.window_stack).on_insert(&self.file_context);
             }
             SessionEvent::Back => {
                 if self.window_stack.len() > 1 {
-                    self.window_stack.pop();
+                    let window = self.window_stack.pop().unwrap();
+                    match window {
+                        WindowKind::TextEditor(_) => (),
+                        WindowKind::LookupBar(lookup_bar) => if let Some(path) = lookup_bar.pick_entry {
+                            main_window(&mut self.window_stack)
+                                .load_file(path)?
+                        }
+                    }
                 }
             }
             SessionEvent::SaveFile => {
-                let editor = match &mut self.window_stack[0] {
-                    WindowKind::TextEditor(val) => val,
-                    _ => unreachable!("window_stack[0] should be TextEditor"),
-                };
-
                 if let Some(path) = &self.file_context.file_path {
-                    editor.save_file(path)?;
+                    main_window(&mut self.window_stack)
+                        .save_file(path)?;
                 }
 
                 self.file_context.file_saved = true;
@@ -145,11 +150,7 @@ impl Session {
         Ok(Loop::None)
     }
 
-    fn draw_ui<Win: Window>(
-        frame: &mut Frame,
-        window: &mut Win,
-        file_context: &FileContext,
-    ) {
+    fn draw_ui<Win: Window>(frame: &mut Frame, window: &mut Win, file_context: &FileContext) {
         use ratatui::style::Modifier;
         use ratatui::text::Span;
         use ratatui::widgets::{Block, Borders};
@@ -160,11 +161,15 @@ impl Session {
 
         let end_span = if let Some(path) = file_context.file_path.as_ref() {
             let saved = if file_context.file_saved { "" } else { "*" };
-            let relative_path = relative_to(&file_context.base_path, path)
-                .unwrap_or(&Path::new(""));
-            
+            let relative_path =
+                relative_to(&file_context.base_path, path).unwrap_or(&Path::new(""));
+
             Span::styled(
-                format!("-{}{saved} ⟧ {}", relative_path.display(), file_context.base_path.display()),
+                format!(
+                    "-{}{saved} ⟧ {}",
+                    relative_path.display(),
+                    file_context.base_path.display()
+                ),
                 Style::default().fg(Color::Cyan),
             )
         } else {
@@ -191,6 +196,13 @@ impl Session {
     }
 }
 
+fn main_window<'a>(window_stack: &'a mut [WindowKind]) -> &'a mut TextEditor {
+    match window_stack.get_mut(0).expect("should have main window") {
+        WindowKind::TextEditor(text_editor) => text_editor,
+        _ => unreachable!("main window has to be WindowKind::TextEditor"),
+    }
+}
+
 fn current_window<'a>(window_stack: &'a mut [WindowKind]) -> &'a mut WindowKind {
     window_stack
         .last_mut()
@@ -200,5 +212,6 @@ fn current_window<'a>(window_stack: &'a mut [WindowKind]) -> &'a mut WindowKind 
 enum Loop {
     None,
     Break,
+    #[allow(unused)]
     Continue,
 }

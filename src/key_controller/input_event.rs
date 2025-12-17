@@ -16,11 +16,15 @@ pub fn get_input_event(event: Event) -> InputEvent {
             Right => InputEvent::Right,
             Enter => InputEvent::Enter,
             Backspace => InputEvent::Remove,
-            Char(c) if key.modifiers.is_empty() => InputEvent::Insert(InsertKind::Char(c)),
-            Char(c) if key.modifiers == KeyModifiers::SHIFT => InputEvent::Insert(InsertKind::UpperCase(c.to_uppercase())),
+            Char(char) => handle_char(char, key.modifiers),
 
-            Esc => return InputEvent::Exit,
-            Char(c) => key_combine(c, key.modifiers),
+            Esc => {
+                if key.modifiers == KeyModifiers::SHIFT {
+                    return InputEvent::Exit;
+                } else {
+                    return InputEvent::Back;
+                }
+            }
             _ => InputEvent::None,
         };
     }
@@ -28,8 +32,20 @@ pub fn get_input_event(event: Event) -> InputEvent {
     InputEvent::None
 }
 
-fn key_combine(char: char, modifier: KeyModifiers) -> InputEvent {
-    if modifier == KeyModifiers::CONTROL {
+fn handle_char(char: char, modifiers: KeyModifiers) -> InputEvent {
+    if modifiers.is_empty() {
+        return InputEvent::Insert(InsertKind::Char(char));
+    }
+
+    if modifiers == KeyModifiers::SHIFT {
+        return InputEvent::Insert(InsertKind::UpperCase(char.to_uppercase()));
+    }
+
+    key_combine(char, modifiers)
+}
+
+fn key_combine(char: char, modifiers: KeyModifiers) -> InputEvent {
+    if modifiers == KeyModifiers::CONTROL {
         match char {
             'p' => InputEvent::OpenLookup,
             's' => InputEvent::SaveFile,

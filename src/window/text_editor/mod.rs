@@ -1,3 +1,4 @@
+use anyhow::Result;
 use ratatui::{
     Frame,
     layout::{Constraint::Length, Direction, Layout},
@@ -5,11 +6,15 @@ use ratatui::{
     widgets::{Block, Paragraph},
 };
 
-use crate::{key_controller::key_controller::KeyController, session::FileContext, window::Window};
+use crate::{
+    key_controller::{KeyController, KeyDoneKind, default_controls},
+    session::FileContext,
+    window::Window,
+};
 
 pub mod file_handler;
 
-const BOTTOM_HEADER: &str = "['ESC' exit] ['ctr+p' lookup] ['ctr+`' terminal]";
+const BOTTOM_HEADER: &str = "['shift+ESC' exit] ['ctr+p' lookup] ['ctr+`' terminal]";
 
 #[derive(Debug, Default)]
 pub(crate) struct TextEditor {
@@ -25,12 +30,7 @@ impl TextEditor {
     }
 }
 impl Window for TextEditor {
-
     fn on_insert(&mut self, _file_context: &FileContext) {}
-
-    fn new_key_controller<'a>(&'a mut self, file_context: &'a mut FileContext) -> KeyController<'a> {
-        KeyController::new(&mut self.cursor, &mut self.buffer, file_context)
-    }
 
     fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
         let area = frame.area();
@@ -50,6 +50,43 @@ impl Window for TextEditor {
         let mut cursor = self.cursor;
         cursor.line = cursor.line.saturating_add(1);
         frame.set_cursor_position(cursor);
+    }
+}
+
+impl KeyController for TextEditor {
+    fn move_up(&mut self) -> Result<KeyDoneKind> {
+        default_controls::move_up(&mut self.cursor, &self.buffer);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn move_down(&mut self) -> Result<KeyDoneKind> {
+        default_controls::move_down(&mut self.cursor, &self.buffer);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn move_left(&mut self, amount: u16) -> Result<KeyDoneKind> {
+        default_controls::move_left(&mut self.cursor, &self.buffer, amount);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn move_right(&mut self, amount: u16) -> Result<KeyDoneKind> {
+        default_controls::move_right(&mut self.cursor, &self.buffer, amount);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn enter(&mut self) -> Result<KeyDoneKind> {
+        default_controls::enter(&mut self.cursor, &mut self.buffer);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn backspace(&mut self) -> Result<KeyDoneKind> {
+        default_controls::remove_multi_line(&mut self.cursor, &mut self.buffer);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn insert(&mut self, insert: crate::key_controller::InsertKind) -> Result<KeyDoneKind> {
+        default_controls::insert_multi_line(&mut self.cursor, &mut self.buffer, insert);
+        Ok(KeyDoneKind::None)
     }
 }
 

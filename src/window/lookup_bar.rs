@@ -11,20 +11,24 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::{
-    key_controller::key_controller::KeyController, session::FileContext, window::{Window, text_editor::Cursor}
+    key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
+    session::FileContext,
+    window::{Window, text_editor::Cursor},
 };
 
 #[derive(Debug, Clone, Default)]
 pub struct LookupBar {
-    pub(crate) search_buffer: Vec<String>,
+    // type is [String; 1] so that search buffer can be used as &[String] in fucntions
+    pub(crate) search_buffer: [String; 1],
     pub(crate) selected_result: usize,
     pub(crate) search_results: Vec<PathBuf>,
     pub(crate) cursor: Cursor,
+    pub(crate) pick_entry: Option<PathBuf>,
 }
 impl LookupBar {
     pub fn new() -> Self {
         Self {
-            search_buffer: vec![String::new()],
+            search_buffer: [String::new()],
             ..Default::default()
         }
     }
@@ -55,19 +59,10 @@ impl LookupBar {
         }
         Ok(None)
     }
-
-    pub fn clear(&mut self) {
-        *self = Self::default()
-    }
 }
 impl Window for LookupBar {
-
     fn on_insert(&mut self, file_context: &FileContext) {
         self.scan_files(&file_context.base_path);
-    }
-
-    fn new_key_controller<'a>(&'a mut self, file_context: &'a mut FileContext) -> KeyController<'a> {
-        KeyController::new(&mut self.cursor, &mut self.search_buffer, file_context)
     }
 
     fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
@@ -154,5 +149,44 @@ impl Window for LookupBar {
         let cursor_x = 3 + self.search_buffer.len() as u16; // 3 = "> " + border padding
         let cursor_y = input_inner.y; // Top of input area
         frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
+    }
+}
+
+impl KeyController for LookupBar {
+    fn move_up(&mut self) -> Result<KeyDoneKind> {
+        self.selected_result = self.selected_result.saturating_sub(1);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn move_down(&mut self) -> Result<KeyDoneKind> {
+        let last_index = self.search_results.len()-1;
+        self.selected_result = (self.selected_result+1).min(last_index);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn move_left(&mut self, amount: u16) -> Result<KeyDoneKind> {
+        default_controls::move_left(&mut self.cursor, &self.search_buffer, amount);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn move_right(&mut self, amount: u16) -> Result<KeyDoneKind> {
+        default_controls::move_right(&mut self.cursor, &self.search_buffer, amount);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn enter(&mut self) -> Result<KeyDoneKind> {
+        let path = self.pick_entry()?;
+        self.pick_entry = path;
+        Ok(KeyDoneKind::CloseWindow)
+    }
+
+    fn backspace(&mut self) -> Result<KeyDoneKind> {
+        default_controls::remove_single_line(&mut self.cursor, &mut self.search_buffer[0]);
+        Ok(KeyDoneKind::None)
+    }
+
+    fn insert(&mut self, insert: InsertKind) -> Result<KeyDoneKind> {
+        default_controls::insert_single_line(&mut self.cursor, &mut self.search_buffer[0], insert);
+        Ok(KeyDoneKind::None)
     }
 }
