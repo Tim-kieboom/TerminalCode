@@ -9,19 +9,19 @@ use ratatui::{
 };
 
 use crate::{
-    context::SharedContext, key_controller::{KeyController, KeyDoneKind, default_controls}, window::Window
+    context::SharedContext,
+    key_controller::{KeyController, KeyDoneKind, default_controls},
+    window::Window,
 };
 
-pub mod file_handler;
-
-const BOTTOM_HEADER: &str = "['shift+ESC' exit] ['ctr+p' lookup] ['ctr+`' terminal]";
+const BOTTOM_HEADER: &str = "[shift+ESC: Exit] [ctr+p: Lookup] [ctr+`: Terminal]";
 
 #[derive(Debug)]
 pub(crate) struct TextEditor {
-    pub(crate) file: Option<PathBuf>,
-    pub(crate) cursor: Cursor,
-    pub(crate) buffer: Vec<String>,
-    pub(crate) context: SharedContext,
+    file: Option<PathBuf>,
+    cursor: Cursor,
+    buffer: Vec<String>,
+    context: SharedContext,
 }
 impl TextEditor {
     pub fn new(context: SharedContext) -> Self {
@@ -33,16 +33,45 @@ impl TextEditor {
         }
     }
 
+    pub fn get_file_path(&self) -> &Option<PathBuf> {
+        &self.file
+    }
+
     pub fn mark_file_unsaved(&mut self) {
         self.context.borrow_mut().file_context.file_saved = false;
     }
+
+    pub fn load_file(&mut self, path: PathBuf) -> Result<()> {
+        self.file = Some(path);
+        let path_ref = self.file.as_ref().expect("just assigned to Some");
+
+        let content = std::fs::read_to_string(path_ref)?;
+        self.buffer = if content.is_empty() {
+            vec![String::new()]
+        } else {
+            content.lines().map(String::from).collect()
+        };
+        self.cursor = Cursor::default();
+        Ok(())
+    }
+
+    pub fn save_file(&mut self, path: &PathBuf) -> Result<()> {
+        let content = self.buffer.join("\n");
+        std::fs::write(path, content)?;
+        Ok(())
+    }
+
+    pub fn set_to_no_file(&mut self) {
+        self.file = None;
+        self.buffer.clear();
+        self.cursor = Cursor::default();
+    }
 }
 impl Window for TextEditor {
-
     fn on_insert(&mut self) {
         self.mark_file_unsaved();
     }
-    
+
     fn on_remove(&mut self) {
         self.mark_file_unsaved();
     }

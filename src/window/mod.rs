@@ -3,12 +3,17 @@ use ratatui::{Frame, widgets::Block};
 
 use crate::{
     key_controller::{InsertKind, KeyController, KeyDoneKind},
-    window::{command_prompt::CommandPrompt, lookup_bar::LookupBar, text_editor::TextEditor},
+    window::{
+        command_prompt::CommandPrompt, filetree_window::FileTreeWindow, lookup_bar::LookupBar,
+        notification_window::NotificationWindow, text_editor::TextEditor,
+    },
 };
 
-pub mod lookup_bar;
-pub mod text_editor;
 pub mod command_prompt;
+pub mod filetree_window;
+pub mod lookup_bar;
+pub mod notification_window;
+pub mod text_editor;
 
 macro_rules! impl_window_for_enum {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {
@@ -100,10 +105,14 @@ pub trait Window: KeyController {
 pub enum WindowKind {
     LookupBar(LookupBar),
     TextEditor(TextEditor),
-    CommandPrompt(CommandPrompt)
+    CommandPrompt(CommandPrompt),
+    FileTreeWindow(FileTreeWindow),
+    NotificationWindow(NotificationWindow),
 }
 impl_window_for_enum!(WindowKind {
     LookupBar,
     TextEditor,
-    CommandPrompt
+    CommandPrompt,
+    FileTreeWindow,
+    NotificationWindow,
 });

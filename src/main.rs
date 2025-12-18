@@ -1,5 +1,5 @@
-mod key_controller;
 mod context;
+mod key_controller;
 mod session;
 mod window;
 
@@ -14,5 +14,10 @@ fn main() -> Result<()> {
     }
 
     let mut session = Session::new(stdout(), base_path)?;
-    session.run()
+    loop {
+        match session.run() {
+            Err(err) => session.display_error(err),
+            Ok(()) => return session.dispose(),
+        }
+    }
 }

@@ -2,26 +2,31 @@ use anyhow::Result;
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Constraint::Length, Direction, Layout},
-    style::{Color, Modifier, Style},
     text::Line,
+    style::{Color, Modifier, Style},
     widgets::{Block, Borders, List, ListItem, Paragraph},
+    layout::{Alignment, Constraint, Constraint::Length, Direction, Layout},
 };
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::{
-    context::SharedContext, key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls}, window::{Window, text_editor::Cursor}
+    context::SharedContext,
+    window::{Window, text_editor::Cursor},
+    key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
 };
+
+const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";
 
 #[derive(Debug, Clone)]
 pub struct LookupBar {
-    pub(crate) cursor: Cursor,
+    cursor: Cursor,
     // type is [String; 1] so that search buffer can be used as &[String] in fucntions
-    pub(crate) search_buffer: [String; 1],
-    pub(crate) current_entry: usize,
-    pub(crate) entries: Vec<PathBuf>,
-    pub(crate) context: SharedContext,
+    search_buffer: [String; 1],
+    current_entry: usize,
+    entries: Vec<PathBuf>,
+    matches: usize,
+    context: SharedContext,
 }
 impl LookupBar {
     pub fn new(context: SharedContext) -> Self {
@@ -29,6 +34,7 @@ impl LookupBar {
             search_buffer: [String::new()],
             current_entry: 0,
             entries: vec![],
+            matches: 0,
             cursor: Cursor::default(),
             context,
         }
@@ -37,11 +43,9 @@ impl LookupBar {
     pub fn scan_files(&mut self) {
         let matcher = SkimMatcherV2::default();
         self.entries.clear();
+        self.matches = 0;
 
-        let base_path = &self.context
-            .borrow()
-            .file_context
-            .base_path;
+        let base_path = &self.context.borrow().file_context.base_path;
 
         for entry in WalkDir::new(base_path)
             .max_depth(3)
@@ -49,9 +53,15 @@ impl LookupBar {
             .filter_map(|e| e.ok())
         {
             let path = entry.path().to_string_lossy();
-            if entry.path().is_file()
-                && matcher.fuzzy_match(&path, &self.search_buffer[0]).is_some()
-            {
+            let max_entries = self.get_showable_entries_count();
+            let is_match = entry.path().is_file()
+                && matcher.fuzzy_match(&path, &self.search_buffer[0]).is_some();
+
+            if is_match {
+                self.matches += 1;
+            }
+
+            if is_match && self.entries.len() != max_entries {
                 self.entries.push(entry.path().to_path_buf());
             }
         }
@@ -65,13 +75,17 @@ impl LookupBar {
         }
         Ok(None)
     }
+
+    fn get_showable_entries_count(&self) -> usize {
+        const LINES_NON_SHOWABLE: usize = 10;
+        self.context.borrow().screen_area.height as usize - LINES_NON_SHOWABLE
+    }
 }
 impl Window for LookupBar {
-
     fn on_insert(&mut self) {
         self.scan_files();
     }
-    
+
     fn on_remove(&mut self) {
         self.scan_files();
     }
@@ -102,9 +116,7 @@ impl Window for LookupBar {
             )
             .split(area);
 
-        let input_block = Block::default()
-            .borders(Borders::ALL)
-            .title(" Ctrl+P: Find ");
+        let input_block = Block::default().borders(Borders::ALL).title(" Find File ");
 
         let input_area = overlay_area[0];
         let input_inner = input_block.inner(input_area);
@@ -141,7 +153,7 @@ impl Window for LookupBar {
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(format!(" {} matches ", self.entries.len())),
+                    .title(format!(" {} matches ", self.matches)),
             )
             .highlight_style(
                 Style::default()
@@ -152,8 +164,7 @@ impl Window for LookupBar {
 
         frame.render_widget(list, overlay_area[1]);
 
-        let instructions =
-            Paragraph::new("↑↓ navigate  Enter:open  Esc:cancel").alignment(Alignment::Center);
+        let instructions = Paragraph::new(BOTTOM_HEADER).alignment(Alignment::Center);
 
         frame.render_widget(instructions, overlay_area[2]);
 
@@ -187,8 +198,8 @@ impl KeyController for LookupBar {
 
     fn enter(&mut self) -> Result<KeyDoneKind> {
         let path = self.pick_entry()?;
-        self.context.borrow_mut().file_context.file_path = path;
-        Ok(KeyDoneKind::CloseWindow)
+        self.context.set_file_path(path);
+        Ok(KeyDoneKind::ToMainWindow)
     }
 
     fn backspace(&mut self) -> Result<KeyDoneKind> {

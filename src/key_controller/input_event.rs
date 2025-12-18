@@ -53,7 +53,8 @@ fn key_combine(char: char, modifiers: KeyModifiers) -> InputEvent {
         }
     } else if modifiers == KeyModifiers::ALT {
         match char {
-            '1' => InputEvent::OpenCommandPrompt,
+            '1' => InputEvent::OpenFileTreeWindow,
+            '2' => InputEvent::TestDebugEvent,
             _ => InputEvent::None,
         }
     } else {

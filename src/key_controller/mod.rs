@@ -7,7 +7,7 @@ pub mod key_controller;
 
 pub(crate) enum KeyDoneKind {
     None,
-    CloseWindow,
+    ToMainWindow,
 }
 
 pub(crate) trait KeyController {
@@ -40,6 +40,9 @@ pub enum InputEvent {
 
     OpenLookup,
     OpenCommandPrompt,
+    OpenFileTreeWindow,
+
+    TestDebugEvent,
 }
 
 #[derive(Debug, Clone)]

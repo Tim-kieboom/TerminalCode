@@ -1,48 +1,55 @@
-use std::process::{Command, Output};
-
+use crate::{
+    key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
+    window::{Window, text_editor::Cursor},
+};
 use anyhow::Result;
-use crate::{context::SharedContext, key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls}, window::{Window, text_editor::Cursor}};
+use std::process::Command;
 
 #[derive(Debug)]
 pub struct CommandPrompt {
+    output_message: String,
     buffer: Vec<String>,
     input_line: [String; 1],
     cursor: Cursor,
-    context: SharedContext,
 }
 
+const BOTTOM_HEADER: &str = "[ESC: Exit window]  [Enter: Execute]";
+
 impl CommandPrompt {
-    pub fn new(context: SharedContext) -> Self {
+    pub fn new() -> Self {
         Self {
-            context,
+            output_message: String::new(),
             input_line: [String::new()],
             cursor: Cursor::default(),
             buffer: vec!["TerminalCode shell".to_string()],
         }
     }
 
-    fn push_output<S: Into<String>>(&mut self, string: S) {
-        self.buffer.push(string.into());
-    }
-
     fn run_command(&mut self) -> Result<()> {
-        let command = &self.input_line[0];
+        let command = std::mem::take(&mut self.input_line[0]);
+        self.cursor = Cursor::default();
         let output = if cfg!(target_os = "windows") {
-            Command::new("cmd")
-                .args(["/C", command])
-                .output()?
+            Command::new("cmd").args(["/C", &command]).output()?
         } else {
-            Command::new("sh")
-                .args(["-c", command])
-                .output()?
+            Command::new("sh").args(["-c", &command]).output()?
         };
 
-        self.buffer.push(
-            std::str::from_utf8(&output.stderr)?.to_string()
-        );
-        self.buffer.push(
-            std::str::from_utf8(&output.stdout)?.to_string()
-        );
+        const SUCCESS_MSG: &str = "\ncommand successfull";
+        const FAIL_MSG: &str = "\ncommand failed";
+
+        let success = output.status.success();
+
+        let log_msg = if success {
+            std::str::from_utf8(&output.stdout)?
+        } else {
+            std::str::from_utf8(&output.stderr)?
+        };
+
+        let end_msg = if success { SUCCESS_MSG } else { FAIL_MSG };
+
+        self.output_message = String::with_capacity(log_msg.len() + end_msg.len());
+        self.output_message.push_str(log_msg);
+        self.output_message.push_str(end_msg);
         Ok(())
     }
 }
@@ -53,9 +60,9 @@ impl Window for CommandPrompt {
 
     fn draw_ui(&mut self, frame: &mut ratatui::Frame, header: ratatui::widgets::Block) {
         use ratatui::{
-            widgets::Paragraph,
-            style::{Color, Style},
             layout::{Constraint::Length, Direction, Layout},
+            style::{Color, Style},
+            widgets::{Borders, Paragraph},
         };
 
         let area = frame.area();
@@ -65,24 +72,24 @@ impl Window for CommandPrompt {
             .split(area);
 
         let mut lines = self.buffer.clone();
-        lines.push(format!("$ {}", self.input_line[0]));
+        lines.push(format!("$ {}\n{}", self.input_line[0], self.output_message));
 
         let text = lines.join("\n");
         let main = Paragraph::new(text)
             .style(Style::default().fg(Color::White))
-            .block(header);
+            .block(header.borders(Borders::all()));
 
         frame.render_widget(main, chunks[0]);
 
-        frame.render_widget(
-            Paragraph::new(" test "),
-            chunks[1],
-        );
-                         
-        let cursor = Cursor{
-            line: chunks[0].x + 2 + self.input_line.len() as u16,
-            offset: chunks[0].y + (lines.len() as u16) - 1,
-        };
+        frame.render_widget(Paragraph::new(BOTTOM_HEADER), chunks[1]);
+
+        const LINE_OFFSET: u16 = 2;
+        const OFFSET_OFFSET: u16 = 3;
+
+        let mut cursor = self.cursor;
+        cursor.line += LINE_OFFSET;
+        cursor.offset += OFFSET_OFFSET;
+
         frame.set_cursor_position(cursor);
     }
 }
