@@ -1,8 +1,9 @@
 use crate::{
-    key_controller::{InsertKind, KeyController, KeyDoneKind},
+    key_controller::{InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent},
     window::Window,
 };
 use anyhow::{Error, Result};
+use crossterm::event;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -79,32 +80,38 @@ impl Window for NotificationWindow {
         frame.render_widget(Paragraph::new(BOTTOM_HEADER), chunks[2]);
     }
 }
-impl KeyController for NotificationWindow {
-    fn move_up(&mut self) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+impl WindowsControl for NotificationWindow {
+    fn move_up(&mut self) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_down(&mut self) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn move_down(&mut self) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_left(&mut self, _amount: u16) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn move_left(&mut self, _amount: u16) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_right(&mut self, _amount: u16) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn move_right(&mut self, _amount: u16) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn enter(&mut self) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn enter(&mut self) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn backspace(&mut self) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn backspace(&mut self) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn insert(&mut self, _insert: InsertKind) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn insert(&mut self, _insert: InsertKind) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
+    }
+    
+    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
+        match action {
+            _ => Ok(None),
+        }
     }
 }

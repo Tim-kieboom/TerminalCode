@@ -1,23 +1,29 @@
 use anyhow::Result;
+use crossterm::event;
 use std::char::ToUppercase;
+
+use crate::key_controller::key_controller::SessionEvent;
 
 pub mod default_controls;
 pub mod input_event;
 pub mod key_controller;
 
-pub(crate) enum KeyDoneKind {
+pub(crate) enum WindowControlReponse {
     None,
     ToMainWindow,
 }
 
-pub(crate) trait KeyController {
-    fn move_up(&mut self) -> Result<KeyDoneKind>;
-    fn move_down(&mut self) -> Result<KeyDoneKind>;
-    fn move_left(&mut self, amount: u16) -> Result<KeyDoneKind>;
-    fn move_right(&mut self, amount: u16) -> Result<KeyDoneKind>;
-    fn enter(&mut self) -> Result<KeyDoneKind>;
-    fn backspace(&mut self) -> Result<KeyDoneKind>;
-    fn insert(&mut self, insert: InsertKind) -> Result<KeyDoneKind>;
+pub(crate) trait WindowsControl {
+    fn move_up(&mut self) -> Result<WindowControlReponse>;
+    fn move_down(&mut self) -> Result<WindowControlReponse>;
+    fn move_left(&mut self, amount: u16) -> Result<WindowControlReponse>;
+    fn move_right(&mut self, amount: u16) -> Result<WindowControlReponse>;
+    
+    fn enter(&mut self) -> Result<WindowControlReponse>;
+    fn backspace(&mut self) -> Result<WindowControlReponse>;
+    fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse>;
+
+    fn custom_action(&mut self, event: event::Event) -> Result<Option<SessionEvent>>;
 }
 
 #[derive(Debug, Clone)]

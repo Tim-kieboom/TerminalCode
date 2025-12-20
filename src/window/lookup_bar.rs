@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crossterm::event;
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use ratatui::{
     Frame,
@@ -12,8 +13,9 @@ use walkdir::WalkDir;
 
 use crate::{
     context::SharedContext,
-    key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
-    window::{Window, utils::Cursor},
+    key_controller::{InsertKind, WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent},
+    utils::cursor::Cursor,
+    window::Window,
 };
 
 const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";
@@ -174,41 +176,47 @@ impl Window for LookupBar {
     }
 }
 
-impl KeyController for LookupBar {
-    fn move_up(&mut self) -> Result<KeyDoneKind> {
+impl WindowsControl for LookupBar {
+    fn move_up(&mut self) -> Result<WindowControlReponse> {
         self.current_entry = self.current_entry.saturating_sub(1);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_down(&mut self) -> Result<KeyDoneKind> {
+    fn move_down(&mut self) -> Result<WindowControlReponse> {
         let last_index = self.entries.len() - 1;
         self.current_entry = (self.current_entry + 1).min(last_index);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_left(&mut self, amount: u16) -> Result<KeyDoneKind> {
+    fn move_left(&mut self, amount: u16) -> Result<WindowControlReponse> {
         default_controls::move_left(&mut self.cursor, &self.search_buffer, amount);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_right(&mut self, amount: u16) -> Result<KeyDoneKind> {
+    fn move_right(&mut self, amount: u16) -> Result<WindowControlReponse> {
         default_controls::move_right(&mut self.cursor, &self.search_buffer, amount);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn enter(&mut self) -> Result<KeyDoneKind> {
+    fn enter(&mut self) -> Result<WindowControlReponse> {
         let path = self.pick_entry()?;
         self.context.set_file_path(path);
-        Ok(KeyDoneKind::ToMainWindow)
+        Ok(WindowControlReponse::ToMainWindow)
     }
 
-    fn backspace(&mut self) -> Result<KeyDoneKind> {
+    fn backspace(&mut self) -> Result<WindowControlReponse> {
         default_controls::remove_single_line(&mut self.cursor, &mut self.search_buffer[0]);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn insert(&mut self, insert: InsertKind) -> Result<KeyDoneKind> {
+    fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse> {
         default_controls::insert_single_line(&mut self.cursor, &mut self.search_buffer[0], insert);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
+    }
+
+    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
+        match action {
+            _ => Ok(None),
+        }
     }
 }

@@ -1,8 +1,10 @@
 use crate::{
-    key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
-    window::{Window, utils::Cursor},
+    key_controller::{InsertKind, WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent},
+    utils::cursor::Cursor,
+    window::Window,
 };
 use anyhow::Result;
+use crossterm::event;
 use std::process::Command;
 
 #[derive(Debug)]
@@ -94,37 +96,43 @@ impl Window for CommandPrompt {
     }
 }
 
-impl KeyController for CommandPrompt {
-    fn move_up(&mut self) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+impl WindowsControl for CommandPrompt {
+    fn move_up(&mut self) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_down(&mut self) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn move_down(&mut self) -> Result<WindowControlReponse> {
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_left(&mut self, amount: u16) -> Result<KeyDoneKind> {
+    fn move_left(&mut self, amount: u16) -> Result<WindowControlReponse> {
         default_controls::move_left(&mut self.cursor, &self.input_line, amount);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn move_right(&mut self, amount: u16) -> Result<KeyDoneKind> {
+    fn move_right(&mut self, amount: u16) -> Result<WindowControlReponse> {
         default_controls::move_right(&mut self.cursor, &self.input_line, amount);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn enter(&mut self) -> Result<KeyDoneKind> {
+    fn enter(&mut self) -> Result<WindowControlReponse> {
         self.run_command()?;
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn backspace(&mut self) -> Result<KeyDoneKind> {
+    fn backspace(&mut self) -> Result<WindowControlReponse> {
         default_controls::remove_single_line(&mut self.cursor, &mut self.input_line[0]);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
     }
 
-    fn insert(&mut self, insert: InsertKind) -> Result<KeyDoneKind> {
+    fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse> {
         default_controls::insert_single_line(&mut self.cursor, &mut self.input_line[0], insert);
-        Ok(KeyDoneKind::None)
+        Ok(WindowControlReponse::None)
+    }
+    
+    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
+        match action {
+            _ => Ok(None),
+        }
     }
 }

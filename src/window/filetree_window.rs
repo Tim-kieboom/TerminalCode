@@ -1,4 +1,5 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
+use crossterm::event::{self};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -10,12 +11,10 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::{
-    context::SharedContext,
-    key_controller::{InsertKind, KeyController, KeyDoneKind},
-    window::Window,
+    context::SharedContext, key_controller::{InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent}, utils::path_display::display_path, window::Window
 };
 
-const BOTTOM_HEADER: &str = "[↑↓: Move]  [ctr+alt+p: Set as BasePath]  [Enter: Open]  [Backspace: Back]  [ESC: Exit window]";
+const BOTTOM_HEADER: &str = "[↑↓: Move]  [b: Set as BasePath]  [Enter: Open]  [Backspace: Back]  [ESC: Exit window]";
 
 #[derive(Debug, Clone, Default)]
 struct FileEntry {
@@ -53,10 +52,33 @@ impl FileTreeWindow {
             .filter_map(|e| e.ok());
 
         for entry in file_walker {
-            let path = entry.path().to_path_buf();
+            let entry_path = entry.path().to_path_buf();
+            if path == &entry_path {
+                continue
+            }
+
             let is_dir = entry.file_type().is_dir();
-            entries.push(FileEntry { path, is_dir });
+            entries.push(FileEntry { path: entry_path, is_dir });
         }
+    }
+
+    fn change_base_path_to_current(&mut self) -> Result<()> {
+        let entry = match self.clone_pick() {
+            Some(val) => val,
+            None => return Err(Error::msg(
+                "tried to change project path to current entry but no entry found"
+            )),
+        };
+
+        if !entry.is_dir {
+            return Err(Error::msg(
+                "tried to change project path to current entry but entry is file and not folder"
+            ))
+        }
+
+        let file_context = &mut self.context.borrow_mut().file_context;
+        file_context.base_path = entry.path;
+        Ok(())
     }
 
     fn go_back(&mut self) {
@@ -87,6 +109,12 @@ impl FileTreeWindow {
             .collect()
     }
 
+    fn clone_pick(&mut self) -> Option<FileEntry> {
+        self.entries
+            .get_mut(self.current_entry)
+            .map(|el| el.clone())
+    }
+
     fn consume_pick(&mut self) -> Option<FileEntry> {
         self.entries
             .get_mut(self.current_entry)
@@ -109,11 +137,13 @@ impl Window for FileTreeWindow {
             layout[0],
         );
 
+        let max_path_len = (frame.area().width / 2) as usize;
+
         let list = List::new(self.render_lines())
             .block(
                 Block::default()
                     .borders(Borders::ALL)
-                    .title(format!(" File Tree {} ", self.current_path.display())),
+                    .title(format!(" File Tree {} ", display_path(&self.current_path, max_path_len))),
             )
             .highlight_style(
                 Style::default()
@@ -127,49 +157,65 @@ impl Window for FileTreeWindow {
     }
 }
 
-impl KeyController for FileTreeWindow {
-    fn move_up(&mut self) -> Result<KeyDoneKind> {
+const RESPONSE_NONE: Result<WindowControlReponse> = Ok(WindowControlReponse::None);
+impl WindowsControl for FileTreeWindow {
+    fn move_up(&mut self) -> Result<WindowControlReponse> {
         self.current_entry = self.current_entry.saturating_sub(1);
-        Ok(KeyDoneKind::None)
+        RESPONSE_NONE
     }
 
-    fn move_down(&mut self) -> Result<KeyDoneKind> {
+    fn move_down(&mut self) -> Result<WindowControlReponse> {
         let last = self.entries.len().saturating_sub(1);
         self.current_entry = (self.current_entry + 1).min(last);
-        Ok(KeyDoneKind::None)
+        RESPONSE_NONE
     }
 
-    fn move_right(&mut self, _a: u16) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn move_right(&mut self, _a: u16) -> Result<WindowControlReponse> {
+        RESPONSE_NONE
     }
 
-    fn move_left(&mut self, _a: u16) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn move_left(&mut self, _a: u16) -> Result<WindowControlReponse> {
+        RESPONSE_NONE
     }
 
-    fn enter(&mut self) -> Result<KeyDoneKind> {
+    fn enter(&mut self) -> Result<WindowControlReponse> {
         let entry = match self.consume_pick() {
             Some(val) => val,
-            None => return Ok(KeyDoneKind::None),
+            None => return RESPONSE_NONE,
         };
 
         if entry.is_dir {
             self.current_path = entry.path;
             Self::build_tree(&self.current_path, &mut self.entries);
-            return Ok(KeyDoneKind::None);
+            return RESPONSE_NONE;
         }
 
         let path = Some(entry.path);
         self.context.set_file_path(path);
-        Ok(KeyDoneKind::ToMainWindow)
+        Ok(WindowControlReponse::ToMainWindow)
     }
 
-    fn insert(&mut self, _insert: InsertKind) -> Result<KeyDoneKind> {
-        Ok(KeyDoneKind::None)
+    fn insert(&mut self, _insert: InsertKind) -> Result<WindowControlReponse> {
+        RESPONSE_NONE
     }
 
-    fn backspace(&mut self) -> Result<KeyDoneKind> {
+    fn backspace(&mut self) -> Result<WindowControlReponse> {
         self.go_back();
-        Ok(KeyDoneKind::None)
+        RESPONSE_NONE
+    }
+
+    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
+        let key = match action {
+            event::Event::Key(val) => val,
+            _ => return Ok(None),
+        };
+
+        match key.code {
+            event::KeyCode::Char('b') => {
+                self.change_base_path_to_current()?;
+                Ok(Some(SessionEvent::ToMainWindow))
+            },
+            _ => Ok(None)
+        }
     }
 }

@@ -2,7 +2,7 @@ use anyhow::Result;
 use ratatui::{Frame, widgets::Block};
 
 use crate::{
-    key_controller::{InsertKind, KeyController, KeyDoneKind},
+    key_controller::{InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent},
     window::{
         command_prompt::CommandPrompt, filetree_window::FileTreeWindow, lookup_bar::LookupBar,
         notification_window::NotificationWindow, text_editor::TextEditor,
@@ -14,57 +14,63 @@ pub mod filetree_window;
 pub mod lookup_bar;
 pub mod notification_window;
 pub mod text_editor;
-pub mod utils;
 
 macro_rules! impl_window_for_enum {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {
-        impl KeyController for $enum_name {
-            fn move_up(&mut self) -> Result<KeyDoneKind> {
-              match self {
+        impl WindowsControl for $enum_name {
+            fn move_up(&mut self) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.move_up(),
                     )*
                 }
             }
-            fn move_down(&mut self) -> Result<KeyDoneKind> {
-              match self {
+            fn move_down(&mut self) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.move_down(),
                     )*
                 }
             }
-            fn move_left(&mut self, amount: u16) -> Result<KeyDoneKind> {
-              match self {
+            fn move_left(&mut self, amount: u16) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.move_left(amount),
                     )*
                 }
             }
-            fn move_right(&mut self, amount: u16) -> Result<KeyDoneKind> {
-              match self {
+            fn move_right(&mut self, amount: u16) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.move_right(amount),
                     )*
                 }
             }
-            fn enter(&mut self) -> Result<KeyDoneKind> {
-              match self {
+            fn enter(&mut self) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.enter(),
                     )*
                 }
             }
-            fn backspace(&mut self) -> Result<KeyDoneKind> {
-              match self {
+            fn backspace(&mut self) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.backspace(),
                     )*
                 }
             }
-            fn insert(&mut self, insert: InsertKind) -> Result<KeyDoneKind> {
-              match self {
+            fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse> {
+                match self {
                     $(
                         $enum_name::$variant(inner) => inner.insert(insert),
+                    )*
+                }
+            }
+            fn custom_action(&mut self, action: crossterm::event::Event) -> Result<Option<SessionEvent>> {
+                match self {
+                    $(
+                        $enum_name::$variant(inner) => inner.custom_action(action),
                     )*
                 }
             }
@@ -96,7 +102,7 @@ macro_rules! impl_window_for_enum {
     };
 }
 
-pub trait Window: KeyController {
+pub trait Window: WindowsControl {
     fn on_insert(&mut self);
     fn on_remove(&mut self);
     fn draw_ui(&mut self, frame: &mut Frame, header: Block);

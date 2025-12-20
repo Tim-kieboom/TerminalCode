@@ -1,5 +1,5 @@
 use crate::{
-    key_controller::{InputEvent, InsertKind, KeyDoneKind},
+    key_controller::{InputEvent, InsertKind, WindowControlReponse},
     window::Window,
 };
 use anyhow::Result;
@@ -34,12 +34,12 @@ pub fn handle_input<T: Window>(
             std::mem::swap(&mut take, insert);
             this.insert(take)?
         }
-        _ => KeyDoneKind::None,
+        _ => WindowControlReponse::None,
     };
 
     match done_event {
-        KeyDoneKind::None => (),
-        KeyDoneKind::ToMainWindow => return Ok(Some(SessionEvent::ToMainWindow)),
+        WindowControlReponse::None => (),
+        WindowControlReponse::ToMainWindow => return Ok(Some(SessionEvent::ToMainWindow)),
     }
 
     let session_event = match event {

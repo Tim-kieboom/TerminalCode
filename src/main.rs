@@ -1,6 +1,7 @@
 mod context;
 mod key_controller;
 mod session;
+mod utils;
 mod window;
 
 use crate::session::Session;

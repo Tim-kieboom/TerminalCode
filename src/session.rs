@@ -1,13 +1,10 @@
 use crate::{
-    context::{FileContext, SharedContext},
-    key_controller::{
-        input_event::get_input_event,
-        key_controller::{SessionEvent, handle_input},
-    },
-    window::{
+    context::{FileContext, SharedContext}, key_controller::{
+        WindowsControl, input_event::get_input_event, key_controller::{SessionEvent, handle_input}
+    }, utils::path_display::display_path, window::{
         Window, WindowKind, command_prompt::CommandPrompt, filetree_window::FileTreeWindow,
         lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor,
-    },
+    }
 };
 use anyhow::{Error, Result};
 use crossterm::{
@@ -103,12 +100,18 @@ impl Session {
 
     fn handle_input(&mut self, event: Event) -> Result<Loop> {
         let session_event = {
-            let input_event = get_input_event(event);
+            let input_event = get_input_event(event.clone());
             let window = current_window(&mut self.window_stack)?;
 
-            match handle_input(window, input_event)? {
+            let session_event = match handle_input(window, input_event)? {
                 Some(val) => val,
                 None => return Ok(Loop::None),
+            };
+
+            if let Some(session) = window.custom_action(event)? {
+                session
+            } else {
+                session_event
             }
         };
 
@@ -188,6 +191,8 @@ impl Session {
 
         let file_context = &context.borrow().file_context;
 
+        let max_path_len = (frame.area().width / 3) as usize;
+
         let base_path = &file_context.base_path;
         let end_span = if let Some(path) = file_context.file_path.as_ref() {
             let saved = if file_context.file_saved { "" } else { "*" };
@@ -196,14 +201,14 @@ impl Session {
             Span::styled(
                 format!(
                     "-{}{saved} ⟧ {}",
-                    relative_path.display(),
-                    base_path.display(),
+                    display_path(relative_path, max_path_len),
+                    display_path(base_path, max_path_len),
                 ),
                 Style::default().fg(Color::Cyan),
             )
         } else {
             Span::styled(
-                format!(" ⟧ {} ", base_path.display()),
+                format!(" ⟧ {} ", display_path(base_path, max_path_len)),
                 Style::default().fg(Color::Cyan),
             )
         };
