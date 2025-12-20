@@ -42,21 +42,23 @@ pub fn handle_input<T: Window>(
         KeyDoneKind::ToMainWindow => return Ok(Some(SessionEvent::ToMainWindow)),
     }
 
-    match event {
-        InputEvent::Exit => Ok(Some(SessionEvent::Exit)),
-        InputEvent::Back => Ok(Some(SessionEvent::Back)),
-        InputEvent::Remove => Ok(Some(SessionEvent::OnRemove)),
-        InputEvent::SaveFile => Ok(Some(SessionEvent::SaveFile)),
-        InputEvent::OpenLookup => Ok(Some(SessionEvent::OpenLookup)),
-        InputEvent::TestDebugEvent => Ok(Some(SessionEvent::TestDebugEvent)),
-        InputEvent::OpenCommandPrompt => Ok(Some(SessionEvent::OpenCommandPrompt)),
-        InputEvent::OpenFileTreeWindow => Ok(Some(SessionEvent::OpenFileTreeWindow)),
-        InputEvent::Enter | InputEvent::Insert(_) => Ok(Some(SessionEvent::OnInsert)),
+    let session_event = match event {
+        InputEvent::Exit => SessionEvent::Exit,
+        InputEvent::Back => SessionEvent::Back,
+        InputEvent::Remove => SessionEvent::OnRemove,
+        InputEvent::SaveFile => SessionEvent::SaveFile,
+        InputEvent::OpenLookup => SessionEvent::OpenLookup,
+        InputEvent::TestDebugEvent => SessionEvent::TestDebugEvent,
+        InputEvent::OpenCommandPrompt => SessionEvent::OpenCommandPrompt,
+        InputEvent::OpenFileTreeWindow => SessionEvent::OpenFileTreeWindow,
+        InputEvent::Enter | InputEvent::Insert(_) => SessionEvent::OnInsert,
 
         InputEvent::None
         | InputEvent::Left
         | InputEvent::Right
         | InputEvent::Up
-        | InputEvent::Down => Ok(None),
-    }
+        | InputEvent::Down => return Ok(None),
+    };
+
+    Ok(Some(session_event))
 }

@@ -2,18 +2,18 @@ use anyhow::Result;
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use ratatui::{
     Frame,
-    text::Line,
-    style::{Color, Modifier, Style},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
     layout::{Alignment, Constraint, Constraint::Length, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::Line,
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::{
     context::SharedContext,
-    window::{Window, text_editor::Cursor},
     key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
+    window::{Window, utils::Cursor},
 };
 
 const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";

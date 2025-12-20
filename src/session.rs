@@ -66,7 +66,23 @@ impl Session {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        self.run_loop()
+        loop {
+            let input = event::read()?;
+            match self.handle_input(input)? {
+                Loop::None => (),
+                Loop::Break => break,
+                Loop::Continue => continue,
+            }
+
+            let window = current_window(&mut self.window_stack)?;
+            self.terminal.draw(|frame| {
+                Self::draw_ui(frame, window, &self.context);
+                let screen_area = &mut self.context.borrow_mut().screen_area;
+
+                *screen_area = frame.area();
+            })?;
+        }
+        Ok(())
     }
 
     pub fn dispose(&mut self) -> Result<()> {
@@ -82,33 +98,13 @@ impl Session {
 
     pub fn display_error(&mut self, error: Error) {
         let notification = WindowKind::NotificationWindow(NotificationWindow::new_error(error));
-
         self.window_stack.push(notification);
-    }
-
-    fn run_loop(&mut self) -> Result<()> {
-        loop {
-            let input = event::read()?;
-            match self.handle_input(input)? {
-                Loop::None => (),
-                Loop::Break => break,
-                Loop::Continue => continue,
-            }
-
-            self.terminal.draw(|frame| {
-                Self::draw_ui(frame, current_window(&mut self.window_stack), &self.context);
-                let screen_area = &mut self.context.borrow_mut().screen_area;
-
-                *screen_area = frame.area();
-            })?;
-        }
-        Ok(())
     }
 
     fn handle_input(&mut self, event: Event) -> Result<Loop> {
         let session_event = {
             let input_event = get_input_event(event);
-            let window = current_window(&mut self.window_stack);
+            let window = current_window(&mut self.window_stack)?;
 
             match handle_input(window, input_event)? {
                 Some(val) => val,
@@ -120,22 +116,22 @@ impl Session {
             SessionEvent::Exit => return Ok(Loop::Break),
 
             SessionEvent::OnRemove => {
-                current_window(&mut self.window_stack).on_remove();
+                current_window(&mut self.window_stack)?.on_remove();
             }
             SessionEvent::OnInsert => {
-                current_window(&mut self.window_stack).on_insert();
+                current_window(&mut self.window_stack)?.on_insert();
             }
             SessionEvent::SaveFile => {
                 let file_context = &mut self.context.borrow_mut().file_context;
                 if let Some(path) = &file_context.file_path {
-                    main_window(&mut self.window_stack).save_file(path)?;
+                    main_window(&mut self.window_stack)?.save_file(path)?;
                 }
 
                 file_context.file_saved = true;
             }
             SessionEvent::OpenFileTreeWindow => {
                 if !matches!(
-                    current_window(&mut self.window_stack),
+                    current_window(&mut self.window_stack)?,
                     WindowKind::FileTreeWindow(_)
                 ) {
                     let window = FileTreeWindow::new(self.context.clone());
@@ -144,7 +140,7 @@ impl Session {
             }
             SessionEvent::OpenCommandPrompt => {
                 if !matches!(
-                    current_window(&mut self.window_stack),
+                    current_window(&mut self.window_stack)?,
                     WindowKind::CommandPrompt(_)
                 ) {
                     let command_prompt = CommandPrompt::new();
@@ -154,7 +150,7 @@ impl Session {
             }
             SessionEvent::OpenLookup => {
                 if !matches!(
-                    current_window(&mut self.window_stack),
+                    current_window(&mut self.window_stack)?,
                     WindowKind::LookupBar(_)
                 ) {
                     self.window_stack
@@ -192,22 +188,22 @@ impl Session {
 
         let file_context = &context.borrow().file_context;
 
+        let base_path = &file_context.base_path;
         let end_span = if let Some(path) = file_context.file_path.as_ref() {
             let saved = if file_context.file_saved { "" } else { "*" };
-            let relative_path =
-                relative_to(&file_context.base_path, path).unwrap_or(&Path::new(""));
+            let relative_path = relative_to(base_path, path).unwrap_or(&Path::new(""));
 
             Span::styled(
                 format!(
-                    "-{}{saved} ⟧ {} ",
+                    "-{}{saved} ⟧ {}",
                     relative_path.display(),
-                    file_context.base_path.display()
+                    base_path.display(),
                 ),
                 Style::default().fg(Color::Cyan),
             )
         } else {
             Span::styled(
-                format!(" ⟧ {} ", file_context.base_path.display()),
+                format!(" ⟧ {} ", base_path.display()),
                 Style::default().fg(Color::Cyan),
             )
         };
@@ -231,7 +227,7 @@ impl Session {
     fn on_window_pop(&mut self) -> Result<()> {
         let window_amount = self.window_stack.len();
         let file_context = &mut self.context.borrow_mut().file_context;
-        let main = main_window(&mut self.window_stack);
+        let main = main_window(&mut self.window_stack)?;
 
         let is_new_file = main.get_file_path() != &file_context.file_path;
         if window_amount == 1 && is_new_file {
@@ -245,17 +241,23 @@ impl Session {
     }
 }
 
-fn main_window<'a>(window_stack: &'a mut [WindowKind]) -> &'a mut TextEditor {
-    match window_stack.get_mut(0).expect("should have main window") {
-        WindowKind::TextEditor(text_editor) => text_editor,
-        _ => unreachable!("main window has to be WindowKind::TextEditor"),
+fn main_window<'a>(window_stack: &'a mut [WindowKind]) -> Result<&'a mut TextEditor> {
+    let window = window_stack
+        .get_mut(0)
+        .ok_or(Error::msg("should have main window"))?;
+
+    match window {
+        WindowKind::TextEditor(text_editor) => Ok(text_editor),
+        _ => Err(Error::msg(
+            "unreachable window_stack[0] has to be WindowKind::TextEditor",
+        )),
     }
 }
 
-fn current_window<'a>(window_stack: &'a mut [WindowKind]) -> &'a mut WindowKind {
+fn current_window<'a>(window_stack: &'a mut [WindowKind]) -> Result<&'a mut WindowKind> {
     window_stack
         .last_mut()
-        .expect("should not have empty window_stack")
+        .ok_or(Error::msg("should not have empty window_stack"))
 }
 
 enum Loop {

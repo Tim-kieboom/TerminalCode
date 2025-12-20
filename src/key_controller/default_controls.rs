@@ -1,4 +1,4 @@
-use crate::{key_controller::InsertKind, window::text_editor::Cursor};
+use crate::{key_controller::InsertKind, window::utils::Cursor};
 
 pub fn move_up(cursor: &mut Cursor, buffer: &[String]) {
     if cursor.line > 0 {

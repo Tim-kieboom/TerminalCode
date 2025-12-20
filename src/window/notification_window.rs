@@ -6,7 +6,7 @@ use anyhow::{Error, Result};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
-    widgets::Paragraph,
+    widgets::{Block, Borders, Paragraph},
 };
 
 const BOTTOM_HEADER: &str = " [ESC: Exit window] ";
@@ -43,22 +43,40 @@ impl Window for NotificationWindow {
         let area = frame.area();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(area.height - 2), Constraint::Length(2)].as_ref())
+            .constraints(
+                [
+                    Constraint::Length(2),
+                    Constraint::Length(area.height.saturating_sub(4)),
+                    Constraint::Length(2),
+                ]
+                .as_ref(),
+            )
             .split(area);
 
-        let color = match self.level {
-            NotificationLevel::Note => Color::Blue,
-            NotificationLevel::Error => Color::Red,
-            NotificationLevel::Warning => Color::Yellow,
+        let editor_box = Paragraph::new("")
+            .style(Style::default().fg(Color::White))
+            .block(header.borders(Borders::TOP));
+
+        let (color, title) = match self.level {
+            NotificationLevel::Note => (Color::Blue, "Note"),
+            NotificationLevel::Error => (Color::Red, "Error"),
+            NotificationLevel::Warning => (Color::Yellow, "Warning"),
         };
 
         let text = self.buffer.as_str();
-        let editor_box = Paragraph::new(text)
-            .style(Style::default().fg(color))
-            .block(header);
+        let notification_block = Block::default()
+            .title(title)
+            .title_style(Style::default().fg(Color::White))
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(color));
+
+        let notification = Paragraph::new(text)
+            .block(notification_block)
+            .style(Style::default().fg(color));
 
         frame.render_widget(editor_box, chunks[0]);
-        frame.render_widget(Paragraph::new(BOTTOM_HEADER), chunks[1]);
+        frame.render_widget(notification, chunks[1]);
+        frame.render_widget(Paragraph::new(BOTTOM_HEADER), chunks[2]);
     }
 }
 impl KeyController for NotificationWindow {

@@ -14,6 +14,7 @@ pub mod filetree_window;
 pub mod lookup_bar;
 pub mod notification_window;
 pub mod text_editor;
+pub mod utils;
 
 macro_rules! impl_window_for_enum {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {

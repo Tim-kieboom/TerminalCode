@@ -1,6 +1,6 @@
 use crate::{
     key_controller::{InsertKind, KeyController, KeyDoneKind, default_controls},
-    window::{Window, text_editor::Cursor},
+    window::{Window, utils::Cursor},
 };
 use anyhow::Result;
 use std::process::Command;

@@ -25,6 +25,7 @@ struct FileEntry {
 
 #[derive(Debug, Clone)]
 pub struct FileTreeWindow {
+    current_path: PathBuf,
     entries: Vec<FileEntry>,
     current_entry: usize,
     context: SharedContext,
@@ -32,17 +33,15 @@ pub struct FileTreeWindow {
 
 impl FileTreeWindow {
     pub fn new(context: SharedContext) -> Self {
+        let path = context.borrow().file_context.base_path.clone();
         let mut this = Self {
             entries: vec![],
             current_entry: 0,
+            current_path: path,
             context,
         };
 
-        {
-            let path = &this.context.borrow().file_context.base_path;
-
-            Self::build_tree(path, &mut this.entries);
-        }
+        Self::build_tree(&this.current_path, &mut this.entries);
         this
     }
 
@@ -58,6 +57,11 @@ impl FileTreeWindow {
             let is_dir = entry.file_type().is_dir();
             entries.push(FileEntry { path, is_dir });
         }
+    }
+
+    fn go_back(&mut self) {
+        self.current_path.pop();
+        Self::build_tree(&self.current_path, &mut self.entries);
     }
 
     fn render_lines(&self) -> Vec<ListItem<'_>> {
@@ -106,7 +110,11 @@ impl Window for FileTreeWindow {
         );
 
         let list = List::new(self.render_lines())
-            .block(Block::default().borders(Borders::ALL).title(" File Tree "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(format!(" File Tree {} ", self.current_path.display())),
+            )
             .highlight_style(
                 Style::default()
                     .bg(Color::DarkGray)
@@ -132,12 +140,10 @@ impl KeyController for FileTreeWindow {
     }
 
     fn move_right(&mut self, _a: u16) -> Result<KeyDoneKind> {
-        // self.toggle_expand();
         Ok(KeyDoneKind::None)
     }
 
     fn move_left(&mut self, _a: u16) -> Result<KeyDoneKind> {
-        // self.toggle_expand();
         Ok(KeyDoneKind::None)
     }
 
@@ -148,7 +154,8 @@ impl KeyController for FileTreeWindow {
         };
 
         if entry.is_dir {
-            Self::build_tree(&entry.path, &mut self.entries);
+            self.current_path = entry.path;
+            Self::build_tree(&self.current_path, &mut self.entries);
             return Ok(KeyDoneKind::None);
         }
 
@@ -162,6 +169,7 @@ impl KeyController for FileTreeWindow {
     }
 
     fn backspace(&mut self) -> Result<KeyDoneKind> {
+        self.go_back();
         Ok(KeyDoneKind::None)
     }
 }
