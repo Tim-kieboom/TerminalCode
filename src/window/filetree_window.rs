@@ -7,7 +7,7 @@ use crate::{
     window::Window,
 };
 use anyhow::{Error, Result};
-use crossterm::event;
+use crossterm::event::{self, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -37,7 +37,7 @@ pub struct FileTreeWindow {
 
 impl FileTreeWindow {
     pub fn new(context: SharedContext) -> Self {
-        let path = context.borrow().file_context.base_path.clone();
+        let path = context.get_file_context(|file_context| file_context.base_path.clone());
         let mut this = Self {
             entries: vec![],
             current_entry: 0,
@@ -86,8 +86,9 @@ impl FileTreeWindow {
             ));
         }
 
-        let file_context = &mut self.context.borrow_mut().file_context;
-        file_context.base_path = entry.path;
+        self.context.set_file_context(move |file_context| {
+            file_context.base_path = entry.path
+        });
         Ok(())
     }
 
@@ -201,7 +202,9 @@ impl WindowsControl for FileTreeWindow {
         }
 
         let path = Some(entry.path);
-        self.context.set_file_path(path);
+        self.context.set_file_context(|file_context|{
+            file_context.file_path = path
+        });
         Ok(WindowControlReponse::ToMainWindow)
     }
 
@@ -221,7 +224,10 @@ impl WindowsControl for FileTreeWindow {
         };
 
         match key.code {
-            event::KeyCode::Char('b') => {
+            event::KeyCode::Char('n') if key.modifiers == KeyModifiers::NONE => {
+                Ok(Some(SessionEvent::OpenFileCreater{in_path: self.current_path.clone()}))
+            }
+            event::KeyCode::Char('b') if key.modifiers == KeyModifiers::NONE => {
                 self.change_base_path_to_current()?;
                 Ok(Some(SessionEvent::ToMainWindow))
             }

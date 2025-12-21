@@ -9,7 +9,7 @@ use crate::{
     window::Window,
 };
 use anyhow::Result;
-use crossterm::event;
+use crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint::Length, Direction, Layout},
@@ -34,7 +34,7 @@ pub(crate) struct TextEditor {
 }
 impl TextEditor {
     pub fn new(context: SharedContext) -> Self {
-        let area = context.borrow().screen_area.clone();
+        let area = context.get_area().clone();
 
         Self {
             context,
@@ -50,7 +50,9 @@ impl TextEditor {
     }
 
     pub fn mark_file_unsaved(&mut self) {
-        self.context.borrow_mut().file_context.file_saved = false;
+        self.context.set_file_context(|file_context| {
+            file_context.file_saved = false
+        });
     }
 
     pub fn load_file(&mut self, path: PathBuf, syntaxer: &mut Syntaxer) -> Result<()> {
@@ -166,6 +168,10 @@ impl WindowsControl for TextEditor {
 
     fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
         match action {
+            event::Event::Key(key) if key.code == KeyCode::Char('n') && key.modifiers == KeyModifiers::NONE => {
+                
+                Ok(None)
+            },
             _ => Ok(None),
         }
     }

@@ -48,13 +48,14 @@ impl LookupBar {
         self.entries.clear();
         self.matches = 0;
 
-        let base_path = &self.context.borrow().file_context.base_path;
+        let dir_walker = self.context.get_file_context(|file_context| {
+            WalkDir::new(file_context.base_path.clone())
+                .max_depth(3)
+                .into_iter()
+                .filter_map(|e| e.ok())}
+        );
 
-        for entry in WalkDir::new(base_path)
-            .max_depth(3)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in dir_walker {
             let path = entry.path().to_string_lossy();
             let max_entries = self.get_showable_entries_count()?;
             let is_match = entry.path().is_file()
@@ -82,7 +83,7 @@ impl LookupBar {
 
     fn get_showable_entries_count(&self) -> Result<usize> {
         const LINES_NON_SHOWABLE: usize = 10;
-        let count = self.context.borrow().screen_area.height as usize - LINES_NON_SHOWABLE;
+        let count = self.context.get_area().height as usize - LINES_NON_SHOWABLE;
         Ok(count)
     }
 }
@@ -206,7 +207,9 @@ impl WindowsControl for LookupBar {
 
     fn enter(&mut self) -> Result<WindowControlReponse> {
         let path = self.pick_entry()?;
-        self.context.set_file_path(path);
+        self.context.set_file_context(|file_context| {
+            file_context.file_path = path
+        });
         Ok(WindowControlReponse::ToMainWindow)
     }
 

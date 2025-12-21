@@ -7,8 +7,7 @@ use crate::{
     },
     utils::{path_display::display_path, syntaxer::Syntaxer},
     window::{
-        Window, WindowKind, command_prompt::CommandPrompt, filetree_window::FileTreeWindow,
-        lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor,
+        Window, WindowKind, command_prompt::CommandPrompt, file_creater::FileCreater, filetree_window::FileTreeWindow, lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor
     },
 };
 use anyhow::{Error, Result};
@@ -86,7 +85,7 @@ impl Session {
                     return
                 } 
 
-                self.context.borrow_mut().screen_area = frame.area();
+                self.context.set_area(frame.area());
             })?;
             error?;
         }
@@ -128,7 +127,6 @@ impl Session {
 
         match session_event {
             SessionEvent::Exit => return Ok(Loop::Break),
-
             SessionEvent::OnRemove => {
                 current_window(&mut self.window_stack)?.on_remove()?;
             }
@@ -136,12 +134,19 @@ impl Session {
                 current_window(&mut self.window_stack)?.on_insert()?;
             }
             SessionEvent::SaveFile => {
-                let file_context = &mut self.context.borrow_mut().file_context;
-                if let Some(path) = &file_context.file_path {
-                    main_window(&mut self.window_stack)?.save_file(path)?;
-                }
 
-                file_context.file_saved = true;
+                self.context.get_file_context(|file_context| -> Result<bool> {
+
+                    if let Some(path) = &file_context.file_path {
+                        main_window(&mut self.window_stack)?.save_file(&path)?;
+                    }
+
+                    Ok(true)
+                })?;
+
+                self.context.set_file_context(|file_context| {
+                    file_context.file_saved = true
+                });
             }
             SessionEvent::OpenFileTreeWindow => {
                 if !matches!(
@@ -171,6 +176,13 @@ impl Session {
                         .push(WindowKind::LookupBar(LookupBar::new(self.context.clone())));
                 }
             }
+            SessionEvent::OpenFileCreater{in_path} => {
+                
+                match current_window(&mut self.window_stack)? {
+                    WindowKind::FileCreater(file_creater) => file_creater.in_path = in_path,
+                    _ => self.window_stack.push(WindowKind::FileCreater(FileCreater::new(in_path))),
+                }
+            },
             SessionEvent::Back => {
                 let window_amount = self.window_stack.len();
                 if window_amount <= 1 {
@@ -185,7 +197,7 @@ impl Session {
             }
             SessionEvent::TestDebugEvent => {
                 return Err(Error::msg("testing error message\n test \n\nboo"));
-            }
+            },
         }
 
         Ok(Loop::None)
@@ -202,25 +214,29 @@ impl Session {
 
         let max_path_len = (frame.area().width / 3) as usize;
 
-        let base_path = &context.borrow().file_context.base_path;
-        let end_span = if let Some(path) = context.borrow().file_context.file_path.as_ref() {
-            let saved = if context.borrow().file_context.file_saved { "" } else { "*" };
-            let relative_path = relative_to(base_path, path).unwrap_or(&Path::new(""));
+        let mut end_span = Span::raw("");
+        context.get_file_context(|file_context| {
 
-            Span::styled(
-                format!(
-                    "-{}{saved} ⟧ {}",
-                    display_path(relative_path, max_path_len),
-                    display_path(base_path, max_path_len),
-                ),
-                Style::default().fg(Color::Cyan),
-            )
-        } else {
-            Span::styled(
-                format!(" ⟧ {} ", display_path(base_path, max_path_len)),
-                Style::default().fg(Color::Cyan),
-            )
-        };
+            let base_path = &file_context.base_path;
+            end_span = if let Some(path) = file_context.file_path.as_ref() {
+                let saved = if file_context.file_saved { "" } else { "*" };
+                let relative_path = relative_to(base_path, path).unwrap_or(&Path::new(""));
+
+                Span::styled(
+                    format!(
+                        "-{}{saved} ⟧ {}",
+                        display_path(relative_path, max_path_len),
+                        display_path(base_path, max_path_len),
+                    ),
+                    Style::default().fg(Color::Cyan),
+                )
+            } else {
+                Span::styled(
+                    format!(" ⟧ {} ", display_path(base_path, max_path_len)),
+                    Style::default().fg(Color::Cyan),
+                )
+            };
+        });
 
         let header = Block::default()
             .borders(Borders::TOP | Borders::BOTTOM)
@@ -241,15 +257,20 @@ impl Session {
     fn on_window_pop(&mut self) -> Result<()> {
         let window_amount = self.window_stack.len();
         let main = main_window(&mut self.window_stack)?;
-        let file_path = &self.context.borrow().file_context.file_path;
 
-        let is_new_file = main.get_file_path() != file_path;
-        if window_amount == 1 && is_new_file {
-            match &file_path {
-                Some(path) => main.load_file(path.clone(), &mut self.syntaxer)?,
-                None => main.set_to_no_file(),
+        self.context.get_file_context(|file_context| -> Result<()> {
+
+            let file_path = &file_context.file_path;
+            let is_new_file = main.get_file_path() != file_path;
+            if window_amount == 1 && is_new_file {
+                match &file_path {
+                    Some(path) => main.load_file(path.clone(), &mut self.syntaxer)?,
+                    None => main.set_to_no_file(),
+                }
             }
-        }
+
+            Ok(())
+        })?;
 
         Ok(())
     }

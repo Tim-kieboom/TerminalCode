@@ -2,15 +2,14 @@ use crate::{
     key_controller::{
         InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent,
     }, utils::syntaxer::Syntaxer, window::{
-        command_prompt::CommandPrompt, filetree_window::FileTreeWindow, lookup_bar::LookupBar,
-        notification_window::NotificationWindow, text_editor::TextEditor,
+        command_prompt::CommandPrompt, file_creater::FileCreater, filetree_window::FileTreeWindow, lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor
     }
 };
 use anyhow::Result;
 use ratatui::{Frame, widgets::Block};
 
 pub mod command_prompt;
-pub mod file_namer;
+pub mod file_creater;
 pub mod filetree_window;
 pub mod lookup_bar;
 pub mod notification_window;
@@ -113,6 +112,7 @@ pub trait Window: WindowsControl {
 pub enum WindowKind {
     LookupBar(LookupBar),
     TextEditor(TextEditor),
+    FileCreater(FileCreater),
     CommandPrompt(CommandPrompt),
     FileTreeWindow(FileTreeWindow),
     NotificationWindow(NotificationWindow),
@@ -120,6 +120,7 @@ pub enum WindowKind {
 impl_window_for_enum!(WindowKind {
     LookupBar,
     TextEditor,
+    FileCreater,
     CommandPrompt,
     FileTreeWindow,
     NotificationWindow,

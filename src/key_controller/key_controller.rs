@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     key_controller::{InputEvent, InsertKind, WindowControlReponse},
     window::Window,
@@ -14,8 +16,8 @@ pub enum SessionEvent {
     ToMainWindow,
     OpenCommandPrompt,
     OpenFileTreeWindow,
-
     TestDebugEvent,
+    OpenFileCreater{in_path: PathBuf},
 }
 
 pub fn handle_input<T: Window>(

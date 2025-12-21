@@ -1,5 +1,6 @@
+use std::{fs::{DirEntry, File}, path::PathBuf};
+
 use crate::{
-    context::SharedContext,
     key_controller::{
         InsertKind, WindowControlReponse, WindowsControl, default_controls,
         key_controller::SessionEvent,
@@ -19,21 +20,32 @@ use ratatui::{
 const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";
 
 #[derive(Debug, Clone)]
-pub struct FileNamer {
+pub struct FileCreater {
     cursor: Cursor,
-    context: SharedContext,
+    pub in_path: PathBuf,
     search_buffer: TextBuffer,
 }
-impl FileNamer {
-    pub fn new(context: SharedContext) -> Self {
+impl FileCreater {
+    pub fn new(in_path: PathBuf) -> Self {
         Self {
-            context,
+            in_path,
             cursor: Cursor::default(),
             search_buffer: TextBuffer::new_single_line(String::new()),
         }
     }
+
+    fn create_from_path(&mut self) -> Result<()> {
+        let line = std::mem::take(&mut self.search_buffer[0]);
+        self.in_path.push(line);
+        if self.in_path.extension().is_none() {
+            std::fs::create_dir(&self.in_path)?;
+        } else {
+            File::create(&self.in_path)?;
+        }
+        Ok(())
+    }
 }
-impl Window for FileNamer {
+impl Window for FileCreater {
     fn on_insert(&mut self) -> Result<()> {Ok(())}
     fn on_remove(&mut self) -> Result<()> {Ok(())}
 
@@ -84,7 +96,7 @@ impl Window for FileNamer {
     }
 }
 
-impl WindowsControl for FileNamer {
+impl WindowsControl for FileCreater {
     fn move_up(&mut self) -> Result<WindowControlReponse> {
         Ok(WindowControlReponse::None)
     }
@@ -104,6 +116,7 @@ impl WindowsControl for FileNamer {
     }
 
     fn enter(&mut self) -> Result<WindowControlReponse> {
+        self.create_from_path()?;
         Ok(WindowControlReponse::ToMainWindow)
     }
 
