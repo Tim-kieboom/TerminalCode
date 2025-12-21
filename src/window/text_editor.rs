@@ -1,10 +1,11 @@
 use crate::{
     context::SharedContext,
     key_controller::{
-        WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent,
+        WindowControlReponse, WindowsControl, default_controls, handle_input::SessionEvent,
     },
     utils::{
-        cursor::Cursor, scrollable_view::ScrollableView, syntaxer::Syntaxer, text_buffer::TextBuffer
+        cursor::Cursor, scrollable_view::ScrollableView, syntaxer::Syntaxer,
+        text_buffer::TextBuffer,
     },
     window::Window,
 };
@@ -38,7 +39,7 @@ pub(crate) struct TextEditor {
 }
 impl TextEditor {
     pub fn new(context: SharedContext) -> Self {
-        let area = context.get_area().clone();
+        let area = context.get_area();
 
         Self {
             context,
@@ -58,9 +59,8 @@ impl TextEditor {
 
     /// Marks the current file as having unsaved changes.
     pub fn mark_file_unsaved(&mut self) {
-        self.context.set_file_context(|file_context| {
-            file_context.file_saved = false
-        });
+        self.context
+            .set_file_context(|file_context| file_context.file_saved = false);
     }
 
     /// Loads file content from disk and populates the editor buffer.
@@ -101,17 +101,17 @@ impl TextEditor {
 }
 
 impl Window for TextEditor {
-    fn on_insert(&mut self) -> Result<()>{
+    fn on_insert(&mut self) -> Result<()> {
         self.mark_file_unsaved();
         Ok(())
     }
 
-    fn on_remove(&mut self) -> Result<()>{
+    fn on_remove(&mut self) -> Result<()> {
         self.mark_file_unsaved();
         Ok(())
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block, syntaxer: &mut Syntaxer) -> Result<()>{
+    fn draw_ui(&mut self, frame: &mut Frame, header: Block, syntaxer: &mut Syntaxer) -> Result<()> {
         let area = frame.area();
         self.view.update_area(area, TOTAL_HEADER_HEIGHT);
         let chunks = Layout::default()
@@ -120,7 +120,7 @@ impl Window for TextEditor {
             .split(area);
 
         let text = self.view.text_buffer_to_view(&self.cursor, &self.buffer);
-        let syntax_text = syntaxer.to_highighed(&text)?;
+        let syntax_text = syntaxer.highlight_text(&text)?;
 
         let editor_box = Paragraph::new(syntax_text)
             .style(Style::default().fg(Color::White))
@@ -182,10 +182,11 @@ impl WindowsControl for TextEditor {
 
     fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
         match action {
-            event::Event::Key(key) if key.code == KeyCode::Char('n') && key.modifiers == KeyModifiers::NONE => {
-                
+            event::Event::Key(key)
+                if key.code == KeyCode::Char('n') && key.modifiers == KeyModifiers::NONE =>
+            {
                 Ok(None)
-            },
+            }
             _ => Ok(None),
         }
     }

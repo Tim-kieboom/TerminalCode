@@ -1,8 +1,8 @@
 extern crate terminal_code;
 
-use terminal_code::Session;
 use anyhow::Result;
 use std::{env, io::stdout};
+use terminal_code::Session;
 
 fn main() -> Result<()> {
     let mut base_path = env::current_exe()?;

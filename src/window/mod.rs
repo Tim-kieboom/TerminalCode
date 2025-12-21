@@ -1,9 +1,12 @@
 use crate::{
     key_controller::{
-        InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent,
-    }, utils::syntaxer::Syntaxer, window::{
-        command_prompt::CommandPrompt, file_creater::FileCreater, filetree_window::FileTreeWindow, lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor
-    }
+        InsertKind, WindowControlReponse, WindowsControl, handle_input::SessionEvent,
+    },
+    utils::syntaxer::Syntaxer,
+    window::{
+        command_prompt::CommandPrompt, file_creater::FileCreater, filetree_window::FileTreeWindow,
+        lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor,
+    },
 };
 use anyhow::Result;
 use ratatui::{Frame, widgets::Block};

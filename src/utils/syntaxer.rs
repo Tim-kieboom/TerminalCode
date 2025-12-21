@@ -1,10 +1,13 @@
 use anyhow::{Error, Result};
-use ratatui::{style::{Color, Style}, text::{Line, Span, Text}};
+use ratatui::{
+    style::{Color, Style},
+    text::{Line, Span, Text},
+};
 use std::path::Path;
 use syntect::{
     easy::HighlightLines,
     highlighting::ThemeSet,
-    parsing::{SyntaxReference, SyntaxSet}, 
+    parsing::{SyntaxReference, SyntaxSet},
 };
 
 const DEFAULT_THEME: &str = "base16-mocha.dark";
@@ -47,59 +50,43 @@ impl Syntaxer {
     }
 
     /// Converts plain text to syntax-highlighted `ratatui::Text`.
-    pub fn to_highighed<'a>(&mut self, text: &'a String) -> Result<Text<'a>> {
+    pub fn highlight_text<'a>(&mut self, text: &'a str) -> Result<Text<'a>> {
         let syntax = match &self.syntax {
             Some(val) => val,
-            None => return Ok(
-                Text::from(text.as_str())
-            ),
+            None => return Ok(Text::from(text)),
         };
 
-        let theme = match self
-            .theme_set
-            .themes
-            .get(&self.theme_name)
-        {
+        let theme = match self.theme_set.themes.get(&self.theme_name) {
             Some(val) => val,
             None => {
                 self.theme_name = DEFAULT_THEME.to_string();
                 return Err(Error::msg(format!(
                     "theme: {} was not found",
                     self.theme_name
-                )))
-            },
+                )));
+            }
         };
 
         let mut result = vec![];
         let mut parser = HighlightLines::new(syntax, theme);
         for line in text.lines() {
-
             let mut spans = vec![];
             for (style, styled_text) in parser.highlight_line(line, &self.syntax_set)? {
-                
                 let color = to_color(style);
-                spans.push(Span::styled(
-                    styled_text, 
-                    Style::new().fg(color),
-                ));
+                spans.push(Span::styled(styled_text, Style::new().fg(color)));
             }
             result.push(Line::from(spans));
         }
 
-        Ok(
-            Text::from(result)
-        )
+        Ok(Text::from(result))
     }
 }
 
 fn to_color(style: syntect::highlighting::Style) -> ratatui::style::Color {
-    translate_color(style.foreground)
-        .unwrap_or(Color::Reset)
+    translate_color(style.foreground).unwrap_or(Color::Reset)
 }
 
-fn translate_color(
-    syntect_color: syntect::highlighting::Color,
-) -> Option<ratatui::style::Color> {
+fn translate_color(syntect_color: syntect::highlighting::Color) -> Option<ratatui::style::Color> {
     match syntect_color {
         syntect::highlighting::Color { r, g, b, a } if a > 0 => {
             Some(ratatui::style::Color::Rgb(r, g, b))

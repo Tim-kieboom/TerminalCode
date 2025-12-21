@@ -133,7 +133,7 @@ fn remove_single_line(cursor: &mut Cursor, buffer: &mut [String; 1]) {
     }
 }
 
-fn insert_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>, insert: InsertKind) {
+fn insert_multi_line(cursor: &mut Cursor, buffer: &mut [String], insert: InsertKind) {
     let mut char_buffer = [0u8; 4];
     let text = match &insert {
         InsertKind::Char(char) => &*char.encode_utf8(&mut char_buffer),

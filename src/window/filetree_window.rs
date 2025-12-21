@@ -1,7 +1,7 @@
 use crate::{
     context::SharedContext,
     key_controller::{
-        InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent,
+        InsertKind, WindowControlReponse, WindowsControl, handle_input::SessionEvent,
     },
     utils::{path_display::display_path, syntaxer::Syntaxer},
     window::Window,
@@ -64,7 +64,7 @@ impl FileTreeWindow {
 
         for entry in file_walker {
             let entry_path = entry.path().to_path_buf();
-            if path == &entry_path {
+            if path == entry_path {
                 continue;
             }
 
@@ -92,9 +92,8 @@ impl FileTreeWindow {
             ));
         }
 
-        self.context.set_file_context(move |file_context| {
-            file_context.base_path = entry.path
-        });
+        self.context
+            .set_file_context(move |file_context| file_context.base_path = entry.path);
         Ok(())
     }
 
@@ -133,16 +132,23 @@ impl FileTreeWindow {
     }
 
     fn consume_pick(&mut self) -> Option<FileEntry> {
-        self.entries
-            .get_mut(self.current_entry)
-            .map(|el| std::mem::take(el))
+        self.entries.get_mut(self.current_entry).map(std::mem::take)
     }
 }
 
 impl Window for FileTreeWindow {
-    fn on_insert(&mut self) -> Result<()> {Ok(())}
-    fn on_remove(&mut self) -> Result<()> {Ok(())}
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block, _syntaxer: &mut Syntaxer) -> Result<()> {
+    fn on_insert(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn on_remove(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn draw_ui(
+        &mut self,
+        frame: &mut Frame,
+        header: Block,
+        _syntaxer: &mut Syntaxer,
+    ) -> Result<()> {
         let area = frame.area();
         let layout = Layout::default()
             .direction(Direction::Vertical)
@@ -208,9 +214,8 @@ impl WindowsControl for FileTreeWindow {
         }
 
         let path = Some(entry.path);
-        self.context.set_file_context(|file_context|{
-            file_context.file_path = path
-        });
+        self.context
+            .set_file_context(|file_context| file_context.file_path = path);
         Ok(WindowControlReponse::ToMainWindow)
     }
 
@@ -231,7 +236,9 @@ impl WindowsControl for FileTreeWindow {
 
         match key.code {
             event::KeyCode::Char('n') if key.modifiers == KeyModifiers::NONE => {
-                Ok(Some(SessionEvent::OpenFileCreater{in_path: self.current_path.clone()}))
+                Ok(Some(SessionEvent::OpenFileCreater {
+                    in_path: self.current_path.clone(),
+                }))
             }
             event::KeyCode::Char('b') if key.modifiers == KeyModifiers::NONE => {
                 self.change_base_path_to_current()?;

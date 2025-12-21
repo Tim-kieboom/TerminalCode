@@ -1,11 +1,11 @@
-use crate::key_controller::key_controller::SessionEvent;
+use crate::key_controller::handle_input::SessionEvent;
 use anyhow::Result;
 use crossterm::event;
 use std::char::ToUppercase;
 
 pub mod default_controls;
+pub mod handle_input;
 pub mod input_event;
-pub mod key_controller;
 
 pub(crate) enum WindowControlReponse {
     None,

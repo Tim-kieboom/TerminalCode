@@ -1,9 +1,9 @@
-use std::{fs::{File}, path::PathBuf};
+use std::{fs::File, path::PathBuf};
 
 use crate::{
     key_controller::{
         InsertKind, WindowControlReponse, WindowsControl, default_controls,
-        key_controller::SessionEvent,
+        handle_input::SessionEvent,
     },
     utils::{cursor::Cursor, syntaxer::Syntaxer, text_buffer::TextBuffer},
     window::Window,
@@ -51,10 +51,19 @@ impl FileCreater {
     }
 }
 impl Window for FileCreater {
-    fn on_insert(&mut self) -> Result<()> {Ok(())}
-    fn on_remove(&mut self) -> Result<()> {Ok(())}
+    fn on_insert(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn on_remove(&mut self) -> Result<()> {
+        Ok(())
+    }
 
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block, _syntaxer: &mut Syntaxer) -> Result<()> {
+    fn draw_ui(
+        &mut self,
+        frame: &mut Frame,
+        header: Block,
+        _syntaxer: &mut Syntaxer,
+    ) -> Result<()> {
         let area = frame.area();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -80,7 +89,9 @@ impl Window for FileCreater {
             )
             .split(area);
 
-        let input_block = Block::default().borders(Borders::ALL).title(" Create File/Folder (no extention means folder else file)");
+        let input_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Create File/Folder (no extention means folder else file)");
 
         let input_area = overlay_area[0];
         let input_inner = input_block.inner(input_area);
@@ -111,12 +122,12 @@ impl WindowsControl for FileCreater {
     }
 
     fn move_left(&mut self, amount: u16) -> Result<WindowControlReponse> {
-        default_controls::move_left(&mut self.cursor, &mut self.search_buffer, amount);
+        default_controls::move_left(&mut self.cursor, &self.search_buffer, amount);
         Ok(WindowControlReponse::None)
     }
 
     fn move_right(&mut self, amount: u16) -> Result<WindowControlReponse> {
-        default_controls::move_right(&mut self.cursor, &mut self.search_buffer, amount);
+        default_controls::move_right(&mut self.cursor, &self.search_buffer, amount);
         Ok(WindowControlReponse::None)
     }
 
@@ -134,9 +145,7 @@ impl WindowsControl for FileCreater {
         Ok(WindowControlReponse::None)
     }
 
-    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
-        match action {
-            _ => Ok(None),
-        }
+    fn custom_action(&mut self, _action: event::Event) -> Result<Option<SessionEvent>> {
+        Ok(None)
     }
 }

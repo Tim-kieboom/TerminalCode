@@ -29,8 +29,8 @@ pub enum SessionEvent {
     /// Open hierarchical file browser.
     OpenFileTreeWindow,
     /// Open file creation dialog at specific path.
-    OpenFileCreater{in_path: PathBuf},
-    
+    OpenFileCreater { in_path: PathBuf },
+
     /// Debug error testing.
     TestDebugEvent,
 }

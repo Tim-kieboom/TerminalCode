@@ -2,12 +2,14 @@ use crate::{
     context::{FileContext, SharedContext},
     key_controller::{
         WindowsControl,
+        handle_input::{SessionEvent, handle_input},
         input_event::get_input_event,
-        key_controller::{SessionEvent, handle_input},
     },
     utils::{path_display::display_path, syntaxer::Syntaxer},
     window::{
-        Window, WindowKind, command_prompt::CommandPrompt, file_creater::FileCreater, filetree_window::FileTreeWindow, lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor
+        Window, WindowKind, command_prompt::CommandPrompt, file_creater::FileCreater,
+        filetree_window::FileTreeWindow, lookup_bar::LookupBar,
+        notification_window::NotificationWindow, text_editor::TextEditor,
     },
 };
 use anyhow::{Error, Result};
@@ -45,7 +47,7 @@ impl Session {
     /// This function initializes terminal state
     /// and sets up the text editor as the main window.
     ///     
-    /// # Example 
+    /// # Example
     /// ```
     /// use terminal_code::Session;
     /// let session = Session::new(std::io::stdout());
@@ -81,26 +83,26 @@ impl Session {
             window_stack: vec![main_window],
         })
     }
-    
+
     /// Main event loop for the terminal IDE session.
     ///
     /// Repeatedly waits for keyboard input, handles it, and redraws the UI.
     /// Ends when an `Exit` event is triggered or on error.
-    /// 
-    /// # Example 
+    ///
+    /// # Example
     /// ```
     /// use terminal_code::Session;
-    /// 
+    ///
     /// let session = Session::new(std::io::stdout());
     /// loop {
-    /// 
+    ///
     ///     match session.run() {
     ///         Err(err) => session.display_error(err),    
     ///         Ok(()) => {
     ///             session.dispose()
     ///             break
     ///         }
-    ///     } 
+    ///     }
     /// }
     /// ```
     pub fn run(&mut self) -> Result<()> {
@@ -117,8 +119,8 @@ impl Session {
             self.terminal.draw(|frame| {
                 if let Err(err) = Self::draw_ui(frame, window, &self.context, &mut self.syntaxer) {
                     error = Err(err);
-                    return
-                } 
+                    return;
+                }
 
                 self.context.set_area(frame.area());
             })?;
@@ -130,20 +132,20 @@ impl Session {
     /// Cleans up the terminal session on exit.
     ///
     /// Disables raw mode, restores the screen buffer, and re-enables cursor visibility.
-    /// # Example 
+    /// # Example
     /// ```
     /// use terminal_code::Session;
-    /// 
+    ///
     /// let session = Session::new(std::io::stdout());
     /// loop {
-    /// 
+    ///
     ///     match session.run() {
     ///         Err(err) => session.display_error(err),    
     ///         Ok(()) => {
     ///             session.dispose()
     ///             break
     ///         }
-    ///     } 
+    ///     }
     /// }
     /// ```
     pub fn dispose(&mut self) -> Result<()> {
@@ -158,20 +160,20 @@ impl Session {
     }
 
     /// Displays an error notification in a dedicated notification window.
-    /// # Example 
+    /// # Example
     /// ```
     /// use terminal_code::Session;
-    /// 
+    ///
     /// let session = Session::new(std::io::stdout());
     /// loop {
-    /// 
+    ///
     ///     match session.run() {
     ///         Err(err) => session.display_error(err),    
     ///         Ok(()) => {
     ///             session.dispose()
     ///             break
     ///         }
-    ///     } 
+    ///     }
     /// }
     /// ```
     pub fn display_error(&mut self, error: Error) {
@@ -205,19 +207,17 @@ impl Session {
                 current_window(&mut self.window_stack)?.on_insert()?;
             }
             SessionEvent::SaveFile => {
+                self.context
+                    .get_file_context(|file_context| -> Result<bool> {
+                        if let Some(path) = &file_context.file_path {
+                            main_window(&mut self.window_stack)?.save_file(path)?;
+                        }
 
-                self.context.get_file_context(|file_context| -> Result<bool> {
+                        Ok(true)
+                    })?;
 
-                    if let Some(path) = &file_context.file_path {
-                        main_window(&mut self.window_stack)?.save_file(&path)?;
-                    }
-
-                    Ok(true)
-                })?;
-
-                self.context.set_file_context(|file_context| {
-                    file_context.file_saved = true
-                });
+                self.context
+                    .set_file_context(|file_context| file_context.file_saved = true);
             }
             SessionEvent::OpenFileTreeWindow => {
                 if !matches!(
@@ -247,13 +247,14 @@ impl Session {
                         .push(WindowKind::LookupBar(LookupBar::new(self.context.clone())));
                 }
             }
-            SessionEvent::OpenFileCreater{in_path} => {
-                
+            SessionEvent::OpenFileCreater { in_path } => {
                 match current_window(&mut self.window_stack)? {
                     WindowKind::FileCreater(file_creater) => file_creater.in_path = in_path,
-                    _ => self.window_stack.push(WindowKind::FileCreater(FileCreater::new(in_path))),
+                    _ => self
+                        .window_stack
+                        .push(WindowKind::FileCreater(FileCreater::new(in_path))),
                 }
-            },
+            }
             SessionEvent::Back => {
                 let window_amount = self.window_stack.len();
                 if window_amount <= 1 {
@@ -268,13 +269,18 @@ impl Session {
             }
             SessionEvent::TestDebugEvent => {
                 return Err(Error::msg("testing error message\n test \n\nboo"));
-            },
+            }
         }
 
         Ok(Loop::None)
     }
 
-    fn draw_ui<Win: Window>(frame: &mut Frame, window: &mut Win, context: &SharedContext, syntaxer: &mut Syntaxer) -> Result<()> {
+    fn draw_ui<Win: Window>(
+        frame: &mut Frame,
+        window: &mut Win,
+        context: &SharedContext,
+        syntaxer: &mut Syntaxer,
+    ) -> Result<()> {
         use ratatui::style::Modifier;
         use ratatui::text::Span;
         use ratatui::widgets::{Block, Borders};
@@ -287,11 +293,10 @@ impl Session {
 
         let mut end_span = Span::raw("");
         context.get_file_context(|file_context| {
-
             let base_path = &file_context.base_path;
             end_span = if let Some(path) = file_context.file_path.as_ref() {
                 let saved = if file_context.file_saved { "" } else { "*" };
-                let relative_path = relative_to(base_path, path).unwrap_or(&Path::new(""));
+                let relative_path = relative_to(base_path, path).unwrap_or(Path::new(""));
 
                 Span::styled(
                     format!(
@@ -329,25 +334,25 @@ impl Session {
         let window_amount = self.window_stack.len();
         let main = main_window(&mut self.window_stack)?;
 
-        self.context.get_file_context(|file_context| -> Result<()> {
-
-            let file_path = &file_context.file_path;
-            let is_new_file = main.get_file_path() != file_path;
-            if window_amount == 1 && is_new_file {
-                match &file_path {
-                    Some(path) => main.load_file(path.clone(), &mut self.syntaxer)?,
-                    None => main.set_to_no_file(),
+        self.context
+            .get_file_context(|file_context| -> Result<()> {
+                let file_path = &file_context.file_path;
+                let is_new_file = main.get_file_path() != file_path;
+                if window_amount == 1 && is_new_file {
+                    match &file_path {
+                        Some(path) => main.load_file(path.clone(), &mut self.syntaxer)?,
+                        None => main.set_to_no_file(),
+                    }
                 }
-            }
 
-            Ok(())
-        })?;
+                Ok(())
+            })?;
 
         Ok(())
     }
 }
 
-fn main_window<'a>(window_stack: &'a mut [WindowKind]) -> Result<&'a mut TextEditor> {
+fn main_window(window_stack: &mut [WindowKind]) -> Result<&mut TextEditor> {
     let window = window_stack
         .get_mut(0)
         .ok_or(Error::msg("should have main window"))?;
@@ -360,7 +365,7 @@ fn main_window<'a>(window_stack: &'a mut [WindowKind]) -> Result<&'a mut TextEdi
     }
 }
 
-fn current_window<'a>(window_stack: &'a mut [WindowKind]) -> Result<&'a mut WindowKind> {
+fn current_window(window_stack: &mut [WindowKind]) -> Result<&mut WindowKind> {
     window_stack
         .last_mut()
         .ok_or(Error::msg("should not have empty window_stack"))

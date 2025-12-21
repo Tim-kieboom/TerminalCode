@@ -2,7 +2,7 @@ use crate::{
     context::SharedContext,
     key_controller::{
         InsertKind, WindowControlReponse, WindowsControl, default_controls,
-        key_controller::SessionEvent,
+        handle_input::SessionEvent,
     },
     utils::{cursor::Cursor, syntaxer::Syntaxer, text_buffer::TextBuffer},
     window::Window,
@@ -56,8 +56,8 @@ impl LookupBar {
             WalkDir::new(file_context.base_path.clone())
                 .max_depth(3)
                 .into_iter()
-                .filter_map(|e| e.ok())}
-        );
+                .filter_map(|e| e.ok())
+        });
 
         for entry in dir_walker {
             let path = entry.path().to_string_lossy();
@@ -105,7 +105,12 @@ impl Window for LookupBar {
         Ok(())
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block, _syntaxer: &mut Syntaxer) -> Result<()> {
+    fn draw_ui(
+        &mut self,
+        frame: &mut Frame,
+        header: Block,
+        _syntaxer: &mut Syntaxer,
+    ) -> Result<()> {
         let area = frame.area();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -214,9 +219,8 @@ impl WindowsControl for LookupBar {
 
     fn enter(&mut self) -> Result<WindowControlReponse> {
         let path = self.pick_entry()?;
-        self.context.set_file_context(|file_context| {
-            file_context.file_path = path
-        });
+        self.context
+            .set_file_context(|file_context| file_context.file_path = path);
         Ok(WindowControlReponse::ToMainWindow)
     }
 
@@ -230,9 +234,7 @@ impl WindowsControl for LookupBar {
         Ok(WindowControlReponse::None)
     }
 
-    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
-        match action {
-            _ => Ok(None),
-        }
+    fn custom_action(&mut self, _action: event::Event) -> Result<Option<SessionEvent>> {
+        Ok(None)
     }
 }

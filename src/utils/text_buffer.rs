@@ -3,7 +3,7 @@ use std::ops::{Index, IndexMut};
 /// Unified text buffer for single-line and multi-line use.
 ///
 /// Provides uniform `Index`/`IndexMut`/`as_slice()`/`as_mut_slice()` access to both `[String; 1]` and `Vec<String>`
-/// via enum variants. Enables shared logic across UI 
+/// via enum variants. Enables shared logic across UI
 #[derive(Debug, Clone)]
 pub enum TextBuffer {
     Single([String; 1]),
@@ -50,7 +50,7 @@ impl TextBuffer {
     }
 
     /// Converts to immutable slice
-    pub const fn as_slice<'a>(&'a self) -> &'a [String] {
+    pub const fn as_slice(&self) -> &[String] {
         match self {
             TextBuffer::Single(line) => line,
             TextBuffer::Multi(items) => items.as_slice(),
@@ -58,7 +58,7 @@ impl TextBuffer {
     }
 
     /// Converts to mutable slice
-    pub const fn as_mut_slice<'a>(&'a mut self) -> &'a mut [String] {
+    pub const fn as_mut_slice(&mut self) -> &mut [String] {
         match self {
             TextBuffer::Single(line) => line,
             TextBuffer::Multi(items) => items.as_mut_slice(),
@@ -68,7 +68,7 @@ impl TextBuffer {
     /// Attempts to get mutable `Some(&mut Vec<String>)` reference (returns `None` for Single).
     ///
     /// Used by multi-line only operations that need `Vec` methods like `push/pop`.
-    pub const fn try_as_vec_mut<'a>(&'a mut self) -> Option<&'a mut Vec<String>> {
+    pub const fn try_as_vec_mut(&mut self) -> Option<&mut Vec<String>> {
         match self {
             TextBuffer::Single(_) => None,
             TextBuffer::Multi(items) => Some(items),

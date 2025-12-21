@@ -1,7 +1,9 @@
 use crate::{
     key_controller::{
-        InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent,
-    }, utils::syntaxer::Syntaxer, window::Window
+        InsertKind, WindowControlReponse, WindowsControl, handle_input::SessionEvent,
+    },
+    utils::syntaxer::Syntaxer,
+    window::Window,
 };
 use anyhow::{Error, Result};
 use crossterm::event;
@@ -44,11 +46,20 @@ impl NotificationWindow {
     }
 }
 impl Window for NotificationWindow {
-    fn on_insert(&mut self) -> Result<()> {Ok(())}
+    fn on_insert(&mut self) -> Result<()> {
+        Ok(())
+    }
 
-    fn on_remove(&mut self) -> Result<()> {Ok(())}
+    fn on_remove(&mut self) -> Result<()> {
+        Ok(())
+    }
 
-    fn draw_ui(&mut self, frame: &mut ratatui::Frame, header: ratatui::widgets::Block, _syntaxer: &mut Syntaxer) -> Result<()> {
+    fn draw_ui(
+        &mut self,
+        frame: &mut ratatui::Frame,
+        header: ratatui::widgets::Block,
+        _syntaxer: &mut Syntaxer,
+    ) -> Result<()> {
         let area = frame.area();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -118,9 +129,7 @@ impl WindowsControl for NotificationWindow {
         Ok(WindowControlReponse::None)
     }
 
-    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
-        match action {
-            _ => Ok(None),
-        }
+    fn custom_action(&mut self, _action: event::Event) -> Result<Option<SessionEvent>> {
+        Ok(None)
     }
 }

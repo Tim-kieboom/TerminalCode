@@ -1,7 +1,7 @@
 use crate::{
     key_controller::{
         InsertKind, WindowControlReponse, WindowsControl, default_controls,
-        key_controller::SessionEvent,
+        handle_input::SessionEvent,
     },
     utils::{cursor::Cursor, syntaxer::Syntaxer, text_buffer::TextBuffer},
     window::Window,
@@ -62,10 +62,19 @@ impl CommandPrompt {
 }
 
 impl Window for CommandPrompt {
-    fn on_insert(&mut self) -> Result<()> {Ok(())}
-    fn on_remove(&mut self) -> Result<()> {Ok(())}
+    fn on_insert(&mut self) -> Result<()> {
+        Ok(())
+    }
+    fn on_remove(&mut self) -> Result<()> {
+        Ok(())
+    }
 
-    fn draw_ui(&mut self, frame: &mut ratatui::Frame, header: ratatui::widgets::Block, _syntaxer: &mut Syntaxer) -> Result<()> {
+    fn draw_ui(
+        &mut self,
+        frame: &mut ratatui::Frame,
+        header: ratatui::widgets::Block,
+        _syntaxer: &mut Syntaxer,
+    ) -> Result<()> {
         use ratatui::{
             layout::{Constraint::Length, Direction, Layout},
             style::{Color, Style},
@@ -136,9 +145,7 @@ impl WindowsControl for CommandPrompt {
         Ok(WindowControlReponse::None)
     }
 
-    fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
-        match action {
-            _ => Ok(None),
-        }
+    fn custom_action(&mut self, _action: event::Event) -> Result<Option<SessionEvent>> {
+        Ok(None)
     }
 }

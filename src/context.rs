@@ -1,9 +1,5 @@
 use ratatui::layout::Rect;
-use std::{
-    cell::RefCell,
-    path::PathBuf,
-    rc::Rc,
-};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
 /// Core shared state for the entire IDE session.
 ///

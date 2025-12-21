@@ -50,7 +50,7 @@ impl ScrollableView {
             .min(u16::MAX as usize);
         self.viewport_left = self.viewport_left.min(max_left);
     }
-    
+
     /// Converts full buffer → viewport text slice, auto-scrolling to cursor.
     ///
     /// 1. Calls `scroll_to_cursor()` to ensure cursor visibility
