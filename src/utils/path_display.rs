@@ -1,5 +1,10 @@
 use std::path::Path;
 
+/// Truncates file paths for terminal display while preserving readability.
+///
+/// Intelligently shortens long paths by:
+/// 1. **Removing middle components** (keeps root + current dir)
+/// 2. **Ellipsis truncation** as final fallback
 pub fn display_path(path: &Path, max_len: usize) -> String {
     let display = path.display();
     if display.to_string().len() <= max_len {

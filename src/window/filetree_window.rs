@@ -21,12 +21,18 @@ use walkdir::WalkDir;
 const BOTTOM_HEADER: &str =
     "[↑↓: Move]  [b: Set as BasePath]  [Enter: Open]  [Backspace: Back]  [ESC: Exit window]";
 
+/// Internal representation of a file/directory entry in the tree.
 #[derive(Debug, Clone, Default)]
 struct FileEntry {
     path: PathBuf,
     is_dir: bool,
 }
 
+/// Hierarchical file browser with directory navigation.
+///
+/// Displays current directory contents with 📁/📄 icons. Supports entering
+/// directories (Enter), opening files, changing project base path ('b'), and
+/// creating new files ('n').
 #[derive(Debug, Clone)]
 pub struct FileTreeWindow {
     current_path: PathBuf,

@@ -22,6 +22,9 @@ use walkdir::WalkDir;
 
 const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";
 
+/// Fuzzy file finder with live search and preview list.
+///
+/// Scans project directory (max depth 3), filters files by fuzzy search,
 #[derive(Debug, Clone)]
 pub struct LookupBar {
     cursor: Cursor,
@@ -43,6 +46,7 @@ impl LookupBar {
         }
     }
 
+    /// Scans project directory for files matching current search buffer.
     pub fn scan_files(&mut self) -> Result<()> {
         let matcher = SkimMatcherV2::default();
         self.entries.clear();
@@ -73,6 +77,9 @@ impl LookupBar {
         Ok(())
     }
 
+    /// Returns the currently selected file path (if valid).
+    ///
+    /// Takes over ownership of `self.entries[self.current_entry]` to prevent cloning large `PathBuf`s.
     pub fn pick_entry(&mut self) -> Result<Option<PathBuf>> {
         if self.entries.get(self.current_entry).is_some() {
             let path = std::mem::take(&mut self.entries[self.current_entry]);
@@ -176,7 +183,7 @@ impl Window for LookupBar {
 
         frame.render_widget(instructions, overlay_area[2]);
 
-        let cursor_x = 3 + self.search_buffer.len() as u16; // 3 = "> " + border padding
+        let cursor_x = 3 + self.search_buffer.line_count() as u16; // 3 = "> " + border padding
         let cursor_y = input_inner.y; // Top of input area
         frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
         Ok(())

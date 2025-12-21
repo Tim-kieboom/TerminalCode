@@ -24,6 +24,10 @@ const TOTAL_HEADER_HEIGHT: u16 = HEADER_HEIGHT_TOP + HEADER_HEIGHT_BOTTOM;
 
 const BOTTOM_HEADER: &str = "[shift+ESC: Exit] [ctr+p: Lookup] [ctr+`: Terminal]";
 
+/// Core text editing component for the IDE.
+///
+/// Manages buffer content, cursor position, scrolling, syntax highlighting,
+/// and file I/O operations. Implements the main text editing experience.
 #[derive(Debug)]
 pub(crate) struct TextEditor {
     cursor: Cursor,
@@ -45,16 +49,24 @@ impl TextEditor {
         }
     }
 
+    /// Returns a reference to the currently loaded file path.
+    ///
+    /// Used by session management to sync file context across windows.
     pub fn get_file_path(&self) -> &Option<PathBuf> {
         &self.file
     }
 
+    /// Marks the current file as having unsaved changes.
     pub fn mark_file_unsaved(&mut self) {
         self.context.set_file_context(|file_context| {
             file_context.file_saved = false
         });
     }
 
+    /// Loads file content from disk and populates the editor buffer.
+    ///
+    /// Updates syntax highlighting rules based on file extension and resets
+    /// cursor position.
     pub fn load_file(&mut self, path: PathBuf, syntaxer: &mut Syntaxer) -> Result<()> {
         syntaxer.update_syntax(&path);
 
@@ -73,12 +85,14 @@ impl TextEditor {
         Ok(())
     }
 
+    /// Writes current buffer content to disk at the given path.
     pub fn save_file(&mut self, path: &PathBuf) -> Result<()> {
         let content = self.buffer.as_slice().join("\n");
         std::fs::write(path, content)?;
         Ok(())
     }
 
+    /// Resets editor to empty "no file" state.
     pub fn set_to_no_file(&mut self) {
         self.file = None;
         self.buffer.clear();

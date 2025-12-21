@@ -1,3 +1,6 @@
+/// Cursor position for text editing and input fields.
+///
+/// Tracks `(line, offset)` position.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Cursor {
     pub line: u16,

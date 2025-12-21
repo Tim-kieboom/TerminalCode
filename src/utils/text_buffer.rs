@@ -1,19 +1,28 @@
 use std::ops::{Index, IndexMut};
 
+/// Unified text buffer for single-line and multi-line use.
+///
+/// Provides uniform `Index`/`IndexMut`/`as_slice()`/`as_mut_slice()` access to both `[String; 1]` and `Vec<String>`
+/// via enum variants. Enables shared logic across UI 
 #[derive(Debug, Clone)]
 pub enum TextBuffer {
     Single([String; 1]),
     Multi(Vec<String>),
 }
 impl TextBuffer {
+    /// Creates a single-line buffer
     pub fn new_single_line(line: String) -> Self {
         Self::Single([line])
     }
 
+    /// Creates a multi-line buffer
     pub fn new_multi_line(lines: Vec<String>) -> Self {
         Self::Multi(lines)
     }
 
+    /// Clears buffer contents, ensuring at least one empty line exists.
+    ///
+    /// Single-line: clears the line. Multi-line: clears vector + adds empty line.
     pub fn clear(&mut self) {
         match self {
             TextBuffer::Single(line) => line[0].clear(),
@@ -24,6 +33,7 @@ impl TextBuffer {
         }
     }
 
+    /// Safe immutable access to line by index.
     pub fn get(&self, i: usize) -> Option<&String> {
         match self {
             TextBuffer::Single(line) => line.get(i),
@@ -31,13 +41,15 @@ impl TextBuffer {
         }
     }
 
-    pub const fn len(&self) -> usize {
+    /// Returns number of lines in buffer.
+    pub const fn line_count(&self) -> usize {
         match self {
             TextBuffer::Single(_) => 1,
             TextBuffer::Multi(items) => items.len(),
         }
     }
 
+    /// Converts to immutable slice
     pub const fn as_slice<'a>(&'a self) -> &'a [String] {
         match self {
             TextBuffer::Single(line) => line,
@@ -45,6 +57,7 @@ impl TextBuffer {
         }
     }
 
+    /// Converts to mutable slice
     pub const fn as_mut_slice<'a>(&'a mut self) -> &'a mut [String] {
         match self {
             TextBuffer::Single(line) => line,
@@ -52,6 +65,9 @@ impl TextBuffer {
         }
     }
 
+    /// Attempts to get mutable `Some(&mut Vec<String>)` reference (returns `None` for Single).
+    ///
+    /// Used by multi-line only operations that need `Vec` methods like `push/pop`.
     pub const fn try_as_vec_mut<'a>(&'a mut self) -> Option<&'a mut Vec<String>> {
         match self {
             TextBuffer::Single(_) => None,

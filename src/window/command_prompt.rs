@@ -10,6 +10,10 @@ use anyhow::Result;
 use crossterm::event;
 use std::process::Command;
 
+/// Integrated terminal/shell for running system commands.
+///
+/// Supports cross-platform execution (`cmd /C` on Windows, `sh -c` on Unix).
+/// Displays command output with success/failure status. History preserved in buffer.
 #[derive(Debug)]
 pub struct CommandPrompt {
     cursor: Cursor,

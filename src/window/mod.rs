@@ -15,6 +15,8 @@ pub mod lookup_bar;
 pub mod notification_window;
 pub mod text_editor;
 
+/// **Macro** that automatically delegates `Window` and `WindowsControl` trait methods
+/// to enum variants.
 macro_rules! impl_window_for_enum {
     ($enum_name:ident { $($variant:ident),* $(,)? }) => {
         impl WindowsControl for $enum_name {
@@ -102,12 +104,25 @@ macro_rules! impl_window_for_enum {
     };
 }
 
+/// Base trait for all UI windows in the IDE.
+///
+/// Combines input handling (`WindowsControl`) with text change notifications and rendering.
 pub trait Window: WindowsControl {
+    /// Called **after text content is inserted/modified** in this window.
+    ///
+    /// Allows windows to mark themselves as "dirty" (unsaved changes).
     fn on_insert(&mut self) -> Result<()>;
+
+    /// Called **after text content is removed/modified** in this window.
+    ///
+    /// Allows windows to mark themselves as "dirty" (unsaved changes).
     fn on_remove(&mut self) -> Result<()>;
+
+    /// Renders the window UI for the given frame.
     fn draw_ui(&mut self, frame: &mut Frame, header: Block, syntaxer: &mut Syntaxer) -> Result<()>;
 }
 
+/// Polymorphic window type for the session stack.
 #[derive(Debug)]
 pub enum WindowKind {
     LookupBar(LookupBar),

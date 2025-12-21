@@ -1,6 +1,11 @@
 use crate::utils::{cursor::Cursor, text_buffer::TextBuffer};
 use ratatui::layout::Rect;
 
+/// Viewport management for scrollable text buffers.
+///
+/// Handles automatic scrolling to keep cursor visible with intelligent centering.
+/// Converts full `TextBuffer` → visible viewport slice for `ratatui` rendering.
+/// Used exclusively by `TextEditor`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScrollableView {
     height: usize,
@@ -16,6 +21,7 @@ struct CursorUsize {
 }
 
 impl ScrollableView {
+    /// Creates viewport from terminal area, subtracting header height.
     pub fn from_area(area: Rect, header_height: u16) -> Self {
         let mut this = Self {
             height: 0,
@@ -27,6 +33,9 @@ impl ScrollableView {
         this
     }
 
+    /// Updates viewport dimensions on terminal resize.
+    ///
+    /// Clamps viewport offsets to prevent overflow beyond `u16::MAX`.
     pub fn update_area(&mut self, new_area: Rect, header_height: u16) {
         self.height = new_area.height.saturating_sub(header_height) as usize;
         self.width = new_area.width as usize;
@@ -41,19 +50,24 @@ impl ScrollableView {
             .min(u16::MAX as usize);
         self.viewport_left = self.viewport_left.min(max_left);
     }
-
+    
+    /// Converts full buffer → viewport text slice, auto-scrolling to cursor.
+    ///
+    /// 1. Calls `scroll_to_cursor()` to ensure cursor visibility
+    /// 2. Slices each line to viewport width (`line_slice()`)
+    /// 3. Joins visible lines with newlines
     pub fn text_buffer_to_view(&mut self, cursor: &Cursor, buffer: &TextBuffer) -> String {
         self.scroll_to_cursor(to_cursor_usize(cursor), buffer);
 
         let max_view_height = self.height;
         let actual_viewport_top = self
             .viewport_top
-            .min(buffer.len().saturating_sub(max_view_height));
+            .min(buffer.line_count().saturating_sub(max_view_height));
 
         let mut text = String::new();
         for i in 0..max_view_height {
             let buffer_line_idx = actual_viewport_top + i;
-            if buffer_line_idx >= buffer.len() {
+            if buffer_line_idx >= buffer.line_count() {
                 break;
             }
 
@@ -76,7 +90,7 @@ impl ScrollableView {
     }
 
     fn scroll_to_cursor(&mut self, cursor: CursorUsize, buffer: &TextBuffer) {
-        self.scroll_vertical(cursor.line, buffer.len(), self.height);
+        self.scroll_vertical(cursor.line, buffer.line_count(), self.height);
         self.scroll_horizontal(cursor.offset, &buffer[cursor.line], self.width);
     }
 

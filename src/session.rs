@@ -27,6 +27,10 @@ use std::{
 
 type StdTerminal = Terminal<CrosstermBackend<Stdout>>;
 
+/// Represents a IDE session running in a terminal.
+///
+/// A `Session` owns the terminal state, manages open windows (variants of `WindowKind` that impl `Window`), handles keyboard input, and renders
+/// the TUI interface.
 #[derive(Debug)]
 pub struct Session {
     terminal: StdTerminal,
@@ -36,6 +40,16 @@ pub struct Session {
 }
 
 impl Session {
+    /// Creates a new [`Session`] given an output handle (`stdout`) and a base path.
+    ///
+    /// This function initializes terminal state
+    /// and sets up the text editor as the main window.
+    ///     
+    /// # Example 
+    /// ```
+    /// use terminal_code::Session;
+    /// let session = Session::new(std::io::stdout());
+    /// ```
     pub fn new(mut stdout: Stdout, base_path: PathBuf) -> Result<Self> {
         use crossterm::terminal::Clear;
         const CLEAR_EXISTING_ECHOS: Clear = Clear(ClearType::All);
@@ -67,7 +81,28 @@ impl Session {
             window_stack: vec![main_window],
         })
     }
-
+    
+    /// Main event loop for the terminal IDE session.
+    ///
+    /// Repeatedly waits for keyboard input, handles it, and redraws the UI.
+    /// Ends when an `Exit` event is triggered or on error.
+    /// 
+    /// # Example 
+    /// ```
+    /// use terminal_code::Session;
+    /// 
+    /// let session = Session::new(std::io::stdout());
+    /// loop {
+    /// 
+    ///     match session.run() {
+    ///         Err(err) => session.display_error(err),    
+    ///         Ok(()) => {
+    ///             session.dispose()
+    ///             break
+    ///         }
+    ///     } 
+    /// }
+    /// ```
     pub fn run(&mut self) -> Result<()> {
         loop {
             let input = event::read()?;
@@ -92,6 +127,25 @@ impl Session {
         Ok(())
     }
 
+    /// Cleans up the terminal session on exit.
+    ///
+    /// Disables raw mode, restores the screen buffer, and re-enables cursor visibility.
+    /// # Example 
+    /// ```
+    /// use terminal_code::Session;
+    /// 
+    /// let session = Session::new(std::io::stdout());
+    /// loop {
+    /// 
+    ///     match session.run() {
+    ///         Err(err) => session.display_error(err),    
+    ///         Ok(()) => {
+    ///             session.dispose()
+    ///             break
+    ///         }
+    ///     } 
+    /// }
+    /// ```
     pub fn dispose(&mut self) -> Result<()> {
         crossterm::terminal::disable_raw_mode()?;
         crossterm::execute!(
@@ -103,6 +157,23 @@ impl Session {
         Ok(())
     }
 
+    /// Displays an error notification in a dedicated notification window.
+    /// # Example 
+    /// ```
+    /// use terminal_code::Session;
+    /// 
+    /// let session = Session::new(std::io::stdout());
+    /// loop {
+    /// 
+    ///     match session.run() {
+    ///         Err(err) => session.display_error(err),    
+    ///         Ok(()) => {
+    ///             session.dispose()
+    ///             break
+    ///         }
+    ///     } 
+    /// }
+    /// ```
     pub fn display_error(&mut self, error: Error) {
         let notification = WindowKind::NotificationWindow(NotificationWindow::new_error(error));
         self.window_stack.push(notification);
@@ -295,6 +366,7 @@ fn current_window<'a>(window_stack: &'a mut [WindowKind]) -> Result<&'a mut Wind
         .ok_or(Error::msg("should not have empty window_stack"))
 }
 
+/// Control enum for the main event loop representing what to do next.
 enum Loop {
     None,
     Break,

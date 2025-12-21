@@ -3,18 +3,6 @@
 version = 4
 
 [[package]]
-name = "TerminalCode"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "crossterm 0.27.0",
- "fuzzy-matcher",
- "ratatui",
- "syntect",
- "walkdir",
-]
-
-[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -755,6 +743,18 @@ dependencies = [
  "thiserror",
  "walkdir",
  "yaml-rust",
+]
+
+[[package]]
+name = "terminal_code"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "crossterm 0.27.0",
+ "fuzzy-matcher",
+ "ratatui",
+ "syntect",
+ "walkdir",
 ]
 
 [[package]]

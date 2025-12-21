@@ -3,6 +3,7 @@ use crate::{
     utils::{cursor::Cursor, text_buffer::TextBuffer},
 };
 
+/// Moves cursor up one line, preserving column position up to line length.
 pub fn move_up(cursor: &mut Cursor, buffer: &TextBuffer) {
     if cursor.line > 0 {
         cursor.line -= 1;
@@ -11,14 +12,16 @@ pub fn move_up(cursor: &mut Cursor, buffer: &TextBuffer) {
     }
 }
 
+/// Moves cursor down one line, preserving column position up to line length.
 pub fn move_down(cursor: &mut Cursor, buffer: &TextBuffer) {
-    if (cursor.line as usize) + 1 < buffer.len() {
+    if (cursor.line as usize) + 1 < buffer.line_count() {
         cursor.line += 1;
         let target_row = cursor.line as usize;
         cursor.offset = buffer[target_row].len().min(cursor.offset as usize) as u16;
     }
 }
 
+/// Moves cursor left by `amount` columns, wrapping to previous line.
 pub fn move_left(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     if amount <= cursor.offset {
         cursor.offset -= amount;
@@ -28,7 +31,7 @@ pub fn move_left(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
         let prev = match buffer.get(cursor.line as usize) {
             Some(val) => val,
             None => {
-                cursor.line = buffer.len() as u16 - 1;
+                cursor.line = buffer.line_count() as u16 - 1;
                 return;
             }
         };
@@ -41,12 +44,13 @@ pub fn move_left(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     }
 }
 
+/// Moves cursor right by `amount` columns, wrapping to next line.
 pub fn move_right(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     let current_line = cursor.line as usize;
     let current = match buffer.get(current_line) {
         Some(val) => val,
         None => {
-            cursor.line = buffer.len() as u16 - 1;
+            cursor.line = buffer.line_count() as u16 - 1;
             return;
         }
     };
@@ -54,7 +58,7 @@ pub fn move_right(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     let line_len = current.len() as u16;
     if cursor.offset + amount <= line_len {
         cursor.offset += amount;
-    } else if (current_line + 1) < buffer.len() {
+    } else if (current_line + 1) < buffer.line_count() {
         let mut leftover = amount - (line_len - cursor.offset);
         cursor.line += 1;
         cursor.offset = 0;
@@ -69,6 +73,7 @@ pub fn move_right(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     }
 }
 
+/// Inserts newline at cursor, splitting current line.
 pub fn enter(cursor: &mut Cursor, buffer: &mut TextBuffer) {
     let buffer_vec = match buffer.try_as_vec_mut() {
         Some(val) => val,
@@ -87,6 +92,7 @@ pub fn enter(cursor: &mut Cursor, buffer: &mut TextBuffer) {
     cursor.offset = 0;
 }
 
+/// Deletes character before cursor (backspace behavior).
 pub fn remove(cursor: &mut Cursor, buffer: &mut TextBuffer) {
     match buffer {
         TextBuffer::Single(line) => remove_single_line(cursor, line),
@@ -94,6 +100,7 @@ pub fn remove(cursor: &mut Cursor, buffer: &mut TextBuffer) {
     }
 }
 
+/// Inserts text at cursor position.
 pub fn insert(cursor: &mut Cursor, buffer: &mut TextBuffer, insert: InsertKind) {
     match buffer {
         TextBuffer::Single(line) => insert_single_line(cursor, line, insert),

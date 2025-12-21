@@ -6,20 +6,40 @@ use crate::{
 };
 use anyhow::Result;
 
+/// High-level events dispatched from input handling to session management.
+///
+/// Trigger window stack changes, file operations, and IDE navigation.
 pub enum SessionEvent {
+    /// Immediately exit the entire IDE session.
     Exit,
+    /// Pop current window from stack (go back).
     Back,
+    /// Save current file to disk.
     SaveFile,
+    /// Text was inserted (trigger `Window::on_insert()` dirty marking).
     OnInsert,
+    /// Text was removed (trigger `Window::on_remove()` dirty marking).
     OnRemove,
+    /// Open fuzzy file finder.
     OpenLookup,
+    /// Return to main `TextEditor` window and pop other windows.
     ToMainWindow,
+    /// Open integrated shell/terminal.
     OpenCommandPrompt,
+    /// Open hierarchical file browser.
     OpenFileTreeWindow,
-    TestDebugEvent,
+    /// Open file creation dialog at specific path.
     OpenFileCreater{in_path: PathBuf},
+    
+    /// Debug error testing.
+    TestDebugEvent,
 }
 
+/// Central input dispatcher for all windows.
+///
+/// 1. **Delegates** to `WindowsControl` trait methods (`move_up`, `enter`, etc.)
+/// 2. **Maps** low-level `InputEvent` → high-level `SessionEvent`
+/// 3. **Chains** window response + session event for complex flows
 pub fn handle_input<T: Window>(
     this: &mut T,
     mut event: InputEvent,

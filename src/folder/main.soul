@@ -1,3 +1,0 @@
-main(): int {
-    Println("hello world")
-}

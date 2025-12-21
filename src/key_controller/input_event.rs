@@ -1,6 +1,10 @@
 use crate::key_controller::{InputEvent, InsertKind};
 use crossterm::event::{Event, KeyEventKind, KeyModifiers};
 
+/// Converts raw `crossterm::Event` → high-level `InputEvent` for window handling.
+///
+/// Filters out non-press events and maps key combinations to IDE actions.
+/// Entry point for all keyboard input in the session loop.
 pub fn get_input_event(event: Event) -> InputEvent {
     use crossterm::event::KeyCode::*;
 

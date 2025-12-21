@@ -13,6 +13,9 @@ use ratatui::{
 
 const BOTTOM_HEADER: &str = " [ESC: Exit window] ";
 
+/// Severity level for notifications.
+///
+/// Variants are marked `#[allow(unused)]` as they're designed for future expansion.
 #[derive(Debug)]
 pub enum NotificationLevel {
     #[allow(unused)]
@@ -23,6 +26,10 @@ pub enum NotificationLevel {
     Warning,
 }
 
+/// Temporary overlay window for displaying error messages and notifications.
+///
+/// Non-interactive read-only view that shows error details with color-coded
+/// severity levels.
 #[derive(Debug)]
 pub struct NotificationWindow {
     buffer: String,
@@ -39,7 +46,6 @@ impl NotificationWindow {
 impl Window for NotificationWindow {
     fn on_insert(&mut self) -> Result<()> {Ok(())}
 
-        
     fn on_remove(&mut self) -> Result<()> {Ok(())}
 
     fn draw_ui(&mut self, frame: &mut ratatui::Frame, header: ratatui::widgets::Block, _syntaxer: &mut Syntaxer) -> Result<()> {

@@ -9,6 +9,11 @@ use syntect::{
 
 const DEFAULT_THEME: &str = "base16-mocha.dark";
 
+/// Syntax highlighting engine for the IDE.
+///
+/// Uses `syntect` for accurate language detection (by file extension) and
+/// theme-based highlighting. Converts `syntect::Style` → `ratatui::Style`
+/// for terminal rendering.
 #[derive(Debug)]
 pub struct Syntaxer {
     syntax_set: SyntaxSet,
@@ -27,6 +32,9 @@ impl Default for Syntaxer {
     }
 }
 impl Syntaxer {
+    /// Updates syntax rules based on file extension.
+    ///
+    /// Falls back to "Plain Text" if no syntax found for extension.
     pub fn update_syntax(&mut self, path: &Path) {
         const FALL_BACK: &str = "Plain Text";
         let extention = path.extension().and_then(|el| el.to_str()).unwrap_or("");
@@ -38,6 +46,7 @@ impl Syntaxer {
             .cloned();
     }
 
+    /// Converts plain text to syntax-highlighted `ratatui::Text`.
     pub fn to_highighed<'a>(&mut self, text: &'a String) -> Result<Text<'a>> {
         let syntax = match &self.syntax {
             Some(val) => val,

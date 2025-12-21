@@ -1,4 +1,4 @@
-use std::{fs::{DirEntry, File}, path::PathBuf};
+use std::{fs::{File}, path::PathBuf};
 
 use crate::{
     key_controller::{
@@ -19,6 +19,11 @@ use ratatui::{
 
 const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";
 
+/// Simple file/directory creation dialog.
+///
+/// Enter a filename in the input field at the given `in_path`. Enter creates
+/// files (with extension) or directories (no extension). Uses current directory
+/// from file tree or project base path.
 #[derive(Debug, Clone)]
 pub struct FileCreater {
     cursor: Cursor,
@@ -75,7 +80,7 @@ impl Window for FileCreater {
             )
             .split(area);
 
-        let input_block = Block::default().borders(Borders::ALL).title(" Find File ");
+        let input_block = Block::default().borders(Borders::ALL).title(" Create File/Folder (no extention means folder else file)");
 
         let input_area = overlay_area[0];
         let input_inner = input_block.inner(input_area);
@@ -89,7 +94,7 @@ impl Window for FileCreater {
 
         frame.render_widget(instructions, overlay_area[2]);
 
-        let cursor_x = 3 + self.search_buffer.len() as u16; // 3 = "> " + border padding
+        let cursor_x = 3 + self.search_buffer.line_count() as u16; // 3 = "> " + border padding
         let cursor_y = input_inner.y; // Top of input area
         frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
         Ok(())

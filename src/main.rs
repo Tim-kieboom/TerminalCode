@@ -1,10 +1,6 @@
-mod context;
-mod key_controller;
-mod session;
-mod utils;
-mod window;
+extern crate terminal_code;
 
-use crate::session::Session;
+use terminal_code::Session;
 use anyhow::Result;
 use std::{env, io::stdout};
 
