@@ -1,6 +1,9 @@
-use crate::{key_controller::InsertKind, utils::cursor::Cursor};
+use crate::{
+    key_controller::InsertKind,
+    utils::{cursor::Cursor, text_buffer::TextBuffer},
+};
 
-pub fn move_up(cursor: &mut Cursor, buffer: &[String]) {
+pub fn move_up(cursor: &mut Cursor, buffer: &TextBuffer) {
     if cursor.line > 0 {
         cursor.line -= 1;
         let target_row = cursor.line as usize;
@@ -8,7 +11,7 @@ pub fn move_up(cursor: &mut Cursor, buffer: &[String]) {
     }
 }
 
-pub fn move_down(cursor: &mut Cursor, buffer: &[String]) {
+pub fn move_down(cursor: &mut Cursor, buffer: &TextBuffer) {
     if (cursor.line as usize) + 1 < buffer.len() {
         cursor.line += 1;
         let target_row = cursor.line as usize;
@@ -16,12 +19,21 @@ pub fn move_down(cursor: &mut Cursor, buffer: &[String]) {
     }
 }
 
-pub fn move_left(cursor: &mut Cursor, buffer: &[String], amount: u16) {
+pub fn move_left(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     if amount <= cursor.offset {
         cursor.offset -= amount;
     } else if cursor.line > 0 {
         cursor.line -= 1;
-        let prev_len = buffer[cursor.line as usize].len() as u16;
+
+        let prev = match buffer.get(cursor.line as usize) {
+            Some(val) => val,
+            None => {
+                cursor.line = buffer.len() as u16 - 1;
+                return;
+            }
+        };
+
+        let prev_len = prev.len() as u16;
         let leftover = amount - cursor.offset - 1;
         cursor.offset = prev_len.saturating_sub(leftover);
     } else {
@@ -29,10 +41,17 @@ pub fn move_left(cursor: &mut Cursor, buffer: &[String], amount: u16) {
     }
 }
 
-pub fn move_right(cursor: &mut Cursor, buffer: &[String], amount: u16) {
+pub fn move_right(cursor: &mut Cursor, buffer: &TextBuffer, amount: u16) {
     let current_line = cursor.line as usize;
-    let line_len = buffer[current_line].len() as u16;
+    let current = match buffer.get(current_line) {
+        Some(val) => val,
+        None => {
+            cursor.line = buffer.len() as u16 - 1;
+            return;
+        }
+    };
 
+    let line_len = current.len() as u16;
     if cursor.offset + amount <= line_len {
         cursor.offset += amount;
     } else if (current_line + 1) < buffer.len() {
@@ -50,20 +69,39 @@ pub fn move_right(cursor: &mut Cursor, buffer: &[String], amount: u16) {
     }
 }
 
-pub fn enter(cursor: &mut Cursor, buffer: &mut Vec<String>) {
+pub fn enter(cursor: &mut Cursor, buffer: &mut TextBuffer) {
+    let buffer_vec = match buffer.try_as_vec_mut() {
+        Some(val) => val,
+        None => return,
+    };
+
     let line = cursor.line as usize;
     let offset = cursor.offset as usize;
 
-    let current_line = buffer[line].clone();
+    let current_line = std::mem::take(&mut buffer_vec[line]);
     let (left, right) = current_line.split_at(offset);
 
-    buffer[line] = left.to_string();
-    buffer.insert(line + 1, right.to_string());
+    buffer_vec[line] = left.to_string();
+    buffer_vec.insert(line + 1, right.to_string());
     cursor.line += 1;
     cursor.offset = 0;
 }
 
-pub fn remove_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>) {
+pub fn remove(cursor: &mut Cursor, buffer: &mut TextBuffer) {
+    match buffer {
+        TextBuffer::Single(line) => remove_single_line(cursor, line),
+        TextBuffer::Multi(items) => remove_multi_line(cursor, items),
+    }
+}
+
+pub fn insert(cursor: &mut Cursor, buffer: &mut TextBuffer, insert: InsertKind) {
+    match buffer {
+        TextBuffer::Single(line) => insert_single_line(cursor, line, insert),
+        TextBuffer::Multi(items) => insert_multi_line(cursor, items, insert),
+    }
+}
+
+fn remove_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>) {
     let row = cursor.line as usize;
     let column = cursor.offset as usize;
 
@@ -79,16 +117,16 @@ pub fn remove_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>) {
     }
 }
 
-pub fn remove_single_line(cursor: &mut Cursor, buffer: &mut String) {
+fn remove_single_line(cursor: &mut Cursor, buffer: &mut [String; 1]) {
     let column = cursor.offset as usize;
 
     if column > 0 {
-        buffer.remove(column - 1);
+        buffer[0].remove(column - 1);
         cursor.offset -= 1;
     }
 }
 
-pub fn insert_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>, insert: InsertKind) {
+fn insert_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>, insert: InsertKind) {
     let mut char_buffer = [0u8; 4];
     let text = match &insert {
         InsertKind::Char(char) => &*char.encode_utf8(&mut char_buffer),
@@ -102,7 +140,7 @@ pub fn insert_multi_line(cursor: &mut Cursor, buffer: &mut Vec<String>, insert: 
     cursor.offset += text.len() as u16;
 }
 
-pub fn insert_single_line(cursor: &mut Cursor, buffer: &mut String, insert: InsertKind) {
+fn insert_single_line(cursor: &mut Cursor, buffer: &mut [String; 1], insert: InsertKind) {
     let mut char_buffer = [0u8; 4];
     let text = match &insert {
         InsertKind::Char(char) => &*char.encode_utf8(&mut char_buffer),
@@ -111,6 +149,6 @@ pub fn insert_single_line(cursor: &mut Cursor, buffer: &mut String, insert: Inse
 
     let offset = cursor.offset as usize;
 
-    buffer.insert_str(offset, text);
+    buffer[0].insert_str(offset, text);
     cursor.offset += text.len() as u16;
 }

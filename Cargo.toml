@@ -8,5 +8,6 @@ anyhow = "1.0.100"
 crossterm = "0.27.0"
 fuzzy-matcher = "0.3.7"
 ratatui = "0.29.0"
+syntect = "5.3.0"
 walkdir = "2.5.0"
 

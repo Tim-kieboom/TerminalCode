@@ -1,10 +1,15 @@
 use crate::{
-    context::{FileContext, SharedContext}, key_controller::{
-        WindowsControl, input_event::get_input_event, key_controller::{SessionEvent, handle_input}
-    }, utils::path_display::display_path, window::{
+    context::{FileContext, SharedContext},
+    key_controller::{
+        WindowsControl,
+        input_event::get_input_event,
+        key_controller::{SessionEvent, handle_input},
+    },
+    utils::{path_display::display_path, syntaxer::Syntaxer},
+    window::{
         Window, WindowKind, command_prompt::CommandPrompt, filetree_window::FileTreeWindow,
         lookup_bar::LookupBar, notification_window::NotificationWindow, text_editor::TextEditor,
-    }
+    },
 };
 use anyhow::{Error, Result};
 use crossterm::{
@@ -28,6 +33,7 @@ pub struct Session {
     terminal: StdTerminal,
     context: SharedContext,
     window_stack: Vec<WindowKind>,
+    syntaxer: Syntaxer,
 }
 
 impl Session {
@@ -58,6 +64,7 @@ impl Session {
         Ok(Self {
             context,
             terminal,
+            syntaxer: Syntaxer::default(),
             window_stack: vec![main_window],
         })
     }
@@ -72,12 +79,16 @@ impl Session {
             }
 
             let window = current_window(&mut self.window_stack)?;
+            let mut error = Ok(());
             self.terminal.draw(|frame| {
-                Self::draw_ui(frame, window, &self.context);
-                let screen_area = &mut self.context.borrow_mut().screen_area;
+                if let Err(err) = Self::draw_ui(frame, window, &self.context, &mut self.syntaxer) {
+                    error = Err(err);
+                    return
+                } 
 
-                *screen_area = frame.area();
+                self.context.borrow_mut().screen_area = frame.area();
             })?;
+            error?;
         }
         Ok(())
     }
@@ -119,10 +130,10 @@ impl Session {
             SessionEvent::Exit => return Ok(Loop::Break),
 
             SessionEvent::OnRemove => {
-                current_window(&mut self.window_stack)?.on_remove();
+                current_window(&mut self.window_stack)?.on_remove()?;
             }
             SessionEvent::OnInsert => {
-                current_window(&mut self.window_stack)?.on_insert();
+                current_window(&mut self.window_stack)?.on_insert()?;
             }
             SessionEvent::SaveFile => {
                 let file_context = &mut self.context.borrow_mut().file_context;
@@ -180,7 +191,7 @@ impl Session {
         Ok(Loop::None)
     }
 
-    fn draw_ui<Win: Window>(frame: &mut Frame, window: &mut Win, context: &SharedContext) {
+    fn draw_ui<Win: Window>(frame: &mut Frame, window: &mut Win, context: &SharedContext, syntaxer: &mut Syntaxer) -> Result<()> {
         use ratatui::style::Modifier;
         use ratatui::text::Span;
         use ratatui::widgets::{Block, Borders};
@@ -189,13 +200,11 @@ impl Session {
             path.strip_prefix(base).ok()
         }
 
-        let file_context = &context.borrow().file_context;
-
         let max_path_len = (frame.area().width / 3) as usize;
 
-        let base_path = &file_context.base_path;
-        let end_span = if let Some(path) = file_context.file_path.as_ref() {
-            let saved = if file_context.file_saved { "" } else { "*" };
+        let base_path = &context.borrow().file_context.base_path;
+        let end_span = if let Some(path) = context.borrow().file_context.file_path.as_ref() {
+            let saved = if context.borrow().file_context.file_saved { "" } else { "*" };
             let relative_path = relative_to(base_path, path).unwrap_or(&Path::new(""));
 
             Span::styled(
@@ -226,18 +235,18 @@ impl Session {
                 end_span,
             ]);
 
-        window.draw_ui(frame, header);
+        window.draw_ui(frame, header, syntaxer)
     }
 
     fn on_window_pop(&mut self) -> Result<()> {
         let window_amount = self.window_stack.len();
-        let file_context = &mut self.context.borrow_mut().file_context;
         let main = main_window(&mut self.window_stack)?;
+        let file_path = &self.context.borrow().file_context.file_path;
 
-        let is_new_file = main.get_file_path() != &file_context.file_path;
+        let is_new_file = main.get_file_path() != file_path;
         if window_amount == 1 && is_new_file {
-            match &file_context.file_path {
-                Some(path) => main.load_file(path.clone())?,
+            match &file_path {
+                Some(path) => main.load_file(path.clone(), &mut self.syntaxer)?,
                 None => main.set_to_no_file(),
             }
         }

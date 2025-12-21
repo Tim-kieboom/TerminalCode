@@ -1,15 +1,16 @@
+use crate::{
+    key_controller::{
+        InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent,
+    }, utils::syntaxer::Syntaxer, window::{
+        command_prompt::CommandPrompt, filetree_window::FileTreeWindow, lookup_bar::LookupBar,
+        notification_window::NotificationWindow, text_editor::TextEditor,
+    }
+};
 use anyhow::Result;
 use ratatui::{Frame, widgets::Block};
 
-use crate::{
-    key_controller::{InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent},
-    window::{
-        command_prompt::CommandPrompt, filetree_window::FileTreeWindow, lookup_bar::LookupBar,
-        notification_window::NotificationWindow, text_editor::TextEditor,
-    },
-};
-
 pub mod command_prompt;
+pub mod file_namer;
 pub mod filetree_window;
 pub mod lookup_bar;
 pub mod notification_window;
@@ -77,24 +78,24 @@ macro_rules! impl_window_for_enum {
         }
 
         impl Window for $enum_name {
-            fn on_insert(&mut self) {
+            fn on_insert(&mut self) -> Result<()> {
                 match self {
                     $(
                         $enum_name::$variant(inner) => inner.on_insert(),
                     )*
                 }
             }
-            fn on_remove(&mut self) {
+            fn on_remove(&mut self) -> Result<()> {
                 match self {
                     $(
                         $enum_name::$variant(inner) => inner.on_insert(),
                     )*
                 }
             }
-            fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
+            fn draw_ui(&mut self, frame: &mut Frame, header: Block, syntaxer: &mut Syntaxer) -> Result<()> {
                 match self {
                     $(
-                        $enum_name::$variant(inner) => inner.draw_ui(frame, header),
+                        $enum_name::$variant(inner) => inner.draw_ui(frame, header, syntaxer),
                     )*
                 }
             }
@@ -103,9 +104,9 @@ macro_rules! impl_window_for_enum {
 }
 
 pub trait Window: WindowsControl {
-    fn on_insert(&mut self);
-    fn on_remove(&mut self);
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block);
+    fn on_insert(&mut self) -> Result<()>;
+    fn on_remove(&mut self) -> Result<()>;
+    fn draw_ui(&mut self, frame: &mut Frame, header: Block, syntaxer: &mut Syntaxer) -> Result<()>;
 }
 
 #[derive(Debug)]

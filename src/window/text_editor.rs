@@ -1,5 +1,13 @@
-use std::path::PathBuf;
-
+use crate::{
+    context::SharedContext,
+    key_controller::{
+        WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent,
+    },
+    utils::{
+        cursor::Cursor, scrollable_view::ScrollableView, syntaxer::Syntaxer, text_buffer::TextBuffer
+    },
+    window::Window,
+};
 use anyhow::Result;
 use crossterm::event;
 use ratatui::{
@@ -8,13 +16,7 @@ use ratatui::{
     style::{Color, Style},
     widgets::{Block, Paragraph},
 };
-
-use crate::{
-    context::SharedContext,
-    key_controller::{WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent},
-    utils::{cursor::Cursor, scrollable_view::ScrollableView},
-    window::Window,
-};
+use std::path::PathBuf;
 
 const HEADER_HEIGHT_TOP: u16 = 1;
 const HEADER_HEIGHT_BOTTOM: u16 = 2;
@@ -26,7 +28,7 @@ const BOTTOM_HEADER: &str = "[shift+ESC: Exit] [ctr+p: Lookup] [ctr+`: Terminal]
 pub(crate) struct TextEditor {
     cursor: Cursor,
     view: ScrollableView,
-    buffer: Vec<String>,
+    buffer: TextBuffer,
     file: Option<PathBuf>,
     context: SharedContext,
 }
@@ -38,7 +40,7 @@ impl TextEditor {
             context,
             file: None,
             cursor: Cursor::default(),
-            buffer: vec![String::new()],
+            buffer: TextBuffer::new_multi_line(vec![String::new()]),
             view: ScrollableView::from_area(area, TOTAL_HEADER_HEIGHT),
         }
     }
@@ -51,22 +53,26 @@ impl TextEditor {
         self.context.borrow_mut().file_context.file_saved = false;
     }
 
-    pub fn load_file(&mut self, path: PathBuf) -> Result<()> {
+    pub fn load_file(&mut self, path: PathBuf, syntaxer: &mut Syntaxer) -> Result<()> {
+        syntaxer.update_syntax(&path);
+
         self.file = Some(path);
         let path_ref = self.file.as_ref().expect("just assigned to Some");
 
         let content = std::fs::read_to_string(path_ref)?;
-        self.buffer = if content.is_empty() {
+        let lines = if content.is_empty() {
             vec![String::new()]
         } else {
             content.lines().map(String::from).collect()
         };
+        self.buffer = TextBuffer::new_multi_line(lines);
+
         self.cursor = Cursor::default();
         Ok(())
     }
 
     pub fn save_file(&mut self, path: &PathBuf) -> Result<()> {
-        let content = self.buffer.join("\n");
+        let content = self.buffer.as_slice().join("\n");
         std::fs::write(path, content)?;
         Ok(())
     }
@@ -79,15 +85,17 @@ impl TextEditor {
 }
 
 impl Window for TextEditor {
-    fn on_insert(&mut self) {
+    fn on_insert(&mut self) -> Result<()>{
         self.mark_file_unsaved();
+        Ok(())
     }
 
-    fn on_remove(&mut self) {
+    fn on_remove(&mut self) -> Result<()>{
         self.mark_file_unsaved();
+        Ok(())
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
+    fn draw_ui(&mut self, frame: &mut Frame, header: Block, syntaxer: &mut Syntaxer) -> Result<()>{
         let area = frame.area();
         self.view.update_area(area, TOTAL_HEADER_HEIGHT);
         let chunks = Layout::default()
@@ -96,7 +104,9 @@ impl Window for TextEditor {
             .split(area);
 
         let text = self.view.text_buffer_to_view(&self.cursor, &self.buffer);
-        let editor_box = Paragraph::new(text)
+        let syntax_text = syntaxer.to_highighed(&text)?;
+
+        let editor_box = Paragraph::new(syntax_text)
             .style(Style::default().fg(Color::White))
             .block(header);
 
@@ -110,6 +120,7 @@ impl Window for TextEditor {
             .saturating_add(HEADER_HEIGHT_TOP)
             .min(max_curser_line);
         frame.set_cursor_position(cursor);
+        Ok(())
     }
 }
 
@@ -141,12 +152,15 @@ impl WindowsControl for TextEditor {
     }
 
     fn backspace(&mut self) -> Result<WindowControlReponse> {
-        default_controls::remove_multi_line(&mut self.cursor, &mut self.buffer);
+        default_controls::remove(&mut self.cursor, &mut self.buffer);
         Ok(WindowControlReponse::None)
     }
 
-    fn insert(&mut self, insert: crate::key_controller::InsertKind) -> Result<WindowControlReponse> {
-        default_controls::insert_multi_line(&mut self.cursor, &mut self.buffer, insert);
+    fn insert(
+        &mut self,
+        insert: crate::key_controller::InsertKind,
+    ) -> Result<WindowControlReponse> {
+        default_controls::insert(&mut self.cursor, &mut self.buffer, insert);
         Ok(WindowControlReponse::None)
     }
 

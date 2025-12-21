@@ -1,6 +1,5 @@
+use crate::utils::{cursor::Cursor, text_buffer::TextBuffer};
 use ratatui::layout::Rect;
-
-use crate::utils::cursor::Cursor;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScrollableView {
@@ -43,7 +42,7 @@ impl ScrollableView {
         self.viewport_left = self.viewport_left.min(max_left);
     }
 
-    pub fn text_buffer_to_view(&mut self, cursor: &Cursor, buffer: &[String]) -> String {
+    pub fn text_buffer_to_view(&mut self, cursor: &Cursor, buffer: &TextBuffer) -> String {
         self.scroll_to_cursor(to_cursor_usize(cursor), buffer);
 
         let max_view_height = self.height;
@@ -76,7 +75,7 @@ impl ScrollableView {
         }
     }
 
-    fn scroll_to_cursor(&mut self, cursor: CursorUsize, buffer: &[String]) {
+    fn scroll_to_cursor(&mut self, cursor: CursorUsize, buffer: &TextBuffer) {
         self.scroll_vertical(cursor.line, buffer.len(), self.height);
         self.scroll_horizontal(cursor.offset, &buffer[cursor.line], self.width);
     }

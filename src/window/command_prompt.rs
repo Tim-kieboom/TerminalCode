@@ -1,6 +1,9 @@
 use crate::{
-    key_controller::{InsertKind, WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent},
-    utils::cursor::Cursor,
+    key_controller::{
+        InsertKind, WindowControlReponse, WindowsControl, default_controls,
+        key_controller::SessionEvent,
+    },
+    utils::{cursor::Cursor, syntaxer::Syntaxer, text_buffer::TextBuffer},
     window::Window,
 };
 use anyhow::Result;
@@ -9,10 +12,10 @@ use std::process::Command;
 
 #[derive(Debug)]
 pub struct CommandPrompt {
-    output_message: String,
-    buffer: Vec<String>,
-    input_line: [String; 1],
     cursor: Cursor,
+    buffer: Vec<String>,
+    output_message: String,
+    input_line: TextBuffer,
 }
 
 const BOTTOM_HEADER: &str = "[ESC: Exit window]  [Enter: Execute]";
@@ -20,10 +23,10 @@ const BOTTOM_HEADER: &str = "[ESC: Exit window]  [Enter: Execute]";
 impl CommandPrompt {
     pub fn new() -> Self {
         Self {
-            output_message: String::new(),
-            input_line: [String::new()],
             cursor: Cursor::default(),
+            output_message: String::new(),
             buffer: vec!["TerminalCode shell".to_string()],
+            input_line: TextBuffer::new_single_line(String::new()),
         }
     }
 
@@ -41,26 +44,24 @@ impl CommandPrompt {
 
         let success = output.status.success();
 
-        let log_msg = if success {
-            std::str::from_utf8(&output.stdout)?
-        } else {
-            std::str::from_utf8(&output.stderr)?
-        };
+        let out = std::str::from_utf8(&output.stdout)?;
+        let err = std::str::from_utf8(&output.stderr)?;
 
         let end_msg = if success { SUCCESS_MSG } else { FAIL_MSG };
 
-        self.output_message = String::with_capacity(log_msg.len() + end_msg.len());
-        self.output_message.push_str(log_msg);
+        self.output_message = String::with_capacity(out.len() + err.len() + end_msg.len());
+        self.output_message.push_str(out);
+        self.output_message.push_str(err);
         self.output_message.push_str(end_msg);
         Ok(())
     }
 }
 
 impl Window for CommandPrompt {
-    fn on_insert(&mut self) {}
-    fn on_remove(&mut self) {}
+    fn on_insert(&mut self) -> Result<()> {Ok(())}
+    fn on_remove(&mut self) -> Result<()> {Ok(())}
 
-    fn draw_ui(&mut self, frame: &mut ratatui::Frame, header: ratatui::widgets::Block) {
+    fn draw_ui(&mut self, frame: &mut ratatui::Frame, header: ratatui::widgets::Block, _syntaxer: &mut Syntaxer) -> Result<()> {
         use ratatui::{
             layout::{Constraint::Length, Direction, Layout},
             style::{Color, Style},
@@ -93,6 +94,7 @@ impl Window for CommandPrompt {
         cursor.offset += OFFSET_OFFSET;
 
         frame.set_cursor_position(cursor);
+        Ok(())
     }
 }
 
@@ -121,15 +123,15 @@ impl WindowsControl for CommandPrompt {
     }
 
     fn backspace(&mut self) -> Result<WindowControlReponse> {
-        default_controls::remove_single_line(&mut self.cursor, &mut self.input_line[0]);
+        default_controls::remove(&mut self.cursor, &mut self.input_line);
         Ok(WindowControlReponse::None)
     }
 
     fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse> {
-        default_controls::insert_single_line(&mut self.cursor, &mut self.input_line[0], insert);
+        default_controls::insert(&mut self.cursor, &mut self.input_line, insert);
         Ok(WindowControlReponse::None)
     }
-    
+
     fn custom_action(&mut self, action: event::Event) -> Result<Option<SessionEvent>> {
         match action {
             _ => Ok(None),

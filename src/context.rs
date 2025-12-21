@@ -1,17 +1,17 @@
+use ratatui::layout::Rect;
 use std::{
     cell::{Ref, RefCell, RefMut},
     path::PathBuf,
     rc::Rc,
 };
 
-use ratatui::layout::Rect;
 
 #[derive(Debug, Clone)]
 pub struct SharedContext {
     inner: Rc<RefCell<InnerContext>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct InnerContext {
     pub screen_area: Rect,
     pub file_context: FileContext,
@@ -40,8 +40,8 @@ impl SharedContext {
         self.inner.borrow_mut()
     }
 
-    pub fn set_file_path(&self, path: Option<PathBuf>) {
-        self.borrow_mut().file_context.file_path = path
+    pub fn set_file_path(&self, path: Option<PathBuf>)  {
+        self.borrow_mut().file_context.file_path = path;
     }
 }
 impl InnerContext {

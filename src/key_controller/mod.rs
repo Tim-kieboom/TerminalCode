@@ -1,8 +1,7 @@
+use crate::key_controller::key_controller::SessionEvent;
 use anyhow::Result;
 use crossterm::event;
 use std::char::ToUppercase;
-
-use crate::key_controller::key_controller::SessionEvent;
 
 pub mod default_controls;
 pub mod input_event;
@@ -18,7 +17,7 @@ pub(crate) trait WindowsControl {
     fn move_down(&mut self) -> Result<WindowControlReponse>;
     fn move_left(&mut self, amount: u16) -> Result<WindowControlReponse>;
     fn move_right(&mut self, amount: u16) -> Result<WindowControlReponse>;
-    
+
     fn enter(&mut self) -> Result<WindowControlReponse>;
     fn backspace(&mut self) -> Result<WindowControlReponse>;
     fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse>;

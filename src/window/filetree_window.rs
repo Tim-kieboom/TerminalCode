@@ -1,5 +1,13 @@
+use crate::{
+    context::SharedContext,
+    key_controller::{
+        InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent,
+    },
+    utils::{path_display::display_path, syntaxer::Syntaxer},
+    window::Window,
+};
 use anyhow::{Error, Result};
-use crossterm::event::{self};
+use crossterm::event;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -10,11 +18,8 @@ use ratatui::{
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
-use crate::{
-    context::SharedContext, key_controller::{InsertKind, WindowControlReponse, WindowsControl, key_controller::SessionEvent}, utils::path_display::display_path, window::Window
-};
-
-const BOTTOM_HEADER: &str = "[↑↓: Move]  [b: Set as BasePath]  [Enter: Open]  [Backspace: Back]  [ESC: Exit window]";
+const BOTTOM_HEADER: &str =
+    "[↑↓: Move]  [b: Set as BasePath]  [Enter: Open]  [Backspace: Back]  [ESC: Exit window]";
 
 #[derive(Debug, Clone, Default)]
 struct FileEntry {
@@ -54,26 +59,31 @@ impl FileTreeWindow {
         for entry in file_walker {
             let entry_path = entry.path().to_path_buf();
             if path == &entry_path {
-                continue
+                continue;
             }
 
             let is_dir = entry.file_type().is_dir();
-            entries.push(FileEntry { path: entry_path, is_dir });
+            entries.push(FileEntry {
+                path: entry_path,
+                is_dir,
+            });
         }
     }
 
     fn change_base_path_to_current(&mut self) -> Result<()> {
         let entry = match self.clone_pick() {
             Some(val) => val,
-            None => return Err(Error::msg(
-                "tried to change project path to current entry but no entry found"
-            )),
+            None => {
+                return Err(Error::msg(
+                    "tried to change project path to current entry but no entry found",
+                ));
+            }
         };
 
         if !entry.is_dir {
             return Err(Error::msg(
-                "tried to change project path to current entry but entry is file and not folder"
-            ))
+                "tried to change project path to current entry but entry is file and not folder",
+            ));
         }
 
         let file_context = &mut self.context.borrow_mut().file_context;
@@ -123,9 +133,9 @@ impl FileTreeWindow {
 }
 
 impl Window for FileTreeWindow {
-    fn on_insert(&mut self) {}
-    fn on_remove(&mut self) {}
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
+    fn on_insert(&mut self) -> Result<()> {Ok(())}
+    fn on_remove(&mut self) -> Result<()> {Ok(())}
+    fn draw_ui(&mut self, frame: &mut Frame, header: Block, _syntaxer: &mut Syntaxer) -> Result<()> {
         let area = frame.area();
         let layout = Layout::default()
             .direction(Direction::Vertical)
@@ -140,11 +150,10 @@ impl Window for FileTreeWindow {
         let max_path_len = (frame.area().width / 2) as usize;
 
         let list = List::new(self.render_lines())
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(format!(" File Tree {} ", display_path(&self.current_path, max_path_len))),
-            )
+            .block(Block::default().borders(Borders::ALL).title(format!(
+                " File Tree {} ",
+                display_path(&self.current_path, max_path_len)
+            )))
             .highlight_style(
                 Style::default()
                     .bg(Color::DarkGray)
@@ -154,6 +163,7 @@ impl Window for FileTreeWindow {
 
         let help = Paragraph::new(BOTTOM_HEADER).alignment(Alignment::Center);
         frame.render_widget(help, layout[1]);
+        Ok(())
     }
 }
 
@@ -214,8 +224,8 @@ impl WindowsControl for FileTreeWindow {
             event::KeyCode::Char('b') => {
                 self.change_base_path_to_current()?;
                 Ok(Some(SessionEvent::ToMainWindow))
-            },
-            _ => Ok(None)
+            }
+            _ => Ok(None),
         }
     }
 }

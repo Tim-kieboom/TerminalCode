@@ -1,3 +1,12 @@
+use crate::{
+    context::SharedContext,
+    key_controller::{
+        InsertKind, WindowControlReponse, WindowsControl, default_controls,
+        key_controller::SessionEvent,
+    },
+    utils::{cursor::Cursor, syntaxer::Syntaxer, text_buffer::TextBuffer},
+    window::Window,
+};
 use anyhow::Result;
 use crossterm::event;
 use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
@@ -11,29 +20,21 @@ use ratatui::{
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
-use crate::{
-    context::SharedContext,
-    key_controller::{InsertKind, WindowControlReponse, WindowsControl, default_controls, key_controller::SessionEvent},
-    utils::cursor::Cursor,
-    window::Window,
-};
-
 const BOTTOM_HEADER: &str = "[↑↓: Move]  [Enter: Open]  [ESC: Exit window]";
 
 #[derive(Debug, Clone)]
 pub struct LookupBar {
     cursor: Cursor,
-    // type is [String; 1] so that search buffer can be used as &[String] in fucntions
-    search_buffer: [String; 1],
+    matches: usize,
     current_entry: usize,
     entries: Vec<PathBuf>,
-    matches: usize,
     context: SharedContext,
+    search_buffer: TextBuffer,
 }
 impl LookupBar {
     pub fn new(context: SharedContext) -> Self {
         Self {
-            search_buffer: [String::new()],
+            search_buffer: TextBuffer::new_single_line(String::new()),
             current_entry: 0,
             entries: vec![],
             matches: 0,
@@ -42,7 +43,7 @@ impl LookupBar {
         }
     }
 
-    pub fn scan_files(&mut self) {
+    pub fn scan_files(&mut self) -> Result<()> {
         let matcher = SkimMatcherV2::default();
         self.entries.clear();
         self.matches = 0;
@@ -55,7 +56,7 @@ impl LookupBar {
             .filter_map(|e| e.ok())
         {
             let path = entry.path().to_string_lossy();
-            let max_entries = self.get_showable_entries_count();
+            let max_entries = self.get_showable_entries_count()?;
             let is_match = entry.path().is_file()
                 && matcher.fuzzy_match(&path, &self.search_buffer[0]).is_some();
 
@@ -68,6 +69,7 @@ impl LookupBar {
             }
         }
         self.current_entry = 0;
+        Ok(())
     }
 
     pub fn pick_entry(&mut self) -> Result<Option<PathBuf>> {
@@ -78,21 +80,24 @@ impl LookupBar {
         Ok(None)
     }
 
-    fn get_showable_entries_count(&self) -> usize {
+    fn get_showable_entries_count(&self) -> Result<usize> {
         const LINES_NON_SHOWABLE: usize = 10;
-        self.context.borrow().screen_area.height as usize - LINES_NON_SHOWABLE
+        let count = self.context.borrow().screen_area.height as usize - LINES_NON_SHOWABLE;
+        Ok(count)
     }
 }
 impl Window for LookupBar {
-    fn on_insert(&mut self) {
-        self.scan_files();
+    fn on_insert(&mut self) -> Result<()> {
+        self.scan_files()?;
+        Ok(())
     }
 
-    fn on_remove(&mut self) {
-        self.scan_files();
+    fn on_remove(&mut self) -> Result<()> {
+        self.scan_files()?;
+        Ok(())
     }
 
-    fn draw_ui(&mut self, frame: &mut Frame, header: Block) {
+    fn draw_ui(&mut self, frame: &mut Frame, header: Block, _syntaxer: &mut Syntaxer) -> Result<()> {
         let area = frame.area();
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -173,6 +178,7 @@ impl Window for LookupBar {
         let cursor_x = 3 + self.search_buffer.len() as u16; // 3 = "> " + border padding
         let cursor_y = input_inner.y; // Top of input area
         frame.set_cursor_position(ratatui::layout::Position::new(cursor_x, cursor_y));
+        Ok(())
     }
 }
 
@@ -205,12 +211,12 @@ impl WindowsControl for LookupBar {
     }
 
     fn backspace(&mut self) -> Result<WindowControlReponse> {
-        default_controls::remove_single_line(&mut self.cursor, &mut self.search_buffer[0]);
+        default_controls::remove(&mut self.cursor, &mut self.search_buffer);
         Ok(WindowControlReponse::None)
     }
 
     fn insert(&mut self, insert: InsertKind) -> Result<WindowControlReponse> {
-        default_controls::insert_single_line(&mut self.cursor, &mut self.search_buffer[0], insert);
+        default_controls::insert(&mut self.cursor, &mut self.search_buffer, insert);
         Ok(WindowControlReponse::None)
     }
 
