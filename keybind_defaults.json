@@ -1,0 +1,6 @@
+{
+  "Quit": "Ctrl+Q",
+  "ShowKeyBinds": "Ctrl+Alt+K",
+  "ToggleSidebar": "Ctrl+L",
+  "FocusNextPanel": "Alt+backspace"
+}
