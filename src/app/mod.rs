@@ -1,17 +1,24 @@
+mod editor;
+mod explorer;
+pub mod theme;
+
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
 };
 use std::time::Duration;
 
-use crate::{StartupArgs, keybinds::{Action, KeyBindings}, terminal::AppTerminal};
+use crate::{
+    StartupArgs,
+    keybinds::{Action, KeyBindings},
+    terminal::AppTerminal,
+};
 
-mod editor;
-mod explorer;
+use theme::Theme;
 
 pub struct App {
     running: bool,
@@ -69,7 +76,7 @@ impl App {
     fn key_label(&self, action: Action) -> String {
         match self.keybinds.get(&action) {
             Some(binding) => binding.to_string(),
-            None => "<null>".into(),
+            None => "???".into(),
         }
     }
 
@@ -82,17 +89,24 @@ impl App {
         let quit_key = self.key_label(Action::Quit);
         let keybinds_key = self.key_label(Action::ShowKeyBinds);
 
-        let status = Paragraph::new(format!(
-            " {panel} │ {quit_key} Quit │ {keybinds_key} keybinds"
-        ));
+        let status = Line::from(vec![
+            Span::styled(format!(" {panel} "), Theme::status_bar_key()),
+            Span::styled(" │ ", Theme::status_bar_dim()),
+            Span::styled(quit_key.clone(), Theme::status_bar_key()),
+            Span::styled(" Quit ", Theme::status_bar_dim()),
+            Span::styled("│ ", Theme::status_bar_dim()),
+            Span::styled(keybinds_key, Theme::status_bar_key()),
+            Span::styled(" Keybinds ", Theme::status_bar_dim()),
+        ]);
 
-        frame.render_widget(status, area);
+        let bar = Paragraph::new(status).style(Theme::status_bar());
+        frame.render_widget(bar, area);
     }
 
     fn draw_workspace(&self, frame: &mut Frame, area: Rect) {
         let workspace_layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(24), Constraint::Min(1)])
+            .constraints([Constraint::Length(28), Constraint::Min(1)])
             .split(area);
 
         self.draw_explorer(frame, workspace_layout[0]);
@@ -100,9 +114,9 @@ impl App {
     }
 
     fn draw_keybinds(&self, frame: &mut Frame, area: Rect) {
-        let popup_width = 42.min(area.width.saturating_sub(4));
+        let popup_width = 48.min(area.width.saturating_sub(4));
         let num_actions = Action::all().len() as u16;
-        let popup_height = (num_actions + 2).min(area.height.saturating_sub(2));
+        let popup_height = (num_actions + 4).min(area.height.saturating_sub(2));
 
         let horizontal = Layout::default()
             .direction(Direction::Horizontal)
@@ -123,19 +137,35 @@ impl App {
             .split(horizontal[1]);
 
         let popup_area = vertical[1];
-
         frame.render_widget(Clear, popup_area);
 
         let mut lines: Vec<Line> = Vec::new();
+
+        // Header spacer
+        lines.push(Line::from(""));
+
         for action in Action::all() {
-            let label = self.key_label(*action);
-            lines.push(Line::from(format!("  {:<22} {label}", action.description())));
+            let key = self.key_label(*action);
+            lines.push(Line::from(vec![
+                Span::styled("    ", Theme::text_dim()),
+                Span::styled(format!("{:<22}", action.description()), Theme::keybind_action()),
+                Span::styled(key, Theme::keybind_key()),
+            ]));
         }
 
+        // Footer spacer
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("    ", Theme::text_dim()),
+            Span::styled("Press ", Theme::keybind_dim()),
+            Span::styled("Esc", Theme::keybind_key()),
+            Span::styled(" to close", Theme::keybind_dim()),
+        ]));
+
         let block = Block::default()
-            .title(" Keybindings ")
+            .title(Span::styled(" Keybindings ", Theme::popup_title()))
             .borders(Borders::ALL)
-            .border_style(ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::BOLD));
+            .border_style(Theme::popup_border());
 
         let paragraph = Paragraph::new(lines).block(block);
         frame.render_widget(paragraph, popup_area);
