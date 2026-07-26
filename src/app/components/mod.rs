@@ -51,6 +51,10 @@ impl<T: Component> Hideable<T> {
         self.should_hide = true
     }
 
+    pub fn show(&mut self) {
+        self.should_hide = false
+    }
+
     pub fn inner(&self) -> &T {
         &self.component
     }

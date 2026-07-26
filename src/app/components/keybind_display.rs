@@ -3,29 +3,60 @@ use anyhow::Result;
 use crate::{StartupArgs, app::components::Component, keybinds::{Action, KeyBindings, PanelContext}, theme::Theme, utils::{horizontal_layout, vertical_layout}};
 
 pub struct KeyBindDisplay {
-    pub keybinds: KeyBindings
+    pub keybinds: KeyBindings,
+    scroll_offset: u16,
 }
+
 impl KeyBindDisplay {
     pub fn new(args: &StartupArgs) -> Result<Self> {
         let keybinds = KeyBindings::load(&args.path)?;
-        Ok(Self { keybinds })
+        Ok(Self {
+            keybinds,
+            scroll_offset: 0,
+        })
+    }
+
+    pub fn reset_scroll(&mut self) {
+        self.scroll_offset = 0;
     }
 
     pub fn scroll(&mut self, action: Action) {
-        todo!()
+        match action {
+            Action::ScrollUp => {
+                self.scroll_offset = self.scroll_offset.saturating_sub(1);
+            }
+            Action::ScrollDown => {
+                self.scroll_offset = self.scroll_offset.saturating_add(1);
+            }
+            Action::ScrollPageUp => {
+                self.scroll_offset = self.scroll_offset.saturating_sub(10);
+            }
+            Action::ScrollPageDown => {
+                self.scroll_offset = self.scroll_offset.saturating_add(10);
+            }
+            Action::ScrollTop => {
+                self.scroll_offset = 0;
+            }
+            Action::ScrollBottom => {
+                self.scroll_offset = u16::MAX;
+            }
+            _ => {}
+        }
+    }
+
+    fn total_lines(&self, context: PanelContext) -> u16 {
+        let global_count = self.keybinds.iter_global().count() as u16;
+        let context_count = self.keybinds.iter_context(context).count() as u16;
+        global_count + context_count + 6
     }
 }
 
 impl Component for KeyBindDisplay {
     fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let popup_width = 52.min(area.width.saturating_sub(4));
-        
-        let global_count = self.keybinds.iter_global().count() as u16;
-        let context_count = self.keybinds.iter_context(context).count() as u16;
-        
-        let total_rows = global_count + context_count + 6;
-        let popup_height = total_rows.min(area.height.saturating_sub(2));
 
+        let total = self.total_lines(context);
+        let popup_height = total.min(area.height.saturating_sub(2));
 
         let half_width = (area.width - popup_width) / 2;
         let horizontal = horizontal_layout(
@@ -34,7 +65,7 @@ impl Component for KeyBindDisplay {
                 Constraint::Length(popup_width),
                 Constraint::Min(0),
             ],
-            area
+            area,
         );
 
         let half_height = (area.height - popup_height) / 2;
@@ -43,7 +74,7 @@ impl Component for KeyBindDisplay {
                 Constraint::Length(half_height),
                 Constraint::Length(popup_height),
                 Constraint::Min(0),
-            ], 
+            ],
             horizontal[1],
         );
 
@@ -55,9 +86,7 @@ impl Component for KeyBindDisplay {
         lines.push(Line::from(""));
 
         // Global section
-        lines.push(Line::from(vec![
-            Span::styled("    Global", Theme::text_accent()),
-        ]));
+        lines.push(Line::styled("    Global", Theme::text_accent()));
 
         for (action, binding) in self.keybinds.iter_global() {
             lines.push(Line::from(vec![
@@ -94,7 +123,9 @@ impl Component for KeyBindDisplay {
             .borders(Borders::ALL)
             .border_style(Theme::popup_border());
 
-        let paragraph = Paragraph::new(lines).block(block);
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .scroll((self.scroll_offset, 0));
         frame.render_widget(paragraph, popup_area);
     }
 }

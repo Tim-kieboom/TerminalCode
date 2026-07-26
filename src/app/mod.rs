@@ -24,6 +24,7 @@ const SIDEBAR_WIDTH: Constraint = Constraint::Length(28);
 pub struct App {
     running: bool,
     context: PanelContext,
+    previous_context: PanelContext,
     editor: Editor,
     sidebar: Hideable<SideBar>,
     keybind_display: Hideable<KeyBindDisplay>,
@@ -36,6 +37,7 @@ impl App {
             running: true,
             editor: Editor::new(&args),
             context: PanelContext::Editor,
+            previous_context: PanelContext::Editor,
             sidebar: Hideable::new_show(SideBar::new(&args)),
             keybind_display: Hideable::new_hide(KeyBindDisplay::new(&args)?),
         })
@@ -130,7 +132,7 @@ impl App {
             Action::ToggleSidebar => self.toggle_sidebar(),
             Action::ToggleBottom => self.toggle_bottombar(),
             Action::FocusNextPanel => self.focus_next_panel(),
-            Action::ShowKeyBinds => self.keybind_display.toggle_hide(),
+            Action::ShowKeyBinds => self.toggle_keybind_display(),
             Action::OpenFile => bail!("OpenFile Not yet impl"),
             Action::Test => bail!("test"),
 
@@ -151,8 +153,24 @@ impl App {
 
     fn close_window(&mut self) {
         match self.context {
-            PanelContext::Keybinds => self.keybind_display.hide(),
+            PanelContext::Keybinds => {
+                self.keybind_display.hide();
+                self.keybind_display.inner_mut().reset_scroll();
+                self.context = self.previous_context;
+            }
             _ => (),
+        }
+    }
+
+    fn toggle_keybind_display(&mut self) {
+        if self.keybind_display.should_show() {
+            self.keybind_display.hide();
+            self.keybind_display.inner_mut().reset_scroll();
+            self.context = self.previous_context;
+        } else {
+            self.previous_context = self.context;
+            self.context = PanelContext::Keybinds;
+            self.keybind_display.show();
         }
     }
 

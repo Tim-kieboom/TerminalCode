@@ -1,6 +1,8 @@
-use std::rc::Rc;
+use std::{borrow::Cow, rc::Rc};
 
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::{layout::{Constraint, Direction, Layout, Rect}, text::Line};
+
+use crate::theme::Theme;
 
 pub fn horizontal_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]> 
 where 

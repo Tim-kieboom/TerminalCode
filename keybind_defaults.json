@@ -1,11 +1,13 @@
 {
   "test": "",
   "quit": "Ctrl+Q",
-  "showKeyBinds": "Ctrl+Alt+K",
+  "showKeyBinds": "Ctrl+M",
   "toggleSidebar": "Ctrl+B",
   "toggleBottom": "Ctrl+K",
   "focusNextPanel": "Alt+Backspace",
   
+  "scrollUp": "Up",
+  "scrollDown": "Down",
   "scrollPageUp": "PageUp",
   "scrollPageDown": "PageDown",
   "scrollTop": "Home",
@@ -20,8 +22,6 @@
   },
   
   "keybinds": {
-    "Close": "Esc",
-    "scrollUp": "Up",
-    "scrollDown": "Down"
+    "Close": "Esc"
   }
 }
