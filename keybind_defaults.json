@@ -1,6 +1,17 @@
 {
-  "Quit": "Ctrl+Q",
-  "ShowKeyBinds": "Ctrl+Alt+K",
-  "ToggleSidebar": "Ctrl+L",
-  "FocusNextPanel": "Alt+backspace"
+  "test": "",
+  "quit": "Ctrl+Q",
+  "showKeyBinds": "Ctrl+Alt+K",
+  "toggleSidebar": "Ctrl+B",
+  "toggleBottom": "Ctrl+K",
+  "focusNextPanel": "Alt+Backspace",
+  "editor": {
+    "Save": "Ctrl+S"
+  },
+  "explorer": {
+    "OpenFile": "Enter"
+  },
+  "keybinds": {
+    "Close": "Esc"
+  }
 }

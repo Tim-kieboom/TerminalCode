@@ -1,39 +1,46 @@
-use ratatui::{
-    Frame,
-    layout::Rect,
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
-};
+use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
+use crate::{StartupArgs, app::{components::Component, theme::Theme}, keybinds::PanelContext};
 
-use crate::app::{App, SelectedPanel, theme::Theme};
+pub struct Explorer {
+    workspace_name: String,
+}
+impl Explorer {
+    pub fn new(args: &StartupArgs) -> Self {
 
-impl App {
-    pub(super) fn draw_explorer(&self, frame: &mut Frame, area: Rect) {
-        let focused = self.selected_panel == SelectedPanel::Explorer;
-
-        let workspace_name = self
-            .args
+        let name = args
             .path
             .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("workspace");
+            .and_then(|n| n.to_str())
+            .unwrap_or("<null>")
+            .to_string();
 
+        Self{ 
+            workspace_name: name
+        }
+    }
+
+    pub fn set_workspace_name(&mut self, name: String) {
+        self.workspace_name = name
+    }
+}
+
+impl Component for Explorer {
+    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+        let focused = context == PanelContext::SideBar;
         let mut lines: Vec<Line> = Vec::new();
 
-        // Workspace root
+        let name = &self.workspace_name;
         lines.push(Line::from(vec![
             Span::styled("  ", Theme::text_dim()),
             Span::styled("▼ ", Theme::text_accent()),
-            Span::styled(workspace_name, Theme::explorer_folder()),
+            Span::styled(name, Theme::explorer_folder()),
         ]));
 
-        // Directories
         lines.push(Line::from(vec![
             Span::styled("    ", Theme::text_dim()),
             Span::styled("📁 src", Theme::explorer_folder()),
         ]));
 
-        // Files inside src
         let files = ["main.rs", "lib.rs", "app/mod.rs", "terminal.rs"];
         for file in &files {
             lines.push(Line::from(vec![

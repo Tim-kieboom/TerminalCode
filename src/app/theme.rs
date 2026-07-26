@@ -2,6 +2,7 @@ use ratatui::style::{Color, Modifier, Style};
 
 pub struct Theme;
 
+#[allow(unused)]
 impl Theme {
     // ----- Accent ----- 
     pub const ACCENT: Color = Color::Cyan;

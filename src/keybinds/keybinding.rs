@@ -23,6 +23,7 @@ impl std::fmt::Display for KeyBinding {
 
         let buf;
         match self.keycode {
+            KeyCode::Char(' ') => parts.push("Space"),
             KeyCode::Char(c) => {
                 buf = c.to_uppercase().to_string();
                 parts.push(&buf);
@@ -85,6 +86,7 @@ impl KeyBinding {
                 "f10" => keycode = Some(KeyCode::F(10)),
                 "f11" => keycode = Some(KeyCode::F(11)),
                 "f12" => keycode = Some(KeyCode::F(12)),
+                "space" => keycode = Some(KeyCode::Char(' ')),
                 s if s.len() == 1 => {
                     keycode = Some(KeyCode::Char(s.chars().next().unwrap()));
                 }
@@ -99,7 +101,7 @@ impl KeyBinding {
     }
 
     pub fn matches(&self, key: &KeyEvent) -> bool {
-        if self.modifiers != key.modifiers {
+        if (key.modifiers & self.modifiers) != self.modifiers {
             return false;
         }
         match (self.keycode, key.code) {

@@ -1,40 +1,16 @@
-use ratatui::{
-    Frame,
-    layout::{Constraint, Direction, Layout, Rect},
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph},
-};
+use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
 
-use crate::app::{App, SelectedPanel, theme::Theme};
+use crate::{StartupArgs, app::{components::Component, theme::Theme}, keybinds::PanelContext};
 
-impl App {
-    pub(super) fn draw_editor(&self, frame: &mut Frame, area: Rect) {
-        let editor_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Length(3), Constraint::Min(1)])
-            .split(area);
-
-        self.draw_tabs(frame, editor_layout[0]);
-        self.draw_editor_content(frame, editor_layout[1]);
+pub struct Content{}
+impl Content {
+    pub fn new(_args: &StartupArgs) -> Self {
+        Self{}
     }
-
-    fn draw_tabs(&self, frame: &mut Frame, area: Rect) {
-        let tab_content = Line::from(vec![
-            Span::styled(" main.rs ", Theme::tab_active()),
-            Span::styled(" lib.rs ", Theme::tab_inactive()),
-        ]);
-
-        let border_style = Theme::border_default();
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .border_style(border_style);
-
-        let paragraph = Paragraph::new(tab_content).block(block);
-        frame.render_widget(paragraph, area);
-    }
-
-    fn draw_editor_content(&self, frame: &mut Frame, area: Rect) {
-        let focused = self.selected_panel == SelectedPanel::Editor;
+}
+impl Component for Content {
+    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+        let focused = context == PanelContext::Editor;
 
         let title_style = if focused {
             Theme::title_focused()

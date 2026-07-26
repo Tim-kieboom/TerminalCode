@@ -28,6 +28,15 @@ macro_rules! action_enum {
                     $(Self::$variant, )*
                 ]
             }
+
+            pub fn from_str(string: &str) -> Option<Self> {
+                match string.to_lowercase().as_str() {
+                    $(
+                        action_enum!(@desc $variant $(=> $desc)?) => Some(Self::$variant),
+                    )*
+                    _ => None,
+                }
+            }
         }
     };
 
@@ -37,10 +46,26 @@ macro_rules! action_enum {
 
 action_enum! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
     pub enum Action {
+        Test => "Test",
         Quit => "Quit",
+        Close => "Close",
+        OpenFile => "OpenFile",
         ShowKeyBinds => "Show KeyBinds",
+        ToggleBottom => "Toggle Bottom",
         ToggleSidebar => "Toggle Sidebar",
         FocusNextPanel => "Focus Next Panel",
+    }
+}
+
+action_enum! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub enum PanelContext {
+        SideBar => "sidebar",
+        Editor => "editor",
+        Keybinds => "keybinds",
+        BottomBar => "bottombar",
     }
 }

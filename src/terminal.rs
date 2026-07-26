@@ -29,6 +29,6 @@ pub fn restore(terminal: &mut AppTerminal) -> Result<()> {
 }
 
 pub fn force_restore() {
-    let _ = disable_raw_mode();
-    let _ = execute!(stdout(), LeaveAlternateScreen);
+    _ = disable_raw_mode();
+    _ = execute!(stdout(), LeaveAlternateScreen);
 }
