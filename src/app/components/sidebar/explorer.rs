@@ -1,5 +1,5 @@
 use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
-use crate::{StartupArgs, app::{components::Component, theme::Theme}, keybinds::PanelContext};
+use crate::{StartupArgs, app::{components::Component}, theme::Theme, keybinds::PanelContext};
 
 pub struct Explorer {
     workspace_name: String,
@@ -17,10 +17,6 @@ impl Explorer {
         Self{ 
             workspace_name: name
         }
-    }
-
-    pub fn set_workspace_name(&mut self, name: String) {
-        self.workspace_name = name
     }
 }
 
@@ -74,14 +70,8 @@ impl Component for Explorer {
             Theme::border_default()
         };
 
-        let title = if focused {
-            " EXPLORER "
-        } else {
-            " Explorer "
-        };
-
         let block = Block::default()
-            .title(Span::styled(title, title_style))
+            .title(Span::styled(" Explorer ", title_style))
             .borders(Borders::ALL)
             .border_style(border_style);
 

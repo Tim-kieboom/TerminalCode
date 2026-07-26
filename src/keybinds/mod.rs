@@ -79,21 +79,23 @@ impl KeyBindings {
     }
 
     pub fn save(&self, config_dir: &Path) -> Result<()> {
-        let mut root: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        let mut root: serde_json::Map<String, Json> = serde_json::Map::new();
 
         for (action, binding) in &self.global {
-            root.insert(format!("{action:?}"), serde_json::Value::String(binding.to_string()));
+            let key = action.description().to_string(); 
+            let value = Json::String(binding.to_string());
+            root.insert(key, value);
         }
 
         for (ctx, map) in &self.contexts {
-            let ctx_obj: serde_json::Map<String, serde_json::Value> = map
+            let ctx_obj: serde_json::Map<String, Json> = map
                 .iter()
-                .map(|(a, b)| (format!("{a:?}"), serde_json::Value::String(b.to_string())))
+                .map(|(a, b)| (format!("{a:?}"), Json::String(b.to_string())))
                 .collect();
-            root.insert(ctx.description().to_string(), serde_json::Value::Object(ctx_obj));
+            root.insert(ctx.description().to_string(), Json::Object(ctx_obj));
         }
 
-        let json = serde_json::to_string_pretty(&serde_json::Value::Object(root))?;
+        let json = serde_json::to_string_pretty(&Json::Object(root))?;
         let config_path = config_dir.join("keybindings.json");
         fs::write(config_path, json)?;
         Ok(())

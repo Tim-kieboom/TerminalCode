@@ -5,13 +5,23 @@
   "toggleSidebar": "Ctrl+B",
   "toggleBottom": "Ctrl+K",
   "focusNextPanel": "Alt+Backspace",
+  
+  "scrollPageUp": "PageUp",
+  "scrollPageDown": "PageDown",
+  "scrollTop": "Home",
+  "scrollBottom": "End",
+
   "editor": {
     "Save": "Ctrl+S"
   },
+  
   "explorer": {
     "OpenFile": "Enter"
   },
+  
   "keybinds": {
-    "Close": "Esc"
+    "Close": "Esc",
+    "scrollUp": "Up",
+    "scrollDown": "Down"
   }
 }

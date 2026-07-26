@@ -2,11 +2,12 @@ pub mod tabs;
 pub mod content;
 pub mod bottombar;
 
-use ratatui::{Frame, layout::{Constraint, Direction, Layout, Rect}};
-use crate::{StartupArgs, app::components::{Component, Hideable, editor::{bottombar::BottomBar, content::Content, tabs::Tabs}}, keybinds::PanelContext};
+use ratatui::{Frame, layout::{Constraint, Rect}};
+use crate::{StartupArgs, app::components::{Component, Hideable, editor::{bottombar::BottomBar, content::Content, tabs::Tabs}}, keybinds::PanelContext, utils::vertical_layout};
 
-// 🤚✋
-const FUNNY_NUMBER: u16 = 67;
+const TABS_HEIGHT: Constraint = Constraint::Length(3);
+const CONTENT_HEIGHT: Constraint = Constraint::Percentage(68);
+const BOTTOMBAR_HEIGHT: Constraint = Constraint::Percentage(32);
 
 pub struct Editor {
     pub tabs: Tabs,
@@ -27,21 +28,17 @@ impl Component for Editor {
         let has_bottombar = self.bottombar.should_show();
         
         let constraints = if has_bottombar {
-            [Constraint::Length(3), Constraint::Percentage(FUNNY_NUMBER), Constraint::Percentage(32)].as_slice()
+            [TABS_HEIGHT, CONTENT_HEIGHT, BOTTOMBAR_HEIGHT].as_slice()
         } else {
-            [Constraint::Length(3), Constraint::Min(1)].as_slice()
+            [TABS_HEIGHT, Constraint::Min(1)].as_slice()
         };
 
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(constraints)
-            .split(area);
-
+        let layout = vertical_layout(constraints, area);
         self.tabs.draw(frame, layout[0], context);
         self.content.draw(frame, layout[1], context);
 
         if has_bottombar {
-            self.bottombar.draw(frame, layout[2], context);
+            self.bottombar.try_draw(frame, layout[2], context);
         }
     }
 }

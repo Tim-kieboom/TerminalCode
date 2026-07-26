@@ -56,6 +56,12 @@ action_enum! {
         ToggleBottom => "Toggle Bottom",
         ToggleSidebar => "Toggle Sidebar",
         FocusNextPanel => "Focus Next Panel",
+        ScrollUp => "Scroll up",
+        ScrollDown => "Scroll down",
+        ScrollPageUp => "Scroll page up",
+        ScrollPageDown => "Scroll page down",
+        ScrollTop => "Scroll top",
+        ScrollBottom => "Scroll bottom",
     }
 }
 

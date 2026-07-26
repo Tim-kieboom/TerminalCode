@@ -1,6 +1,6 @@
 use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
 
-use crate::{StartupArgs, app::{components::Component, theme::Theme}, keybinds::PanelContext};
+use crate::{StartupArgs, app::{components::Component}, theme::Theme, keybinds::PanelContext};
 
 pub struct Tabs {}
 impl Tabs {

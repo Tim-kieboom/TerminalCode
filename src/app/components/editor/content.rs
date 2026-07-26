@@ -1,6 +1,6 @@
 use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
 
-use crate::{StartupArgs, app::{components::Component, theme::Theme}, keybinds::PanelContext};
+use crate::{StartupArgs, app::{components::Component}, theme::Theme, keybinds::PanelContext};
 
 pub struct Content{}
 impl Content {
@@ -23,8 +23,6 @@ impl Component for Content {
         } else {
             Theme::border_default()
         };
-
-        let title = if focused { " EDITOR " } else { " Editor " };
 
         let lines = vec![
             Line::from(vec![
@@ -64,7 +62,7 @@ impl Component for Content {
         ];
 
         let block = Block::default()
-            .title(Span::styled(title, title_style))
+            .title(Span::styled(" Editor ", title_style))
             .borders(Borders::ALL)
             .border_style(border_style);
 

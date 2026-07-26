@@ -1,22 +1,25 @@
 mod components;
-pub mod theme;
 
 use anyhow::{Result, bail};
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Rect},
     text::{Line, Span},
     widgets::{Paragraph},
 };
 use std::time::Duration;
 
 use crate::{
-    StartupArgs, app::components::{Component, Hideable, editor::{Editor, bottombar::BottomBar}, keybind_display::KeyBindDisplay, sidebar::SideBar}, keybinds::{Action, KeyBindings, PanelContext}, terminal::AppTerminal,
+    StartupArgs, app::components::{Component, Hideable, editor::Editor, keybind_display::KeyBindDisplay, sidebar::SideBar}, keybinds::{Action, KeyBindings, PanelContext}, terminal::AppTerminal, theme::Theme, utils::{horizontal_layout, vertical_layout},
 };
 
-use theme::Theme;
 
+const WORKSPACE_HEIGHT: Constraint = Constraint::Min(30);
+const STATUSBAR_HEIGHT: Constraint = Constraint::Length(1);
+
+const EDITOR_WIDTH: Constraint = Constraint::Min(1);
+const SIDEBAR_WIDTH: Constraint = Constraint::Length(28);
 
 pub struct App {
     running: bool,
@@ -52,10 +55,8 @@ impl App {
     }
 
     fn draw(&self, frame: &mut Frame) {
-        let layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([Constraint::Min(30), Constraint::Length(1)])
-            .split(frame.area());
+        
+        let layout = vertical_layout([WORKSPACE_HEIGHT, STATUSBAR_HEIGHT], frame.area());
 
         self.draw_workspace(frame, layout[0]);
         self.draw_status_bar(frame, layout[1]);
@@ -100,18 +101,14 @@ impl App {
             return
         }
 
-        let layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(28), Constraint::Min(1)])
-            .split(area);
-
-        self.sidebar.draw(frame, layout[0], self.context);
+        let layout = horizontal_layout([SIDEBAR_WIDTH, EDITOR_WIDTH], area);
+        self.sidebar.try_draw(frame, layout[0], self.context);
         self.editor.draw(frame, layout[1], self.context);
     }
 
     fn handle_event(&mut self, event: Event) -> Result<()> {
         match event {
-            Event::Key(key) if key.kind != KeyEventKind::Release => {
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
                 self.handle_key_event(key)?;
             }
             Event::Resize(_, _) => {}
@@ -136,6 +133,17 @@ impl App {
             Action::ShowKeyBinds => self.keybind_display.toggle_hide(),
             Action::OpenFile => bail!("OpenFile Not yet impl"),
             Action::Test => bail!("test"),
+
+            Action::ScrollUp |
+            Action::ScrollTop |
+            Action::ScrollDown |
+            Action::ScrollBottom |
+            Action::ScrollPageUp |
+            Action::ScrollPageDown => {
+                if self.context == PanelContext::Keybinds {
+                    self.keybind_display.inner_mut().scroll(action)
+                }
+            },
         }
 
         Ok(())
@@ -170,9 +178,22 @@ impl App {
 
     fn focus_next_panel(&mut self) {
         self.context = match self.context {
-            PanelContext::Editor => PanelContext::SideBar,
-            PanelContext::SideBar if self.editor.bottombar.should_show() => PanelContext::BottomBar,
-            PanelContext::SideBar => PanelContext::Editor,
+            PanelContext::Editor => {
+                if self.sidebar.should_show() {
+                    PanelContext::SideBar
+                } else if self.editor.bottombar.should_show() {
+                    PanelContext::BottomBar
+                } else {
+                    PanelContext::Editor
+                }
+            },
+            PanelContext::SideBar => {
+                if self.editor.bottombar.should_show() {
+                    PanelContext::BottomBar
+                } else {
+                    PanelContext::Editor
+                }
+            }
             PanelContext::BottomBar => PanelContext::Editor,
             other => other,
         }

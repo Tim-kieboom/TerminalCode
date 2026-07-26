@@ -10,7 +10,7 @@ pub trait Component {
 }
 
 pub struct Hideable<T: Component> {
-    pub component: T,
+    component: T,
     should_hide: bool,
 }
 
@@ -51,20 +51,11 @@ impl<T: Component> Hideable<T> {
         self.should_hide = true
     }
 
-    pub fn show(&mut self) {
-        self.should_hide = false
-    }
-
     pub fn inner(&self) -> &T {
         &self.component
     }
 
     pub fn inner_mut(&mut self) -> &mut T {
         &mut self.component
-    }
-}
-impl<T: Component> Component for Hideable<T> {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
-        self.component.draw(frame, area, context);
     }
 }

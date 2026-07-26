@@ -1,6 +1,6 @@
-use ratatui::{Frame, layout::{Constraint, Direction, Layout, Rect}, text::{Line, Span}, widgets::{Block, Borders, Clear, Paragraph}};
+use ratatui::{Frame, layout::{Constraint, Rect}, text::{Line, Span}, widgets::{Block, Borders, Clear, Paragraph}};
 use anyhow::Result;
-use crate::{StartupArgs, app::{components::Component, theme::Theme}, keybinds::{PanelContext, KeyBindings}};
+use crate::{StartupArgs, app::components::Component, keybinds::{Action, KeyBindings, PanelContext}, theme::Theme, utils::{horizontal_layout, vertical_layout}};
 
 pub struct KeyBindDisplay {
     pub keybinds: KeyBindings
@@ -10,34 +10,42 @@ impl KeyBindDisplay {
         let keybinds = KeyBindings::load(&args.path)?;
         Ok(Self { keybinds })
     }
+
+    pub fn scroll(&mut self, action: Action) {
+        todo!()
+    }
 }
 
 impl Component for KeyBindDisplay {
     fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let popup_width = 52.min(area.width.saturating_sub(4));
-
+        
         let global_count = self.keybinds.iter_global().count() as u16;
         let context_count = self.keybinds.iter_context(context).count() as u16;
+        
         let total_rows = global_count + context_count + 6;
         let popup_height = total_rows.min(area.height.saturating_sub(2));
 
-        let horizontal = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Length((area.width - popup_width) / 2),
+
+        let half_width = (area.width - popup_width) / 2;
+        let horizontal = horizontal_layout(
+            [
+                Constraint::Length(half_width),
                 Constraint::Length(popup_width),
                 Constraint::Min(0),
-            ])
-            .split(area);
+            ],
+            area
+        );
 
-        let vertical = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length((area.height - popup_height) / 2),
+        let half_height = (area.height - popup_height) / 2;
+        let vertical = vertical_layout(
+            [
+                Constraint::Length(half_height),
                 Constraint::Length(popup_height),
                 Constraint::Min(0),
-            ])
-            .split(horizontal[1]);
+            ], 
+            horizontal[1],
+        );
 
         let popup_area = vertical[1];
         frame.render_widget(Clear, popup_area);
