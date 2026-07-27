@@ -55,6 +55,7 @@ action_enum! {
         ShowKeyBinds => "Show KeyBinds",
         ToggleBottom => "Toggle Bottom",
         ToggleSidebar => "Toggle Sidebar",
+        ToggleDebugWindow => "Toggle DebugWindow",
         FocusNextPanel => "Focus Next Panel",
         ScrollUp => "Scroll up",
         ScrollDown => "Scroll down",
@@ -69,9 +70,10 @@ action_enum! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub enum PanelContext {
-        SideBar => "sidebar",
         Editor => "editor",
+        SideBar => "sidebar",
         Keybinds => "keybinds",
         BottomBar => "bottombar",
+        DebugWindow => "debugWindow",
     }
 }

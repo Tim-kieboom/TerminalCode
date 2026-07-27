@@ -3,6 +3,7 @@ use ratatui::{Frame, layout::Rect};
 use crate::keybinds::PanelContext;
 pub mod editor;
 pub mod sidebar; 
+pub mod debug_window;
 pub mod keybind_display;
 
 pub trait Component {
@@ -49,10 +50,6 @@ impl<T: Component> Hideable<T> {
 
     pub fn hide(&mut self) {
         self.should_hide = true
-    }
-
-    pub fn show(&mut self) {
-        self.should_hide = false
     }
 
     pub fn inner(&self) -> &T {

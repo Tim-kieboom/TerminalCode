@@ -27,142 +27,176 @@ impl Theme {
     pub const SUCCESS: Color = Color::Green;
     pub const WARNING: Color = Color::Yellow;
     pub const DANGER: Color = Color::Red;
+    pub const NOTE: Color = Color::LightBlue;
 
     // ----- Selection / cursor -----
     pub const SELECTED_BG: Color = Color::Rgb(50, 55, 75);
 
     // -----  Composite styles -----
 
-    pub fn border_default() -> Style {
-        Style::default().fg(Self::BORDER)
+    pub const fn border_default() -> Style {
+        Style::new().fg(Self::BORDER)
     }
 
-    pub fn border_focused() -> Style {
-        Style::default()
+    pub const fn border_focused() -> Style {
+        Style::new()
             .fg(Self::BORDER_FOCUSED)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn title_default() -> Style {
-        Style::default()
+    pub const fn title_default() -> Style {
+        Style::new()
             .fg(Self::TEXT_DIM)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn title_focused() -> Style {
-        Style::default()
+    pub const fn title_focused() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn text_normal() -> Style {
-        Style::default().fg(Self::TEXT)
+    pub const fn text_normal() -> Style {
+        Style::new().fg(Self::TEXT)
     }
 
-    pub fn text_dim() -> Style {
-        Style::default().fg(Self::TEXT_DIM)
+    pub const fn text_dim() -> Style {
+        Style::new().fg(Self::TEXT_DIM)
     }
 
-    pub fn text_accent() -> Style {
-        Style::default()
+    pub const fn text_accent() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn text_success() -> Style {
-        Style::default().fg(Self::SUCCESS)
+    pub const fn text_success() -> Style {
+        Style::new().fg(Self::SUCCESS)
     }
 
-    pub fn text_warning() -> Style {
-        Style::default().fg(Self::WARNING)
+    pub const fn text_note() -> Style {
+        Style::new().fg(Self::NOTE)
     }
 
-    pub fn status_bar() -> Style {
-        Style::default()
+    pub const fn text_error() -> Style {
+        Style::new().fg(Self::DANGER)
+    }
+
+    pub const fn text_warning() -> Style {
+        Style::new().fg(Self::WARNING)
+    }
+
+    pub const fn add_highlight(style: &mut Style) {
+        *style = style
+            .bg(Self::SELECTED_BG)
+    }
+
+    pub const fn status_bar() -> Style {
+        Style::new()
             .fg(Self::TEXT)
             .bg(Self::BACKGROUND_DARK)
     }
 
-    pub fn status_bar_key() -> Style {
-        Style::default()
+    pub const fn status_bar_key() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .bg(Self::BACKGROUND_DARK)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn status_bar_dim() -> Style {
-        Style::default()
+    pub const fn status_bar_dim() -> Style {
+        Style::new()
             .fg(Self::TEXT_DIM)
             .bg(Self::BACKGROUND_DARK)
     }
 
-    pub fn line_number() -> Style {
-        Style::default().fg(Self::TEXT_DIM)
+    pub const fn line_number() -> Style {
+        Style::new().fg(Self::TEXT_DIM)
     }
 
-    pub fn line_number_active() -> Style {
-        Style::default()
+    pub const fn line_number_active() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn explorer_item() -> Style {
-        Style::default().fg(Self::TEXT)
+    pub const fn explorer_item() -> Style {
+        Style::new().fg(Self::TEXT)
     }
 
-    pub fn explorer_folder() -> Style {
-        Style::default()
+    pub const fn explorer_folder() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn explorer_file() -> Style {
-        Style::default().fg(Self::TEXT)
+    pub const fn explorer_file() -> Style {
+        Style::new().fg(Self::TEXT)
     }
 
-    pub fn explorer_selected() -> Style {
-        Style::default()
+    pub const fn explorer_selected() -> Style {
+        Style::new()
             .fg(Self::TEXT_BRIGHT)
             .bg(Self::SELECTED_BG)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn tab_active() -> Style {
-        Style::default()
+    pub const fn tab_active() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .bg(Self::BACKGROUND_DARK)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn tab_inactive() -> Style {
-        Style::default()
+    pub const fn tab_inactive() -> Style {
+        Style::new()
             .fg(Self::TEXT_DIM)
             .bg(Self::BACKGROUND_DARK)
     }
 
-    pub fn popup_border() -> Style {
-        Style::default()
+    pub const fn popup_border() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn popup_title() -> Style {
-        Style::default()
+    pub const fn popup_title() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn keybind_action() -> Style {
-        Style::default().fg(Self::TEXT)
+    pub const fn keybind_action() -> Style {
+        Style::new().fg(Self::TEXT)
     }
 
-    pub fn keybind_key() -> Style {
-        Style::default()
+    pub const fn keybind_key() -> Style {
+        Style::new()
             .fg(Self::ACCENT)
             .add_modifier(Modifier::BOLD)
     }
 
-    pub fn keybind_dim() -> Style {
-        Style::default().fg(Self::TEXT_DIM)
+    pub const fn keybind_dim() -> Style {
+        Style::new().fg(Self::TEXT_DIM)
+    }
+
+    pub const fn keybind_selected() -> Style {
+        Style::new()
+            .fg(Self::TEXT_BRIGHT)
+            .bg(Self::SELECTED_BG)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub const fn keybind_action_selected() -> Style {
+        Style::new()
+            .fg(Self::TEXT)
+            .bg(Self::SELECTED_BG)
+    }
+
+    pub const fn keybind_key_selected() -> Style {
+        Style::new()
+            .fg(Self::ACCENT)
+            .bg(Self::SELECTED_BG)
+            .add_modifier(Modifier::BOLD)
     }
 }

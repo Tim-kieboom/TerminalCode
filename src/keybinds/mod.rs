@@ -37,7 +37,7 @@ impl KeyBindings {
                 };
 
                 let context_map = contexts.entry(context)
-                    .or_insert_with(HashMap::new);
+                    .or_default();
                 
                 for (key, value) in map {
 
@@ -66,7 +66,7 @@ impl KeyBindings {
                 bindings.global.insert(action, binding);
             }
             for (ctx, map) in loaded.contexts {
-                let ctx_map = bindings.contexts.entry(ctx).or_insert_with(HashMap::new);
+                let ctx_map = bindings.contexts.entry(ctx).or_default();
                 for (action, binding) in map {
                     ctx_map.insert(action, binding);
                 }
@@ -142,15 +142,16 @@ impl KeyBindings {
         self.global.get(action)
     }
 
+    pub fn get_context_map(&self, context: PanelContext) -> Option<&HashMap<Action, KeyBinding>> {
+        self.contexts.get(&context)
+    }
+
     pub fn iter_global(&self) -> impl Iterator<Item = (Action, &KeyBinding)> {
         self.global.iter().map(|(a, b)| (*a, b))
     }
 
-    pub fn iter_context(&self, context: PanelContext) -> impl Iterator<Item = (Action, &KeyBinding)> {
-        self.contexts
-            .get(&context)
-            .into_iter()
-            .flat_map(|map| map.iter().map(|(a, b)| (*a, b)))
+    pub fn iter_contexts(&self) -> impl Iterator<Item = (&PanelContext, &HashMap<Action, KeyBinding>)>  {
+        self.contexts.iter()
     }
 }
 

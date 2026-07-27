@@ -6,6 +6,7 @@ pub mod keybinds;
 pub use app::App;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone)]
 pub struct StartupArgs {
     pub(crate) path: PathBuf,
     pub(crate) _flags: (),

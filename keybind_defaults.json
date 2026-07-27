@@ -4,6 +4,7 @@
   "showKeyBinds": "Ctrl+M",
   "toggleSidebar": "Ctrl+B",
   "toggleBottom": "Ctrl+K",
+  "toggleDebugWindow": "Ctrl+Alt+Shift+D",
   "focusNextPanel": "Alt+Backspace",
   
   "scrollUp": "Up",
