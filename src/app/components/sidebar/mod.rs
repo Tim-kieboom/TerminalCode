@@ -20,7 +20,7 @@ impl SideBar {
 }
 
 impl Component for SideBar {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         
         match self.select {
             SideBarSelect::Explorer => self.explorer.draw(frame, area, context),

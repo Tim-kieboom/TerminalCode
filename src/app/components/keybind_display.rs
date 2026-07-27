@@ -5,14 +5,14 @@ use ratatui::{
 };
 use anyhow::Result;
 use crate::{
-    StartupArgs, app::components::Component, keybinds::{Action, KeyBinding, KeyBindings, PanelContext}, theme::Theme, utils::popup_layout,
+    StartupArgs, app::components::{Component, utils::cursor_scroller::{CursorScroller, ScrollMode}}, keybinds::{Action, KeyBinding, KeyBindings, PanelContext}, theme::Theme, utils::popup_layout,
 };
 
 const MIN_WIDTH: u16 = 56;
 
 pub struct KeyBindDisplay {
     pub keybinds: KeyBindings,
-    cursor: usize,
+    scroller: CursorScroller,
 }
 
 impl KeyBindDisplay {
@@ -20,36 +20,13 @@ impl KeyBindDisplay {
         let keybinds = KeyBindings::load(&args.path)?;
         Ok(Self {
             keybinds,
-            cursor: 0,
+            scroller: CursorScroller::new(ScrollMode::List),
         })
     }
 
     pub fn move_cursor(&mut self, action: Action) {
-        let total = self.total_items();
-        if total == 0 {
-            return;
-        }
-        match action {
-            Action::ScrollUp => {
-                self.cursor = self.cursor.saturating_sub(1);
-            }
-            Action::ScrollDown => {
-                self.cursor = self.cursor.saturating_add(1).min(total - 1);
-            }
-            Action::ScrollPageUp => {
-                self.cursor = self.cursor.saturating_sub(10);
-            }
-            Action::ScrollPageDown => {
-                self.cursor = self.cursor.saturating_add(10).min(total - 1);
-            }
-            Action::ScrollTop => {
-                self.cursor = 0;
-            }
-            Action::ScrollBottom => {
-                self.cursor = total - 1;
-            }
-            _ => {}
-        }
+        let length = self.total_items();
+        self.scroller.move_cursor(action, length);
     }
 
     fn total_items_for(&self, context: PanelContext) -> (u16, u16) {
@@ -59,41 +36,25 @@ impl KeyBindDisplay {
     }
 
     fn total_items(&self) -> usize {
-        self.keybinds.iter_global().count() + self.keybinds.get_context_map(PanelContext::Keybinds).map(|map| map.len()).unwrap_or(0)
-    }
-
-    fn cursor_line(&self, global_count: u16) -> u16 {
-        if (self.cursor as u16) < global_count {
-            2 + self.cursor as u16
-        } else {
-            4 + self.cursor as u16
-        }
-    }
-
-    fn scroll_offset(cursor_line: u16, inner_height: u16) -> u16 {
-        if cursor_line < inner_height {
-            0
-        } else {
-            cursor_line - inner_height + 1
-        }
+        let globals = self.keybinds.iter_global().count(); 
+        let contexts: usize = self.keybinds.iter_contexts().map(|(_, map)| map.len()).sum();
+        globals + contexts
     }
 }
 
 impl Component for KeyBindDisplay {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let popup_width = MIN_WIDTH.min(area.width.saturating_sub(4));
 
         let (global_count, context_count) = self.total_items_for(context);
-        let total = global_count + context_count + 6;
-        let popup_height = total.min(area.height.saturating_sub(2));
+        let length = global_count + context_count + 6;
+        let popup_height = length.min(area.height.saturating_sub(2));
         let inner_height = popup_height.saturating_sub(2);
-        let layout = popup_layout(area, popup_width, popup_height);
+        let popup_area = popup_layout(area, popup_width, popup_height);
 
-        let popup_area = layout[1];
         frame.render_widget(Clear, popup_area);
 
-        let cursor_line = self.cursor_line(global_count);
-        let offset = Self::scroll_offset(cursor_line, inner_height);
+        let scroll_offset = self.scroller.get_scroll(length, inner_height);
 
         let mut lines = vec![
             Line::from(""),
@@ -101,7 +62,7 @@ impl Component for KeyBindDisplay {
         ];
 
         for (i, (action, binding)) in self.keybinds.iter_global().enumerate() {
-            let selected = i == self.cursor;
+            let selected = i == self.scroller.cursor();
 
             let mut styles = [
                 Theme::keybind_action(),
@@ -153,7 +114,7 @@ impl Component for KeyBindDisplay {
 
         let paragraph = Paragraph::new(lines)
             .block(block)
-            .scroll((offset, 0));
+            .scroll(scroll_offset);
 
         frame.render_widget(paragraph, popup_area);
     }
@@ -166,7 +127,7 @@ impl KeyBindDisplay {
         const LINE_DEFAULT: [Style; 3] = [Theme::keybind_action(), Theme::keybind_key(), Theme::text_dim()];
         
         let idx = global_count as usize + i;
-        let selected = idx == self.cursor;
+        let selected = idx == self.scroller.cursor();
         let [action_style, key_style, prefix_style] = if selected {
             LINE_SELECTED
         } else {

@@ -9,7 +9,7 @@ impl Tabs {
     }
 }
 impl Component for Tabs {
-    fn draw(&self, frame: &mut Frame, area: Rect, _context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, _context: PanelContext) {
         let tab_content = Line::from(vec![
             Span::styled(" main.rs ", Theme::tab_active()),
             Span::styled(" lib.rs ", Theme::tab_inactive()),

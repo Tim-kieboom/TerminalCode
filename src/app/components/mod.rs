@@ -5,9 +5,11 @@ pub mod editor;
 pub mod sidebar; 
 pub mod debug_window;
 pub mod keybind_display;
+pub mod utils;
+
 
 pub trait Component {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext);
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext);
 }
 
 pub struct Hideable<T: Component> {
@@ -30,7 +32,7 @@ impl<T: Component> Hideable<T> {
         }
     }
 
-    pub fn try_draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    pub fn try_draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         if self.should_show() {
             self.component.draw(frame, area, context)
         }

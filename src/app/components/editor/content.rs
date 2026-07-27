@@ -9,7 +9,7 @@ impl Content {
     }
 }
 impl Component for Content {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let focused = context == PanelContext::Editor;
 
         let title_style = if focused {

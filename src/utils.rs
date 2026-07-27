@@ -24,7 +24,7 @@ where
         .split(area)
 }
 
-pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rc<[Rect]> {
+pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rect {
 
     let half_width = (area.width - width) / 2;
     let horizontal = horizontal_layout(
@@ -46,5 +46,6 @@ pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rc<[Rect]> {
         ],
         horizontal[1],
     );
-    vertical
+
+    vertical[1]
 }

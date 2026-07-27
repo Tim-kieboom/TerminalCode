@@ -9,7 +9,7 @@ impl Terminal {
     }
 }
 impl Component for Terminal {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let focused = context == PanelContext::BottomBar;
         
         let title_style = if focused {

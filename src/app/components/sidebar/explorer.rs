@@ -21,7 +21,7 @@ impl Explorer {
 }
 
 impl Component for Explorer {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let focused = context == PanelContext::SideBar;
         let mut lines: Vec<Line> = Vec::new();
 

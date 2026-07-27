@@ -24,7 +24,7 @@ impl Editor {
     }
 }
 impl Component for Editor {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let has_bottombar = self.bottombar.should_show();
         
         let constraints = if has_bottombar {

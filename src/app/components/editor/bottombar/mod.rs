@@ -19,7 +19,7 @@ impl BottomBar {
     }
 }
 impl Component for BottomBar {
-    fn draw(&self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         match self.select {
             BottomBarSelect::Terminal => self.terminal.draw(frame, area, context),
         }

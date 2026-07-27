@@ -8,7 +8,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Paragraph},
 };
-use std::time::Duration;
+use std::{format, time::Duration};
 
 use crate::{
     StartupArgs, app::components::{Component, Hideable, debug_window::DebugWindow, editor::Editor, keybind_display::KeyBindDisplay, sidebar::SideBar}, keybinds::{Action, KeyBindings, PanelContext}, terminal::AppTerminal, theme::Theme, utils::{horizontal_layout, vertical_layout},
@@ -56,7 +56,7 @@ impl App {
         Ok(())
     }
 
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         
         let layout = vertical_layout([WORKSPACE_HEIGHT, STATUSBAR_HEIGHT], frame.area());
 
@@ -97,7 +97,7 @@ impl App {
         frame.render_widget(bar, area);
     }
 
-    fn draw_workspace(&self, frame: &mut Frame, area: Rect) {
+    fn draw_workspace(&mut self, frame: &mut Frame, area: Rect) {
         
         if self.sidebar.should_hide() {
             self.editor.draw(frame, area, self.context);
@@ -131,10 +131,10 @@ impl App {
             Action::Quit => self.running = false,
             Action::Close => self.close_window(),
             Action::ToggleSidebar => self.toggle_sidebar(),
+            Action::ShowKeyBinds => self.toggle_keybinds(),
             Action::ToggleBottom => self.toggle_bottombar(),
             Action::FocusNextPanel => self.focus_next_panel(),
             Action::ToggleDebugWindow => self.toggle_debug_window(),
-            Action::ShowKeyBinds => self.keybind_display.toggle_hide(),
             Action::OpenFile => bail!("OpenFile Not yet impl"),
             Action::Test => bail!("test"),
 
@@ -143,20 +143,42 @@ impl App {
             Action::ScrollDown |
             Action::ScrollBottom |
             Action::ScrollPageUp |
-            Action::ScrollPageDown => {
-                if self.context == PanelContext::Keybinds {
-                    self.keybind_display.inner_mut().move_cursor(action)
-                }
-            },
+            Action::ScrollPageDown => self.move_curser(action),
         }
 
         Ok(())
+    }
+
+    fn move_curser(&mut self, action: Action) {
+        match self.context {
+            PanelContext::Keybinds => {
+                self.keybind_display
+                    .inner_mut()
+                    .move_cursor(action)
+            },
+            PanelContext::DebugWindow => {
+                self.debug_window  
+                    .inner_mut()
+                    .move_cursor(action)
+            },
+            _ => (),
+        }
     }
 
     fn close_window(&mut self) {
         match self.context {
             PanelContext::Keybinds => self.keybind_display.hide(),
             _ => (),
+        }
+    }
+
+    fn toggle_keybinds(&mut self) {
+        self.keybind_display.toggle_hide();
+
+        self.context = if self.keybind_display.should_hide() {
+            PanelContext::Editor
+        } else {
+            PanelContext::Keybinds
         }
     }
 
