@@ -1,5 +1,9 @@
+use crate::{
+    StartupArgs,
+    app::components::{Component, editor::bottombar::terminal::Terminal},
+    keybinds::PanelContext,
+};
 use ratatui::{Frame, layout::Rect};
-use crate::{StartupArgs, app::{components::{Component, editor::bottombar::terminal::Terminal}}, keybinds::PanelContext};
 mod terminal;
 
 pub enum BottomBarSelect {
@@ -12,7 +16,7 @@ pub struct BottomBar {
 }
 impl BottomBar {
     pub fn new(args: &StartupArgs) -> Self {
-        Self{
+        Self {
             terminal: Terminal::new(args),
             select: BottomBarSelect::Terminal,
         }

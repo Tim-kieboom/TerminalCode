@@ -1,12 +1,11 @@
 use ratatui::{Frame, layout::Rect};
 
 use crate::keybinds::PanelContext;
-pub mod editor;
-pub mod sidebar; 
 pub mod debug_window;
+pub mod editor;
 pub mod keybind_display;
+pub mod sidebar;
 pub mod utils;
-
 
 pub trait Component {
     fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext);

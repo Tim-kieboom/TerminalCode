@@ -1,9 +1,20 @@
-pub mod tabs;
-pub mod content;
 pub mod bottombar;
+pub mod content;
+pub mod tabs;
 
-use ratatui::{Frame, layout::{Constraint, Rect}};
-use crate::{StartupArgs, app::components::{Component, Hideable, editor::{bottombar::BottomBar, content::Content, tabs::Tabs}}, keybinds::PanelContext, utils::vertical_layout};
+use crate::{
+    StartupArgs,
+    app::components::{
+        Component, Hideable,
+        editor::{bottombar::BottomBar, content::Content, tabs::Tabs},
+    },
+    keybinds::PanelContext,
+    utils::vertical_layout,
+};
+use ratatui::{
+    Frame,
+    layout::{Constraint, Rect},
+};
 
 const TABS_HEIGHT: Constraint = Constraint::Length(3);
 const CONTENT_HEIGHT: Constraint = Constraint::Percentage(68);
@@ -16,9 +27,9 @@ pub struct Editor {
 }
 impl Editor {
     pub fn new(args: &StartupArgs) -> Self {
-        Self { 
-            tabs: Tabs::new(args), 
-            content: Content::new(args), 
+        Self {
+            tabs: Tabs::new(args),
+            content: Content::new(args),
             bottombar: Hideable::new_hide(BottomBar::new(args)),
         }
     }
@@ -26,7 +37,7 @@ impl Editor {
 impl Component for Editor {
     fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let has_bottombar = self.bottombar.should_show();
-        
+
         let constraints = if has_bottombar {
             [TABS_HEIGHT, CONTENT_HEIGHT, BOTTOMBAR_HEIGHT].as_slice()
         } else {

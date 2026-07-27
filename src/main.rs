@@ -1,6 +1,11 @@
 extern crate terminal_code;
 
-use std::{env::{self, args_os}, eprintln, panic, path::PathBuf, process::ExitCode};
+use std::{
+    env::{self, args_os},
+    eprintln, panic,
+    path::PathBuf,
+    process::ExitCode,
+};
 
 use anyhow::{Result, bail};
 use terminal_code::{App, StartupArgs, terminal};
@@ -42,7 +47,8 @@ fn parse_args() -> Result<StartupArgs> {
     let mut args = args_os();
     _ = args.next();
 
-    let path = args.next()
+    let path = args
+        .next()
         .map(PathBuf::from)
         .unwrap_or(env::current_dir()?);
 
@@ -52,5 +58,3 @@ fn parse_args() -> Result<StartupArgs> {
 
     Ok(StartupArgs::new(path))
 }
-
-

@@ -1,12 +1,16 @@
-use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
-use crate::{StartupArgs, app::{components::Component}, theme::Theme, keybinds::PanelContext};
+use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
+};
 
 pub struct Explorer {
     workspace_name: String,
 }
 impl Explorer {
     pub fn new(args: &StartupArgs) -> Self {
-
         let name = args
             .path
             .file_name()
@@ -14,8 +18,8 @@ impl Explorer {
             .unwrap_or("<null>")
             .to_string();
 
-        Self{ 
-            workspace_name: name
+        Self {
+            workspace_name: name,
         }
     }
 }

@@ -1,8 +1,8 @@
 mod app;
+pub mod keybinds;
+pub mod terminal;
 pub mod theme;
 pub mod utils;
-pub mod terminal;
-pub mod keybinds;
 pub use app::App;
 use std::path::PathBuf;
 

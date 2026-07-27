@@ -21,12 +21,11 @@ pub struct CursorScroller {
 pub type Vertical = u16;
 pub type Horizontal = u16;
 impl CursorScroller {
-    
-    pub fn new(mode: ScrollMode) -> Self {    
-        Self { 
-            mode, 
-            cursor: 0, 
-            scroll_offset: 0, 
+    pub fn new(mode: ScrollMode) -> Self {
+        Self {
+            mode,
+            cursor: 0,
+            scroll_offset: 0,
             scroll_direction: ScrollDir::Down,
         }
     }
@@ -70,7 +69,10 @@ impl CursorScroller {
     }
 
     pub fn get_scroll(&mut self, length: u16, height: u16) -> (Vertical, Horizontal) {
-        
+        if height == 0 {
+            return (0, 0);
+        }
+
         match self.mode {
             ScrollMode::List => self.scroll_list(length, height),
         }

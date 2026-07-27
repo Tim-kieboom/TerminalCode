@@ -6,14 +6,21 @@ use ratatui::{
     Frame,
     layout::{Constraint, Rect},
     text::{Line, Span},
-    widgets::{Paragraph},
+    widgets::Paragraph,
 };
 use std::{format, time::Duration};
 
 use crate::{
-    StartupArgs, app::components::{Component, Hideable, debug_window::DebugWindow, editor::Editor, keybind_display::KeyBindDisplay, sidebar::SideBar}, keybinds::{Action, KeyBindings, PanelContext}, terminal::AppTerminal, theme::Theme, utils::{horizontal_layout, vertical_layout},
+    StartupArgs,
+    app::components::{
+        Component, Hideable, debug_window::DebugWindow, editor::Editor,
+        keybind_display::KeyBindDisplay, sidebar::SideBar,
+    },
+    keybinds::{Action, KeyBindings, PanelContext},
+    terminal::AppTerminal,
+    theme::Theme,
+    utils::{horizontal_layout, vertical_layout},
 };
-
 
 const WORKSPACE_HEIGHT: Constraint = Constraint::Min(30);
 const STATUSBAR_HEIGHT: Constraint = Constraint::Length(1);
@@ -32,7 +39,6 @@ pub struct App {
 
 impl App {
     pub fn new(args: StartupArgs) -> Result<Self> {
-
         Ok(Self {
             running: true,
             editor: Editor::new(&args),
@@ -57,13 +63,14 @@ impl App {
     }
 
     fn draw(&mut self, frame: &mut Frame) {
-        
         let layout = vertical_layout([WORKSPACE_HEIGHT, STATUSBAR_HEIGHT], frame.area());
 
         self.draw_workspace(frame, layout[0]);
         self.draw_status_bar(frame, layout[1]);
-        self.debug_window.try_draw(frame, frame.area(), self.context);
-        self.keybind_display.try_draw(frame, frame.area(), self.context);
+        self.debug_window
+            .try_draw(frame, frame.area(), self.context);
+        self.keybind_display
+            .try_draw(frame, frame.area(), self.context);
     }
 
     fn key_label(&self, action: Action) -> String {
@@ -98,10 +105,9 @@ impl App {
     }
 
     fn draw_workspace(&mut self, frame: &mut Frame, area: Rect) {
-        
         if self.sidebar.should_hide() {
             self.editor.draw(frame, area, self.context);
-            return
+            return;
         }
 
         let layout = horizontal_layout([SIDEBAR_WIDTH, EDITOR_WIDTH], area);
@@ -121,7 +127,6 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
-
         let action = match self.keybinds().resolve(&key, self.context) {
             Some(a) => a,
             None => return Ok(()),
@@ -138,12 +143,12 @@ impl App {
             Action::OpenFile => bail!("OpenFile Not yet impl"),
             Action::Test => bail!("test"),
 
-            Action::ScrollUp |
-            Action::ScrollTop |
-            Action::ScrollDown |
-            Action::ScrollBottom |
-            Action::ScrollPageUp |
-            Action::ScrollPageDown => self.move_curser(action),
+            Action::ScrollUp
+            | Action::ScrollTop
+            | Action::ScrollDown
+            | Action::ScrollBottom
+            | Action::ScrollPageUp
+            | Action::ScrollPageDown => self.move_curser(action),
         }
 
         Ok(())
@@ -151,16 +156,8 @@ impl App {
 
     fn move_curser(&mut self, action: Action) {
         match self.context {
-            PanelContext::Keybinds => {
-                self.keybind_display
-                    .inner_mut()
-                    .move_cursor(action)
-            },
-            PanelContext::DebugWindow => {
-                self.debug_window  
-                    .inner_mut()
-                    .move_cursor(action)
-            },
+            PanelContext::Keybinds => self.keybind_display.inner_mut().move_cursor(action),
+            PanelContext::DebugWindow => self.debug_window.inner_mut().move_cursor(action),
             _ => (),
         }
     }
@@ -184,7 +181,7 @@ impl App {
 
     fn toggle_debug_window(&mut self) {
         self.debug_window.toggle_hide();
-    
+
         self.context = if self.debug_window.should_hide() {
             PanelContext::Editor
         } else {
@@ -222,7 +219,7 @@ impl App {
                 } else {
                     PanelContext::Editor
                 }
-            },
+            }
             PanelContext::SideBar => {
                 if self.editor.bottombar.should_show() {
                     PanelContext::BottomBar
@@ -235,4 +232,3 @@ impl App {
         }
     }
 }
-

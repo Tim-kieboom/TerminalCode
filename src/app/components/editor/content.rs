@@ -1,11 +1,16 @@
-use ratatui::{Frame, layout::Rect, text::{Line, Span}, widgets::{Block, Borders, Paragraph}};
+use ratatui::{
+    Frame,
+    layout::Rect,
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph},
+};
 
-use crate::{StartupArgs, app::{components::Component}, theme::Theme, keybinds::PanelContext};
+use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
 
-pub struct Content{}
+pub struct Content {}
 impl Content {
     pub fn new(_args: &StartupArgs) -> Self {
-        Self{}
+        Self {}
     }
 }
 impl Component for Content {

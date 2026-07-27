@@ -23,29 +23,24 @@ impl KeyBindings {
         let mut contexts = HashMap::new();
 
         let Ok(Json::Object(obj)) = serde_json::from_str::<Json>(json) else {
-            return Ok(Self { global, contexts })
+            return Ok(Self { global, contexts });
         };
 
         for (key, value) in &obj {
-
-            
             if let Some(context) = PanelContext::from_str(key) {
-
                 let map = match value {
                     Json::Object(val) => val,
                     other => bail!("{other:?} is invalid for keybind json"),
                 };
 
-                let context_map = contexts.entry(context)
-                    .or_default();
-                
-                for (key, value) in map {
+                let context_map = contexts.entry(context).or_default();
 
+                for (key, value) in map {
                     if let Some((action, keybind)) = parse_keybind(key, value) {
                         context_map.insert(action, keybind);
                     }
                 }
-                continue
+                continue;
             }
 
             if let Some((action, keybind)) = parse_keybind(key, value) {
@@ -57,7 +52,10 @@ impl KeyBindings {
     }
 
     pub fn load(config_dir: &Path) -> Result<Self> {
-        let mut bindings = Self { global: HashMap::new(), contexts: HashMap::new() };
+        let mut bindings = Self {
+            global: HashMap::new(),
+            contexts: HashMap::new(),
+        };
 
         let config_path = config_dir.join("keybindings.json");
         if let Ok(content) = fs::read_to_string(&config_path) {
@@ -82,7 +80,7 @@ impl KeyBindings {
         let mut root: serde_json::Map<String, Json> = serde_json::Map::new();
 
         for (action, binding) in &self.global {
-            let key = action.description().to_string(); 
+            let key = action.description().to_string();
             let value = Json::String(binding.to_string());
             root.insert(key, value);
         }
@@ -150,7 +148,9 @@ impl KeyBindings {
         self.global.iter().map(|(a, b)| (*a, b))
     }
 
-    pub fn iter_contexts(&self) -> impl Iterator<Item = (&PanelContext, &HashMap<Action, KeyBinding>)>  {
+    pub fn iter_contexts(
+        &self,
+    ) -> impl Iterator<Item = (&PanelContext, &HashMap<Action, KeyBinding>)> {
         self.contexts.iter()
     }
 }
@@ -158,6 +158,5 @@ impl KeyBindings {
 fn parse_keybind(key: &str, value: &Json) -> Option<(Action, KeyBinding)> {
     let action = serde_json::from_str::<Action>(&format!("\"{key}\"")).ok()?;
     let value_str = value.as_str()?;
-    KeyBinding::parse(value_str)
-        .map(|bind| (action, bind))
+    KeyBinding::parse(value_str).map(|bind| (action, bind))
 }

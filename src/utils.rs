@@ -1,11 +1,11 @@
-use std::{rc::Rc};
+use std::rc::Rc;
 
-use ratatui::{layout::{Constraint, Direction, Layout, Rect}};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-pub fn horizontal_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]> 
-where 
+pub fn horizontal_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]>
+where
     I: IntoIterator,
-    I::Item: Into<Constraint>
+    I::Item: Into<Constraint>,
 {
     Layout::default()
         .direction(Direction::Horizontal)
@@ -13,10 +13,10 @@ where
         .split(area)
 }
 
-pub fn vertical_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]> 
-where 
+pub fn vertical_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]>
+where
     I: IntoIterator,
-    I::Item: Into<Constraint>
+    I::Item: Into<Constraint>,
 {
     Layout::default()
         .direction(Direction::Vertical)
@@ -25,7 +25,6 @@ where
 }
 
 pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rect {
-
     let half_width = (area.width - width) / 2;
     let horizontal = horizontal_layout(
         [

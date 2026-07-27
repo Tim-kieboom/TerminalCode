@@ -20,14 +20,11 @@ pub struct DebugWindow {
 }
 impl DebugWindow {
     pub fn new(arg: &StartupArgs) -> Self {
-        let mut this = Self {
+        Self {
             messages: vec![],
             scroller: CursorScroller::new(ScrollMode::List),
             
-        };
-
-        this.push_note(format!("{arg:?}"));
-        this
+        }
     }
 
     pub fn push_note(&mut self, message: String) {
