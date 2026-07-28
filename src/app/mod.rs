@@ -146,16 +146,19 @@ impl App {
             Action::ScrollUp
             | Action::ScrollTop
             | Action::ScrollDown
+            | Action::ScrollLeft
+            | Action::ScrollRight
             | Action::ScrollBottom
             | Action::ScrollPageUp
-            | Action::ScrollPageDown => self.move_curser(action),
+            | Action::ScrollPageDown => self.move_cursor(action),
         }
 
         Ok(())
     }
 
-    fn move_curser(&mut self, action: Action) {
+    fn move_cursor(&mut self, action: Action) {
         match self.context {
+            PanelContext::Editor => self.editor.content.move_curser(action),
             PanelContext::Keybinds => self.keybind_display.inner_mut().move_cursor(action),
             PanelContext::DebugWindow => self.debug_window.inner_mut().move_cursor(action),
             _ => (),

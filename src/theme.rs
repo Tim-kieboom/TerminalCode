@@ -103,6 +103,10 @@ impl Theme {
         Style::new().fg(Self::TEXT_DIM).bg(Self::BACKGROUND_DARK)
     }
 
+    pub const fn cursor() -> Style {
+        Style::new().bg(Self::ACCENT).fg(Self::BACKGROUND_DARK)
+    }
+
     pub const fn line_number() -> Style {
         Style::new().fg(Self::TEXT_DIM)
     }

@@ -50,7 +50,7 @@ impl DebugWindow {
 
     pub fn move_cursor(&mut self, action: Action) {
         let length = self.messages.len();
-        self.scroller.move_cursor(action, length);
+        self.scroller.move_cursor(action, length, 0);
     }    
 }
 impl Component for DebugWindow {
@@ -66,7 +66,8 @@ impl Component for DebugWindow {
 
         frame.render_widget(Clear, popup_area);
 
-        let scroll_offset = self.scroller.get_scroll(length, inner_height);
+        let cursor_visual_line = 1 + self.scroller.cursor().vertical as u16;
+        let scroll_offset = self.scroller.get_scroll(cursor_visual_line, inner_height, 0);
 
         let mut lines = vec![Line::from("")];
         for (i, message) in self.messages.iter().enumerate() {
@@ -77,7 +78,7 @@ impl Component for DebugWindow {
                 DebugTag::Warning => Theme::text_warning(),
             };
 
-            let selected = i == self.scroller.cursor();
+            let selected = i == self.scroller.cursor().vertical;
             if selected {
                 Theme::add_highlight(&mut style);
             }
@@ -99,7 +100,7 @@ impl Component for DebugWindow {
 
         let paragraph = Paragraph::new(lines)
             .block(block)
-            .scroll(scroll_offset);
+            .scroll((scroll_offset.vertical, scroll_offset.horizontal));
 
         frame.render_widget(paragraph, popup_area);
     }

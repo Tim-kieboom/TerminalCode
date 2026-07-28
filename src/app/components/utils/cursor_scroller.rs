@@ -1,107 +1,171 @@
 use crate::keybinds::Action;
 
-#[derive(Debug, Clone, Copy)]
-enum ScrollDir {
-    Up,
-    Down,
-}
-
 pub enum ScrollMode {
     List,
+    TextEditor,
 }
 
 pub struct CursorScroller {
-    cursor: usize,
     mode: ScrollMode,
-
-    scroll_offset: u16,
-    scroll_direction: ScrollDir,
+    
+    vertical_offset: u16,
+    horizontal_offset: u16,
+    cursor: Position<usize>,
+    direction: ScrollDirection,
 }
 
-pub type Vertical = u16;
-pub type Horizontal = u16;
 impl CursorScroller {
     pub fn new(mode: ScrollMode) -> Self {
         Self {
             mode,
-            cursor: 0,
-            scroll_offset: 0,
-            scroll_direction: ScrollDir::Down,
+            vertical_offset: 0,
+            horizontal_offset: 0,
+            cursor: Position::default(),
+            direction: ScrollDirection { 
+                width: WidthScroll::Left, 
+                height: HeightScroll::Up
+            },
         }
     }
 
-    pub fn move_cursor(&mut self, action: Action, length: usize) {
+    pub fn move_cursor(&mut self, action: Action, length: usize, width: usize) {
         if length == 0 {
             return;
         }
 
         match action {
             Action::ScrollUp => {
-                self.scroll_direction = ScrollDir::Up;
-                self.cursor = self.cursor.saturating_sub(1);
+                self.direction.height = HeightScroll::Up;
+                self.cursor.vertical = self.cursor.vertical.saturating_sub(1);
             }
             Action::ScrollDown => {
-                self.scroll_direction = ScrollDir::Down;
-                self.cursor = self.cursor.saturating_add(1).min(length - 1);
+                self.direction.height = HeightScroll::Down;
+                self.cursor.vertical = self.cursor.vertical.saturating_add(1).min(length - 1);
+            }
+            Action::ScrollLeft => {
+                self.direction.width = WidthScroll::Left;
+                self.cursor.horizontal = self.cursor.horizontal.saturating_sub(1);
+            }
+            Action::ScrollRight => {
+                self.direction.width = WidthScroll::Right;
+                self.cursor.horizontal = self.cursor.horizontal.saturating_add(1).min(width);
             }
             Action::ScrollPageUp => {
-                self.scroll_direction = ScrollDir::Up;
-                self.cursor = self.cursor.saturating_sub(10);
+                self.direction.height = HeightScroll::Up;
+                self.cursor.vertical = self.cursor.vertical.saturating_sub(10);
             }
             Action::ScrollPageDown => {
-                self.scroll_direction = ScrollDir::Down;
-                self.cursor = self.cursor.saturating_add(10).min(length - 1);
+                self.direction.height = HeightScroll::Down;
+                self.cursor.vertical = self.cursor.vertical.saturating_add(10).min(length - 1);
             }
             Action::ScrollTop => {
-                self.scroll_direction = ScrollDir::Up;
-                self.cursor = 0;
+                self.direction.height = HeightScroll::Up;
+                self.cursor.vertical = 0;
             }
             Action::ScrollBottom => {
-                self.scroll_direction = ScrollDir::Down;
-                self.cursor = length - 1;
+                self.direction.height = HeightScroll::Down;
+                self.cursor.vertical = length - 1;
             }
             _ => {}
         }
     }
 
-    pub fn cursor(&self) -> usize {
+    pub fn cursor(&self) -> Position<usize> {
         self.cursor
     }
 
-    pub fn get_scroll(&mut self, length: u16, height: u16) -> (Vertical, Horizontal) {
+    pub fn clamp_col(&mut self, line_len: usize) {
+        self.cursor.horizontal = self.cursor.horizontal.min(line_len);
+    }
+
+    pub fn get_scroll(&mut self, cursor_visual_line: u16, height: u16, width: u16) -> Position<u16> {
         if height == 0 {
-            return (0, 0);
+            return Position::default();
         }
 
         match self.mode {
-            ScrollMode::List => self.scroll_list(length, height),
+            ScrollMode::List => self.scroll_list(cursor_visual_line, height),
+            ScrollMode::TextEditor => self.scroll_editor(cursor_visual_line, height, width),
         }
     }
 
-    fn scroll_list(&mut self, length: u16, height: u16) -> (Vertical, Horizontal) {
-        let cursor_visual = self.cursor_line(length);
-
-        match self.scroll_direction {
-            ScrollDir::Up => {
-                if cursor_visual < self.scroll_offset {
-                    self.scroll_offset = cursor_visual;
+    fn scroll_editor(&mut self, cursor_visual_line: u16, height: u16, width: u16) -> Position<u16> {
+        let margin = 3;
+        match self.direction.height {
+            HeightScroll::Up => {
+                if cursor_visual_line < self.vertical_offset + margin {
+                    self.vertical_offset = cursor_visual_line.saturating_sub(margin);
                 }
             }
-            ScrollDir::Down => {
-                if cursor_visual >= self.scroll_offset + height {
-                    self.scroll_offset = cursor_visual - height + 1;
+            HeightScroll::Down => {
+                if cursor_visual_line + margin >= self.vertical_offset + height {
+                    self.vertical_offset = cursor_visual_line + 1 + margin - height;
                 }
             }
         }
 
-        (self.scroll_offset, 0)
-    }
+        let col = self.cursor.horizontal as u16;
+        match self.direction.width {
+            WidthScroll::Left => {
+                if col < self.horizontal_offset + margin {
+                    self.horizontal_offset = col.saturating_sub(margin);
+                }
+            }
+            WidthScroll::Right => {
+                if col + margin >= self.horizontal_offset + width {
+                    self.horizontal_offset = col + 1 + margin - width;
+                }
+            }
+        }
 
-    fn cursor_line(&self, lines_count: u16) -> u16 {
-        if (self.cursor as u16) < lines_count {
-            1 + self.cursor as u16
-        } else {
-            3 + self.cursor as u16
+        Position { 
+            horizontal: self.horizontal_offset,
+            vertical: self.vertical_offset, 
         }
     }
+
+    fn scroll_list(&mut self, cursor_visual_line: u16, height: u16) -> Position<u16> {
+        let margin = 3;
+        match self.direction.height {
+            HeightScroll::Up => {
+                if cursor_visual_line < self.vertical_offset + margin {
+                    self.vertical_offset = cursor_visual_line.saturating_sub(margin);
+                }
+            }
+            HeightScroll::Down => {
+                if cursor_visual_line + margin >= self.vertical_offset + height {
+                    self.vertical_offset = cursor_visual_line + 1 + margin - height;
+                }
+            }
+        }
+
+        Position { 
+            horizontal: 0,
+            vertical: self.vertical_offset, 
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Position<T> {
+    pub vertical: T, 
+    pub horizontal: T
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ScrollDirection {
+    width: WidthScroll,
+    height: HeightScroll,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum HeightScroll {
+    Up,
+    Down,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum WidthScroll {
+    Left,
+    Right,
 }

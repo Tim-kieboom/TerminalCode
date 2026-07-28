@@ -59,6 +59,8 @@ action_enum! {
         FocusNextPanel => "Focus Next Panel",
         ScrollUp => "Scroll up",
         ScrollDown => "Scroll down",
+        ScrollLeft => "Scroll left",
+        ScrollRight => "Scroll right",
         ScrollPageUp => "Scroll page up",
         ScrollPageDown => "Scroll page down",
         ScrollTop => "Scroll top",

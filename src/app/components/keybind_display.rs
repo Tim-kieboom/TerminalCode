@@ -14,7 +14,6 @@ use anyhow::Result;
 use ratatui::{
     Frame,
     layout::Rect,
-    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
 };
@@ -37,17 +36,7 @@ impl KeyBindDisplay {
 
     pub fn move_cursor(&mut self, action: Action) {
         let length = self.total_items();
-        self.scroller.move_cursor(action, length);
-    }
-
-    fn total_items_for(&self, context: PanelContext) -> (u16, u16) {
-        let global = self.keybinds.iter_global().count() as u16;
-        let ctx = self
-            .keybinds
-            .get_context_map(context)
-            .map(|map| map.len())
-            .unwrap_or(0) as u16;
-        (global, ctx)
+        self.scroller.move_cursor(action, length, 0);
     }
 
     fn total_items(&self) -> usize {
@@ -62,38 +51,49 @@ impl KeyBindDisplay {
 }
 
 impl Component for KeyBindDisplay {
-    fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
+    fn draw(&mut self, frame: &mut Frame, area: Rect, _context: PanelContext) {
         let popup_width = MIN_WIDTH.min(area.width.saturating_sub(4));
 
-        let (global_count, context_count) = self.total_items_for(context);
-        let length = global_count + context_count + 6;
+        let global_count = self.keybinds.iter_global().count() as u16;
+        let context_lines: u16 = self
+            .keybinds
+            .iter_contexts()
+            .map(|(_, map)| 2 + map.len() as u16)
+            .sum();
+        let length = 2 + global_count + context_lines + 2;
         let popup_height = length.min(area.height.saturating_sub(2));
         let inner_height = popup_height.saturating_sub(2);
         let popup_area = popup_layout(area, popup_width, popup_height);
 
         frame.render_widget(Clear, popup_area);
 
-        let scroll_offset = self.scroller.get_scroll(length, inner_height);
+        let mut cursor_visual_line: u16 = 0;
+        let mut line_index: u16 = 0;
+        let cursor = self.scroller.cursor().vertical;
 
         let mut lines = vec![
             Line::from(""),
             Line::styled("    Global", Theme::text_accent()),
         ];
+        line_index += 2;
 
         for (i, (action, binding)) in self.keybinds.iter_global().enumerate() {
-            let selected = i == self.scroller.cursor();
+            let selected = i == cursor;
+            if selected {
+                cursor_visual_line = line_index;
+            }
 
             let [action_style, key_style, prefix_style] = if selected {
-                [
-                    Theme::keybind_action(),
-                    Theme::keybind_key(),
-                    Theme::text_dim(),
-                ]
-            } else {
                 [
                     Theme::into_highlight(Theme::keybind_action()),
                     Theme::into_highlight(Theme::keybind_key()),
                     Theme::into_highlight(Theme::text_dim()),
+                ]
+            } else {
+                [
+                    Theme::keybind_action(),
+                    Theme::keybind_key(),
+                    Theme::text_dim(),
                 ]
             };
 
@@ -106,19 +106,27 @@ impl Component for KeyBindDisplay {
                 Span::styled(format!("{:<22}", action.description()), action_style),
                 Span::styled(binding.to_string(), key_style),
             ]));
+            line_index += 1;
         }
 
+        let mut cursor_offset = global_count as usize;
         for (context, map) in self.keybinds.iter_contexts() {
             lines.push(Line::from(""));
             lines.push(Line::styled(
                 format!("    {}", context.description()),
                 Theme::text_accent(),
             ));
+            line_index += 2;
 
             for (i, (action, binding)) in map.iter().enumerate() {
-                let line = self.context_line(action, binding, global_count, i);
-                lines.push(line)
+                if cursor_offset + i == cursor {
+                    cursor_visual_line = line_index;
+                }
+                let line = self.context_line(action, binding, cursor_offset, i);
+                lines.push(line);
+                line_index += 1;
             }
+            cursor_offset += map.len();
         }
 
         lines.push(Line::from(""));
@@ -129,12 +137,14 @@ impl Component for KeyBindDisplay {
             Span::styled(" to close", Theme::keybind_dim()),
         ]));
 
+        let scroll_offset = self.scroller.get_scroll(cursor_visual_line, inner_height, 0);
+
         let block = Block::default()
             .title(Span::styled(" Keybindings ", Theme::popup_title()))
             .borders(Borders::ALL)
             .border_style(Theme::popup_border());
 
-        let paragraph = Paragraph::new(lines).block(block).scroll(scroll_offset);
+        let paragraph = Paragraph::new(lines).block(block).scroll((scroll_offset.vertical, scroll_offset.horizontal));
 
         frame.render_widget(paragraph, popup_area);
     }
@@ -145,11 +155,11 @@ impl KeyBindDisplay {
         &self,
         action: &Action,
         binding: &KeyBinding,
-        global_count: u16,
+        cursor_offset: usize,
         i: usize,
     ) -> Line<'a> {
-        let idx = global_count as usize + i;
-        let selected = idx == self.scroller.cursor();
+        let idx = cursor_offset + i;
+        let selected = idx == self.scroller.cursor().vertical;
         let [action_style, key_style, prefix_style] = if selected {
             [
                 Theme::into_highlight(Theme::keybind_action()),

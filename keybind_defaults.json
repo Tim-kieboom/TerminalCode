@@ -9,6 +9,8 @@
   
   "scrollUp": "Up",
   "scrollDown": "Down",
+  "scrollLeft": "Left",
+  "scrollRight": "Right",
   "scrollPageUp": "PageUp",
   "scrollPageDown": "PageDown",
   "scrollTop": "Home",
