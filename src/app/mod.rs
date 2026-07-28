@@ -1,7 +1,7 @@
 mod components;
 
 use anyhow::{Result, bail};
-use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -127,6 +127,32 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        if self.context == PanelContext::Editor {
+            match key.code {
+                KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT => {
+                    self.editor.content.insert_char(c);
+                    return Ok(());
+                }
+                KeyCode::Backspace => {
+                    self.editor.content.backspace();
+                    return Ok(());
+                }
+                KeyCode::Delete => {
+                    self.editor.content.delete_char();
+                    return Ok(());
+                }
+                KeyCode::Enter => {
+                    self.editor.content.insert_newline();
+                    return Ok(());
+                }
+                KeyCode::Tab => {
+                    self.editor.content.insert_tab();
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+
         let action = match self.keybinds().resolve(&key, self.context) {
             Some(a) => a,
             None => return Ok(()),
@@ -151,6 +177,12 @@ impl App {
             | Action::ScrollBottom
             | Action::ScrollPageUp
             | Action::ScrollPageDown => self.move_cursor(action),
+
+            Action::Backspace
+            | Action::Delete
+            | Action::InsertNewline
+            | Action::InsertTab
+            | Action::Save => {}
         }
 
         Ok(())

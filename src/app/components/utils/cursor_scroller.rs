@@ -74,6 +74,14 @@ impl CursorScroller {
         self.cursor
     }
 
+    pub fn set_cursor(&mut self, pos: Position<usize>) {
+        self.cursor = pos;
+    }
+
+    pub fn set_col(&mut self, col: usize) {
+        self.cursor.horizontal = col;
+    }
+
     pub fn clamp_col(&mut self, line_len: usize) {
         self.cursor.horizontal = self.cursor.horizontal.min(line_len);
     }

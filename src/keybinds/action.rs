@@ -65,6 +65,12 @@ action_enum! {
         ScrollPageDown => "Scroll page down",
         ScrollTop => "Scroll top",
         ScrollBottom => "Scroll bottom",
+
+        Backspace => "Backspace",
+        Delete => "Delete",
+        InsertNewline => "Enter",
+        InsertTab => "Tab",
+        Save => "Save",
     }
 }
 
