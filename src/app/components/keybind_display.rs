@@ -137,14 +137,18 @@ impl Component for KeyBindDisplay {
             Span::styled(" to close", Theme::keybind_dim()),
         ]));
 
-        let scroll_offset = self.scroller.get_scroll(cursor_visual_line, inner_height, 0);
+        let scroll_offset = self
+            .scroller
+            .get_scroll(cursor_visual_line, inner_height, 0);
 
         let block = Block::default()
             .title(Span::styled(" Keybindings ", Theme::popup_title()))
             .borders(Borders::ALL)
             .border_style(Theme::popup_border());
 
-        let paragraph = Paragraph::new(lines).block(block).scroll((scroll_offset.vertical, scroll_offset.horizontal));
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .scroll((scroll_offset.vertical, scroll_offset.horizontal));
 
         frame.render_widget(paragraph, popup_area);
     }

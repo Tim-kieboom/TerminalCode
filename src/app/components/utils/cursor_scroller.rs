@@ -7,7 +7,7 @@ pub enum ScrollMode {
 
 pub struct CursorScroller {
     mode: ScrollMode,
-    
+
     vertical_offset: u16,
     horizontal_offset: u16,
     cursor: Position<usize>,
@@ -21,9 +21,9 @@ impl CursorScroller {
             vertical_offset: 0,
             horizontal_offset: 0,
             cursor: Position::default(),
-            direction: ScrollDirection { 
-                width: WidthScroll::Left, 
-                height: HeightScroll::Up
+            direction: ScrollDirection {
+                width: WidthScroll::Left,
+                height: HeightScroll::Up,
             },
         }
     }
@@ -78,15 +78,16 @@ impl CursorScroller {
         self.cursor = pos;
     }
 
-    pub fn set_col(&mut self, col: usize) {
-        self.cursor.horizontal = col;
-    }
-
-    pub fn clamp_col(&mut self, line_len: usize) {
+    pub fn clamp_column(&mut self, line_len: usize) {
         self.cursor.horizontal = self.cursor.horizontal.min(line_len);
     }
 
-    pub fn get_scroll(&mut self, cursor_visual_line: u16, height: u16, width: u16) -> Position<u16> {
+    pub fn get_scroll(
+        &mut self,
+        cursor_visual_line: u16,
+        height: u16,
+        width: u16,
+    ) -> Position<u16> {
         if height == 0 {
             return Position::default();
         }
@@ -126,9 +127,9 @@ impl CursorScroller {
             }
         }
 
-        Position { 
+        Position {
             horizontal: self.horizontal_offset,
-            vertical: self.vertical_offset, 
+            vertical: self.vertical_offset,
         }
     }
 
@@ -147,17 +148,17 @@ impl CursorScroller {
             }
         }
 
-        Position { 
+        Position {
             horizontal: 0,
-            vertical: self.vertical_offset, 
+            vertical: self.vertical_offset,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Position<T> {
-    pub vertical: T, 
-    pub horizontal: T
+    pub vertical: T,
+    pub horizontal: T,
 }
 
 #[derive(Debug, Clone, Copy)]

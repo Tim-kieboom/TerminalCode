@@ -129,7 +129,9 @@ impl App {
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         if self.context == PanelContext::Editor {
             match key.code {
-                KeyCode::Char(c) if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT => {
+                KeyCode::Char(c)
+                    if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
+                {
                     self.editor.content.insert_char(c);
                     return Ok(());
                 }
