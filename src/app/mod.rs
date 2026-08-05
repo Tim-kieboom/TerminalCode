@@ -4,7 +4,7 @@ use anyhow::{Result, bail};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
+    layout::Rect,
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -17,16 +17,11 @@ use crate::{
         keybind_display::KeyBindDisplay, sidebar::SideBar,
     },
     keybinds::{Action, KeyBindings, PanelContext},
+    layout::{EDITOR_WIDTH, SIDEBAR_WIDTH, STATUSBAR_HEIGHT, WORKSPACE_HEIGHT},
     terminal::AppTerminal,
     theme::Theme,
     utils::{horizontal_layout, vertical_layout},
 };
-
-const WORKSPACE_HEIGHT: Constraint = Constraint::Min(30);
-const STATUSBAR_HEIGHT: Constraint = Constraint::Length(2);
-
-const EDITOR_WIDTH: Constraint = Constraint::Min(1);
-const SIDEBAR_WIDTH: Constraint = Constraint::Length(28);
 
 pub struct App {
     running: bool,
@@ -120,8 +115,12 @@ impl App {
             Event::Key(key) if key.kind == KeyEventKind::Press => {
                 self.handle_key_event(key)?;
             }
-            Event::Resize(_, _) => {}
-            _ => {}
+            Event::Key(_)
+            | Event::Paste(_)
+            | Event::Mouse(_)
+            | Event::FocusLost
+            | Event::FocusGained
+            | Event::Resize(_, _) => {}
         }
         Ok(())
     }
@@ -163,9 +162,17 @@ impl App {
         Ok(())
     }
 
+    fn is_writable(&self) -> bool {
+        self.context == PanelContext::Editor
+    }
+
     fn insert_char(&mut self, key: KeyEvent) {
+        if !self.is_writable() {
+            return;
+        }
+
         let KeyCode::Char(ch) = key.code else {
-            self.log_error(format!("{} should be unreachable in InsertChar", key.code));
+            self.log_error(format!("{} should be unreachable in InsertChar", key.code,));
             return;
         };
 

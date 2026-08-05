@@ -2,6 +2,7 @@ pub mod bottombar;
 pub mod content;
 pub mod tabs;
 
+pub use crate::layout::editor::*;
 use crate::{
     StartupArgs,
     app::components::{
@@ -15,10 +16,6 @@ use ratatui::{
     Frame,
     layout::{Constraint, Rect},
 };
-
-const TABS_HEIGHT: Constraint = Constraint::Length(3);
-const CONTENT_HEIGHT: Constraint = Constraint::Percentage(68);
-const BOTTOMBAR_HEIGHT: Constraint = Constraint::Percentage(32);
 
 pub struct Editor {
     pub tabs: Tabs,

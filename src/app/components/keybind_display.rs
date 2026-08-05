@@ -1,5 +1,6 @@
 use std::vec;
 
+use crate::layout::keybind_display::MIN_POPUP_WIDTH;
 use crate::{
     StartupArgs,
     app::components::{
@@ -17,8 +18,6 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
 };
-
-const MIN_WIDTH: u16 = 56;
 
 pub struct KeyBindDisplay {
     pub keybinds: KeyBindings,
@@ -52,7 +51,7 @@ impl KeyBindDisplay {
 
 impl Component for KeyBindDisplay {
     fn draw(&mut self, frame: &mut Frame, area: Rect, _context: PanelContext) {
-        let popup_width = MIN_WIDTH.min(area.width.saturating_sub(4));
+        let popup_width = MIN_POPUP_WIDTH.min(area.width.saturating_sub(4));
 
         let global_count = self.keybinds.iter_global().count() as u16;
         let context_lines: u16 = self

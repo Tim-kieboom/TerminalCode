@@ -57,6 +57,7 @@ action_enum! {
         ToggleSidebar => "Toggle Sidebar",
         ToggleDebugWindow => "Toggle DebugWindow",
         FocusNextPanel => "Focus Next Panel",
+
         ScrollUp => "Scroll up",
         ScrollDown => "Scroll down",
         ScrollLeft => "Scroll left",
@@ -67,10 +68,10 @@ action_enum! {
         ScrollBottom => "Scroll bottom",
 
         InsertChar => "Insert char",
-        Backspace => "Backspace",
-        Delete => "Delete",
         InsertNewline => "Enter",
+        Backspace => "Backspace",
         InsertTab => "Tab",
+        Delete => "Delete",
         Save => "Save",
     }
 }

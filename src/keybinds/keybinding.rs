@@ -105,9 +105,7 @@ impl KeyBinding {
             return false;
         }
         match (self.keycode, key.code) {
-            (KeyCode::Char(a), KeyCode::Char(b)) => {
-                a.eq_ignore_ascii_case(&b)
-            }
+            (KeyCode::Char(a), KeyCode::Char(b)) => a.eq_ignore_ascii_case(&b),
             _ => self.keycode == key.code,
         }
     }

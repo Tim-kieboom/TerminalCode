@@ -7,7 +7,7 @@ pub use action::{Action, PanelContext};
 pub use keybinding::KeyBinding;
 
 use anyhow::{Result, bail};
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 const KEYBIND_DEFAULTS: &str = include_str!("../../keybind_defaults.json");
 
@@ -100,11 +100,17 @@ impl KeyBindings {
     }
 
     pub fn resolve(&self, key: &KeyEvent, context: PanelContext) -> Option<Action> {
-        if let Some(ctx_map) = self.contexts.get(&context) {
-            for (action, binding) in ctx_map {
-                if binding.matches(key) {
-                    return Some(*action);
-                }
+        if matches!(key.code, KeyCode::Char(_))
+            && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
+        {
+            return Some(Action::InsertChar);
+        }
+
+        if let Some(context_map) = self.contexts.get(&context) {
+            let key_entry = context_map.iter().find(|(_, binding)| binding.matches(key));
+
+            if let Some((action, _)) = key_entry {
+                return Some(*action);
             }
         }
 
@@ -132,13 +138,11 @@ impl KeyBindings {
     }
 
     pub fn get(&self, action: &Action, context: PanelContext) -> Option<&KeyBinding> {
-        
         let Some(context_map) = self.contexts.get(&context) else {
-            return self.global.get(action)
+            return self.global.get(action);
         };
-        
-        context_map.get(action)
-            .or(self.global.get(action))
+
+        context_map.get(action).or(self.global.get(action))
     }
 
     pub fn get_context_map(&self, context: PanelContext) -> Option<&HashMap<Action, KeyBinding>> {

@@ -7,6 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph},
 };
 
+use crate::layout::debug_window::MIN_POPUP_WIDTH;
 use crate::{
     StartupArgs,
     app::components::{
@@ -17,8 +18,6 @@ use crate::{
     theme::Theme,
     utils::popup_layout,
 };
-
-const MIN_WIDTH: u16 = 100;
 
 #[derive(Debug)]
 pub enum DebugTag {
@@ -69,7 +68,7 @@ impl Component for DebugWindow {
     fn draw(&mut self, frame: &mut Frame, area: Rect, _context: PanelContext) {
         let lines_len = self.messages.len() as u16;
 
-        let popup_width = MIN_WIDTH.min(area.width.saturating_sub(4));
+        let popup_width = MIN_POPUP_WIDTH.min(area.width.saturating_sub(4));
 
         let length = lines_len + 6;
         let popup_height = length.min(area.height.saturating_sub(2));
