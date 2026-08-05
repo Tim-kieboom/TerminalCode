@@ -3,7 +3,7 @@ macro_rules! action_enum {
         $(#[$meta:meta])*
         $vis:vis enum $name:ident {
             $(
-                $variant:ident $(=> $desc:expr)?,
+                $variant:ident => $desc:expr,
             )*
         }
     ) => {
@@ -18,7 +18,7 @@ macro_rules! action_enum {
             pub fn description(&self) -> &'static str {
                 match self {
                     $(
-                        Self::$variant => action_enum!(@desc $variant $(=> $desc)?),
+                        Self::$variant => $desc,
                     )*
                 }
             }
@@ -29,19 +29,26 @@ macro_rules! action_enum {
                 ]
             }
 
-            pub fn try_from_str(string: &str) -> Option<Self> {
-                match string.to_lowercase().as_str() {
+            pub fn from_description(string: &str) -> Option<Self> {
+                let string = string.to_lowercase();
+                match string.as_str() {
                     $(
-                        action_enum!(@desc $variant $(=> $desc)?) => Some(Self::$variant),
+                        $desc => Some(Self::$variant),
+                    )*
+                    _ => None,
+                }
+            }
+            
+            pub fn from_name(string: &str) -> Option<Self> {
+                match string {
+                    $(
+                        stringify!($variant) => Some(Self::$variant),
                     )*
                     _ => None,
                 }
             }
         }
     };
-
-    (@desc $variant:ident => $desc:expr) => { $desc };
-    (@desc $variant:ident) => { stringify!($variant) };
 }
 
 action_enum! {

@@ -11,9 +11,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 const KEYBIND_DEFAULTS: &str = include_str!("../../keybind_defaults.json");
 
+type KeyBindMap = HashMap<Action, KeyBinding>;
+#[derive(Debug)]
 pub struct KeyBindings {
-    global: HashMap<Action, KeyBinding>,
-    contexts: HashMap<PanelContext, HashMap<Action, KeyBinding>>,
+    global: KeyBindMap,
+    contexts: HashMap<PanelContext, KeyBindMap>,
 }
 
 type Json = serde_json::Value;
@@ -27,7 +29,7 @@ impl KeyBindings {
         };
 
         for (key, value) in &obj {
-            if let Some(context) = PanelContext::try_from_str(key) {
+            if let Some(context) = PanelContext::from_description(key) {
                 let map = match value {
                     Json::Object(val) => val,
                     other => bail!("{other:?} is invalid for keybind json"),
@@ -100,27 +102,25 @@ impl KeyBindings {
     }
 
     pub fn resolve(&self, key: &KeyEvent, context: PanelContext) -> Option<Action> {
+        fn find_entry(map: &KeyBindMap, key: &KeyEvent) -> Option<Action> {
+            map.iter()
+                .find(|(_, binding)| binding.matches(key))
+                .map(|(action, _)| *action)
+        }
+
         if matches!(key.code, KeyCode::Char(_))
             && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
         {
             return Some(Action::InsertChar);
         }
 
-        if let Some(context_map) = self.contexts.get(&context) {
-            let key_entry = context_map.iter().find(|(_, binding)| binding.matches(key));
-
-            if let Some((action, _)) = key_entry {
-                return Some(*action);
-            }
+        if let Some(context_map) = self.contexts.get(&context)
+            && let Some(action) = find_entry(context_map, key)
+        {
+            return Some(action);
         }
 
-        for (action, binding) in &self.global {
-            if binding.matches(key) {
-                return Some(*action);
-            }
-        }
-
-        None
+        find_entry(&self.global, key)
     }
 
     pub fn rebind(&mut self, action: Action, binding: KeyBinding, context: Option<PanelContext>) {
@@ -161,7 +161,7 @@ impl KeyBindings {
 }
 
 fn parse_keybind(key: &str, value: &Json) -> Option<(Action, KeyBinding)> {
-    let action = serde_json::from_str::<Action>(&format!("\"{key}\"")).ok()?;
+    let action = Action::from_name(key)?;
     let value_str = value.as_str()?;
     KeyBinding::parse(value_str).map(|bind| (action, bind))
 }

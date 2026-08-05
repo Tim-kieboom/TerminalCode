@@ -142,6 +142,13 @@ impl App {
             Action::OpenFile => bail!("OpenFile Not yet impl"),
             Action::Test => bail!("test"),
 
+            Action::InsertChar => self.insert_char(key),
+            Action::Delete => self.editor.content.delete_char(),
+            Action::Backspace => self.editor.content.backspace(),
+            Action::InsertTab => self.editor.content.insert_tab(),
+            Action::InsertNewline => self.editor.content.insert_newline(),
+            Action::Save => bail!("Save Not yet impl"),
+
             Action::ScrollUp
             | Action::ScrollTop
             | Action::ScrollDown
@@ -150,13 +157,6 @@ impl App {
             | Action::ScrollBottom
             | Action::ScrollPageUp
             | Action::ScrollPageDown => self.move_cursor(action),
-
-            Action::InsertChar => self.insert_char(key),
-            Action::Delete => self.editor.content.delete_char(),
-            Action::Backspace => self.editor.content.backspace(),
-            Action::InsertTab => self.editor.content.insert_tab(),
-            Action::InsertNewline => self.editor.content.insert_newline(),
-            Action::Save => todo!(),
         }
 
         Ok(())

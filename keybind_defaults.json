@@ -1,22 +1,22 @@
 {
-  "test": "",
-  "quit": "Ctrl+Q",
-  "toggleBottom": "Ctrl+K",
-  "showKeyBinds": "Ctrl+M",
-  "toggleSidebar": "Ctrl+B",
-  "focusNextPanel": "Alt+Backspace",
-  "toggleDebugWindow": "Ctrl+Alt+Shift+D",
+  "Test": "",
+  "Quit": "Ctrl+Q",
+  "ToggleBottom": "Ctrl+K",
+  "ShowKeyBinds": "Ctrl+M",
+  "ToggleSidebar": "Ctrl+B",
+  "FocusNextPanel": "Alt+Backspace",
+  "ToggleDebugWindow": "Ctrl+Alt+Shift+D",
   
-  "scrollUp": "Up",
-  "scrollTop": "Home",
-  "scrollDown": "Down",
-  "scrollLeft": "Left",
-  "scrollBottom": "End",
-  "scrollRight": "Right",
-  "scrollPageUp": "PageUp",
-  "scrollPageDown": "PageDown",
+  "ScrollUp": "Up",
+  "ScrollTop": "Home",
+  "ScrollDown": "Down",
+  "ScrollLeft": "Left",
+  "ScrollBottom": "End",
+  "ScrollRight": "Right",
+  "ScrollPageUp": "PageUp",
+  "ScrollPageDown": "PageDown",
 
-  "editor": {
+  "Editor": {
     "Save": "Ctrl+S",
     "Delete": "Delete",
     "InsertTab": "Tab",
@@ -24,11 +24,11 @@
     "InsertNewline": "Enter"
   },
   
-  "explorer": {
+  "Explorer": {
     "OpenFile": "Enter"
   },
   
-  "keybinds": {
+  "Keybinds": {
     "Close": "Esc"
   }
 }
