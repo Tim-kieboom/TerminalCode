@@ -32,7 +32,7 @@ pub struct DebugWindow {
     messages: Vec<DebugMessage>,
 }
 impl DebugWindow {
-    pub fn new(arg: &StartupArgs) -> Self {
+    pub fn new(_arg: &StartupArgs) -> Self {
         Self {
             messages: vec![],
             scroller: CursorScroller::new(ScrollMode::List),

@@ -25,7 +25,9 @@ impl Component for Tabs {
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let paragraph = Paragraph::new(tab_content).block(block);
+        let paragraph = Paragraph::new(tab_content)
+            .block(block)
+            .style(Theme::editor_background());
         frame.render_widget(paragraph, area);
     }
 }

@@ -27,7 +27,7 @@ impl KeyBindings {
         };
 
         for (key, value) in &obj {
-            if let Some(context) = PanelContext::from_str(key) {
+            if let Some(context) = PanelContext::try_from_str(key) {
                 let map = match value {
                     Json::Object(val) => val,
                     other => bail!("{other:?} is invalid for keybind json"),
@@ -120,7 +120,7 @@ impl KeyBindings {
     pub fn rebind(&mut self, action: Action, binding: KeyBinding, context: Option<PanelContext>) {
         match context {
             Some(ctx) => {
-                let ctx_map = self.contexts.entry(ctx).or_insert_with(HashMap::new);
+                let ctx_map = self.contexts.entry(ctx).or_default();
                 ctx_map.retain(|_, b| *b != binding);
                 ctx_map.insert(action, binding);
             }
@@ -132,12 +132,13 @@ impl KeyBindings {
     }
 
     pub fn get(&self, action: &Action, context: PanelContext) -> Option<&KeyBinding> {
-        if let Some(ctx_map) = self.contexts.get(&context) {
-            if let Some(binding) = ctx_map.get(action) {
-                return Some(binding);
-            }
-        }
-        self.global.get(action)
+        
+        let Some(context_map) = self.contexts.get(&context) else {
+            return self.global.get(action)
+        };
+        
+        context_map.get(action)
+            .or(self.global.get(action))
     }
 
     pub fn get_context_map(&self, context: PanelContext) -> Option<&HashMap<Action, KeyBinding>> {

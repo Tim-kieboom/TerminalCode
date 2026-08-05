@@ -33,8 +33,8 @@ impl Content {
     pub fn move_curser(&mut self, action: Action) {
         let vertical = self.scroller.cursor().vertical;
 
-        let line = self.lines().nth(vertical);
         let lines_len = self.lines().count();
+        let line = self.lines().nth(vertical);
 
         let line_len = line.map_or(0, |l| l.len());
         self.scroller.move_cursor(action, lines_len, line_len);
@@ -94,8 +94,8 @@ impl Content {
         } = self.get_position(lines.len());
 
         let (before, after) = chars_split(&lines[vertical], horizontal);
-        lines[vertical] = before.to_string();
-        lines.insert(vertical + 1, after.to_string());
+        lines[vertical] = before;
+        lines.insert(vertical + 1, after);
 
         self.context = lines.join("\n");
         self.scroller.set_cursor(Position {
@@ -123,7 +123,7 @@ impl Content {
         self.context = lines.join("\n");
     }
 
-    fn remove_char(&mut self, lines: &mut Vec<String>, position: Position<usize>) {
+    fn remove_char(&mut self, lines: &mut [String], position: Position<usize>) {
         let Position {
             vertical,
             horizontal,
@@ -157,7 +157,7 @@ impl Content {
         self.lines().map(String::from).collect()
     }
 
-    fn lines<'a>(&'a self) -> impl Iterator<Item = &'a str> {
+    fn lines(&self) -> impl Iterator<Item = &str> {
         self.context.split("\n")
     }
 
@@ -189,9 +189,9 @@ impl Content {
 
         vec![
             line_num,
-            Span::styled(before, Theme::text_accent()),
+            Span::styled(before, Theme::text_normal()),
             Span::styled(cursor_char, Theme::cursor()),
-            Span::styled(after, Theme::text_accent()),
+            Span::styled(after, Theme::text_normal()),
         ]
     }
 }
@@ -229,7 +229,7 @@ impl Component for Content {
             let spans = if selected {
                 self.insert_in_line(line, line_num)
             } else {
-                vec![line_num, Span::styled(line, Theme::text_accent())]
+                vec![line_num, Span::styled(line, Theme::text_normal())]
             };
 
             lines.push(Line::from(spans));
@@ -242,6 +242,7 @@ impl Component for Content {
 
         let paragraph = Paragraph::new(lines)
             .block(block)
+            .style(Theme::editor_background())
             .scroll((scroll_offset.vertical, scroll_offset.horizontal));
 
         frame.render_widget(paragraph, area);

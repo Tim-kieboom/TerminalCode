@@ -106,7 +106,7 @@ impl KeyBinding {
         }
         match (self.keycode, key.code) {
             (KeyCode::Char(a), KeyCode::Char(b)) => {
-                a.to_ascii_lowercase() == b.to_ascii_lowercase()
+                a.eq_ignore_ascii_case(&b)
             }
             _ => self.keycode == key.code,
         }

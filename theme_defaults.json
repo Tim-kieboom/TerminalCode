@@ -1,0 +1,24 @@
+{
+    "accent": [140, 140, 255],
+    
+    "text": [220, 220, 220],
+    "textDim": [128, 128, 128],
+    "textBright": [255, 255, 255],
+    
+    "border": [65, 65, 85],
+    "borderDim": [45, 45, 60],
+    "borderFocused": [140, 140, 255],
+    
+    "danger": [230, 80, 80],
+    "note": [100, 180, 255],
+    "success": [80, 220, 120],
+    "warning": [230, 180, 60],
+
+    "backgroundDark": [30, 30, 40],
+    "backgroundTerminal": [0, 0, 0],
+    "backgroundEditor": [30, 30, 40],
+    "backgroundSidebar": [25, 25, 35],
+    "backgroundExplorer": [25, 25, 35],
+    "backgroundSelected": [45, 50, 75],
+    "backgroundHighlight": [40, 40, 55]
+}

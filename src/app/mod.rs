@@ -1,14 +1,14 @@
 mod components;
 
 use anyhow::{Result, bail};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
     text::{Line, Span},
     widgets::Paragraph,
 };
-use std::{format, time::Duration};
+use std::{format, time::Duration, vec};
 
 use crate::{
     StartupArgs,
@@ -23,7 +23,7 @@ use crate::{
 };
 
 const WORKSPACE_HEIGHT: Constraint = Constraint::Min(30);
-const STATUSBAR_HEIGHT: Constraint = Constraint::Length(1);
+const STATUSBAR_HEIGHT: Constraint = Constraint::Length(2);
 
 const EDITOR_WIDTH: Constraint = Constraint::Min(1);
 const SIDEBAR_WIDTH: Constraint = Constraint::Length(28);
@@ -100,7 +100,7 @@ impl App {
             Span::styled(" Keybinds ", Theme::status_bar_dim()),
         ]);
 
-        let bar = Paragraph::new(status).style(Theme::status_bar());
+        let bar = Paragraph::new(vec![Line::from(""), status]).style(Theme::status_bar());
         frame.render_widget(bar, area);
     }
 
@@ -127,34 +127,6 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
-        if self.context == PanelContext::Editor {
-            match key.code {
-                KeyCode::Char(c)
-                    if key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT =>
-                {
-                    self.editor.content.insert_char(c);
-                    return Ok(());
-                }
-                KeyCode::Backspace => {
-                    self.editor.content.backspace();
-                    return Ok(());
-                }
-                KeyCode::Delete => {
-                    self.editor.content.delete_char();
-                    return Ok(());
-                }
-                KeyCode::Enter => {
-                    self.editor.content.insert_newline();
-                    return Ok(());
-                }
-                KeyCode::Tab => {
-                    self.editor.content.insert_tab();
-                    return Ok(());
-                }
-                _ => {}
-            }
-        }
-
         let action = match self.keybinds().resolve(&key, self.context) {
             Some(a) => a,
             None => return Ok(()),
@@ -180,14 +152,24 @@ impl App {
             | Action::ScrollPageUp
             | Action::ScrollPageDown => self.move_cursor(action),
 
-            Action::Backspace
-            | Action::Delete
-            | Action::InsertNewline
-            | Action::InsertTab
-            | Action::Save => {}
+            Action::InsertChar => self.insert_char(key),
+            Action::Delete => self.editor.content.delete_char(),
+            Action::Backspace => self.editor.content.backspace(),
+            Action::InsertTab => self.editor.content.insert_tab(),
+            Action::InsertNewline => self.editor.content.insert_newline(),
+            Action::Save => todo!(),
         }
 
         Ok(())
+    }
+
+    fn insert_char(&mut self, key: KeyEvent) {
+        let KeyCode::Char(ch) = key.code else {
+            self.log_error(format!("{} should be unreachable in InsertChar", key.code));
+            return;
+        };
+
+        self.editor.content.insert_char(ch)
     }
 
     fn move_cursor(&mut self, action: Action) {
@@ -200,9 +182,8 @@ impl App {
     }
 
     fn close_window(&mut self) {
-        match self.context {
-            PanelContext::Keybinds => self.keybind_display.hide(),
-            _ => (),
+        if self.context == PanelContext::Keybinds {
+            self.keybind_display.hide();
         }
     }
 
@@ -266,6 +247,18 @@ impl App {
             }
             PanelContext::BottomBar => PanelContext::Editor,
             other => other,
-        }
+        };
+    }
+
+    fn log_error(&mut self, message: String) {
+        self.debug_window.inner_mut().push_error(message);
+    }
+
+    fn log_warning(&mut self, message: String) {
+        self.debug_window.inner_mut().push_warning(message);
+    }
+
+    fn log_note(&mut self, message: String) {
+        self.debug_window.inner_mut().push_note(message);
     }
 }

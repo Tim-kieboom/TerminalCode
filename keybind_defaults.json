@@ -1,23 +1,27 @@
 {
   "test": "",
   "quit": "Ctrl+Q",
+  "toggleBottom": "Ctrl+K",
   "showKeyBinds": "Ctrl+M",
   "toggleSidebar": "Ctrl+B",
-  "toggleBottom": "Ctrl+K",
-  "toggleDebugWindow": "Ctrl+Alt+Shift+D",
   "focusNextPanel": "Alt+Backspace",
+  "toggleDebugWindow": "Ctrl+Alt+Shift+D",
   
   "scrollUp": "Up",
+  "scrollTop": "Home",
   "scrollDown": "Down",
   "scrollLeft": "Left",
+  "scrollBottom": "End",
   "scrollRight": "Right",
   "scrollPageUp": "PageUp",
   "scrollPageDown": "PageDown",
-  "scrollTop": "Home",
-  "scrollBottom": "End",
 
   "editor": {
-    "Save": "Ctrl+S"
+    "Save": "Ctrl+S",
+    "Delete": "Delete",
+    "InsertTab": "Tab",
+    "Backspace": "Backspace",
+    "InsertNewline": "Enter"
   },
   
   "explorer": {

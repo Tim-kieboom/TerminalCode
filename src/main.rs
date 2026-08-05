@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::{Result, bail};
-use terminal_code::{App, StartupArgs, terminal};
+use terminal_code::{App, StartupArgs, terminal, theme::Theme};
 
 fn main() -> ExitCode {
     install_panic_hook();
@@ -25,6 +25,8 @@ fn main() -> ExitCode {
 
 fn run() -> Result<()> {
     let args = parse_args()?;
+
+    Theme::init(args.config_dir());
 
     let mut terminal = terminal::init()?;
     let mut app = App::new(args)?;

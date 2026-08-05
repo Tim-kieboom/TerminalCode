@@ -17,5 +17,9 @@ impl StartupArgs {
         Self { path, _flags: () }
     }
 
+    pub fn config_dir(&self) -> &std::path::Path {
+        &self.path
+    }
+
     pub fn add_flag(&mut self, _flag: ()) {}
 }

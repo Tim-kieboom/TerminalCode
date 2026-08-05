@@ -29,7 +29,7 @@ macro_rules! action_enum {
                 ]
             }
 
-            pub fn from_str(string: &str) -> Option<Self> {
+            pub fn try_from_str(string: &str) -> Option<Self> {
                 match string.to_lowercase().as_str() {
                     $(
                         action_enum!(@desc $variant $(=> $desc)?) => Some(Self::$variant),
@@ -66,6 +66,7 @@ action_enum! {
         ScrollTop => "Scroll top",
         ScrollBottom => "Scroll bottom",
 
+        InsertChar => "Insert char",
         Backspace => "Backspace",
         Delete => "Delete",
         InsertNewline => "Enter",

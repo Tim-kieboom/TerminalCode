@@ -79,7 +79,9 @@ impl Component for Explorer {
             .borders(Borders::ALL)
             .border_style(border_style);
 
-        let paragraph = Paragraph::new(lines).block(block);
+        let paragraph = Paragraph::new(lines)
+            .block(block)
+            .style(Theme::explorer_bg());
         frame.render_widget(paragraph, area);
     }
 }
