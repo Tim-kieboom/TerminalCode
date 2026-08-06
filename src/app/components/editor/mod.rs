@@ -2,6 +2,8 @@ pub mod bottombar;
 pub mod content;
 pub mod tabs;
 
+use std::path::Path;
+
 pub use crate::layout::editor::*;
 use crate::{
     StartupArgs,
@@ -29,6 +31,18 @@ impl Editor {
             content: Content::new(args),
             bottombar: Hideable::new_hide(BottomBar::new(args)),
         }
+    }
+
+    pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("<file>")
+            .to_string();
+
+        self.content.open(path)?;
+        self.tabs.open(name);
+        Ok(())
     }
 }
 impl Component for Editor {

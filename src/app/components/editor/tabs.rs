@@ -7,18 +7,45 @@ use ratatui::{
 
 use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
 
-pub struct Tabs {}
+pub struct Tabs {
+    files: Vec<String>,
+    active: usize,
+}
 impl Tabs {
     pub fn new(_args: &StartupArgs) -> Self {
-        Self {}
+        Self {
+            files: Vec::new(),
+            active: 0,
+        }
+    }
+
+    pub fn open(&mut self, name: impl Into<String>) {
+        let name = name.into();
+        if let Some(index) = self.files.iter().position(|file| file == &name) {
+            self.active = index;
+        } else {
+            self.files.push(name);
+            self.active = self.files.len() - 1;
+        }
     }
 }
 impl Component for Tabs {
     fn draw(&mut self, frame: &mut Frame, area: Rect, _context: PanelContext) {
-        let tab_content = Line::from(vec![
-            Span::styled(" main.rs ", Theme::tab_active()),
-            Span::styled(" lib.rs ", Theme::tab_inactive()),
-        ]);
+        let spans: Vec<Span> = self
+            .files
+            .iter()
+            .enumerate()
+            .map(|(i, file)| {
+                let style = if i == self.active {
+                    Theme::tab_active()
+                } else {
+                    Theme::tab_inactive()
+                };
+                Span::styled(format!(" {file} "), style)
+            })
+            .collect();
+
+        let tab_content = Line::from(spans);
 
         let border_style = Theme::border_default();
         let block = Block::default()

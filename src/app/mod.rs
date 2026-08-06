@@ -200,7 +200,16 @@ impl App {
 
     fn open_file(&mut self) {
         match self.context {
-            PanelContext::SideBar => self.sidebar.inner_mut().open_current(),
+            PanelContext::SideBar => {
+                let Some(path) = self.sidebar.inner_mut().open_current() else {
+                    return;
+                };
+
+                match self.editor.open(&path) {
+                    Ok(()) => self.context = PanelContext::Editor,
+                    Err(err) => self.log_error(format!("Failed to open {}: {err}", path.display())),
+                }
+            }
             _ => self.log_error("OpenFile is only available in the sidebar"),
         }
     }

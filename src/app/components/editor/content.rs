@@ -1,4 +1,4 @@
-use std::vec;
+use std::{fs, path::Path, vec};
 
 use ratatui::{
     Frame,
@@ -28,6 +28,13 @@ impl Content {
             context: "".to_string(),
             scroller: CursorScroller::new(ScrollMode::TextEditor),
         }
+    }
+
+    pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
+        let text = fs::read_to_string(path)?;
+        self.context = text.replace("\r\n", "\n");
+        self.scroller.set_cursor(Position::default());
+        Ok(())
     }
 
     pub fn move_curser(&mut self, action: Action) {

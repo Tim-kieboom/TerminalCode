@@ -18,6 +18,10 @@ impl FileNode {
         &self.name
     }
 
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn is_dir(&self) -> bool {
         self.is_dir
     }
@@ -168,6 +172,6 @@ impl VisibleIndex {
     }
 }
 
-fn file_name_str<'a>(path: &'a Path) -> Option<&'a str> {
+fn file_name_str(path: &Path) -> Option<&str> {
     path.file_name().and_then(|os_str| os_str.to_str())
 }

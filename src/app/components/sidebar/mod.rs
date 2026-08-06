@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use ratatui::{Frame, layout::Rect};
 
 pub mod explorer;
@@ -31,7 +33,7 @@ impl SideBar {
         }
     }
 
-    pub fn open_current(&mut self) {
+    pub fn open_current(&mut self) -> Option<PathBuf> {
         match self.select {
             SideBarSelect::Explorer => self.explorer.open_current(),
         }

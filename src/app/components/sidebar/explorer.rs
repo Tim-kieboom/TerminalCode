@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     StartupArgs,
     app::components::{
@@ -35,21 +37,21 @@ impl Explorer {
         self.scroller.move_cursor(action, length, 0);
     }
 
-    pub fn open_current(&mut self) {
+    pub fn open_current(&mut self) -> Option<PathBuf> {
         let visible = self.tree.visible();
         let index = self.scroller.cursor().vertical;
 
-        let Some(VisibleIndex { file, .. }) = visible.get(index) else {
-            return;
-        };
+        let VisibleIndex { file, .. } = visible.get(index)?;
 
         let node_index = *file;
-        if !self.tree.node(node_index).is_dir() {
-            return;
+        let node = self.tree.node(node_index);
+        if !node.is_dir() {
+            return Some(node.path().to_path_buf());
         }
 
         self.tree.toggle(node_index);
         self.clamp_cursor();
+        None
     }
 
     fn clamp_cursor(&mut self) {
