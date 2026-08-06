@@ -17,7 +17,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             terminal::force_restore();
-            eprintln!("Terminal Code Panic!!: {err}");
+            eprintln!("Terminal Code Fatal Error!!: {err}");
             ExitCode::FAILURE
         }
     }

@@ -58,6 +58,8 @@ action_enum! {
         Test => "Test",
         Quit => "Quit",
         Close => "Close",
+        PrevTab => "Prev tab",
+        NextTab => "Next tab",
         OpenFile => "OpenFile",
         ShowKeyBinds => "Show KeyBinds",
         ToggleBottom => "Toggle Bottom",
@@ -66,20 +68,20 @@ action_enum! {
         FocusNextPanel => "Focus Next Panel",
 
         ScrollUp => "Scroll up",
+        ScrollTop => "Scroll top",
         ScrollDown => "Scroll down",
         ScrollLeft => "Scroll left",
         ScrollRight => "Scroll right",
+        ScrollBottom => "Scroll bottom",
         ScrollPageUp => "Scroll page up",
         ScrollPageDown => "Scroll page down",
-        ScrollTop => "Scroll top",
-        ScrollBottom => "Scroll bottom",
 
-        InsertChar => "Insert char",
-        InsertNewline => "Enter",
-        Backspace => "Backspace",
-        InsertTab => "Tab",
-        Delete => "Delete",
         Save => "Save",
+        Delete => "Delete",
+        InsertTab => "Tab",
+        Backspace => "Backspace",
+        InsertNewline => "Enter",
+        InsertChar => "Insert char",
     }
 }
 

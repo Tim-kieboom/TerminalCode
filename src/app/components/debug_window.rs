@@ -6,6 +6,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
 };
+use time::{OffsetDateTime, macros::format_description};
 
 use crate::layout::debug_window::MIN_POPUP_WIDTH;
 use crate::{
@@ -19,7 +20,7 @@ use crate::{
     utils::popup_layout,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum DebugTag {
     Note,
     Error,
@@ -39,24 +40,18 @@ impl DebugWindow {
     }
 
     pub fn push_note(&mut self, message: String) {
-        self.messages.push(DebugMessage {
-            message,
-            tag: DebugTag::Note,
-        });
+        self.messages
+            .push(DebugMessage::new(message, DebugTag::Note));
     }
 
     pub fn push_error(&mut self, message: String) {
-        self.messages.push(DebugMessage {
-            message,
-            tag: DebugTag::Error,
-        });
+        self.messages
+            .push(DebugMessage::new(message, DebugTag::Error));
     }
 
     pub fn push_warning(&mut self, message: String) {
-        self.messages.push(DebugMessage {
-            message,
-            tag: DebugTag::Warning,
-        });
+        self.messages
+            .push(DebugMessage::new(message, DebugTag::Warning));
     }
 
     pub fn move_cursor(&mut self, action: Action) {
@@ -84,6 +79,7 @@ impl Component for DebugWindow {
 
         let mut lines = vec![Line::from("")];
         for (i, message) in self.messages.iter().enumerate() {
+            let mut dim_style = Theme::text_dim();
             let mut style = match message.tag {
                 DebugTag::Note => Theme::text_note(),
                 DebugTag::Error => Theme::text_error(),
@@ -93,16 +89,21 @@ impl Component for DebugWindow {
             let selected = i == self.scroller.cursor().vertical;
             if selected {
                 Theme::add_highlight(&mut style);
+                Theme::add_highlight(&mut dim_style);
             }
 
             let text = format!(
                 "[{:?}]  {}{}",
-                message.tag,
+                message.tag(),
                 message.format_space(),
                 message.as_str(),
             );
 
-            lines.push(Line::styled(text, style));
+            lines.push(Line::from(vec![
+                Span::styled(message.date_time_string(), dim_style),
+                Span::styled(" ", dim_style),
+                Span::styled(text, style),
+            ]));
         }
 
         let block = Block::default()
@@ -119,12 +120,38 @@ impl Component for DebugWindow {
 }
 
 pub struct DebugMessage {
-    pub tag: DebugTag,
-    pub message: String,
+    tag: DebugTag,
+    message: String,
+    date_time: OffsetDateTime,
 }
 impl DebugMessage {
+    pub fn new(message: String, tag: DebugTag) -> Self {
+        let date_time = OffsetDateTime::now_local();
+        debug_assert!(date_time.is_ok());
+
+        let date_time = date_time.unwrap_or(OffsetDateTime::now_utc());
+        Self {
+            tag,
+            message,
+            date_time,
+        }
+    }
+
     pub fn as_str(&self) -> &str {
         &self.message
+    }
+
+    pub fn tag(&self) -> DebugTag {
+        self.tag
+    }
+
+    pub fn date_time_string(&self) -> String {
+        let result = self
+            .date_time
+            .format(format_description!("[hour]:[minute]:[second]"));
+        debug_assert!(result.is_ok());
+
+        result.unwrap_or(format!("{}", self.date_time))
     }
 
     pub fn format_space(&self) -> &str {

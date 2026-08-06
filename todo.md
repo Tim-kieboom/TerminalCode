@@ -1,3 +1,3 @@
 
 # Bug
-- [ ] open keybinds softlocks program
+- [ ] Alt+Backspace seen as Backspace

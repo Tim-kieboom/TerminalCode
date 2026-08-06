@@ -1,5 +1,6 @@
 use std::write;
 
+use anyhow::bail;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,11 +53,11 @@ impl std::fmt::Display for KeyBinding {
 }
 
 impl KeyBinding {
-    pub fn parse(s: &str) -> Option<Self> {
+    pub fn parse(string: &str) -> anyhow::Result<Self> {
         let mut modifiers = KeyModifiers::NONE;
         let mut keycode = None;
 
-        for part in s.split('+') {
+        for part in string.split('+') {
             match part.to_lowercase().as_str() {
                 "ctrl" => modifiers |= KeyModifiers::CONTROL,
                 "alt" => modifiers |= KeyModifiers::ALT,
@@ -90,14 +91,16 @@ impl KeyBinding {
                 s if s.len() == 1 => {
                     keycode = Some(KeyCode::Char(s.chars().next().unwrap()));
                 }
-                _ => return None,
+                _ => bail!("{part:?} is invalid value for keybind"),
             }
         }
 
-        keycode.map(|k| KeyBinding {
-            modifiers,
-            keycode: k,
-        })
+        keycode
+            .map(|k| KeyBinding {
+                modifiers,
+                keycode: k,
+            })
+            .ok_or(anyhow::anyhow!("keybind does not have a keycode"))
     }
 
     pub fn matches(&self, key: &KeyEvent) -> bool {
@@ -107,6 +110,14 @@ impl KeyBinding {
         match (self.keycode, key.code) {
             (KeyCode::Char(a), KeyCode::Char(b)) => a.eq_ignore_ascii_case(&b),
             _ => self.keycode == key.code,
+        }
+    }
+}
+impl From<KeyEvent> for KeyBinding {
+    fn from(value: KeyEvent) -> Self {
+        KeyBinding {
+            modifiers: value.modifiers,
+            keycode: value.code,
         }
     }
 }

@@ -21,33 +21,40 @@ pub struct KeyBindings {
 type Json = serde_json::Value;
 impl KeyBindings {
     fn parse_json(json: &str) -> Result<Self> {
-        let mut global = HashMap::new();
-        let mut contexts = HashMap::new();
+        let mut global: KeyBindMap = HashMap::new();
+        let mut contexts: HashMap<PanelContext, KeyBindMap> = HashMap::new();
 
-        let Ok(Json::Object(obj)) = serde_json::from_str::<Json>(json) else {
-            return Ok(Self { global, contexts });
+        let parsed: Json = serde_json::from_str(json)
+            .map_err(|err| anyhow::anyhow!("at {}; {err}", err.line()))?;
+
+        let Json::Object(obj) = parsed else {
+            bail!("at 1; expected a top-level JSON object");
         };
 
         for (key, value) in &obj {
             if let Some(context) = PanelContext::from_description(key) {
                 let map = match value {
                     Json::Object(val) => val,
-                    other => bail!("{other:?} is invalid for keybind json"),
+                    other => {
+                        return Err(span_err(
+                            json,
+                            key,
+                            format_args!("{other:?} is invalid for keybind json"),
+                        ));
+                    }
                 };
 
                 let context_map = contexts.entry(context).or_default();
 
-                for (key, value) in map {
-                    if let Some((action, keybind)) = parse_keybind(key, value) {
-                        context_map.insert(action, keybind);
-                    }
+                for (inner_key, value) in map {
+                    let (action, keybind) = parse_keybind(json, inner_key, value)?;
+                    context_map.insert(action, keybind);
                 }
                 continue;
             }
 
-            if let Some((action, keybind)) = parse_keybind(key, value) {
-                global.insert(action, keybind);
-            }
+            let (action, keybind) = parse_keybind(json, key, value)?;
+            global.insert(action, keybind);
         }
 
         Ok(Self { global, contexts })
@@ -160,8 +167,36 @@ impl KeyBindings {
     }
 }
 
-fn parse_keybind(key: &str, value: &Json) -> Option<(Action, KeyBinding)> {
-    let action = Action::from_name(key)?;
-    let value_str = value.as_str()?;
-    KeyBinding::parse(value_str).map(|bind| (action, bind))
+fn parse_keybind(json: &str, key: &str, value: &Json) -> Result<(Action, KeyBinding)> {
+    let action = Action::from_name(key)
+        .ok_or_else(|| span_err(json, key, format_args!("Action {key:?} is invalid")))?;
+
+    let value_str = value.as_str().ok_or_else(|| {
+        span_err(
+            json,
+            key,
+            format_args!("Value of Action {key:?} is not of type String"),
+        )
+    })?;
+
+    KeyBinding::parse(value_str)
+        .map(|bind| (action, bind))
+        .map_err(|err| span_err(json, key, err))
+}
+
+fn span_err(json: &str, key: &str, msg: impl std::fmt::Display) -> anyhow::Error {
+    match span_of_key(json, key) {
+        Some(line) => anyhow::anyhow!("at {line}; {msg}"),
+        None => anyhow::anyhow!("at ?; {msg}"),
+    }
+}
+
+fn span_of_key(json: &str, key: &str) -> Option<usize> {
+    let offset = json.find(&format!("\"{key}\""))?;
+    Some(line_column_at(json, offset))
+}
+
+fn line_column_at(json: &str, offset: usize) -> usize {
+    let before = &json[..offset];
+    before.bytes().filter(|&b| b == b'\n').count() + 1
 }

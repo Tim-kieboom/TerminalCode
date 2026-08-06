@@ -13,6 +13,11 @@ use crate::{
     theme::Theme,
 };
 
+pub struct Notification {
+    pub tag: DebugTag,
+    pub message: String,
+}
+
 pub struct Notifications {
     toasts: Vec<Toast>,
 }
@@ -22,17 +27,21 @@ struct Toast {
     message: String,
     added_at: Instant,
 }
-
+impl Notification {
+    pub fn new(tag: DebugTag, message: String) -> Self {
+        Self { tag, message }
+    }
+}
 impl Notifications {
     pub fn new() -> Self {
         Self { toasts: vec![] }
     }
 
-    pub fn push(&mut self, tag: DebugTag, message: String) {
+    pub fn push(&mut self, notification: Notification) {
         self.toasts.push(Toast {
-            tag,
-            message,
+            tag: notification.tag,
             added_at: Instant::now(),
+            message: notification.message,
         });
         if self.toasts.len() > MAX_TOASTS {
             self.toasts.remove(0);

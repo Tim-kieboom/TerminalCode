@@ -17,6 +17,8 @@
   "ScrollPageDown": "PageDown",
 
   "Editor": {
+    "PrevTab": "Alt+-",
+    "NextTab": "Alt+=",
     "Save": "Ctrl+S",
     "Delete": "Delete",
     "InsertTab": "Tab",
