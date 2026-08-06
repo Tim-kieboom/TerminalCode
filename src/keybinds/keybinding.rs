@@ -104,7 +104,7 @@ impl KeyBinding {
     }
 
     pub fn matches(&self, key: &KeyEvent) -> bool {
-        if (key.modifiers & self.modifiers) != self.modifiers {
+        if key.modifiers != self.modifiers {
             return false;
         }
         match (self.keycode, key.code) {
