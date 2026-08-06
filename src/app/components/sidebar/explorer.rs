@@ -1,4 +1,13 @@
-use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
+use crate::{
+    StartupArgs,
+    app::components::{
+        Component,
+        sidebar::file_tree::VisibleIndex,
+        utils::cursor_scroller::{CursorScroller, Position, ScrollMode},
+    },
+    keybinds::{Action, PanelContext},
+    theme::Theme,
+};
 use ratatui::{
     Frame,
     layout::Rect,
@@ -6,59 +15,90 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 
+use super::file_tree::FileTree;
+
 pub struct Explorer {
-    workspace_name: String,
+    tree: FileTree,
+    scroller: CursorScroller,
 }
+
 impl Explorer {
     pub fn new(args: &StartupArgs) -> Self {
-        let name = args
-            .path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("<null>")
-            .to_string();
-
         Self {
-            workspace_name: name,
+            tree: FileTree::new(args.project_path.clone()),
+            scroller: CursorScroller::new(ScrollMode::List),
         }
+    }
+
+    pub fn move_cursor(&mut self, action: Action) {
+        let length = self.tree.visible().len();
+        self.scroller.move_cursor(action, length, 0);
+    }
+
+    pub fn open_current(&mut self) {
+        let visible = self.tree.visible();
+        let index = self.scroller.cursor().vertical;
+
+        let Some(VisibleIndex { file, .. }) = visible.get(index) else {
+            return;
+        };
+
+        let node_index = *file;
+        if !self.tree.node(node_index).is_dir() {
+            return;
+        }
+
+        self.tree.toggle(node_index);
+        self.clamp_cursor();
+    }
+
+    fn clamp_cursor(&mut self) {
+        let length = self.tree.visible().len().saturating_sub(1);
+        let vertical = self.scroller.cursor().vertical.min(length);
+        let horizontal = self.scroller.cursor().horizontal;
+        self.scroller.set_cursor(Position {
+            vertical,
+            horizontal,
+        });
     }
 }
 
 impl Component for Explorer {
     fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {
         let focused = context == PanelContext::SideBar;
+        let visible = self.tree.visible();
+        let inner_height = area.height.saturating_sub(2);
+        let cursor_visual_line = self.scroller.cursor().vertical as u16;
+        let scroll_offset = self
+            .scroller
+            .get_scroll(cursor_visual_line, inner_height, 0);
+
         let mut lines: Vec<Line> = Vec::new();
+        for (i, VisibleIndex { file, depth }) in visible.iter().enumerate() {
+            let node = self.tree.node(*file);
+            let selected = i == self.scroller.cursor().vertical;
 
-        let name = &self.workspace_name;
-        lines.push(Line::from(vec![
-            Span::styled("  ", Theme::text_dim()),
-            Span::styled("▼ ", Theme::text_accent()),
-            Span::styled(name, Theme::explorer_folder()),
-        ]));
+            let indent = "  ".repeat(*depth);
+            let icon = if node.is_dir() {
+                if node.is_expanded() { "▾ " } else { "▸ " }
+            } else {
+                "  "
+            };
 
-        lines.push(Line::from(vec![
-            Span::styled("    ", Theme::text_dim()),
-            Span::styled("📁 src", Theme::explorer_folder()),
-        ]));
+            let mut dim = Theme::text_dim();
+            let mut name = if node.is_dir() {
+                Theme::explorer_folder()
+            } else {
+                Theme::explorer_file()
+            };
+            if selected {
+                Theme::add_highlight(&mut dim);
+                Theme::add_highlight(&mut name);
+            }
 
-        let files = ["main.rs", "lib.rs", "app/mod.rs", "terminal.rs"];
-        for file in &files {
             lines.push(Line::from(vec![
-                Span::styled("      ", Theme::text_dim()),
-                Span::styled(*file, Theme::explorer_file()),
-            ]));
-        }
-
-        lines.push(Line::from(""));
-        lines.push(Line::from(vec![
-            Span::styled("    ", Theme::text_dim()),
-            Span::styled("📁 keybinds", Theme::explorer_folder()),
-        ]));
-        let kb_files = ["mod.rs", "action.rs", "keybinding.rs"];
-        for file in &kb_files {
-            lines.push(Line::from(vec![
-                Span::styled("      ", Theme::text_dim()),
-                Span::styled(*file, Theme::explorer_file()),
+                Span::styled(format!("{indent}{icon}"), dim),
+                Span::styled(node.name(), name),
             ]));
         }
 
@@ -81,7 +121,9 @@ impl Component for Explorer {
 
         let paragraph = Paragraph::new(lines)
             .block(block)
-            .style(Theme::explorer_bg());
+            .style(Theme::explorer_bg())
+            .scroll((scroll_offset.vertical, scroll_offset.horizontal));
+
         frame.render_widget(paragraph, area);
     }
 }

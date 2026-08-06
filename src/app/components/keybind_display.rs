@@ -26,7 +26,7 @@ pub struct KeyBindDisplay {
 
 impl KeyBindDisplay {
     pub fn new(args: &StartupArgs) -> Result<Self> {
-        let keybinds = KeyBindings::load(&args.path)?;
+        let keybinds = KeyBindings::load(&args.project_path)?;
         Ok(Self {
             keybinds,
             scroller: CursorScroller::new(ScrollMode::List),

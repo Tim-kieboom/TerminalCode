@@ -1,9 +1,12 @@
 use ratatui::{Frame, layout::Rect};
-mod explorer;
+
+pub mod explorer;
+pub mod file_tree;
+
 use crate::{
     StartupArgs,
     app::components::{Component, sidebar::explorer::Explorer},
-    keybinds::PanelContext,
+    keybinds::{Action, PanelContext},
 };
 
 pub enum SideBarSelect {
@@ -19,6 +22,18 @@ impl SideBar {
         Self {
             select: SideBarSelect::Explorer,
             explorer: Explorer::new(args),
+        }
+    }
+
+    pub fn move_cursor(&mut self, action: Action) {
+        match self.select {
+            SideBarSelect::Explorer => self.explorer.move_cursor(action),
+        }
+    }
+
+    pub fn open_current(&mut self) {
+        match self.select {
+            SideBarSelect::Explorer => self.explorer.open_current(),
         }
     }
 }

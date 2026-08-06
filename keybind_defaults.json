@@ -1,5 +1,5 @@
 {
-  "Test": "",
+  "Test": "Ctrl+T",
   "Quit": "Ctrl+Q",
   "ToggleBottom": "Ctrl+K",
   "ShowKeyBinds": "Ctrl+M",
@@ -24,7 +24,7 @@
     "InsertNewline": "Enter"
   },
   
-  "Explorer": {
+  "Sidebar": {
     "OpenFile": "Enter"
   },
   

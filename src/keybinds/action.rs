@@ -38,7 +38,7 @@ macro_rules! action_enum {
                     _ => None,
                 }
             }
-            
+
             pub fn from_name(string: &str) -> Option<Self> {
                 match string {
                     $(

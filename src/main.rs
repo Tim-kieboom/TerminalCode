@@ -26,7 +26,7 @@ fn main() -> ExitCode {
 fn run() -> Result<()> {
     let args = parse_args()?;
 
-    Theme::init(args.config_dir());
+    Theme::init(args.project_path());
 
     let mut terminal = terminal::init()?;
     let mut app = App::new(args)?;

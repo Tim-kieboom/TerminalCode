@@ -4,6 +4,7 @@ use crate::keybinds::PanelContext;
 pub mod debug_window;
 pub mod editor;
 pub mod keybind_display;
+pub mod notifications;
 pub mod sidebar;
 pub mod utils;
 

@@ -8,10 +8,13 @@ use ratatui::{
 };
 
 use crate::{
-    StartupArgs, app::components::{
+    StartupArgs,
+    app::components::{
         Component,
         utils::cursor_scroller::{CursorScroller, Position, ScrollMode},
-    }, keybinds::{Action, KeyBindings, PanelContext}, theme::Theme,
+    },
+    keybinds::{Action, PanelContext},
+    theme::Theme,
 };
 
 pub struct Content {
@@ -20,7 +23,7 @@ pub struct Content {
 }
 
 impl Content {
-    pub fn new(args: &StartupArgs) -> Self {
+    pub fn new(_args: &StartupArgs) -> Self {
         Self {
             context: "".to_string(),
             scroller: CursorScroller::new(ScrollMode::TextEditor),

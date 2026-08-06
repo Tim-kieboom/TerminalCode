@@ -1326,6 +1326,7 @@ dependencies = [
  "ropey",
  "serde",
  "serde_json",
+ "vecmap",
 ]
 
 [[package]]
@@ -1509,6 +1510,14 @@ dependencies = [
  "getrandom 0.4.3",
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "vecmap"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

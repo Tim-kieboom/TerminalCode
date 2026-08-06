@@ -9,17 +9,20 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub struct StartupArgs {
-    pub(crate) path: PathBuf,
+    pub(crate) project_path: PathBuf,
     pub(crate) _flags: (),
 }
 
 impl StartupArgs {
-    pub fn new(path: PathBuf) -> Self {
-        Self { path, _flags: () }
+    pub fn new(project_path: PathBuf) -> Self {
+        Self {
+            project_path,
+            _flags: (),
+        }
     }
 
-    pub fn config_dir(&self) -> &std::path::Path {
-        &self.path
+    pub fn project_path(&self) -> &std::path::Path {
+        &self.project_path
     }
 
     pub fn add_flag(&mut self, _flag: ()) {}

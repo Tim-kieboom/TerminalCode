@@ -21,3 +21,11 @@ pub mod editor {
     pub const CONTENT_HEIGHT: Constraint = Constraint::Percentage(68);
     pub const BOTTOMBAR_HEIGHT: Constraint = Constraint::Percentage(32);
 }
+
+pub mod toast {
+    use std::time::Duration;
+
+    pub const MAX_TOASTS: usize = 5;
+    pub const TOAST_HEIGHT: u16 = 3;
+    pub const TOAST_LIFETIME: Duration = Duration::from_secs(4);
+}

@@ -13,8 +13,12 @@ use std::{format, time::Duration, vec};
 use crate::{
     StartupArgs,
     app::components::{
-        Component, Hideable, debug_window::DebugWindow, editor::Editor,
-        keybind_display::KeyBindDisplay, sidebar::SideBar,
+        Component, Hideable,
+        debug_window::{DebugTag, DebugWindow},
+        editor::Editor,
+        keybind_display::KeyBindDisplay,
+        notifications::Notifications,
+        sidebar::SideBar,
     },
     keybinds::{Action, KeyBindings, PanelContext},
     layout::{EDITOR_WIDTH, SIDEBAR_WIDTH, STATUSBAR_HEIGHT, WORKSPACE_HEIGHT},
@@ -30,6 +34,7 @@ pub struct App {
     sidebar: Hideable<SideBar>,
     debug_window: Hideable<DebugWindow>,
     keybind_display: Hideable<KeyBindDisplay>,
+    notifications: Notifications,
 }
 
 impl App {
@@ -41,6 +46,7 @@ impl App {
             sidebar: Hideable::new_show(SideBar::new(&args)),
             debug_window: Hideable::new_hide(DebugWindow::new(&args)),
             keybind_display: Hideable::new_hide(KeyBindDisplay::new(&args)?),
+            notifications: Notifications::new(),
         })
     }
 
@@ -58,6 +64,8 @@ impl App {
     }
 
     fn draw(&mut self, frame: &mut Frame) {
+        self.notifications.update();
+
         let layout = vertical_layout([WORKSPACE_HEIGHT, STATUSBAR_HEIGHT], frame.area());
 
         self.draw_workspace(frame, layout[0]);
@@ -66,6 +74,7 @@ impl App {
             .try_draw(frame, frame.area(), self.context);
         self.keybind_display
             .try_draw(frame, frame.area(), self.context);
+        self.notifications.draw(frame, frame.area());
     }
 
     fn key_label(&self, action: Action) -> String {
@@ -139,8 +148,8 @@ impl App {
             Action::ToggleBottom => self.toggle_bottombar(),
             Action::FocusNextPanel => self.focus_next_panel(),
             Action::ToggleDebugWindow => self.toggle_debug_window(),
-            Action::OpenFile => bail!("OpenFile Not yet impl"),
-            Action::Test => bail!("test"),
+            Action::OpenFile => self.open_file(),
+            Action::Test => self.log_note("test".to_string()),
 
             Action::InsertChar => self.insert_char(key),
             Action::Delete => self.editor.content.delete_char(),
@@ -182,9 +191,17 @@ impl App {
     fn move_cursor(&mut self, action: Action) {
         match self.context {
             PanelContext::Editor => self.editor.content.move_curser(action),
+            PanelContext::SideBar => self.sidebar.inner_mut().move_cursor(action),
             PanelContext::Keybinds => self.keybind_display.inner_mut().move_cursor(action),
             PanelContext::DebugWindow => self.debug_window.inner_mut().move_cursor(action),
             _ => (),
+        }
+    }
+
+    fn open_file(&mut self) {
+        match self.context {
+            PanelContext::SideBar => self.sidebar.inner_mut().open_current(),
+            _ => self.log_error("OpenFile is only available in the sidebar"),
         }
     }
 
@@ -257,15 +274,24 @@ impl App {
         };
     }
 
-    fn log_error(&mut self, message: String) {
-        self.debug_window.inner_mut().push_error(message);
+    #[allow(unused)]
+    fn log_error(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.debug_window.inner_mut().push_error(message.clone());
+        self.notifications.push(DebugTag::Error, message);
     }
 
-    fn log_warning(&mut self, message: String) {
-        self.debug_window.inner_mut().push_warning(message);
+    #[allow(unused)]
+    fn log_warning(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.debug_window.inner_mut().push_warning(message.clone());
+        self.notifications.push(DebugTag::Warning, message);
     }
 
-    fn log_note(&mut self, message: String) {
-        self.debug_window.inner_mut().push_note(message);
+    #[allow(unused)]
+    fn log_note(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.debug_window.inner_mut().push_note(message.clone());
+        self.notifications.push(DebugTag::Note, message);
     }
 }
