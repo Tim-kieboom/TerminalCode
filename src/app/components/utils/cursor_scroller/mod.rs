@@ -155,7 +155,7 @@ impl CursorScroller {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Position<T> {
     pub vertical: T,
     pub horizontal: T,
@@ -178,3 +178,6 @@ enum WidthScroll {
     Left,
     Right,
 }
+
+#[cfg(test)]
+mod tests;

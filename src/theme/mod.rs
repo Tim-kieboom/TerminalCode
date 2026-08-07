@@ -2,7 +2,7 @@ use std::{path::Path, sync::OnceLock};
 
 use ratatui::style::{Color, Modifier, Style};
 
-const THEME_DEFAULTS: &str = include_str!("../theme_defaults.json");
+const THEME_DEFAULTS: &str = include_str!("../../theme_defaults.json");
 
 struct ThemeConfig {
     accent: Color,
@@ -37,35 +37,42 @@ fn parse_color(value: &serde_json::Value) -> Option<Color> {
             let b = arr[2].as_u64()? as u8;
             Some(Color::Rgb(r, g, b))
         }
-        serde_json::Value::String(s) => {
-            let hex = s.trim_start_matches('#');
-            if hex.len() == 6 {
-                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-                Some(Color::Rgb(r, g, b))
-            } else if hex.len() == 3 {
-                let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
-                let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
-                let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
-                Some(Color::Rgb(r, g, b))
-            } else {
-                match hex.to_lowercase().as_str() {
-                    "black" => Some(Color::Black),
-                    "red" => Some(Color::Red),
-                    "green" => Some(Color::Green),
-                    "yellow" => Some(Color::Yellow),
-                    "blue" => Some(Color::Blue),
-                    "magenta" => Some(Color::Magenta),
-                    "cyan" => Some(Color::Cyan),
-                    "white" => Some(Color::White),
-                    "gray" | "grey" => Some(Color::Gray),
-                    "darkgray" | "darkgrey" => Some(Color::DarkGray),
-                    "lightblue" => Some(Color::LightBlue),
-                    "reset" => Some(Color::Reset),
-                    _ => None,
-                }
-            }
+        serde_json::Value::String(s) => parse_color_string(s),
+        _ => None,
+    }
+}
+
+fn parse_color_string(s: &str) -> Option<Color> {
+    match s.to_lowercase().as_str() {
+        "black" => Some(Color::Black),
+        "red" => Some(Color::Red),
+        "green" => Some(Color::Green),
+        "yellow" => Some(Color::Yellow),
+        "blue" => Some(Color::Blue),
+        "magenta" => Some(Color::Magenta),
+        "cyan" => Some(Color::Cyan),
+        "white" => Some(Color::White),
+        "gray" | "grey" => Some(Color::Gray),
+        "darkgray" | "darkgrey" => Some(Color::DarkGray),
+        "lightblue" => Some(Color::LightBlue),
+        "reset" => Some(Color::Reset),
+        _ => parse_hex(s.trim_start_matches('#')),
+    }
+}
+
+fn parse_hex(hex: &str) -> Option<Color> {
+    match hex.len() {
+        6 => {
+            let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+            let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+            let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+            Some(Color::Rgb(r, g, b))
+        }
+        3 => {
+            let r = u8::from_str_radix(&hex[0..1], 16).ok()? * 17;
+            let g = u8::from_str_radix(&hex[1..2], 16).ok()? * 17;
+            let b = u8::from_str_radix(&hex[2..3], 16).ok()? * 17;
+            Some(Color::Rgb(r, g, b))
         }
         _ => None,
     }
@@ -321,3 +328,6 @@ impl Theme {
         Style::new().fg(Self::config().text_dim)
     }
 }
+
+#[cfg(test)]
+mod tests;

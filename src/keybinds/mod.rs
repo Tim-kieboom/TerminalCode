@@ -89,7 +89,7 @@ impl KeyBindings {
         let mut root: serde_json::Map<String, Json> = serde_json::Map::new();
 
         for (action, binding) in &self.global {
-            let key = action.description().to_string();
+            let key = format!("{action:?}");
             let value = Json::String(binding.to_string());
             root.insert(key, value);
         }
@@ -200,3 +200,6 @@ fn line_column_at(json: &str, offset: usize) -> usize {
     let before = &json[..offset];
     before.bytes().filter(|&b| b == b'\n').count() + 1
 }
+
+#[cfg(test)]
+mod tests;

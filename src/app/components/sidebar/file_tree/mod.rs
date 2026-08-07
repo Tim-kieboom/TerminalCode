@@ -175,3 +175,6 @@ impl VisibleIndex {
 fn file_name_str(path: &Path) -> Option<&str> {
     path.file_name().and_then(|os_str| os_str.to_str())
 }
+
+#[cfg(test)]
+mod tests;

@@ -58,3 +58,6 @@ impl Component for Tabs {
         frame.render_widget(paragraph, area);
     }
 }
+
+#[cfg(test)]
+mod tests;

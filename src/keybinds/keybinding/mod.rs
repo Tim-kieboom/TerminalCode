@@ -121,3 +121,6 @@ impl From<KeyEvent> for KeyBinding {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

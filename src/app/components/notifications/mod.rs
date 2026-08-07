@@ -99,3 +99,6 @@ impl Toast {
         self.message.chars().count() as u16 + 4
     }
 }
+
+#[cfg(test)]
+mod tests;

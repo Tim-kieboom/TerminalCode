@@ -162,3 +162,6 @@ impl DebugMessage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

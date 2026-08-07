@@ -48,3 +48,6 @@ pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rect {
 
     vertical[1]
 }
+
+#[cfg(test)]
+mod tests;

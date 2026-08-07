@@ -30,13 +30,12 @@ macro_rules! action_enum {
             }
 
             pub fn from_description(string: &str) -> Option<Self> {
-                let string = string.to_lowercase();
-                match string.as_str() {
-                    $(
-                        $desc => Some(Self::$variant),
-                    )*
-                    _ => None,
-                }
+                $(
+                    if string.eq_ignore_ascii_case($desc) {
+                        return Some(Self::$variant);
+                    }
+                )*
+                None
             }
 
             pub fn from_name(string: &str) -> Option<Self> {
@@ -96,3 +95,6 @@ action_enum! {
         DebugWindow => "debugWindow",
     }
 }
+
+#[cfg(test)]
+mod tests;

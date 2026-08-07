@@ -270,3 +270,6 @@ fn chars_split(line: &str, horizontal: usize) -> (String, String) {
     let (before, after) = line.split_at(split_byte);
     (before.to_string(), after.to_string())
 }
+
+#[cfg(test)]
+mod tests;
