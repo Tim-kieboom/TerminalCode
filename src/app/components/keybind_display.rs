@@ -138,7 +138,7 @@ impl Component for KeyBindDisplay {
 
         let scroll_offset = self
             .scroller
-            .get_scroll(cursor_visual_line, inner_height, 0);
+            .get_scroll(cursor_visual_line, inner_height, 0, 0);
 
         let block = Block::default()
             .title(Span::styled(" Keybindings ", Theme::popup_title()))

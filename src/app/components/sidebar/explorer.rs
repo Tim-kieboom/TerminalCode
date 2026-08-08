@@ -73,7 +73,7 @@ impl Component for Explorer {
         let cursor_visual_line = self.scroller.cursor().vertical as u16;
         let scroll_offset = self
             .scroller
-            .get_scroll(cursor_visual_line, inner_height, 0);
+            .get_scroll(cursor_visual_line, inner_height, 0, 0);
 
         let mut lines: Vec<Line> = Vec::new();
         for (i, VisibleIndex { file, depth }) in visible.iter().enumerate() {

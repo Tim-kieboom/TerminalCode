@@ -39,12 +39,12 @@ macro_rules! action_enum {
             }
 
             pub fn from_name(string: &str) -> Option<Self> {
-                match string {
-                    $(
-                        stringify!($variant) => Some(Self::$variant),
-                    )*
-                    _ => None,
-                }
+                $(
+                    if string.eq_ignore_ascii_case(stringify!($variant)) {
+                        return Some(Self::$variant);
+                    }
+                )*
+                None
             }
         }
     };
@@ -97,4 +97,5 @@ action_enum! {
 }
 
 #[cfg(test)]
+#[path = "action_tests.rs"]
 mod tests;

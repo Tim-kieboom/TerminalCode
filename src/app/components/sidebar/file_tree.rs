@@ -177,4 +177,5 @@ fn file_name_str(path: &Path) -> Option<&str> {
 }
 
 #[cfg(test)]
+#[path = "file_tree_tests.rs"]
 mod tests;

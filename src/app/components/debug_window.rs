@@ -75,7 +75,7 @@ impl Component for DebugWindow {
         let cursor_visual_line = 1 + self.scroller.cursor().vertical as u16;
         let scroll_offset = self
             .scroller
-            .get_scroll(cursor_visual_line, inner_height, 0);
+            .get_scroll(cursor_visual_line, inner_height, 0, 0);
 
         let mut lines = vec![Line::from("")];
         for (i, message) in self.messages.iter().enumerate() {
@@ -164,4 +164,5 @@ impl DebugMessage {
 }
 
 #[cfg(test)]
+#[path = "debug_window_tests.rs"]
 mod tests;

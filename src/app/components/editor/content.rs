@@ -17,9 +17,13 @@ use crate::{
     theme::Theme,
 };
 
+#[cfg(test)]
+#[path = "content_tests.rs"]
+mod tests;
+
 pub struct Content {
-    context: String,
-    scroller: CursorScroller,
+    pub(super) context: String,
+    pub(super) scroller: CursorScroller,
 }
 
 impl Content {
@@ -168,6 +172,11 @@ impl Content {
         self.context.split("\n")
     }
 
+    fn gutter_width(&self) -> u16 {
+        let line_count = self.lines().count();
+        format!("{:<6} ", line_count).chars().count() as u16
+    }
+
     fn get_position(&self, lines_len: usize) -> Position<usize> {
         let cursor = self.scroller.cursor();
         let last_line = lines_len.saturating_sub(1);
@@ -222,9 +231,10 @@ impl Component for Content {
         let inner_height = area.height.saturating_sub(2);
         let inner_width = area.width.saturating_sub(2);
         let cursor_visual_line = self.scroller.cursor().vertical as u16;
-        let scroll_offset = self
-            .scroller
-            .get_scroll(cursor_visual_line, inner_height, inner_width);
+        let gutter_width = self.gutter_width();
+        let scroll_offset =
+            self.scroller
+                .get_scroll(cursor_visual_line, inner_height, inner_width, gutter_width);
 
         let mut lines = vec![];
         for (i, line) in self.context.lines().enumerate() {
@@ -270,6 +280,3 @@ fn chars_split(line: &str, horizontal: usize) -> (String, String) {
     let (before, after) = line.split_at(split_byte);
     (before.to_string(), after.to_string())
 }
-
-#[cfg(test)]
-mod tests;

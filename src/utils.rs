@@ -50,4 +50,5 @@ pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rect {
 }
 
 #[cfg(test)]
+#[path = "utils_tests.rs"]
 mod tests;

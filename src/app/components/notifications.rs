@@ -101,4 +101,5 @@ impl Toast {
 }
 
 #[cfg(test)]
+#[path = "notifications_tests.rs"]
 mod tests;

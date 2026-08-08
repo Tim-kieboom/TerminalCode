@@ -123,4 +123,5 @@ impl From<KeyEvent> for KeyBinding {
 }
 
 #[cfg(test)]
+#[path = "keybinding_tests.rs"]
 mod tests;

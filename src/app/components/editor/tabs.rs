@@ -7,9 +7,13 @@ use ratatui::{
 
 use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
 
+#[cfg(test)]
+#[path = "tabs_tests.rs"]
+mod tests;
+
 pub struct Tabs {
-    files: Vec<String>,
-    active: usize,
+    pub(super) files: Vec<String>,
+    pub(super) active: usize,
 }
 impl Tabs {
     pub fn new(_args: &StartupArgs) -> Self {
@@ -58,6 +62,3 @@ impl Component for Tabs {
         frame.render_widget(paragraph, area);
     }
 }
-
-#[cfg(test)]
-mod tests;

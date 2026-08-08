@@ -1,6 +1,7 @@
+use super::{Content, StartupArgs};
+use crate::app::components::utils::cursor_scroller::Position;
+use crate::keybinds::Action;
 use std::{fs, path::PathBuf};
-
-use super::{Action, Content, Position, StartupArgs};
 
 fn content() -> Content {
     Content::new(&StartupArgs::new(PathBuf::from(".")))

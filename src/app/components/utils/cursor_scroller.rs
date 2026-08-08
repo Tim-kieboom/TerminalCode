@@ -1,5 +1,9 @@
 use crate::keybinds::Action;
 
+#[cfg(test)]
+#[path = "cursor_scroller_tests.rs"]
+mod tests;
+
 pub enum ScrollMode {
     List,
     TextEditor,
@@ -87,6 +91,7 @@ impl CursorScroller {
         cursor_visual_line: u16,
         height: u16,
         width: u16,
+        gutter_width: u16,
     ) -> Position<u16> {
         if height == 0 {
             return Position::default();
@@ -94,11 +99,19 @@ impl CursorScroller {
 
         match self.mode {
             ScrollMode::List => self.scroll_list(cursor_visual_line, height),
-            ScrollMode::TextEditor => self.scroll_editor(cursor_visual_line, height, width),
+            ScrollMode::TextEditor => {
+                self.scroll_editor(cursor_visual_line, height, width, gutter_width)
+            }
         }
     }
 
-    fn scroll_editor(&mut self, cursor_visual_line: u16, height: u16, width: u16) -> Position<u16> {
+    fn scroll_editor(
+        &mut self,
+        cursor_visual_line: u16,
+        height: u16,
+        width: u16,
+        gutter_width: u16,
+    ) -> Position<u16> {
         let margin = 3;
         match self.direction.height {
             HeightScroll::Up => {
@@ -113,7 +126,7 @@ impl CursorScroller {
             }
         }
 
-        let col = self.cursor.horizontal as u16;
+        let col = self.cursor.horizontal as u16 + gutter_width;
         match self.direction.width {
             WidthScroll::Left => {
                 if col < self.horizontal_offset + margin {
@@ -178,6 +191,3 @@ enum WidthScroll {
     Left,
     Right,
 }
-
-#[cfg(test)]
-mod tests;

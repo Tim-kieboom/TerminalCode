@@ -79,7 +79,7 @@ fn clamp_column_caps_horizontal() {
 #[test]
 fn get_scroll_returns_default_for_zero_height() {
     let mut scroller = CursorScroller::new(ScrollMode::List);
-    assert_eq!(scroller.get_scroll(5, 0, 0), Position::default());
+    assert_eq!(scroller.get_scroll(5, 0, 0, 0), Position::default());
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn list_scroll_down_offsets_after_margin() {
     for _ in 0..12 {
         scroller.move_cursor(Action::ScrollDown, 30, 0);
     }
-    let scroll = scroller.get_scroll(12, 10, 0);
+    let scroll = scroller.get_scroll(12, 10, 0, 0);
     assert_eq!(scroll.vertical, 12 + 1 + 3 - 10);
 }
 
@@ -98,11 +98,11 @@ fn list_scroll_up_reduces_offset() {
     for _ in 0..20 {
         scroller.move_cursor(Action::ScrollDown, 30, 0);
     }
-    let _ = scroller.get_scroll(20, 10, 0);
+    let _ = scroller.get_scroll(20, 10, 0, 0);
     for _ in 0..5 {
         scroller.move_cursor(Action::ScrollUp, 30, 0);
     }
-    let scroll = scroller.get_scroll(15, 10, 0);
+    let scroll = scroller.get_scroll(15, 10, 0, 0);
     assert_eq!(scroll.vertical, 15 - 3);
 }
 
@@ -110,7 +110,7 @@ fn list_scroll_up_reduces_offset() {
 fn list_scroll_stays_zero_while_inside_height() {
     let mut scroller = CursorScroller::new(ScrollMode::List);
     scroller.move_cursor(Action::ScrollDown, 30, 0);
-    let scroll = scroller.get_scroll(1, 10, 0);
+    let scroll = scroller.get_scroll(1, 10, 0, 0);
     assert_eq!(scroll.vertical, 0);
 }
 
@@ -120,7 +120,7 @@ fn editor_scrolls_horizontally() {
     for _ in 0..20 {
         scroller.move_cursor(Action::ScrollRight, 30, 20);
     }
-    let scroll = scroller.get_scroll(0, 10, 20);
+    let scroll = scroller.get_scroll(0, 10, 20, 0);
     assert_eq!(scroll.horizontal, 20 + 1 + 3 - 20);
 }
 
@@ -128,6 +128,16 @@ fn editor_scrolls_horizontally() {
 fn editor_does_not_scroll_horizontally_inside_width() {
     let mut scroller = CursorScroller::new(ScrollMode::TextEditor);
     scroller.move_cursor(Action::ScrollRight, 30, 20);
-    let scroll = scroller.get_scroll(0, 10, 20);
+    let scroll = scroller.get_scroll(0, 10, 20, 0);
     assert_eq!(scroll.horizontal, 0);
+}
+
+#[test]
+fn editor_scrolls_horizontally_with_gutter() {
+    let mut scroller = CursorScroller::new(ScrollMode::TextEditor);
+    for _ in 0..20 {
+        scroller.move_cursor(Action::ScrollRight, 30, 20);
+    }
+    let scroll = scroller.get_scroll(0, 10, 20, 7);
+    assert_eq!(scroll.horizontal, 7 + 20 + 1 + 3 - 20);
 }

@@ -2,7 +2,7 @@ use std::{path::Path, sync::OnceLock};
 
 use ratatui::style::{Color, Modifier, Style};
 
-const THEME_DEFAULTS: &str = include_str!("../../theme_defaults.json");
+const THEME_DEFAULTS: &str = include_str!("../theme_defaults.json");
 
 struct ThemeConfig {
     accent: Color,
@@ -330,4 +330,5 @@ impl Theme {
 }
 
 #[cfg(test)]
+#[path = "theme_tests.rs"]
 mod tests;
