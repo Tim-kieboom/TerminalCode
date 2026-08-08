@@ -141,3 +141,22 @@ fn editor_scrolls_horizontally_with_gutter() {
     let scroll = scroller.get_scroll(0, 10, 20, 7);
     assert_eq!(scroll.horizontal, 7 + 20 + 1 + 3 - 20);
 }
+
+#[test]
+fn editor_scrolls_back_left_when_moving_up_to_short_line() {
+    let mut scroller = CursorScroller::new(ScrollMode::TextEditor);
+
+    for _ in 0..30 {
+        scroller.move_cursor(Action::ScrollRight, 2, 30);
+    }
+    let _ = scroller.get_scroll(0, 10, 20, 7);
+    assert_eq!(
+        scroller.get_scroll(0, 10, 20, 7).horizontal,
+        30 + 7 + 1 + 3 - 20
+    );
+
+    scroller.move_cursor(Action::ScrollDown, 2, 1);
+    scroller.clamp_column(1);
+    let scroll = scroller.get_scroll(1, 10, 20, 7);
+    assert_eq!(scroll.horizontal, 1 + 7 - 3);
+}

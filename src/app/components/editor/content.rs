@@ -42,14 +42,12 @@ impl Content {
     }
 
     pub fn move_curser(&mut self, action: Action) {
-        let vertical = self.scroller.cursor().vertical;
-
         let lines_len = self.lines().count();
-        let line = self.lines().nth(vertical);
-
-        let line_len = line.map_or(0, |l| l.len());
+        let line_len = self.line_len(self.scroller.cursor().vertical);
         self.scroller.move_cursor(action, lines_len, line_len);
-        self.scroller.clamp_column(line_len);
+
+        let new_line_len = self.line_len(self.scroller.cursor().vertical);
+        self.scroller.clamp_column(new_line_len);
     }
 
     pub fn insert_char(&mut self, ch: char) {
@@ -162,6 +160,10 @@ impl Content {
             vertical: vertical - 1,
             horizontal: new_column,
         });
+    }
+
+    fn line_len(&self, vertical: usize) -> usize {
+        self.lines().nth(vertical).map_or(0, |l| l.chars().count())
     }
 
     fn lines_vec(&self) -> Vec<String> {

@@ -8,6 +8,39 @@ fn content() -> Content {
 }
 
 #[test]
+fn move_down_to_empty_line_clamps_column_and_scrolls_back() {
+    let mut c = content();
+    c.context = format!(
+        "{}\n{}\n{}\n{}",
+        "x".repeat(200),
+        "## Notes",
+        "",
+        "y".repeat(200),
+    );
+
+    for _ in 0..200 {
+        c.move_curser(Action::ScrollRight);
+    }
+
+    let inner_width = 40u16;
+    let gutter = c.gutter_width();
+    let _ = c.scroller.get_scroll(0, 10, inner_width, gutter);
+
+    c.move_curser(Action::ScrollDown);
+    assert_eq!(c.scroller.cursor().horizontal, 8);
+    let s1 = c.scroller.get_scroll(1, 10, inner_width, gutter);
+    assert_eq!(s1.horizontal, 8 + 7 - 3);
+
+    c.move_curser(Action::ScrollDown);
+    assert_eq!(c.scroller.cursor().horizontal, 0);
+    let s2 = c.scroller.get_scroll(2, 10, inner_width, gutter);
+    assert_eq!(s2.horizontal, 7 - 3);
+
+    let visible = gutter + c.scroller.cursor().horizontal as u16 - s2.horizontal;
+    assert!(visible < inner_width);
+}
+
+#[test]
 fn insert_char_appends_to_line() {
     let mut c = content();
     c.insert_char('h');

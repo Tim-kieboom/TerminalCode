@@ -26,7 +26,6 @@ impl CursorScroller {
             horizontal_offset: 0,
             cursor: Position::default(),
             direction: ScrollDirection {
-                width: WidthScroll::Left,
                 height: HeightScroll::Up,
             },
         }
@@ -47,11 +46,9 @@ impl CursorScroller {
                 self.cursor.vertical = self.cursor.vertical.saturating_add(1).min(length - 1);
             }
             Action::ScrollLeft => {
-                self.direction.width = WidthScroll::Left;
                 self.cursor.horizontal = self.cursor.horizontal.saturating_sub(1);
             }
             Action::ScrollRight => {
-                self.direction.width = WidthScroll::Right;
                 self.cursor.horizontal = self.cursor.horizontal.saturating_add(1).min(width);
             }
             Action::ScrollPageUp => {
@@ -127,17 +124,11 @@ impl CursorScroller {
         }
 
         let col = self.cursor.horizontal as u16 + gutter_width;
-        match self.direction.width {
-            WidthScroll::Left => {
-                if col < self.horizontal_offset + margin {
-                    self.horizontal_offset = col.saturating_sub(margin);
-                }
-            }
-            WidthScroll::Right => {
-                if col + margin >= self.horizontal_offset + width {
-                    self.horizontal_offset = col + 1 + margin - width;
-                }
-            }
+        if col < self.horizontal_offset + margin {
+            self.horizontal_offset = col.saturating_sub(margin);
+        }
+        if col + margin >= self.horizontal_offset + width {
+            self.horizontal_offset = col + 1 + margin - width;
         }
 
         Position {
@@ -176,7 +167,6 @@ pub struct Position<T> {
 
 #[derive(Debug, Clone, Copy)]
 struct ScrollDirection {
-    width: WidthScroll,
     height: HeightScroll,
 }
 
@@ -184,10 +174,4 @@ struct ScrollDirection {
 enum HeightScroll {
     Up,
     Down,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum WidthScroll {
-    Left,
-    Right,
 }
