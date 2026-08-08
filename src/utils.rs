@@ -2,6 +2,11 @@ use std::rc::Rc;
 
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
+#[cfg(test)]
+#[path = "tests/utils_tests.rs"]
+mod tests;
+
+
 pub fn horizontal_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]>
 where
     I: IntoIterator,
@@ -48,7 +53,3 @@ pub fn popup_layout(area: Rect, width: u16, height: u16) -> Rect {
 
     vertical[1]
 }
-
-#[cfg(test)]
-#[path = "utils_tests.rs"]
-mod tests;

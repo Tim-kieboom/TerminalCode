@@ -20,6 +20,10 @@ use crate::{
     utils::popup_layout,
 };
 
+#[cfg(test)]
+#[path = "tests/debug_window_tests.rs"]
+mod tests;
+
 #[derive(Debug, Clone, Copy)]
 pub enum DebugTag {
     Note,
@@ -167,7 +171,3 @@ impl DebugMessage {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "debug_window_tests.rs"]
-mod tests;

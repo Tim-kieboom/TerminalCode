@@ -12,6 +12,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 const KEYBIND_DEFAULTS: &str = include_str!("../../keybind_defaults.json");
 
 type KeyBindMap = HashMap<Action, KeyBinding>;
+
+#[cfg(test)]
+#[path = "tests/keybinds_tests.rs"]
+mod tests;
+
 #[derive(Debug)]
 pub struct KeyBindings {
     global: KeyBindMap,
@@ -200,6 +205,3 @@ fn line_column_at(json: &str, offset: usize) -> usize {
     let before = &json[..offset];
     before.bytes().filter(|&b| b == b'\n').count() + 1
 }
-
-#[cfg(test)]
-mod tests;

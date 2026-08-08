@@ -13,6 +13,10 @@ use crate::{
     theme::Theme,
 };
 
+#[cfg(test)]
+#[path = "tests/notifications_tests.rs"]
+mod tests;
+
 pub struct Notification {
     pub tag: DebugTag,
     pub message: String,
@@ -99,7 +103,3 @@ impl Toast {
         self.message.chars().count() as u16 + 4
     }
 }
-
-#[cfg(test)]
-#[path = "notifications_tests.rs"]
-mod tests;

@@ -18,7 +18,7 @@ use crate::{
 };
 
 #[cfg(test)]
-#[path = "content_tests.rs"]
+#[path = "tests/content_tests.rs"]
 mod tests;
 
 pub struct Content {

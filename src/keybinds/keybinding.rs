@@ -3,6 +3,10 @@ use std::write;
 use anyhow::bail;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+#[cfg(test)]
+#[path = "tests/keybinding_tests.rs"]
+mod tests;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyBinding {
     pub modifiers: KeyModifiers,
@@ -121,7 +125,3 @@ impl From<KeyEvent> for KeyBinding {
         }
     }
 }
-
-#[cfg(test)]
-#[path = "keybinding_tests.rs"]
-mod tests;

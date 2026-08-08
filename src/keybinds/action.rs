@@ -1,3 +1,7 @@
+#[cfg(test)]
+#[path = "tests/action_tests.rs"]
+mod tests;
+
 macro_rules! action_enum {
     (
         $(#[$meta:meta])*
@@ -97,7 +101,3 @@ action_enum! {
         DebugWindow => "debugWindow",
     }
 }
-
-#[cfg(test)]
-#[path = "action_tests.rs"]
-mod tests;

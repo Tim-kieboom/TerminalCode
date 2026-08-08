@@ -2,6 +2,10 @@ use std::{path::Path, sync::OnceLock};
 
 use ratatui::style::{Color, Modifier, Style};
 
+#[cfg(test)]
+#[path = "tests/theme_tests.rs"]
+mod tests;
+
 const THEME_DEFAULTS: &str = include_str!("../theme_defaults.json");
 
 struct ThemeConfig {
@@ -328,7 +332,3 @@ impl Theme {
         Style::new().fg(Self::config().text_dim)
     }
 }
-
-#[cfg(test)]
-#[path = "theme_tests.rs"]
-mod tests;

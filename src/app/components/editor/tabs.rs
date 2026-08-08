@@ -8,7 +8,7 @@ use ratatui::{
 use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
 
 #[cfg(test)]
-#[path = "tabs_tests.rs"]
+#[path = "tests/tabs_tests.rs"]
 mod tests;
 
 pub struct Tabs {
