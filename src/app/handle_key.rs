@@ -54,6 +54,8 @@ impl App {
             | Action::ScrollDown
             | Action::ScrollLeft
             | Action::ScrollRight
+            | Action::ScrollWordLeft
+            | Action::ScrollWordRight
             | Action::ScrollBottom
             | Action::ScrollPageUp
             | Action::ScrollPageDown => self.move_cursor(action),

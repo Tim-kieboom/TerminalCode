@@ -66,17 +66,6 @@ fn scroll_page_down_clamps_at_last() {
 }
 
 #[test]
-fn clamp_column_caps_horizontal() {
-    let mut scroller = CursorScroller::new(ScrollMode::TextEditor);
-    scroller.set_position(Position {
-        vertical: 0,
-        horizontal: 10,
-    });
-    scroller.clamp_column(4);
-    assert_eq!(scroller.position().horizontal, 4);
-}
-
-#[test]
 fn get_scroll_returns_default_for_zero_height() {
     let mut scroller = CursorScroller::new(ScrollMode::List);
     assert_eq!(scroller.get_scroll(5, 0, 0, 0), Position::default());
@@ -156,7 +145,10 @@ fn editor_scrolls_back_left_when_moving_up_to_short_line() {
     );
 
     scroller.move_cursor(Action::ScrollDown, 2, 1);
-    scroller.clamp_column(1);
+    scroller.set_position(Position {
+        vertical: 1,
+        horizontal: 1,
+    });
     let scroll = scroller.get_scroll(1, 10, 20, 7);
     assert_eq!(scroll.horizontal, 1 + 7 - 3);
 }

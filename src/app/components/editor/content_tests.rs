@@ -145,6 +145,84 @@ fn right_at_last_line_end_stays() {
 }
 
 #[test]
+fn word_right_moves_past_current_word() {
+    let mut c = content();
+    c.context = "hello world".to_string();
+    c.scroller.set_position(Position {
+        vertical: 0,
+        horizontal: 0,
+    });
+    c.move_curser(Action::ScrollWordRight);
+    assert_eq!(c.scroller.horizontal(), 5);
+    c.move_curser(Action::ScrollWordRight);
+    assert_eq!(c.scroller.horizontal(), 11);
+}
+
+#[test]
+fn word_left_moves_to_word_start() {
+    let mut c = content();
+    c.context = "hello world".to_string();
+    c.scroller.set_position(Position {
+        vertical: 0,
+        horizontal: 11,
+    });
+    c.move_curser(Action::ScrollWordLeft);
+    assert_eq!(c.scroller.horizontal(), 6);
+    c.move_curser(Action::ScrollWordLeft);
+    assert_eq!(c.scroller.horizontal(), 0);
+}
+
+#[test]
+fn word_right_skips_multiple_spaces() {
+    let mut c = content();
+    c.context = "a   b".to_string();
+    c.scroller.set_position(Position {
+        vertical: 0,
+        horizontal: 0,
+    });
+    c.move_curser(Action::ScrollWordRight);
+    assert_eq!(c.scroller.horizontal(), 1);
+    c.move_curser(Action::ScrollWordRight);
+    assert_eq!(c.scroller.horizontal(), 5);
+}
+
+#[test]
+fn word_right_wraps_to_next_line_start() {
+    let mut c = content();
+    c.context = "hello\nworld".to_string();
+    c.scroller.set_position(Position {
+        vertical: 0,
+        horizontal: 5,
+    });
+    c.move_curser(Action::ScrollWordRight);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 1,
+            horizontal: 0,
+        }
+    );
+}
+
+#[test]
+fn word_left_wraps_to_prev_line_end() {
+    let mut c = content();
+    c.context = "hello\nworld".to_string();
+    c.scroller.set_position(Position {
+        vertical: 1,
+        horizontal: 0,
+    });
+    c.move_curser(Action::ScrollWordLeft);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 0,
+            horizontal: 5,
+        }
+    );
+}
+
+#[test]
 fn insert_char_appends_to_line() {
     let mut c = content();
     c.insert_char('h');
@@ -235,6 +313,26 @@ fn backspace_at_line_start_joins_lines() {
     c.move_curser(Action::ScrollLeft);
     c.backspace();
     assert_eq!(c.context, "abcd");
+}
+
+#[test]
+fn vertical_move_restores_preferred_column_on_long_lines() {
+    let mut c = content();
+    c.context = format!("{}\nshort\n\n{}", "x".repeat(200), "y".repeat(200));
+
+    for _ in 0..200 {
+        c.move_curser(Action::ScrollRight);
+    }
+    assert_eq!(c.scroller.position().horizontal, 200);
+
+    c.move_curser(Action::ScrollDown);
+    assert_eq!(c.scroller.position().horizontal, 5);
+
+    c.move_curser(Action::ScrollDown);
+    assert_eq!(c.scroller.position().horizontal, 0);
+
+    c.move_curser(Action::ScrollDown);
+    assert_eq!(c.scroller.position().horizontal, 200);
 }
 
 #[test]

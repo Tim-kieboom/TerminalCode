@@ -87,10 +87,6 @@ impl CursorScroller {
         self.position = pos;
     }
 
-    pub fn clamp_column(&mut self, line_len: usize) {
-        self.position.horizontal = self.position.horizontal.min(line_len);
-    }
-
     pub fn get_scroll(
         &mut self,
         cursor_visual_line: u16,

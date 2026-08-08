@@ -103,6 +103,26 @@ fn resolve_context_binding_without_global() {
 }
 
 #[test]
+fn resolve_ctrl_arrow_keys_scroll_by_word() {
+    let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
+    let action = bindings
+        .resolve(
+            &key(KeyCode::Left, KeyModifiers::CONTROL),
+            PanelContext::Editor,
+        )
+        .unwrap();
+    assert_eq!(action, Action::ScrollWordLeft);
+
+    let action = bindings
+        .resolve(
+            &key(KeyCode::Right, KeyModifiers::CONTROL),
+            PanelContext::Editor,
+        )
+        .unwrap();
+    assert_eq!(action, Action::ScrollWordRight);
+}
+
+#[test]
 fn resolve_unbound_key_is_none() {
     let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
     let action = bindings.resolve(

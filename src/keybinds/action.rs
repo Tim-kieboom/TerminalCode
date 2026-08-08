@@ -71,6 +71,8 @@ action_enum! {
         ScrollDown => "Scroll down",
         ScrollLeft => "Scroll left",
         ScrollRight => "Scroll right",
+        ScrollWordLeft => "Scroll word left",
+        ScrollWordRight => "Scroll word right",
         ScrollBottom => "Scroll bottom",
         ScrollPageUp => "Scroll page up",
         ScrollPageDown => "Scroll page down",
