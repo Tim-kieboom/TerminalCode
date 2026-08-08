@@ -49,5 +49,5 @@ fn move_cursor_clamps_to_message_count() {
     window.push_note("two".into());
     window.move_cursor(Action::ScrollDown);
     window.move_cursor(Action::ScrollDown);
-    assert_eq!(window.scroller.position().vertical, 1);
+    assert_eq!(window.scroller.cursor().vertical, 1);
 }

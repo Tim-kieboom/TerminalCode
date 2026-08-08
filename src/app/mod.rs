@@ -20,6 +20,41 @@ use crate::{
 mod draw;
 mod handle_key;
 
+#[cfg(test)]
+mod tests {
+    use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+
+    use super::*;
+
+    fn press(app: &mut App, code: KeyCode, modifiers: event::KeyModifiers) {
+        let event = Event::Key(KeyEvent {
+            code,
+            modifiers,
+            kind: KeyEventKind::Press,
+            state: crossterm::event::KeyEventState::NONE,
+        });
+        app.handle_event(event).unwrap();
+    }
+
+    #[test]
+    fn debug_window_scrolls_on_arrow_key() {
+        let mut app = App::new(StartupArgs::new(".".into())).unwrap();
+        app.log_note("one".to_string());
+        app.log_note("two".to_string());
+        app.log_note("three".to_string());
+
+        press(
+            &mut app,
+            KeyCode::Char('d'),
+            event::KeyModifiers::CONTROL | event::KeyModifiers::ALT | event::KeyModifiers::SHIFT,
+        );
+        press(&mut app, KeyCode::Down, event::KeyModifiers::NONE);
+        press(&mut app, KeyCode::Down, event::KeyModifiers::NONE);
+
+        assert_eq!(app.debug_window.inner().cursor_vertical(), 2);
+    }
+}
+
 pub struct App {
     running: bool,
     editor: Editor,

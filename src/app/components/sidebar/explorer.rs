@@ -39,7 +39,7 @@ impl Explorer {
 
     pub fn open_current(&mut self) -> Option<PathBuf> {
         let visible = self.tree.visible();
-        let index = self.scroller.position().vertical;
+        let index = self.scroller.cursor().vertical;
 
         let VisibleIndex { file, .. } = visible.get(index)?;
 
@@ -56,9 +56,9 @@ impl Explorer {
 
     fn clamp_cursor(&mut self) {
         let length = self.tree.visible().len().saturating_sub(1);
-        let vertical = self.scroller.position().vertical.min(length);
-        let horizontal = self.scroller.position().horizontal;
-        self.scroller.set_position(Position {
+        let vertical = self.scroller.cursor().vertical.min(length);
+        let horizontal = self.scroller.cursor().horizontal;
+        self.scroller.set_cursor(Position {
             vertical,
             horizontal,
         });
@@ -70,7 +70,7 @@ impl Component for Explorer {
         let focused = context == PanelContext::SideBar;
         let visible = self.tree.visible();
         let inner_height = area.height.saturating_sub(2);
-        let cursor_visual_line = self.scroller.position().vertical as u16;
+        let cursor_visual_line = self.scroller.cursor().vertical as u16;
         let scroll_offset = self
             .scroller
             .get_scroll(cursor_visual_line, inner_height, 0, 0);
@@ -78,7 +78,7 @@ impl Component for Explorer {
         let mut lines: Vec<Line> = Vec::new();
         for (i, VisibleIndex { file, depth }) in visible.iter().enumerate() {
             let node = self.tree.node(*file);
-            let selected = i == self.scroller.position().vertical;
+            let selected = i == self.scroller.cursor().vertical;
 
             let indent = "  ".repeat(*depth);
             let icon = if node.is_dir() {

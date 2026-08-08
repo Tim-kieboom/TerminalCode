@@ -24,7 +24,6 @@ mod tests;
 pub struct Content {
     pub(super) context: String,
     pub(super) scroller: CursorScroller,
-    preferred_horizontal: usize,
 }
 
 impl Content {
@@ -32,14 +31,13 @@ impl Content {
         Self {
             context: "".to_string(),
             scroller: CursorScroller::new(ScrollMode::TextEditor),
-            preferred_horizontal: 0,
         }
     }
 
     pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
         let text = fs::read_to_string(path)?;
         self.context = text.replace("\r\n", "\n");
-        self.set_cursor(0, 0);
+        self.scroller.set_cursor(Position::default());
         Ok(())
     }
 
@@ -58,7 +56,10 @@ impl Content {
         *line = chars.into_iter().collect();
 
         self.context = lines.join("\n");
-        self.set_cursor(vertical, posistion + 1);
+        self.scroller.set_cursor(Position {
+            vertical,
+            horizontal: posistion + 1,
+        });
     }
 
     pub fn delete_char(&mut self) {
@@ -79,7 +80,10 @@ impl Content {
 
         self.context = lines.join("\n");
         let clamped = horizontal.min(lines[vertical].chars().count());
-        self.set_cursor(vertical, clamped);
+        self.scroller.set_cursor(Position {
+            vertical,
+            horizontal: clamped,
+        });
     }
 
     pub fn insert_newline(&mut self) {
@@ -94,7 +98,10 @@ impl Content {
         lines.insert(vertical + 1, after);
 
         self.context = lines.join("\n");
-        self.set_cursor(vertical + 1, 0);
+        self.scroller.set_cursor(Position {
+            vertical: vertical + 1,
+            horizontal: 0,
+        });
     }
 
     pub fn insert_tab(&mut self) {
@@ -117,110 +124,16 @@ impl Content {
     }
 
     pub fn move_curser(&mut self, action: Action) {
-        let lines_len = self.lines().count();
-        let vertical = self.scroller.vertical();
-        let line_len = self.line_len(vertical);
-
-        match action {
-            Action::ScrollWordLeft => {
-                self.scroll_word_left(lines_len, line_len);
-            }
-            Action::ScrollWordRight => {
-                self.scroll_word_right(lines_len, line_len);
-            }
-            Action::ScrollLeft if self.would_line_underflow() => {
-                self.underflow_line(lines_len, line_len);
-            }
-            Action::ScrollRight if self.would_line_overflow(lines_len) => {
-                self.overflow_line(lines_len, line_len);
-            }
-            Action::ScrollUp
-            | Action::ScrollDown
-            | Action::ScrollPageUp
-            | Action::ScrollPageDown
-            | Action::ScrollTop
-            | Action::ScrollBottom => self.move_vertical(action, lines_len, line_len),
-            _ => {
-                self.scroller.move_cursor(action, lines_len, line_len);
-                let vertical = self.scroller.position().vertical;
-                let horizontal = self.scroller.horizontal();
-                let new_line_len = self.line_len(vertical);
-                self.set_cursor(vertical, horizontal.min(new_line_len));
-            }
-        }
-    }
-
-    fn set_cursor(&mut self, vertical: usize, horizontal: usize) {
-        self.preferred_horizontal = horizontal;
-        self.scroller.set_position(Position {
-            vertical,
-            horizontal,
-        });
-    }
-
-    fn move_vertical(&mut self, action: Action, lines_len: usize, line_len: usize) {
-        self.scroller.move_cursor(action, lines_len, line_len);
-        let vertical = self.scroller.vertical();
-        let horizontal = self.preferred_horizontal.min(self.line_len(vertical));
-        self.scroller.set_position(Position {
-            vertical,
-            horizontal,
-        });
-    }
-
-    fn scroll_word_right(&mut self, lines_len: usize, line_len: usize) {
-        let position = self.scroller.position();
-        let chars = self.line_chars(position.vertical);
-        let target = word_right(&chars, position.horizontal);
-        if target > position.horizontal {
-            self.set_cursor(position.vertical, target);
-        } else if position.vertical + 1 < lines_len {
-            self.scroller
-                .move_cursor(Action::ScrollDown, lines_len, line_len);
-            let next = self.scroller.vertical();
-            self.set_cursor(next, 0);
-        }
-    }
-
-    fn scroll_word_left(&mut self, lines_len: usize, line_len: usize) {
-        let position = self.scroller.position();
-        let chars = self.line_chars(position.vertical);
-        let target = word_left(&chars, position.horizontal);
-        if target < position.horizontal {
-            self.set_cursor(position.vertical, target);
-        } else if position.vertical > 0 {
-            self.scroller
-                .move_cursor(Action::ScrollUp, lines_len, line_len);
-            let prev = self.scroller.vertical();
-            self.set_cursor(prev, self.line_len(prev));
-        }
-    }
-
-    fn underflow_line(&mut self, lines_len: usize, line_len: usize) {
-        self.scroller
-            .move_cursor(Action::ScrollUp, lines_len, line_len);
-
-        let prev = self.scroller.vertical();
-        self.set_cursor(prev, self.line_len(prev));
-    }
-
-    fn overflow_line(&mut self, lines_len: usize, line_len: usize) {
-        self.scroller
-            .move_cursor(Action::ScrollDown, lines_len, line_len);
-
-        let next = self.scroller.vertical();
-        self.set_cursor(next, 0);
-    }
-
-    fn would_line_underflow(&self) -> bool {
-        let position = self.scroller.position();
-        position.horizontal == 0 && position.vertical > 0
-    }
-
-    fn would_line_overflow(&self, lines_len: usize) -> bool {
-        let position = self.scroller.position();
-        let line_len = self.line_len(position.vertical);
-        position.horizontal >= line_len && position.vertical + 1 < lines_len
+        let Self {
+            context, scroller, ..
+        } = self;
+        let lines_len = context.split('\n').count();
+        scroller.move_editor_cursor(
+            action,
+            lines_len,
+            |v| context.split('\n').nth(v).map_or(0, |l| l.chars().count()),
+            |v| context.split('\n').nth(v).unwrap_or("").chars().collect(),
+        );
     }
 
     fn remove_char(&mut self, lines: &mut [String], position: Position<usize>) {
@@ -233,7 +146,10 @@ impl Content {
         let mut chars: Vec<char> = line.chars().collect();
         chars.remove(horizontal - 1);
         lines[vertical] = chars.into_iter().collect();
-        self.set_cursor(vertical, horizontal - 1);
+        self.scroller.set_cursor(Position {
+            vertical,
+            horizontal: horizontal - 1,
+        });
     }
 
     fn remove_line(&mut self, lines: &mut Vec<String>, position: Position<usize>) {
@@ -244,15 +160,10 @@ impl Content {
         let new_column = prev.chars().count();
         let new_line = format!("{prev}{current}");
         lines.insert(vertical - 1, new_line);
-        self.set_cursor(vertical - 1, new_column);
-    }
-
-    fn line_len(&self, vertical: usize) -> usize {
-        self.lines().nth(vertical).map_or(0, |l| l.chars().count())
-    }
-
-    fn line_chars(&self, vertical: usize) -> Vec<char> {
-        self.lines().nth(vertical).unwrap_or("").chars().collect()
+        self.scroller.set_cursor(Position {
+            vertical: vertical - 1,
+            horizontal: new_column,
+        });
     }
 
     fn lines_vec(&self) -> Vec<String> {
@@ -269,7 +180,7 @@ impl Content {
     }
 
     fn get_position(&self, lines_len: usize) -> Position<usize> {
-        let cursor = self.scroller.position();
+        let cursor = self.scroller.cursor();
         let last_line = lines_len.saturating_sub(1);
         let vertical = cursor.vertical.min(last_line);
         let horizontal = cursor.horizontal;
@@ -359,32 +270,6 @@ impl Component for Content {
 
 fn to_string(chars: &[char]) -> String {
     chars.iter().collect()
-}
-
-fn is_word_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
-}
-
-fn word_left(line: &[char], start: usize) -> usize {
-    let mut i = start;
-    while i > 0 && !is_word_char(line[i - 1]) {
-        i -= 1;
-    }
-    while i > 0 && is_word_char(line[i - 1]) {
-        i -= 1;
-    }
-    i
-}
-
-fn word_right(line: &[char], start: usize) -> usize {
-    let mut i = start;
-    while i < line.len() && !is_word_char(line[i]) {
-        i += 1;
-    }
-    while i < line.len() && is_word_char(line[i]) {
-        i += 1;
-    }
-    i
 }
 
 fn chars_split(line: &str, horizontal: usize) -> (String, String) {
