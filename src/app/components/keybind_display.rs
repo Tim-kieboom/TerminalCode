@@ -68,7 +68,7 @@ impl Component for KeyBindDisplay {
 
         let mut cursor_visual_line: u16 = 0;
         let mut line_index: u16 = 0;
-        let cursor = self.scroller.cursor().vertical;
+        let cursor = self.scroller.position().vertical;
 
         let mut lines = vec![
             Line::from(""),
@@ -162,7 +162,7 @@ impl KeyBindDisplay {
         i: usize,
     ) -> Line<'a> {
         let idx = cursor_offset + i;
-        let selected = idx == self.scroller.cursor().vertical;
+        let selected = idx == self.scroller.position().vertical;
         let [action_style, key_style, prefix_style] = if selected {
             [
                 Theme::into_highlight(Theme::keybind_action()),

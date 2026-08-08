@@ -27,17 +27,121 @@ fn move_down_to_empty_line_clamps_column_and_scrolls_back() {
     let _ = c.scroller.get_scroll(0, 10, inner_width, gutter);
 
     c.move_curser(Action::ScrollDown);
-    assert_eq!(c.scroller.cursor().horizontal, 8);
+    assert_eq!(c.scroller.position().horizontal, 8);
     let s1 = c.scroller.get_scroll(1, 10, inner_width, gutter);
     assert_eq!(s1.horizontal, 8 + 7 - 3);
 
     c.move_curser(Action::ScrollDown);
-    assert_eq!(c.scroller.cursor().horizontal, 0);
+    assert_eq!(c.scroller.position().horizontal, 0);
     let s2 = c.scroller.get_scroll(2, 10, inner_width, gutter);
     assert_eq!(s2.horizontal, 7 - 3);
 
-    let visible = gutter + c.scroller.cursor().horizontal as u16 - s2.horizontal;
+    let visible = gutter + c.scroller.position().horizontal as u16 - s2.horizontal;
     assert!(visible < inner_width);
+}
+
+#[test]
+fn left_at_line_start_moves_to_prev_line_end() {
+    let mut c = content();
+    c.context = "abcd\ne".to_string();
+    c.scroller.set_position(Position {
+        vertical: 1,
+        horizontal: 0,
+    });
+    c.move_curser(Action::ScrollLeft);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 0,
+            horizontal: 4,
+        }
+    );
+}
+
+#[test]
+fn right_at_line_end_moves_to_next_line_start() {
+    let mut c = content();
+    c.context = "abcd\ne".to_string();
+    c.scroller.set_position(Position {
+        vertical: 0,
+        horizontal: 4,
+    });
+    c.move_curser(Action::ScrollRight);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 1,
+            horizontal: 0,
+        }
+    );
+}
+
+#[test]
+fn left_on_empty_line_moves_to_prev_line_end() {
+    let mut c = content();
+    c.context = "ab\n".to_string();
+    c.scroller.set_position(Position {
+        vertical: 1,
+        horizontal: 0,
+    });
+    c.move_curser(Action::ScrollLeft);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 0,
+            horizontal: 2,
+        }
+    );
+}
+
+#[test]
+fn right_on_empty_line_moves_to_next_line_start() {
+    let mut c = content();
+    c.context = "\nab".to_string();
+    c.scroller.set_position(Position {
+        vertical: 0,
+        horizontal: 0,
+    });
+    c.move_curser(Action::ScrollRight);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 1,
+            horizontal: 0,
+        }
+    );
+}
+
+#[test]
+fn left_at_first_line_start_stays() {
+    let mut c = content();
+    c.context = "ab\ncd".to_string();
+    c.move_curser(Action::ScrollLeft);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 0,
+            horizontal: 0,
+        }
+    );
+}
+
+#[test]
+fn right_at_last_line_end_stays() {
+    let mut c = content();
+    c.context = "ab\ncd".to_string();
+    c.scroller.set_position(Position {
+        vertical: 1,
+        horizontal: 2,
+    });
+    c.move_curser(Action::ScrollRight);
+    assert_eq!(
+        c.scroller.position(),
+        Position {
+            vertical: 1,
+            horizontal: 2,
+        }
+    );
 }
 
 #[test]
@@ -64,8 +168,8 @@ fn insert_newline_splits_line() {
     }
     c.insert_newline();
     assert_eq!(c.context, "abc\n");
-    assert_eq!(c.scroller.cursor().vertical, 1);
-    assert_eq!(c.scroller.cursor().horizontal, 0);
+    assert_eq!(c.scroller.position().vertical, 1);
+    assert_eq!(c.scroller.position().horizontal, 0);
 }
 
 #[test]
@@ -144,7 +248,7 @@ fn open_reads_file_and_normalizes_newlines() {
     let mut c = content();
     c.open(&path).unwrap();
     assert_eq!(c.context, "one\ntwo");
-    assert_eq!(c.scroller.cursor(), Position::default());
+    assert_eq!(c.scroller.position(), Position::default());
 
     let _ = fs::remove_dir_all(&dir);
 }

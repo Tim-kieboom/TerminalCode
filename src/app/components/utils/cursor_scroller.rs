@@ -14,7 +14,7 @@ pub struct CursorScroller {
 
     vertical_offset: u16,
     horizontal_offset: u16,
-    cursor: Position<usize>,
+    position: Position<usize>,
     direction: ScrollDirection,
 }
 
@@ -24,7 +24,7 @@ impl CursorScroller {
             mode,
             vertical_offset: 0,
             horizontal_offset: 0,
-            cursor: Position::default(),
+            position: Position::default(),
             direction: ScrollDirection {
                 height: HeightScroll::Up,
             },
@@ -39,48 +39,56 @@ impl CursorScroller {
         match action {
             Action::ScrollUp => {
                 self.direction.height = HeightScroll::Up;
-                self.cursor.vertical = self.cursor.vertical.saturating_sub(1);
+                self.position.vertical = self.position.vertical.saturating_sub(1);
             }
             Action::ScrollDown => {
                 self.direction.height = HeightScroll::Down;
-                self.cursor.vertical = self.cursor.vertical.saturating_add(1).min(length - 1);
+                self.position.vertical = self.position.vertical.saturating_add(1).min(length - 1);
             }
             Action::ScrollLeft => {
-                self.cursor.horizontal = self.cursor.horizontal.saturating_sub(1);
+                self.position.horizontal = self.position.horizontal.saturating_sub(1);
             }
             Action::ScrollRight => {
-                self.cursor.horizontal = self.cursor.horizontal.saturating_add(1).min(width);
+                self.position.horizontal = self.position.horizontal.saturating_add(1).min(width);
             }
             Action::ScrollPageUp => {
                 self.direction.height = HeightScroll::Up;
-                self.cursor.vertical = self.cursor.vertical.saturating_sub(10);
+                self.position.vertical = self.position.vertical.saturating_sub(10);
             }
             Action::ScrollPageDown => {
                 self.direction.height = HeightScroll::Down;
-                self.cursor.vertical = self.cursor.vertical.saturating_add(10).min(length - 1);
+                self.position.vertical = self.position.vertical.saturating_add(10).min(length - 1);
             }
             Action::ScrollTop => {
                 self.direction.height = HeightScroll::Up;
-                self.cursor.vertical = 0;
+                self.position.vertical = 0;
             }
             Action::ScrollBottom => {
                 self.direction.height = HeightScroll::Down;
-                self.cursor.vertical = length - 1;
+                self.position.vertical = length - 1;
             }
             _ => {}
         }
     }
 
-    pub fn cursor(&self) -> Position<usize> {
-        self.cursor
+    pub fn position(&self) -> Position<usize> {
+        self.position
     }
 
-    pub fn set_cursor(&mut self, pos: Position<usize>) {
-        self.cursor = pos;
+    pub fn vertical(&self) -> usize {
+        self.position.vertical
+    }
+
+    pub fn horizontal(&self) -> usize {
+        self.position.horizontal
+    }
+
+    pub fn set_position(&mut self, pos: Position<usize>) {
+        self.position = pos;
     }
 
     pub fn clamp_column(&mut self, line_len: usize) {
-        self.cursor.horizontal = self.cursor.horizontal.min(line_len);
+        self.position.horizontal = self.position.horizontal.min(line_len);
     }
 
     pub fn get_scroll(
@@ -123,7 +131,7 @@ impl CursorScroller {
             }
         }
 
-        let col = self.cursor.horizontal as u16 + gutter_width;
+        let col = self.position.horizontal as u16 + gutter_width;
         if col < self.horizontal_offset + margin {
             self.horizontal_offset = col.saturating_sub(margin);
         }

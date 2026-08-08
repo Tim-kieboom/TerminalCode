@@ -4,7 +4,7 @@ use crate::keybinds::Action;
 #[test]
 fn new_starts_at_origin() {
     let scroller = CursorScroller::new(ScrollMode::List);
-    assert_eq!(scroller.cursor(), Position::default());
+    assert_eq!(scroller.position(), Position::default());
 }
 
 #[test]
@@ -12,7 +12,7 @@ fn move_cursor_is_noop_for_empty_list() {
     let mut scroller = CursorScroller::new(ScrollMode::List);
     scroller.move_cursor(Action::ScrollDown, 0, 0);
     scroller.move_cursor(Action::ScrollBottom, 0, 0);
-    assert_eq!(scroller.cursor(), Position::default());
+    assert_eq!(scroller.position(), Position::default());
 }
 
 #[test]
@@ -21,7 +21,7 @@ fn scroll_down_clamps_at_last_item() {
     for _ in 0..10 {
         scroller.move_cursor(Action::ScrollDown, 5, 0);
     }
-    assert_eq!(scroller.cursor().vertical, 4);
+    assert_eq!(scroller.position().vertical, 4);
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn scroll_up_saturates_at_zero() {
     scroller.move_cursor(Action::ScrollDown, 5, 0);
     scroller.move_cursor(Action::ScrollUp, 5, 0);
     scroller.move_cursor(Action::ScrollUp, 5, 0);
-    assert_eq!(scroller.cursor().vertical, 0);
+    assert_eq!(scroller.position().vertical, 0);
 }
 
 #[test]
@@ -38,10 +38,10 @@ fn scroll_top_and_bottom() {
     let mut scroller = CursorScroller::new(ScrollMode::List);
     scroller.move_cursor(Action::ScrollDown, 5, 0);
     scroller.move_cursor(Action::ScrollBottom, 5, 0);
-    assert_eq!(scroller.cursor().vertical, 4);
+    assert_eq!(scroller.position().vertical, 4);
 
     scroller.move_cursor(Action::ScrollTop, 5, 0);
-    assert_eq!(scroller.cursor().vertical, 0);
+    assert_eq!(scroller.position().vertical, 0);
 }
 
 #[test]
@@ -50,30 +50,30 @@ fn scroll_right_clamps_at_width() {
     for _ in 0..10 {
         scroller.move_cursor(Action::ScrollRight, 5, 3);
     }
-    assert_eq!(scroller.cursor().horizontal, 3);
+    assert_eq!(scroller.position().horizontal, 3);
 }
 
 #[test]
 fn scroll_page_down_clamps_at_last() {
     let mut scroller = CursorScroller::new(ScrollMode::List);
     scroller.move_cursor(Action::ScrollPageDown, 100, 0);
-    assert_eq!(scroller.cursor().vertical, 10);
+    assert_eq!(scroller.position().vertical, 10);
     scroller.move_cursor(Action::ScrollPageDown, 100, 0);
     scroller.move_cursor(Action::ScrollPageDown, 100, 0);
-    assert_eq!(scroller.cursor().vertical, 30);
+    assert_eq!(scroller.position().vertical, 30);
     scroller.move_cursor(Action::ScrollPageDown, 25, 0);
-    assert_eq!(scroller.cursor().vertical, 24);
+    assert_eq!(scroller.position().vertical, 24);
 }
 
 #[test]
 fn clamp_column_caps_horizontal() {
     let mut scroller = CursorScroller::new(ScrollMode::TextEditor);
-    scroller.set_cursor(Position {
+    scroller.set_position(Position {
         vertical: 0,
         horizontal: 10,
     });
     scroller.clamp_column(4);
-    assert_eq!(scroller.cursor().horizontal, 4);
+    assert_eq!(scroller.position().horizontal, 4);
 }
 
 #[test]

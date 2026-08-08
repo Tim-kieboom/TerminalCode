@@ -37,17 +37,50 @@ impl Content {
     pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
         let text = fs::read_to_string(path)?;
         self.context = text.replace("\r\n", "\n");
-        self.scroller.set_cursor(Position::default());
+        self.scroller.set_position(Position::default());
         Ok(())
     }
 
     pub fn move_curser(&mut self, action: Action) {
         let lines_len = self.lines().count();
-        let line_len = self.line_len(self.scroller.cursor().vertical);
-        self.scroller.move_cursor(action, lines_len, line_len);
+        let vertical = self.scroller.vertical();
+        let line_len = self.line_len(vertical);
 
-        let new_line_len = self.line_len(self.scroller.cursor().vertical);
-        self.scroller.clamp_column(new_line_len);
+        match action {
+            Action::ScrollLeft if self.would_line_underflow() => {
+                self.scroller
+                    .move_cursor(Action::ScrollUp, lines_len, line_len);
+                let prev = self.scroller.vertical();
+                self.scroller.set_position(Position {
+                    vertical: prev,
+                    horizontal: self.line_len(prev),
+                });
+            }
+            Action::ScrollRight if self.would_line_overflow(line_len) => {
+                self.scroller
+                    .move_cursor(Action::ScrollDown, lines_len, line_len);
+                let next = self.scroller.vertical();
+                self.scroller.set_position(Position {
+                    vertical: next,
+                    horizontal: 0,
+                });
+            }
+            _ => {
+                self.scroller.move_cursor(action, lines_len, line_len);
+                let new_line_len = self.line_len(self.scroller.position().vertical);
+                self.scroller.clamp_column(new_line_len);
+            }
+        }
+    }
+
+    fn would_line_underflow(&self) -> bool {
+        let position = self.scroller.position();
+        position.horizontal == 0 && position.vertical > 0
+    }
+
+    fn would_line_overflow(&self, line_len: usize) -> bool {
+        let position = self.scroller.position();
+        position.horizontal >= line_len && position.vertical + 1 < line_len
     }
 
     pub fn insert_char(&mut self, ch: char) {
@@ -65,7 +98,7 @@ impl Content {
         *line = chars.into_iter().collect();
 
         self.context = lines.join("\n");
-        self.scroller.set_cursor(Position {
+        self.scroller.set_position(Position {
             vertical,
             horizontal: posistion + 1,
         });
@@ -89,7 +122,7 @@ impl Content {
 
         self.context = lines.join("\n");
         let clamped = horizontal.min(lines[vertical].chars().count());
-        self.scroller.set_cursor(Position {
+        self.scroller.set_position(Position {
             vertical,
             horizontal: clamped,
         });
@@ -107,7 +140,7 @@ impl Content {
         lines.insert(vertical + 1, after);
 
         self.context = lines.join("\n");
-        self.scroller.set_cursor(Position {
+        self.scroller.set_position(Position {
             vertical: vertical + 1,
             horizontal: 0,
         });
@@ -142,7 +175,7 @@ impl Content {
         let mut chars: Vec<char> = line.chars().collect();
         chars.remove(horizontal - 1);
         lines[vertical] = chars.into_iter().collect();
-        self.scroller.set_cursor(Position {
+        self.scroller.set_position(Position {
             vertical,
             horizontal: horizontal - 1,
         });
@@ -156,7 +189,7 @@ impl Content {
         let new_column = prev.chars().count();
         let new_line = format!("{prev}{current}");
         lines.insert(vertical - 1, new_line);
-        self.scroller.set_cursor(Position {
+        self.scroller.set_position(Position {
             vertical: vertical - 1,
             horizontal: new_column,
         });
@@ -180,7 +213,7 @@ impl Content {
     }
 
     fn get_position(&self, lines_len: usize) -> Position<usize> {
-        let cursor = self.scroller.cursor();
+        let cursor = self.scroller.position();
         let last_line = lines_len.saturating_sub(1);
         let vertical = cursor.vertical.min(last_line);
         let horizontal = cursor.horizontal;
@@ -192,7 +225,7 @@ impl Content {
     }
 
     fn insert_in_line<'a>(&self, line: &str, line_num: Span<'a>) -> Vec<Span<'a>> {
-        let column = self.scroller.cursor().horizontal;
+        let column = self.scroller.horizontal();
         let chars: Vec<char> = line.chars().collect();
 
         let (before, cursor_char, after) = if column < chars.len() {
@@ -232,7 +265,7 @@ impl Component for Content {
 
         let inner_height = area.height.saturating_sub(2);
         let inner_width = area.width.saturating_sub(2);
-        let cursor_visual_line = self.scroller.cursor().vertical as u16;
+        let cursor_visual_line = self.scroller.vertical() as u16;
         let gutter_width = self.gutter_width();
         let scroll_offset =
             self.scroller
@@ -240,7 +273,7 @@ impl Component for Content {
 
         let mut lines = vec![];
         for (i, line) in self.context.lines().enumerate() {
-            let selected = self.scroller.cursor().vertical == i;
+            let selected = self.scroller.vertical() == i;
 
             let line_str = format!("{:<6} ", i + 1);
             let line_num = Span::styled(line_str, Theme::line_number());

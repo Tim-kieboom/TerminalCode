@@ -72,7 +72,7 @@ impl Component for DebugWindow {
 
         frame.render_widget(Clear, popup_area);
 
-        let cursor_visual_line = 1 + self.scroller.cursor().vertical as u16;
+        let cursor_visual_line = 1 + self.scroller.position().vertical as u16;
         let scroll_offset = self
             .scroller
             .get_scroll(cursor_visual_line, inner_height, 0, 0);
@@ -86,7 +86,7 @@ impl Component for DebugWindow {
                 DebugTag::Warning => Theme::text_warning(),
             };
 
-            let selected = i == self.scroller.cursor().vertical;
+            let selected = i == self.scroller.position().vertical;
             if selected {
                 Theme::add_highlight(&mut style);
                 Theme::add_highlight(&mut dim_style);
