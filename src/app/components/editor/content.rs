@@ -4,6 +4,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
 };
+use ropey::{Rope, RopeSlice};
 
 use crate::{
     StartupArgs,
@@ -20,7 +21,7 @@ use crate::{
 mod tests;
 
 pub struct Content {
-    pub(super) content: Option<String>,
+    pub(super) content: Option<Rope>,
     pub(super) scroller: CursorScroller,
 }
 
@@ -32,80 +33,63 @@ impl Content {
         }
     }
 
-    pub fn load(&mut self, content: String) {
-        self.content = Some(content);
+    pub fn load(&mut self, content: impl Into<Rope>) {
+        self.content = Some(content.into());
         self.scroller.set_cursor(Position::default());
     }
 
-    pub(super) fn take_content(&mut self) -> Option<String> {
+    pub(super) fn take_content(&mut self) -> Option<Rope> {
         self.content.take()
     }
 
-    pub fn text(&self) -> Option<&str> {
-        self.content.as_deref()
+    pub fn text(&self) -> Option<&Rope> {
+        self.content.as_ref()
     }
 
     pub fn insert_char(&mut self, ch: char) -> bool {
-        let Some(content) = &self.content else {
+        let Some(content) = &mut self.content else {
             return false;
         };
 
-        let mut lines = content.simple_lines_vec();
-
-        let Position {
-            vertical,
-            horizontal,
-        } = self.get_position(lines.len());
-
-        let line = &mut lines[vertical];
-        let mut chars: Vec<char> = line.chars().collect();
-
-        let position = horizontal.min(chars.len());
-        chars.insert(position, ch);
-        *line = chars.into_iter().collect();
-
-        if let Some(content) = &mut self.content {
-            *content = lines.join("\n");
-        }
+        let position = clamped_position(&self.scroller, content.len_lines());
+        let index = char_index(content, position);
+        content.insert_char(index, ch);
 
         self.scroller.set_cursor(Position {
-            vertical,
-            horizontal: position + 1,
+            vertical: position.vertical,
+            horizontal: position.horizontal + 1,
         });
 
         true
     }
 
     pub fn delete_char(&mut self) -> bool {
-        let Some(content) = &self.content else {
+        let Some(content) = &mut self.content else {
             return false;
         };
 
-        let mut lines = content.simple_lines_vec();
-        let Position {
-            vertical,
-            horizontal,
-        } = self.get_position(lines.len());
+        let position = clamped_position(&self.scroller, content.len_lines());
+        let line_start = content.line_to_char(position.vertical);
+        let line_len = line_visual_len(content.line(position.vertical));
 
-        let mut modified = false;
-        if horizontal < lines[vertical].chars().count() {
-            let mut chars: Vec<char> = lines[vertical].chars().collect();
-            chars.remove(horizontal);
-            lines[vertical] = chars.into_iter().collect();
-            modified = true;
-        } else if vertical + 1 < lines.len() {
-            let next = lines.remove(vertical + 1);
-            lines[vertical] = format!("{}{}", lines[vertical], next);
-            modified = true;
-        }
+        let modified = if position.horizontal < line_len {
+            let cursor_index = line_start + position.horizontal;
+            content.remove(cursor_index..cursor_index + 1);
+            true
+        } else if position.vertical + 1 < content.len_lines() {
+            let curser_index = line_start + line_len;
+            content.remove(curser_index..curser_index + 1);
+            true
+        } else {
+            false
+        };
 
-        if let Some(content) = &mut self.content {
-            *content = lines.join("\n");
-        }
+        let clamped = position
+            .horizontal
+            .min(line_visual_len(content.line(position.vertical)));
 
-        let clamped = horizontal.min(lines[vertical].chars().count());
         self.scroller.set_cursor(Position {
-            vertical,
+            vertical: position.vertical,
             horizontal: clamped,
         });
 
@@ -113,26 +97,16 @@ impl Content {
     }
 
     pub fn insert_newline(&mut self) -> bool {
-        let Some(content) = &self.content else {
+        let Some(content) = &mut self.content else {
             return false;
         };
 
-        let mut lines = content.simple_lines_vec();
-        let Position {
-            vertical,
-            horizontal,
-        } = self.get_position(lines.len());
-
-        let (before, after) = chars_split(&lines[vertical], horizontal);
-        lines[vertical] = before;
-        lines.insert(vertical + 1, after);
-
-        if let Some(content) = &mut self.content {
-            *content = lines.join("\n");
-        }
+        let position = clamped_position(&self.scroller, content.len_lines());
+        let index = char_index(content, position);
+        content.insert_char(index, '\n');
 
         self.scroller.set_cursor(Position {
-            vertical: vertical + 1,
+            vertical: position.vertical + 1,
             horizontal: 0,
         });
 
@@ -148,28 +122,32 @@ impl Content {
     }
 
     pub fn backspace(&mut self) -> bool {
-        let Some(content) = &self.content else {
+        let Some(content) = &mut self.content else {
             return false;
         };
 
-        let mut lines = content.simple_lines_vec();
-        let position = self.get_position(lines.len());
+        let position = clamped_position(&self.scroller, content.len_lines());
 
-        let modified = if position.horizontal > 0 {
-            self.remove_char(&mut lines, position);
+        if position.horizontal > 0 {
+            let index = content.line_to_char(position.vertical) + position.horizontal - 1;
+            content.remove(index..index + 1);
+            self.scroller.set_cursor(Position {
+                vertical: position.vertical,
+                horizontal: position.horizontal - 1,
+            });
             true
         } else if position.vertical > 0 {
-            self.remove_line(&mut lines, position);
+            let prev_len = line_visual_len(content.line(position.vertical - 1));
+            let index = content.line_to_char(position.vertical) - 1;
+            content.remove(index..index + 1);
+            self.scroller.set_cursor(Position {
+                vertical: position.vertical - 1,
+                horizontal: prev_len,
+            });
             true
         } else {
             false
-        };
-
-        if let Some(content) = &mut self.content {
-            *content = lines.join("\n");
         }
-
-        modified
     }
 
     pub fn move_cursor(&mut self, action: Action) {
@@ -177,55 +155,16 @@ impl Content {
 
         let scroller = &mut self.scroller;
 
-        let lines_len = content.simple_lines().count();
+        let lines_len = content.len_lines();
         scroller.move_editor_cursor(
             action,
             lines_len,
+            |v| line_visual_len(content.line(v)),
             |v| {
-                content
-                    .simple_lines()
-                    .nth(v)
-                    .map_or(0, |l| l.chars().count())
-            },
-            |v| {
-                content
-                    .simple_lines()
-                    .nth(v)
-                    .unwrap_or("")
-                    .chars()
-                    .collect()
+                let line = content.line(v);
+                line.chars().take(line_visual_len(line)).collect()
             },
         );
-    }
-
-    fn remove_char(&mut self, lines: &mut [String], position: Position<usize>) {
-        let Position {
-            vertical,
-            horizontal,
-        } = position;
-
-        let line = &lines[vertical];
-        let mut chars: Vec<char> = line.chars().collect();
-        chars.remove(horizontal - 1);
-        lines[vertical] = chars.into_iter().collect();
-        self.scroller.set_cursor(Position {
-            vertical,
-            horizontal: horizontal - 1,
-        });
-    }
-
-    fn remove_line(&mut self, lines: &mut Vec<String>, position: Position<usize>) {
-        let Position { vertical, .. } = position;
-
-        let prev = lines.remove(vertical - 1);
-        let current = lines.remove(vertical - 1);
-        let new_column = prev.chars().count();
-        let new_line = format!("{prev}{current}");
-        lines.insert(vertical - 1, new_line);
-        self.scroller.set_cursor(Position {
-            vertical: vertical - 1,
-            horizontal: new_column,
-        });
     }
 
     fn gutter_width(&self) -> u16 {
@@ -237,21 +176,9 @@ impl Content {
         format!("{:<6} ", line_count).chars().count() as u16
     }
 
-    fn get_position(&self, lines_len: usize) -> Position<usize> {
-        let cursor = self.scroller.cursor();
-        let last_line = lines_len.saturating_sub(1);
-        let vertical = cursor.vertical.min(last_line);
-        let horizontal = cursor.horizontal;
-
-        Position {
-            vertical,
-            horizontal,
-        }
-    }
-
-    fn insert_in_line<'a>(&self, line: &str, line_num: Span<'a>) -> Vec<Span<'a>> {
+    fn insert_in_line<'a>(&self, line: RopeSlice<'a>, line_num: Span<'a>) -> Vec<Span<'a>> {
         let column = self.scroller.horizontal();
-        let chars: Vec<char> = line.chars().collect();
+        let chars: Vec<char> = line.chars().take(line_visual_len(line)).collect();
 
         let (before, cursor_char, after) = if column < chars.len() {
             let before = to_string(&chars[..column]);
@@ -260,7 +187,7 @@ impl Content {
 
             (before, cursor_char, after)
         } else {
-            (line.to_string(), " ".to_string(), String::new())
+            (to_string(&chars), " ".to_string(), String::new())
         };
 
         vec![
@@ -345,27 +272,29 @@ fn to_string(chars: &[char]) -> String {
     chars.iter().collect()
 }
 
-fn chars_split(line: &str, horizontal: usize) -> (String, String) {
-    let split_byte = line
-        .char_indices()
-        .nth(horizontal)
-        .map(|(i, _)| i)
-        .unwrap_or(line.len());
-
-    let (before, after) = line.split_at(split_byte);
-    (before.to_string(), after.to_string())
-}
-
-trait SimpleLines {
-    fn simple_lines_vec(&self) -> Vec<String>;
-    fn simple_lines(&self) -> impl Iterator<Item = &str>;
-}
-impl SimpleLines for String {
-    fn simple_lines_vec(&self) -> Vec<String> {
-        self.simple_lines().map(String::from).collect()
+fn line_visual_len(line: RopeSlice<'_>) -> usize {
+    let len = line.len_chars();
+    if len > 0 && line.char(len - 1) == '\n' {
+        len - 1
+    } else {
+        len
     }
+}
 
-    fn simple_lines(&self) -> impl Iterator<Item = &str> {
-        self.split("\n")
+fn char_index(content: &Rope, position: Position<usize>) -> usize {
+    let last_line = content.len_lines().saturating_sub(1);
+    let vertical = position.vertical.min(last_line);
+    let line_start = content.line_to_char(vertical);
+    let visual_len = line_visual_len(content.line(vertical));
+    line_start + position.horizontal.min(visual_len)
+}
+
+fn clamped_position(scroller: &CursorScroller, line_count: usize) -> Position<usize> {
+    let cursor = scroller.cursor();
+    let last_line = line_count.saturating_sub(1);
+
+    Position {
+        vertical: cursor.vertical.min(last_line),
+        horizontal: cursor.horizontal,
     }
 }

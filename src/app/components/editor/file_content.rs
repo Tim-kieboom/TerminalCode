@@ -3,6 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use ropey::Rope;
+
 #[cfg(test)]
 #[path = "file_content_tests.rs"]
 mod tests;
@@ -11,12 +13,12 @@ mod tests;
 pub struct FileContent {
     path: PathBuf,
     name: String,
-    content: String,
+    content: Rope,
     dirty: bool,
 }
 
 impl FileContent {
-    pub fn new(path: impl AsRef<Path>, content: impl Into<String>) -> Self {
+    pub fn new(path: impl AsRef<Path>, content: impl Into<Rope>) -> Self {
         let path = path.as_ref().to_path_buf();
         let name = path
             .file_name()
@@ -45,11 +47,11 @@ impl FileContent {
         &self.name
     }
 
-    pub fn content(&self) -> &str {
+    pub fn content(&self) -> &Rope {
         &self.content
     }
 
-    pub fn content_mut(&mut self) -> &mut String {
+    pub fn content_mut(&mut self) -> &mut Rope {
         &mut self.content
     }
 

@@ -1,3 +1,4 @@
+use ropey::Rope;
 use std::path::PathBuf;
 
 use super::FileContent;
@@ -25,7 +26,7 @@ fn read_from_path_normalizes_crlf() {
 #[test]
 fn content_mut_updates_content() {
     let mut file = FileContent::new("a.rs", "one");
-    *file.content_mut() = "two".to_string();
+    *file.content_mut() = Rope::from("two");
     assert_eq!(file.content(), "two");
 }
 

@@ -1,13 +1,14 @@
 use super::{Content, StartupArgs};
 use crate::app::components::utils::cursor_scroller::Position;
 use crate::keybinds::Action;
+use ropey::Rope;
 use std::path::PathBuf;
 
 fn content() -> Content {
     Content::new(&StartupArgs::new(PathBuf::from(".")))
 }
 
-fn content_set_string(this: &mut Content, str: impl Into<String>) {
+fn content_set_string(this: &mut Content, str: impl Into<Rope>) {
     this.content = Some(str.into());
 }
 

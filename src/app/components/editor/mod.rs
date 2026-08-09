@@ -98,10 +98,10 @@ impl Editor {
             return Ok(false);
         }
 
-        fs::write(file.path(), text)?;
+        fs::write(file.path(), text.to_string())?;
 
         if let Some(file) = self.tabs.active_mut() {
-            *file.content_mut() = text.to_string();
+            *file.content_mut() = text.clone();
             file.mark_clean();
         }
 
@@ -127,7 +127,7 @@ impl Editor {
         let Some(file) = self.tabs.active() else {
             return;
         };
-        self.content.load(file.content().to_string());
+        self.content.load(file.content().clone());
     }
 }
 impl Component for Editor {
