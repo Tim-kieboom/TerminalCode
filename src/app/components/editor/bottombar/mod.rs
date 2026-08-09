@@ -5,6 +5,7 @@ use crate::{
 };
 use ratatui::{Frame, layout::Rect};
 mod terminal;
+pub mod terminal_keys;
 
 pub enum BottomBarSelect {
     Terminal,
@@ -20,6 +21,14 @@ impl BottomBar {
             terminal: Terminal::new(args),
             select: BottomBarSelect::Terminal,
         }
+    }
+
+    pub(crate) fn take_errors(&mut self) -> Vec<String> {
+        self.terminal.take_errors()
+    }
+
+    pub(crate) fn write_input(&mut self, bytes: &[u8]) {
+        self.terminal.write_input(bytes);
     }
 }
 impl Component for BottomBar {

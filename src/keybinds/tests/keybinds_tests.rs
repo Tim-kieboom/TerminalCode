@@ -133,6 +133,41 @@ fn resolve_unbound_key_is_none() {
 }
 
 #[test]
+fn resolve_global_returns_global_bindings_only() {
+    let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
+
+    let action = bindings
+        .resolve_global(&key(KeyCode::Char('q'), KeyModifiers::CONTROL))
+        .unwrap();
+    assert_eq!(action, Action::Quit);
+
+    let action = bindings
+        .resolve_global(&key(KeyCode::Char('b'), KeyModifiers::CONTROL))
+        .unwrap();
+    assert_eq!(action, Action::ToggleSidebar);
+
+    assert_eq!(
+        bindings.resolve_global(&key(KeyCode::Char('s'), KeyModifiers::CONTROL)),
+        None
+    );
+}
+
+#[test]
+fn resolve_global_ignores_plain_chars_and_contexts() {
+    let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
+
+    assert_eq!(
+        bindings.resolve_global(&key(KeyCode::Char('x'), KeyModifiers::NONE)),
+        None
+    );
+
+    assert_eq!(
+        bindings.resolve_global(&key(KeyCode::Enter, KeyModifiers::NONE)),
+        None
+    );
+}
+
+#[test]
 fn rebind_replaces_binding_for_action() {
     let mut bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
     bindings.rebind(Action::Quit, KeyBinding::parse("Ctrl+X").unwrap(), None);

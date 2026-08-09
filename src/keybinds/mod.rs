@@ -114,12 +114,6 @@ impl KeyBindings {
     }
 
     pub fn resolve(&self, key: &KeyEvent, context: PanelContext) -> Option<Action> {
-        fn find_entry(map: &KeyBindMap, key: &KeyEvent) -> Option<Action> {
-            map.iter()
-                .find(|(_, binding)| binding.matches(key))
-                .map(|(action, _)| *action)
-        }
-
         if matches!(key.code, KeyCode::Char(_))
             && (key.modifiers.is_empty() || key.modifiers == KeyModifiers::SHIFT)
         {
@@ -132,6 +126,10 @@ impl KeyBindings {
             return Some(action);
         }
 
+        find_entry(&self.global, key)
+    }
+
+    pub fn resolve_global(&self, key: &KeyEvent) -> Option<Action> {
         find_entry(&self.global, key)
     }
 
@@ -170,6 +168,12 @@ impl KeyBindings {
     ) -> impl Iterator<Item = (&PanelContext, &HashMap<Action, KeyBinding>)> {
         self.contexts.iter()
     }
+}
+
+fn find_entry(map: &KeyBindMap, key: &KeyEvent) -> Option<Action> {
+    map.iter()
+        .find(|(_, binding)| binding.matches(key))
+        .map(|(action, _)| *action)
 }
 
 fn parse_keybind(json: &str, key: &str, value: &Json) -> Result<(Action, KeyBinding)> {

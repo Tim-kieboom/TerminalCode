@@ -3,6 +3,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 
 use crate::{
     App,
+    app::components::editor::bottombar::terminal_keys,
     keybinds::{Action, KeyBinding, PanelContext},
 };
 
@@ -23,6 +24,10 @@ impl App {
     }
 
     fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
+        if self.context == PanelContext::BottomBar {
+            return self.handle_terminal_key(key);
+        }
+
         let action = match self.keybinds().resolve(&key, self.context) {
             Some(a) => a,
             None => {
@@ -61,6 +66,24 @@ impl App {
             | Action::ScrollPageDown => self.move_cursor(action),
             Action::PrevTab => self.switch_tab(-1),
             Action::NextTab => self.switch_tab(1),
+        }
+
+        Ok(())
+    }
+
+    fn handle_terminal_key(&mut self, key: KeyEvent) -> Result<()> {
+        match self.keybinds().resolve_global(&key) {
+            Some(Action::Quit) => self.running = false,
+            Some(Action::Close) => self.close_window(),
+            Some(Action::ToggleSidebar) => self.toggle_sidebar(),
+            Some(Action::ShowKeyBinds) => self.toggle_keybinds(),
+            Some(Action::ToggleBottom) => self.toggle_bottombar(),
+            Some(Action::FocusNextPanel) => self.focus_next_panel(),
+            Some(Action::ToggleDebugWindow) => self.toggle_debug_window(),
+            _ => match terminal_keys::encode_key(&key) {
+                Some(bytes) => self.editor.bottombar.inner_mut().write_input(&bytes),
+                None => self.log_warning(format!("unhandled key {}", KeyBinding::from(key))),
+            },
         }
 
         Ok(())

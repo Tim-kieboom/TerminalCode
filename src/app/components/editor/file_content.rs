@@ -6,7 +6,7 @@ use std::{
 use ropey::Rope;
 
 #[cfg(test)]
-#[path = "file_content_tests.rs"]
+#[path = "tests/file_content_tests.rs"]
 mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

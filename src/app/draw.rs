@@ -23,6 +23,7 @@ impl App {
 
         self.draw_workspace(frame, layout[0]);
         self.draw_status_bar(frame, layout[1]);
+        self.take_terminal_errors();
         self.debug_window.try_draw(frame, area, self.context);
         self.keybind_display.try_draw(frame, area, self.context);
         self.notifications.draw(frame, area);
@@ -57,5 +58,12 @@ impl App {
         let layout = horizontal_layout([SIDEBAR_WIDTH, EDITOR_WIDTH], area);
         self.sidebar.try_draw(frame, layout[0], self.context);
         self.editor.draw(frame, layout[1], self.context);
+    }
+
+    fn take_terminal_errors(&mut self) {
+        let errors = self.editor.bottombar.inner_mut().take_errors();
+        for error in errors {
+            self.log_error(error);
+        }
     }
 }
