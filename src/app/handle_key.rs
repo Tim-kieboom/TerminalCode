@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 
 use crate::{
@@ -43,11 +43,11 @@ impl App {
             Action::Test => self.log_note("test".to_string()),
 
             Action::InsertChar => self.insert_char(key),
-            Action::Delete => self.editor.content.delete_char(),
-            Action::Backspace => self.editor.content.backspace(),
-            Action::InsertTab => self.editor.content.insert_tab(),
-            Action::InsertNewline => self.editor.content.insert_newline(),
-            Action::Save => bail!("Save Not yet impl"),
+            Action::Delete => self.editor.delete_char(),
+            Action::Backspace => self.editor.backspace(),
+            Action::InsertTab => self.editor.insert_tab(),
+            Action::InsertNewline => self.editor.insert_newline(),
+            Action::Save => self.save(),
 
             Action::ScrollUp
             | Action::ScrollTop
@@ -59,11 +59,32 @@ impl App {
             | Action::ScrollBottom
             | Action::ScrollPageUp
             | Action::ScrollPageDown => self.move_cursor(action),
-            Action::PrevTab => bail!("prevtab"),
-            Action::NextTab => bail!("nexttab"),
+            Action::PrevTab => self.switch_tab(-1),
+            Action::NextTab => self.switch_tab(1),
         }
 
         Ok(())
+    }
+
+    fn switch_tab(&mut self, amount: isize) {
+        match self.context {
+            PanelContext::Editor => self.editor.switch_tab(amount),
+            PanelContext::SideBar
+            | PanelContext::Keybinds
+            | PanelContext::BottomBar
+            | PanelContext::DebugWindow => self.log_warning(format!(
+                "{} does not implement tab switching",
+                self.context.description()
+            )),
+        }
+    }
+
+    fn save(&mut self) {
+        match self.editor.save_active() {
+            Ok(true) => self.log_note("Saved".to_string()),
+            Ok(false) => {}
+            Err(err) => self.log_error(format!("Failed to save: {err}")),
+        }
     }
 
     fn insert_char(&mut self, key: KeyEvent) {
@@ -76,12 +97,12 @@ impl App {
             return;
         };
 
-        self.editor.content.insert_char(ch)
+        self.editor.insert_char(ch)
     }
 
     fn move_cursor(&mut self, action: Action) {
         match self.context {
-            PanelContext::Editor => self.editor.content.move_curser(action),
+            PanelContext::Editor => self.editor.content.move_cursor(action),
             PanelContext::SideBar => self.sidebar.inner_mut().move_cursor(action),
             PanelContext::Keybinds => self.keybind_display.inner_mut().move_cursor(action),
             PanelContext::DebugWindow => self.debug_window.inner_mut().move_cursor(action),

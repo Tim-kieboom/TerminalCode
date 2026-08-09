@@ -1,5 +1,3 @@
-use std::{fs, path::Path, vec};
-
 use ratatui::{
     Frame,
     layout::Rect,
@@ -22,27 +20,38 @@ use crate::{
 mod tests;
 
 pub struct Content {
-    pub(super) context: String,
+    pub(super) content: Option<String>,
     pub(super) scroller: CursorScroller,
 }
 
 impl Content {
     pub fn new(_args: &StartupArgs) -> Self {
         Self {
-            context: "".to_string(),
+            content: None,
             scroller: CursorScroller::new(ScrollMode::TextEditor),
         }
     }
 
-    pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
-        let text = fs::read_to_string(path)?;
-        self.context = text.replace("\r\n", "\n");
+    pub fn load(&mut self, content: String) {
+        self.content = Some(content);
         self.scroller.set_cursor(Position::default());
-        Ok(())
     }
 
-    pub fn insert_char(&mut self, ch: char) {
-        let mut lines = self.lines_vec();
+    pub(super) fn take_content(&mut self) -> Option<String> {
+        self.content.take()
+    }
+
+    pub fn text(&self) -> Option<&str> {
+        self.content.as_deref()
+    }
+
+    pub fn insert_char(&mut self, ch: char) -> bool {
+        let Some(content) = &self.content else {
+            return false;
+        };
+
+        let mut lines = content.simple_lines_vec();
+
         let Position {
             vertical,
             horizontal,
@@ -51,43 +60,64 @@ impl Content {
         let line = &mut lines[vertical];
         let mut chars: Vec<char> = line.chars().collect();
 
-        let posistion = horizontal.min(chars.len());
-        chars.insert(posistion, ch);
+        let position = horizontal.min(chars.len());
+        chars.insert(position, ch);
         *line = chars.into_iter().collect();
 
-        self.context = lines.join("\n");
+        if let Some(content) = &mut self.content {
+            *content = lines.join("\n");
+        }
+
         self.scroller.set_cursor(Position {
             vertical,
-            horizontal: posistion + 1,
+            horizontal: position + 1,
         });
+
+        true
     }
 
-    pub fn delete_char(&mut self) {
-        let mut lines = self.lines_vec();
+    pub fn delete_char(&mut self) -> bool {
+        let Some(content) = &self.content else {
+            return false;
+        };
+
+        let mut lines = content.simple_lines_vec();
         let Position {
             vertical,
             horizontal,
         } = self.get_position(lines.len());
 
+        let mut modified = false;
         if horizontal < lines[vertical].chars().count() {
             let mut chars: Vec<char> = lines[vertical].chars().collect();
             chars.remove(horizontal);
             lines[vertical] = chars.into_iter().collect();
+            modified = true;
         } else if vertical + 1 < lines.len() {
             let next = lines.remove(vertical + 1);
             lines[vertical] = format!("{}{}", lines[vertical], next);
+            modified = true;
         }
 
-        self.context = lines.join("\n");
+        if let Some(content) = &mut self.content {
+            *content = lines.join("\n");
+        }
+
         let clamped = horizontal.min(lines[vertical].chars().count());
         self.scroller.set_cursor(Position {
             vertical,
             horizontal: clamped,
         });
+
+        modified
     }
 
-    pub fn insert_newline(&mut self) {
-        let mut lines = self.lines_vec();
+    pub fn insert_newline(&mut self) -> bool {
+        let Some(content) = &self.content else {
+            return false;
+        };
+
+        let mut lines = content.simple_lines_vec();
         let Position {
             vertical,
             horizontal,
@@ -97,42 +127,74 @@ impl Content {
         lines[vertical] = before;
         lines.insert(vertical + 1, after);
 
-        self.context = lines.join("\n");
+        if let Some(content) = &mut self.content {
+            *content = lines.join("\n");
+        }
+
         self.scroller.set_cursor(Position {
             vertical: vertical + 1,
             horizontal: 0,
         });
+
+        true
     }
 
-    pub fn insert_tab(&mut self) {
+    pub fn insert_tab(&mut self) -> bool {
+        let mut modified = false;
         for _ in 0..4 {
-            self.insert_char(' ');
+            modified |= self.insert_char(' ');
         }
+        modified
     }
 
-    pub fn backspace(&mut self) {
-        let mut lines = self.lines_vec();
+    pub fn backspace(&mut self) -> bool {
+        let Some(content) = &self.content else {
+            return false;
+        };
+
+        let mut lines = content.simple_lines_vec();
         let position = self.get_position(lines.len());
 
-        if position.horizontal > 0 {
+        let modified = if position.horizontal > 0 {
             self.remove_char(&mut lines, position);
+            true
         } else if position.vertical > 0 {
             self.remove_line(&mut lines, position);
+            true
+        } else {
+            false
+        };
+
+        if let Some(content) = &mut self.content {
+            *content = lines.join("\n");
         }
 
-        self.context = lines.join("\n");
+        modified
     }
 
-    pub fn move_curser(&mut self, action: Action) {
-        let Self {
-            context, scroller, ..
-        } = self;
-        let lines_len = context.split('\n').count();
+    pub fn move_cursor(&mut self, action: Action) {
+        let Some(content) = &self.content else { return };
+
+        let scroller = &mut self.scroller;
+
+        let lines_len = content.simple_lines().count();
         scroller.move_editor_cursor(
             action,
             lines_len,
-            |v| context.split('\n').nth(v).map_or(0, |l| l.chars().count()),
-            |v| context.split('\n').nth(v).unwrap_or("").chars().collect(),
+            |v| {
+                content
+                    .simple_lines()
+                    .nth(v)
+                    .map_or(0, |l| l.chars().count())
+            },
+            |v| {
+                content
+                    .simple_lines()
+                    .nth(v)
+                    .unwrap_or("")
+                    .chars()
+                    .collect()
+            },
         );
     }
 
@@ -166,16 +228,12 @@ impl Content {
         });
     }
 
-    fn lines_vec(&self) -> Vec<String> {
-        self.lines().map(String::from).collect()
-    }
-
-    fn lines(&self) -> impl Iterator<Item = &str> {
-        self.context.split("\n")
-    }
-
     fn gutter_width(&self) -> u16 {
-        let line_count = self.lines().count();
+        let Some(content) = &self.content else {
+            return 0;
+        };
+
+        let line_count = content.lines().count();
         format!("{:<6} ", line_count).chars().count() as u16
     }
 
@@ -239,7 +297,22 @@ impl Component for Content {
                 .get_scroll(cursor_visual_line, inner_height, inner_width, gutter_width);
 
         let mut lines = vec![];
-        for (i, line) in self.context.lines().enumerate() {
+        let Some(content) = &self.content else {
+            let block = Block::default()
+                .title(Span::styled(" Editor ", title_style))
+                .borders(Borders::ALL)
+                .border_style(border_style);
+
+            let paragraph = Paragraph::new(lines)
+                .block(block)
+                .style(Theme::editor_background())
+                .scroll((scroll_offset.vertical, scroll_offset.horizontal));
+
+            frame.render_widget(paragraph, area);
+            return;
+        };
+
+        for (i, line) in content.lines().enumerate() {
             let selected = self.scroller.vertical() == i;
 
             let line_str = format!("{:<6} ", i + 1);
@@ -281,4 +354,18 @@ fn chars_split(line: &str, horizontal: usize) -> (String, String) {
 
     let (before, after) = line.split_at(split_byte);
     (before.to_string(), after.to_string())
+}
+
+trait SimpleLines {
+    fn simple_lines_vec(&self) -> Vec<String>;
+    fn simple_lines(&self) -> impl Iterator<Item = &str>;
+}
+impl SimpleLines for String {
+    fn simple_lines_vec(&self) -> Vec<String> {
+        self.simple_lines().map(String::from).collect()
+    }
+
+    fn simple_lines(&self) -> impl Iterator<Item = &str> {
+        self.split("\n")
+    }
 }

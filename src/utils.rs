@@ -6,7 +6,6 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 #[path = "tests/utils_tests.rs"]
 mod tests;
 
-
 pub fn horizontal_layout<I>(constraints: I, area: Rect) -> Rc<[Rect]>
 where
     I: IntoIterator,

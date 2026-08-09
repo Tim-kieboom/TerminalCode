@@ -1,5 +1,6 @@
 use crate::{
-    app::components::utils::cursor_scroller::{CursorScroller, HeightScroll, Position, ScrollMode}, keybinds::Action,
+    app::components::utils::cursor_scroller::{CursorScroller, HeightScroll, Position, ScrollMode},
+    keybinds::Action,
 };
 
 impl CursorScroller {
@@ -11,7 +12,7 @@ impl CursorScroller {
         line_chars: impl Fn(usize) -> Vec<char>,
     ) {
         debug_assert!(
-            self.mode == ScrollMode::TextEditor, 
+            self.mode == ScrollMode::TextEditor,
             "CursorScroller::move_editor_cursor should only be used by mode ScrollMode::TextEditor"
         );
 

@@ -1,15 +1,20 @@
 pub mod bottombar;
 pub mod content;
+mod file_content;
 pub mod tabs;
 
-use std::path::Path;
+#[cfg(test)]
+#[path = "tests/editor_tests.rs"]
+mod tests;
+
+use std::{fs, io, path::Path};
 
 pub use crate::layout::editor::*;
 use crate::{
     StartupArgs,
     app::components::{
         Component, Hideable,
-        editor::{bottombar::BottomBar, content::Content, tabs::Tabs},
+        editor::{bottombar::BottomBar, content::Content, file_content::FileContent, tabs::Tabs},
     },
     keybinds::PanelContext,
     utils::vertical_layout,
@@ -33,16 +38,96 @@ impl Editor {
         }
     }
 
-    pub fn open(&mut self, path: &Path) -> std::io::Result<()> {
-        let name = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("<file>")
-            .to_string();
+    pub fn open(&mut self, path: &Path) -> io::Result<()> {
+        self.commit_active();
 
-        self.content.open(path)?;
-        self.tabs.open(name);
+        let file = FileContent::read_from_path(path)?;
+        self.tabs.open(file);
+        self.load_active();
         Ok(())
+    }
+
+    pub fn switch_tab(&mut self, amount: isize) {
+        if self.tabs.files.is_empty() {
+            return;
+        }
+
+        self.commit_active();
+        self.tabs.switch_tab(amount);
+        self.load_active();
+    }
+
+    pub fn insert_char(&mut self, ch: char) {
+        if self.content.insert_char(ch) {
+            self.mark_active_dirty();
+        }
+    }
+
+    pub fn delete_char(&mut self) {
+        if self.content.delete_char() {
+            self.mark_active_dirty();
+        }
+    }
+
+    pub fn insert_newline(&mut self) {
+        if self.content.insert_newline() {
+            self.mark_active_dirty();
+        }
+    }
+
+    pub fn insert_tab(&mut self) {
+        if self.content.insert_tab() {
+            self.mark_active_dirty();
+        }
+    }
+
+    pub fn backspace(&mut self) {
+        if self.content.backspace() {
+            self.mark_active_dirty();
+        }
+    }
+
+    pub fn save_active(&mut self) -> io::Result<bool> {
+        let Some(text) = self.content.text() else {
+            return Ok(false);
+        };
+        let Some(file) = self.tabs.active() else {
+            return Ok(false);
+        };
+        if !file.is_dirty() {
+            return Ok(false);
+        }
+
+        fs::write(file.path(), text)?;
+
+        if let Some(file) = self.tabs.active_mut() {
+            *file.content_mut() = text.to_string();
+            file.mark_clean();
+        }
+
+        Ok(true)
+    }
+
+    fn mark_active_dirty(&mut self) {
+        if let Some(file) = self.tabs.active_mut() {
+            file.mark_dirty();
+        }
+    }
+
+    fn commit_active(&mut self) {
+        let Some(buffer) = self.content.take_content() else {
+            return;
+        };
+        if let Some(file) = self.tabs.active_mut() {
+            *file.content_mut() = buffer;
+        }
+    }
+
+    fn load_active(&mut self) {
+        let Some(file) = self.tabs.active() else {
+            return;
+        };
+        self.content.load(file.content().to_string());
     }
 }
 impl Component for Editor {
