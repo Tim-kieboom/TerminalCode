@@ -35,7 +35,7 @@ struct Session {
     command_buffer: Vec<u8>,
     screen: Arc<Mutex<Parser>>,
     master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
     child: Box<dyn portable_pty::Child + Send + Sync>,
     reader: Option<JoinHandle<()>>,
 }
@@ -59,12 +59,13 @@ impl Session {
 
         let screen = Arc::new(Mutex::new(Parser::new(rows, cols, 0)));
         let reader = pair.master.try_clone_reader()?;
-        let writer = pair.master.take_writer()?;
+        let writer = Arc::new(Mutex::new(pair.master.take_writer()?));
 
         let reader_screen = Arc::clone(&screen);
+        let reader_writer = Arc::clone(&writer);
         let reader = std::thread::Builder::new()
             .name("terminal-reader".to_string())
-            .spawn(move || read_loop(reader, reader_screen))?;
+            .spawn(move || read_loop(reader, reader_screen, reader_writer))?;
 
         Ok(Self {
             current_directory: current_directory.to_path_buf(),
@@ -97,8 +98,12 @@ impl Session {
 
     fn write(&mut self, bytes: &[u8]) -> anyhow::Result<()> {
         self.track_command(bytes);
-        self.writer.write_all(bytes)?;
-        self.writer.flush()?;
+        let mut writer = self
+            .writer
+            .lock()
+            .map_err(|_| anyhow::anyhow!("terminal writer lock poisoned"))?;
+        writer.write_all(bytes)?;
+        writer.flush()?;
         Ok(())
     }
 
@@ -351,8 +356,13 @@ fn normalize(path: &Path) -> PathBuf {
     result
 }
 
-fn read_loop(mut reader: Box<dyn Read + Send>, screen: Arc<Mutex<Parser>>) {
+fn read_loop(
+    mut reader: Box<dyn Read + Send>,
+    screen: Arc<Mutex<Parser>>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
+) {
     let mut buffer = [0u8; 8192];
+    let mut pending = Vec::new();
 
     loop {
         let n = match reader.read(&mut buffer) {
@@ -361,9 +371,90 @@ fn read_loop(mut reader: Box<dyn Read + Send>, screen: Arc<Mutex<Parser>>) {
             Err(_) => break,
         };
 
+        let chunk = &buffer[..n];
+        handle_terminal_queries(chunk, &mut pending, &screen, &writer);
+
         let Ok(mut parser) = screen.lock() else {
             break;
         };
-        parser.process(&buffer[..n]);
+        parser.process(chunk);
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Query {
+    CursorPosition,
+    DeviceAttributes,
+}
+
+fn find_query(bytes: &[u8]) -> Option<(usize, Query, usize)> {
+    let mut search = 0;
+    while let Some(relative) = bytes[search..].iter().position(|&b| b == 0x1b) {
+        let esc = search + relative;
+        let rest = &bytes[esc + 1..];
+        search = esc + 1;
+
+        if !rest.starts_with(b"[") {
+            continue;
+        }
+        let params = &rest[1..];
+
+        if params.starts_with(b"6n") {
+            return Some((esc, Query::CursorPosition, 4));
+        }
+
+        let Some(end) = params.iter().position(|&b| b == b'c') else {
+            continue;
+        };
+        let params = &params[..end];
+        if params
+            .iter()
+            .all(|&b| b.is_ascii_digit() || b == b';' || b == b'?')
+        {
+            return Some((esc, Query::DeviceAttributes, end + 3));
+        }
+    }
+    None
+}
+
+fn handle_terminal_queries<W: Write + Send>(
+    chunk: &[u8],
+    pending: &mut Vec<u8>,
+    screen: &Arc<Mutex<Parser>>,
+    writer: &Mutex<W>,
+) {
+    pending.extend_from_slice(chunk);
+
+    while let Some((esc, query, len)) = find_query(pending) {
+        let response = match query {
+            Query::CursorPosition => {
+                let (row, col) = cursor_position(screen);
+                format!("\x1b[{row};{col}R").into_bytes()
+            }
+            Query::DeviceAttributes => b"\x1b[?6c".to_vec(),
+        };
+
+        if let Ok(mut writer) = writer.lock() {
+            let _ = writer.write_all(&response);
+            let _ = writer.flush();
+        }
+
+        pending.drain(..esc + len);
+    }
+
+    let last_esc = pending.iter().rposition(|&b| b == 0x1b);
+    match last_esc {
+        Some(i) if pending.len() - i <= 64 => {
+            pending.drain(..i);
+        }
+        _ => pending.clear(),
+    }
+}
+
+fn cursor_position(screen: &Arc<Mutex<Parser>>) -> (u16, u16) {
+    let Ok(parser) = screen.lock() else {
+        return (1, 1);
+    };
+    let (row, col) = parser.screen().cursor_position();
+    (row.saturating_add(1), col.saturating_add(1))
 }

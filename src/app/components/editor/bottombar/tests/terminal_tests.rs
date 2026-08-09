@@ -1,8 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use ratatui::layout::Rect;
 
-use super::{Session, inner_area, normalize, parse_cd_target, resolve_directory, truncate_start};
+use super::{
+    Parser, Query, Session, cursor_position, find_query, handle_terminal_queries, inner_area,
+    normalize, parse_cd_target, resolve_directory, truncate_start,
+};
 
 #[test]
 fn dropping_session_does_not_block() {
@@ -10,6 +16,91 @@ fn dropping_session_does_not_block() {
     let handle = std::thread::spawn(move || drop(session));
 
     handle.join().expect("dropping session blocked");
+}
+
+#[test]
+fn pty_round_trip_echoes_output() {
+    let mut session = Session::spawn(24, 80, Path::new(".")).expect("failed to spawn session");
+    session.write(b"echo hello\r\n").expect("failed to write");
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let text = loop {
+        let text = session.screen.lock().unwrap().screen().contents();
+        if text.contains("hello") || std::time::Instant::now() > deadline {
+            break text;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+
+    assert!(
+        text.contains("hello"),
+        "pty output was not echoed; screen: {text:?}"
+    );
+}
+
+#[test]
+fn find_query_detects_cursor_position() {
+    assert_eq!(find_query(b"\x1b[6n"), Some((0, Query::CursorPosition, 4)));
+    assert_eq!(
+        find_query(b"abc\x1b[6ndef"),
+        Some((3, Query::CursorPosition, 4))
+    );
+}
+
+#[test]
+fn find_query_detects_device_attributes() {
+    assert_eq!(find_query(b"\x1b[c"), Some((0, Query::DeviceAttributes, 3)));
+    assert_eq!(
+        find_query(b"\x1b[0c"),
+        Some((0, Query::DeviceAttributes, 4))
+    );
+}
+
+#[test]
+fn find_query_ignores_non_queries() {
+    assert_eq!(find_query(b"hello"), None);
+    assert_eq!(find_query(b"\x1b[6"), None);
+    assert_eq!(find_query(b"\x1b[?9001h"), None);
+}
+
+#[test]
+fn find_query_skips_dead_sequences() {
+    assert_eq!(
+        find_query(b"\x1b[?9001h\x1b[6n"),
+        Some((8, Query::CursorPosition, 4))
+    );
+}
+
+#[test]
+fn queries_are_answered_immediately() {
+    let screen = Arc::new(Mutex::new(Parser::new(24, 80, 0)));
+    let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let mut pending = Vec::new();
+
+    handle_terminal_queries(b"\x1b[6n", &mut pending, &screen, &writer);
+    assert_eq!(writer.lock().unwrap().as_slice(), b"\x1b[1;1R");
+
+    handle_terminal_queries(b"\x1b[0c", &mut pending, &screen, &writer);
+    assert_eq!(writer.lock().unwrap().as_slice(), b"\x1b[1;1R\x1b[?6c");
+}
+
+#[test]
+fn queries_are_answered_across_chunks() {
+    let screen = Arc::new(Mutex::new(Parser::new(24, 80, 0)));
+    let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let mut pending = Vec::new();
+
+    handle_terminal_queries(b"\x1b[6", &mut pending, &screen, &writer);
+    assert!(writer.lock().unwrap().is_empty());
+
+    handle_terminal_queries(b"n", &mut pending, &screen, &writer);
+    assert_eq!(writer.lock().unwrap().as_slice(), b"\x1b[1;1R");
+}
+
+#[test]
+fn cursor_position_is_reported_one_based() {
+    let screen = Arc::new(Mutex::new(Parser::new(24, 80, 0)));
+    assert_eq!(cursor_position(&screen), (1, 1));
 }
 
 #[test]
