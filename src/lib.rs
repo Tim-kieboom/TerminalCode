@@ -1,5 +1,6 @@
 mod app;
 pub mod keybinds;
+pub mod launch;
 mod layout;
 pub mod terminal;
 pub mod theme;
