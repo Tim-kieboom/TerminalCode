@@ -17,6 +17,8 @@ use vt100::Parser;
 
 use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, theme::Theme};
 
+const SCROLLBACK_MAX: usize = 10_000;
+
 #[cfg(test)]
 #[path = "tests/terminal_tests.rs"]
 mod tests;
@@ -33,6 +35,7 @@ pub struct Terminal {
 struct Session {
     current_directory: PathBuf,
     command_buffer: Vec<u8>,
+    scrollback: usize,
     screen: Arc<Mutex<Parser>>,
     reader: Option<JoinHandle<()>>,
     master: Box<dyn MasterPty + Send>,
@@ -57,7 +60,7 @@ impl Session {
 
         let child = pair.slave.spawn_command(command)?;
 
-        let screen = Arc::new(Mutex::new(Parser::new(rows, cols, 0)));
+        let screen = Arc::new(Mutex::new(Parser::new(rows, cols, SCROLLBACK_MAX)));
         let reader = pair.master.try_clone_reader()?;
         let writer = Arc::new(Mutex::new(pair.master.take_writer()?));
 
@@ -70,6 +73,7 @@ impl Session {
         Ok(Self {
             current_directory: current_directory.to_path_buf(),
             command_buffer: Vec::new(),
+            scrollback: 0,
             screen,
             master: pair.master,
             writer,
@@ -128,6 +132,14 @@ impl Session {
             }
         }
     }
+
+    fn apply_scrollback(&mut self, target: usize) {
+        let Ok(mut screen) = self.screen.lock() else {
+            return;
+        };
+        screen.screen_mut().set_scrollback(target);
+        self.scrollback = screen.screen().scrollback();
+    }
 }
 
 impl Drop for Session {
@@ -157,10 +169,20 @@ impl Terminal {
         let Some(session) = &mut self.session else {
             return;
         };
+        if session.scrollback != 0 {
+            session.apply_scrollback(0);
+        }
         if let Err(err) = session.write(bytes) {
             self.errors
                 .push(format!("Failed to write to terminal: {err}"));
         }
+    }
+
+    pub(super) fn scroll(&mut self, amount: i16) {
+        let Some(session) = &mut self.session else {
+            return;
+        };
+        session.apply_scrollback(next_scrollback(session.scrollback, amount));
     }
 
     fn title(&self, width: u16, style: ratatui::style::Style) -> Span<'static> {
@@ -283,6 +305,10 @@ fn inner_area(area: Rect) -> Rect {
         width: area.width,
         height: area.height.saturating_sub(1),
     }
+}
+
+fn next_scrollback(current: usize, amount: i16) -> usize {
+    (current as isize + isize::from(amount)).max(0) as usize
 }
 
 fn truncate_start(text: &str, max_len: usize) -> String {

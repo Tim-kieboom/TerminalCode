@@ -30,6 +30,10 @@ impl BottomBar {
     pub(crate) fn write_input(&mut self, bytes: &[u8]) {
         self.terminal.write_input(bytes);
     }
+
+    pub(crate) fn scroll(&mut self, amount: i16) {
+        self.terminal.scroll(amount);
+    }
 }
 impl Component for BottomBar {
     fn draw(&mut self, frame: &mut Frame, area: Rect, context: PanelContext) {

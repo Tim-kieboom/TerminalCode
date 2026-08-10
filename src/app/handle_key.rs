@@ -75,6 +75,18 @@ impl App {
     }
 
     fn handle_terminal_key(&mut self, key: KeyEvent) -> Result<()> {
+        if let Some(action) = self
+            .keybinds()
+            .resolve_context(&key, PanelContext::BottomBar)
+        {
+            match action {
+                Action::ScrollUp => self.editor.bottombar.inner_mut().scroll(1),
+                Action::ScrollDown => self.editor.bottombar.inner_mut().scroll(-1),
+                _ => {}
+            }
+            return Ok(());
+        }
+
         match self.keybinds().resolve_global(&key) {
             Some(Action::Quit) => self.running = false,
             Some(Action::Close) => self.close_window(),

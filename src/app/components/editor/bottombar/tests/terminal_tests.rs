@@ -6,8 +6,8 @@ use std::{
 use ratatui::layout::Rect;
 
 use super::{
-    Parser, Query, Session, cursor_position, find_query, handle_terminal_queries, inner_area,
-    normalize, parse_cd_target, resolve_directory, truncate_start,
+    Parser, Query, SCROLLBACK_MAX, Session, cursor_position, find_query, handle_terminal_queries,
+    inner_area, next_scrollback, normalize, parse_cd_target, resolve_directory, truncate_start,
 };
 
 #[test]
@@ -36,6 +36,41 @@ fn pty_round_trip_echoes_output() {
         text.contains("hello"),
         "pty output was not echoed; screen: {text:?}"
     );
+}
+
+#[test]
+fn next_scrollback_stays_within_bounds() {
+    assert_eq!(next_scrollback(0, 1), 1);
+    assert_eq!(next_scrollback(5, 1), 6);
+    assert_eq!(next_scrollback(5, -1), 4);
+    assert_eq!(next_scrollback(0, -1), 0);
+}
+
+#[test]
+fn apply_scrollback_clamps_to_history_and_returns_to_live() {
+    let mut session = Session::spawn(5, 40, Path::new(".")).expect("failed to spawn session");
+    session
+        .write(b"printf 'x\\n%.0s' {1..50}\r\n")
+        .expect("failed to write");
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let has_history = {
+            let mut screen = session.screen.lock().unwrap();
+            screen.screen_mut().set_scrollback(SCROLLBACK_MAX);
+            screen.screen().scrollback() > 0
+        };
+        if has_history || std::time::Instant::now() > deadline {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    session.apply_scrollback(SCROLLBACK_MAX);
+    assert!(session.scrollback > 0, "scrollback was not retained");
+
+    session.apply_scrollback(0);
+    assert_eq!(session.scrollback, 0);
 }
 
 #[test]

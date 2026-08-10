@@ -36,5 +36,10 @@
   
   "Keybinds": {
     "Close": "Esc"
+  },
+
+  "BottomBar": {
+    "ScrollUp": "Ctrl+Up",
+    "ScrollDown": "Ctrl+Down"
   }
 }

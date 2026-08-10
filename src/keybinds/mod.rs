@@ -133,6 +133,12 @@ impl KeyBindings {
         find_entry(&self.global, key)
     }
 
+    pub fn resolve_context(&self, key: &KeyEvent, context: PanelContext) -> Option<Action> {
+        self.contexts
+            .get(&context)
+            .and_then(|map| find_entry(map, key))
+    }
+
     pub fn rebind(&mut self, action: Action, binding: KeyBinding, context: Option<PanelContext>) {
         match context {
             Some(ctx) => {

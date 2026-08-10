@@ -153,6 +153,47 @@ fn resolve_global_returns_global_bindings_only() {
 }
 
 #[test]
+fn resolve_context_returns_bottombar_scroll_bindings() {
+    let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
+
+    let action = bindings
+        .resolve_context(
+            &key(KeyCode::Up, KeyModifiers::CONTROL),
+            PanelContext::BottomBar,
+        )
+        .unwrap();
+    assert_eq!(action, Action::ScrollUp);
+
+    let action = bindings
+        .resolve_context(
+            &key(KeyCode::Down, KeyModifiers::CONTROL),
+            PanelContext::BottomBar,
+        )
+        .unwrap();
+    assert_eq!(action, Action::ScrollDown);
+}
+
+#[test]
+fn resolve_context_ignores_global_and_plain_keys() {
+    let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
+
+    assert_eq!(
+        bindings.resolve_context(
+            &key(KeyCode::Up, KeyModifiers::NONE),
+            PanelContext::BottomBar,
+        ),
+        None
+    );
+    assert_eq!(
+        bindings.resolve_context(
+            &key(KeyCode::Char('q'), KeyModifiers::CONTROL),
+            PanelContext::BottomBar,
+        ),
+        None
+    );
+}
+
+#[test]
 fn resolve_global_ignores_plain_chars_and_contexts() {
     let bindings = KeyBindings::parse_json(KEYBIND_DEFAULTS).unwrap();
 
