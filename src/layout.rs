@@ -22,6 +22,12 @@ pub mod editor {
     pub const BOTTOMBAR_HEIGHT: Constraint = Constraint::Percentage(32);
 }
 
+pub mod sidebar {
+    use ratatui::layout::Constraint;
+
+    pub const TABS_HEIGHT: Constraint = Constraint::Length(3);
+}
+
 pub mod toast {
     use std::time::Duration;
 

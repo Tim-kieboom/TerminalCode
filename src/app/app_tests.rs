@@ -28,3 +28,17 @@ fn debug_window_scrolls_on_arrow_key() {
 
     assert_eq!(app.debug_window.inner().cursor_vertical(), 2);
 }
+
+#[test]
+fn sidebar_tab_switches_on_prev_next_tab() {
+    use super::components::sidebar::SideBarSelect;
+
+    let mut app = App::new(StartupArgs::new(".".into())).unwrap();
+    press(&mut app, KeyCode::Char('b'), event::KeyModifiers::ALT);
+
+    press(&mut app, KeyCode::Char('='), event::KeyModifiers::ALT);
+    assert_eq!(app.sidebar.inner().select, SideBarSelect::Debugger);
+
+    press(&mut app, KeyCode::Char('-'), event::KeyModifiers::ALT);
+    assert_eq!(app.sidebar.inner().select, SideBarSelect::Explorer);
+}

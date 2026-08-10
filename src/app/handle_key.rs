@@ -109,13 +109,12 @@ impl App {
     fn switch_tab(&mut self, amount: isize) {
         match self.context {
             PanelContext::Editor => self.editor.switch_tab(amount),
-            PanelContext::SideBar
-            | PanelContext::Keybinds
-            | PanelContext::BottomBar
-            | PanelContext::DebugWindow => self.log_warning(format!(
-                "{} does not implement tab switching",
-                self.context.description()
-            )),
+            PanelContext::SideBar => self.sidebar.inner_mut().switch_tab(amount),
+            PanelContext::Keybinds | PanelContext::BottomBar | PanelContext::DebugWindow => self
+                .log_warning(format!(
+                    "{} does not implement tab switching",
+                    self.context.description()
+                )),
         }
     }
 

@@ -31,7 +31,9 @@
   },
   
   "Sidebar": {
-    "OpenFile": "Enter"
+    "OpenFile": "Enter",
+    "PrevTab": "Alt+-",
+    "NextTab": "Alt+="
   },
   
   "Keybinds": {
