@@ -66,7 +66,9 @@ action_enum! {
         OpenFile => "OpenFile",
         ShowKeyBinds => "Show KeyBinds",
         ToggleBottom => "Toggle Bottom",
+        SwitchBottom => "Switch Bottom",
         ToggleSidebar => "Toggle Sidebar",
+        SwitchSidebar => "Switch Sidebar",
         ToggleDebugWindow => "Toggle DebugWindow",
         FocusNextPanel => "Focus Next Panel",
 

@@ -66,6 +66,9 @@ impl App {
             | Action::ScrollPageDown => self.move_cursor(action),
             Action::PrevTab => self.switch_tab(-1),
             Action::NextTab => self.switch_tab(1),
+
+            Action::SwitchBottom => self.switch_bottom(),
+            Action::SwitchSidebar => self.switch_sidebar(),
         }
 
         Ok(())
@@ -75,6 +78,8 @@ impl App {
         match self.keybinds().resolve_global(&key) {
             Some(Action::Quit) => self.running = false,
             Some(Action::Close) => self.close_window(),
+            Some(Action::SwitchBottom) => self.switch_bottom(),
+            Some(Action::SwitchSidebar) => self.switch_sidebar(),
             Some(Action::ToggleSidebar) => self.toggle_sidebar(),
             Some(Action::ShowKeyBinds) => self.toggle_keybinds(),
             Some(Action::ToggleBottom) => self.toggle_bottombar(),
@@ -152,6 +157,26 @@ impl App {
     fn close_window(&mut self) {
         if self.context == PanelContext::Keybinds {
             self.keybind_display.hide();
+        }
+    }
+
+    fn switch_bottom(&mut self) {
+        self.editor.bottombar.show();
+
+        self.context = if self.context == PanelContext::BottomBar {
+            PanelContext::Editor
+        } else {
+            PanelContext::BottomBar
+        }
+    }
+
+    fn switch_sidebar(&mut self) {
+        self.sidebar.show();
+
+        self.context = if self.context == PanelContext::SideBar {
+            PanelContext::Editor
+        } else {
+            PanelContext::SideBar
         }
     }
 

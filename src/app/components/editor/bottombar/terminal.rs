@@ -22,22 +22,22 @@ use crate::{StartupArgs, app::components::Component, keybinds::PanelContext, the
 mod tests;
 
 pub struct Terminal {
-    project_path: PathBuf,
-    session: Option<Session>,
-    last_size: Option<(u16, u16)>,
     exited: bool,
     spawn_failed: bool,
     errors: Vec<String>,
+    project_path: PathBuf,
+    session: Option<Session>,
+    last_size: Option<(u16, u16)>,
 }
 
 struct Session {
     current_directory: PathBuf,
     command_buffer: Vec<u8>,
     screen: Arc<Mutex<Parser>>,
+    reader: Option<JoinHandle<()>>,
     master: Box<dyn MasterPty + Send>,
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     child: Box<dyn portable_pty::Child + Send + Sync>,
-    reader: Option<JoinHandle<()>>,
 }
 
 impl Session {
@@ -164,16 +164,8 @@ impl Terminal {
     }
 
     fn title(&self, width: u16, style: ratatui::style::Style) -> Span<'static> {
-        let text = match &self.session {
-            Some(session) => {
-                let directory = session.current_directory.display();
-                format!(" Terminal │ {directory} ")
-            }
-            None => " Terminal ".to_string(),
-        };
-
         let max_len = width.saturating_sub(4) as usize;
-        Span::styled(truncate_start(&text, max_len), style)
+        Span::styled(truncate_start(" Terminal ", max_len), style)
     }
 
     fn ensure_spawned(&mut self, rows: u16, cols: u16) {

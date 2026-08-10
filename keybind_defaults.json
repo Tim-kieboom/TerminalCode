@@ -1,8 +1,10 @@
 {
   "Test": "Ctrl+T",
   "Quit": "Ctrl+Q",
+  "SwitchBottom": "Alt+K",
   "ToggleBottom": "Ctrl+K",
   "ShowKeyBinds": "Ctrl+M",
+  "SwitchSidebar": "Alt+B",
   "ToggleSidebar": "Ctrl+B",
   "FocusNextPanel": "Alt+Backspace",
   "ToggleDebugWindow": "Ctrl+Alt+Shift+D",
@@ -13,10 +15,10 @@
   "ScrollLeft": "Left",
   "ScrollBottom": "End",
   "ScrollRight": "Right",
-  "ScrollWordLeft": "Ctrl+Left",
-  "ScrollWordRight": "Ctrl+Right",
   "ScrollPageUp": "PageUp",
   "ScrollPageDown": "PageDown",
+  "ScrollWordLeft": "Ctrl+Left",
+  "ScrollWordRight": "Ctrl+Right",
 
   "Editor": {
     "PrevTab": "Alt+-",

@@ -6,14 +6,15 @@ mod tests;
 
 pub fn encode_key(key: &KeyEvent) -> Option<Vec<u8>> {
     if key.modifiers.contains(KeyModifiers::ALT) {
-        if let KeyCode::Char(ch) = key.code {
-            if key.modifiers.contains(KeyModifiers::CONTROL) {
-                let code = ctrl_char(ch)?;
-                return Some(vec![0x1b, code]);
-            }
-            return Some(encode_char_with_alt(ch));
+        let KeyCode::Char(ch) = key.code else {
+            return None;
+        };
+
+        if key.modifiers.contains(KeyModifiers::CONTROL) {
+            let code = ctrl_char(ch)?;
+            return Some(vec![0x1b, code]);
         }
-        return None;
+        return Some(encode_char_with_alt(ch));
     }
 
     match key.code {
