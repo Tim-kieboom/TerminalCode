@@ -15,8 +15,9 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] `Position` (line, grapheme) and conversions to byte/char (`unicode-segmentation`)
 - [ ] `Buffer` on `ropey`, `version` (done); line endings (LF/CRLF) detection (todo)
 - [x] `Edit` struct and `Buffer::apply`
-- [ ] Transactions + linear undo/redo (stores inverse edits and selection state)
-- [ ] Selections (list of ranges, one used), `desired_column`
+- [x] Transactions + linear undo/redo (stores inverse edits and selection state)
+- [ ] Typing-burst coalescing for normal-editor undo (editor layer decides when to continue the previous transaction)
+- [x] Selections (list of ranges, one used), `desired_column`
 - [ ] Property tests: apply + invert == identity; grapheme movement over emoji/CJK/combining marks
 - [ ] File open/save (atomic write, encoding: UTF-8 only in 0.1.0, clear error otherwise)
 

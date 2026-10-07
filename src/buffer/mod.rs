@@ -6,11 +6,14 @@ use unicode_segmentation::UnicodeSegmentation;
 pub use error::BufferError;
 
 use edit::{AppliedEdit, Edit, EditInfo};
+use history::History;
 use position::{Point, Position};
 
 mod edit;
 mod error;
+mod history;
 mod position;
+mod selection;
 #[cfg(test)]
 mod tests;
 
@@ -19,10 +22,11 @@ mod tests;
 /// All changes go through [`Buffer::apply`], which bumps `version`; anything
 /// computed from the text (highlighting, plugin snapshots) carries the
 /// version it saw so stale results can be discarded.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub(crate) struct Buffer {
     rope: Rope,
     version: u64,
+    history: History,
 }
 
 impl Buffer {
@@ -30,6 +34,7 @@ impl Buffer {
         Self {
             rope: Rope::from_str(text),
             version: 0,
+            history: History::default(),
         }
     }
 
@@ -51,9 +56,10 @@ impl Buffer {
         self.rope.to_string()
     }
 
-    /// Applies `edit` and returns its inverse. On error the buffer is
-    /// unchanged.
-    pub(crate) fn apply(&mut self, edit: &Edit) -> Result<AppliedEdit, BufferError> {
+    /// Applies `edit` and returns its inverse, bypassing history. Editing
+    /// code goes through [`Buffer::begin_transaction`]. On error the buffer
+    /// is unchanged.
+    fn apply(&mut self, edit: &Edit) -> Result<AppliedEdit, BufferError> {
         let range = edit.range();
         self.check_range(range.start, range.end)?;
 
