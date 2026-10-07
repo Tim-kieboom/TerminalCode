@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::buffer::BufferError;
+use crate::buffer::{BufferError, FileError};
 use crate::ui::layout::LayoutError;
 use crate::ui::theme::ThemeError;
 
@@ -18,6 +18,8 @@ pub enum IdeError {
     Theme(#[from] ThemeError),
     #[error("buffer error: {0}")]
     Buffer(#[from] BufferError),
+    #[error("{0}")]
+    File(#[from] FileError),
 }
 
 impl From<std::convert::Infallible> for IdeError {

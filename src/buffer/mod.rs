@@ -1,17 +1,22 @@
 use std::borrow::Cow;
+use std::path::{Path, PathBuf};
 
 use ropey::Rope;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub use error::BufferError;
+pub use file::FileError;
 
 use edit::{AppliedEdit, Edit, EditInfo};
 use history::History;
+use line_ending::LineEnding;
 use position::{Point, Position};
 
 mod edit;
 mod error;
+mod file;
 mod history;
+mod line_ending;
 mod position;
 mod selection;
 #[cfg(test)]
@@ -26,6 +31,9 @@ mod tests;
 pub(crate) struct Buffer {
     rope: Rope,
     version: u64,
+    saved_version: u64,
+    line_ending: LineEnding,
+    path: Option<PathBuf>,
     history: History,
 }
 
@@ -34,12 +42,29 @@ impl Buffer {
         Self {
             rope: Rope::from_str(text),
             version: 0,
+            saved_version: 0,
+            line_ending: LineEnding::detect(text),
+            path: None,
             history: History::default(),
         }
     }
 
     pub(crate) fn version(&self) -> u64 {
         self.version
+    }
+
+    pub(crate) fn line_ending(&self) -> LineEnding {
+        self.line_ending
+    }
+
+    pub(crate) fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
+    /// Whether the text differs from what was last opened or saved. Undoing
+    /// back to the saved text still counts as modified.
+    pub(crate) fn is_dirty(&self) -> bool {
+        self.version != self.saved_version
     }
 
     pub(crate) fn len_bytes(&self) -> usize {
