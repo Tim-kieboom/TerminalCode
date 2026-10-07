@@ -12,9 +12,9 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Headless test harness: feed `Event`s, assert state
 
 ## M1 — Text core
-- [ ] `Position` (line, grapheme) and conversions to byte/char (`unicode-segmentation`)
-- [ ] `Buffer` on `ropey`, `version`, line endings (LF/CRLF) detection
-- [ ] `Edit` struct and `Buffer::apply`
+- [x] `Position` (line, grapheme) and conversions to byte/char (`unicode-segmentation`)
+- [ ] `Buffer` on `ropey`, `version` (done); line endings (LF/CRLF) detection (todo)
+- [x] `Edit` struct and `Buffer::apply`
 - [ ] Transactions + linear undo/redo (stores inverse edits and selection state)
 - [ ] Selections (list of ranges, one used), `desired_column`
 - [ ] Property tests: apply + invert == identity; grapheme movement over emoji/CJK/combining marks

@@ -4,6 +4,7 @@ use crate::app::Sources;
 use crate::error::{IdeError, IdeResult};
 
 mod app;
+mod buffer;
 mod component;
 pub mod error;
 mod event;

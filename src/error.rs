@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use crate::buffer::BufferError;
 use crate::ui::layout::LayoutError;
 use crate::ui::theme::ThemeError;
 
@@ -15,6 +16,8 @@ pub enum IdeError {
     Layout(#[from] LayoutError),
     #[error("invalid theme: {0}")]
     Theme(#[from] ThemeError),
+    #[error("buffer error: {0}")]
+    Buffer(#[from] BufferError),
 }
 
 impl From<std::convert::Infallible> for IdeError {
