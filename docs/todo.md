@@ -1,0 +1,90 @@
+# TODO — path to 0.1.0
+
+See `design.md` for decisions. Milestones are ordered; each ends in something runnable.
+
+## M0 — Foundation
+- [ ] Decide what to keep from the old code (git history) vs. delete; clean the working tree
+- [ ] New crate skeleton, module layout from design.md, `thiserror` error enums per module
+- [ ] CI: GitHub Actions matrix (Linux + Windows): build, `cargo test`, `clippy`, `fmt --check`
+- [ ] Tokio runtime, `Event` enum, single-owner `AppState`, input channel + bulk channel
+- [ ] Ratatui terminal setup/teardown with panic-safe restore
+- [ ] Dirty-flag render loop capped at ~60 fps
+- [ ] Headless test harness: feed `Event`s, assert state
+
+## M1 — Text core
+- [ ] `Position` (line, grapheme) and conversions to byte/char (`unicode-segmentation`)
+- [ ] `Buffer` on `ropey`, `version`, line endings (LF/CRLF) detection
+- [ ] `Edit` struct and `Buffer::apply`
+- [ ] Transactions + linear undo/redo (stores inverse edits and selection state)
+- [ ] Selections (list of ranges, one used), `desired_column`
+- [ ] Property tests: apply + invert == identity; grapheme movement over emoji/CJK/combining marks
+- [ ] File open/save (atomic write, encoding: UTF-8 only in 0.1.0, clear error otherwise)
+
+## M2 — Action + keymap
+- [ ] `Action` enum + registry with serializable args
+- [ ] `KeyChord`, crossterm normalization
+- [ ] Kitty keyboard protocol probe + fallback keymap
+- [ ] Layered keymap tables loaded from data; user override file
+- [ ] Design and write the default keymap + fallbacks; choose IDE prefix chord
+- [ ] Key-sequence resolver with timeout (needed for vim and prefix chords)
+
+## M3 — Editor UI
+- [ ] Editor view: gutter, scrolling, display-width/tab handling in the view layer only
+- [ ] Normal-IDE editing: typing, delete, word/line motion, shift-select, copy/cut/paste, undo/redo
+- [ ] Tabs, splits, status bar
+- [ ] Clipboard (system + OSC 52 fallback)
+- [ ] Notifications overlay
+- [ ] Command palette over the Action registry
+
+## M4 — Explorer + search
+- [ ] Project tree, lazy load, gitignore-aware
+- [ ] File watcher events -> tree refresh and external-change prompts for open buffers
+- [ ] Create / rename / delete / move
+- [ ] Fuzzy file finder
+- [ ] Project-wide text search with results list
+
+## M5 — Syntax highlighting
+- [ ] tree-sitter integration, grammar bundle (starter languages)
+- [ ] Parse worker with `version` stale-result discard
+- [ ] Incremental reparse from `Edit`
+- [ ] Highlight theme as data; default dark + light themes
+
+## M6 — Integrated terminal
+- [ ] `portable-pty` spawn (Unix + ConPTY), shell selection
+- [ ] `alacritty_terminal` grid, render into Ratatui
+- [ ] Batched PTY output events, bounded channel, backpressure test (`cat` huge file keeps input responsive)
+- [ ] Resize, scrollback, alt screen, bracketed paste, mouse reporting passthrough
+- [ ] Multiple terminal tabs
+- [ ] Focus handling: all keys to shell except IDE prefix chord
+
+## M7 — Vim layer
+- [ ] Mode state machine: normal / insert / visual / visual-line
+- [ ] Motions, operators, text objects, counts
+- [ ] Registers, `.` repeat, `/` search + `n`/`N`
+- [ ] Minimal ex commands: `:w :q :wq :e`
+- [ ] Config toggle for vim on/off; mode indicator in the status bar
+- [ ] Vim parser tests (table-driven: keys in, edits out)
+
+## M8 — Config + polish
+- [ ] `config.toml` (theme, shell, vim on/off, tab width, etc.)
+- [ ] Mouse: click to place cursor, scroll, pane focus
+- [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests
+- [ ] Performance pass: large file open (10 MB), long lines, fast scroll
+- [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
+
+## M9 — Release 0.1.0
+- [ ] README (install, keybinds, config), license
+- [ ] Release CI: binaries for Linux and Windows (macOS best-effort), checksums
+- [ ] Known-limits section (long single-line files, UTF-8 only, no undo tree, no LSP/debugger)
+- [ ] Tag `v0.1.0`
+
+## Post-0.1.0 backlog
+- [ ] LSP client (possibly as a Lua plugin)
+- [ ] Lua plugin runtime on top of the Action registry
+- [ ] Debugger via DAP (e.g. Rust through `lldb-dap`), possibly as a Lua plugin
+- [ ] Multi-cursor, undo tree, visual-block, vim macros, git integration
+
+## Open questions (resolve before the milestone that needs them)
+- [ ] Clipboard strategy details (M3)
+- [ ] Project search implementation: crate vs `rg` (M4)
+- [ ] Mouse scope (M8)

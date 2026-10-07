@@ -1,30 +1,28 @@
-mod app;
-pub mod keybinds;
-pub mod launch;
-mod layout;
-pub mod terminal;
-pub mod theme;
-pub mod utils;
-pub use app::App;
-use std::path::PathBuf;
+use crossterm::event::Event;
+use ratatui::{Terminal, backend::Backend};
 
-#[derive(Debug, Clone)]
-pub struct StartupArgs {
-    pub(crate) project_path: PathBuf,
-    pub(crate) _flags: (),
-}
+use crate::error::{IdeError, IdeResult};
+use crate::state::AppState;
 
-impl StartupArgs {
-    pub fn new(project_path: PathBuf) -> Self {
-        Self {
-            project_path,
-            _flags: (),
+mod component;
+pub mod error;
+mod state;
+mod ui;
+
+pub fn run<B>(mut terminal: Terminal<B>) -> IdeResult
+where
+    B: Backend,
+    B::Error: Into<IdeError>,
+{
+    let state = AppState::default();
+    loop {
+        terminal
+            .draw(|frame| ui::render(frame, &state))
+            .map_err(|e| e.into())?;
+
+        let input = crossterm::event::read()?;
+        if matches!(input, Event::Key(_)) {
+            break Ok(());
         }
     }
-
-    pub fn project_path(&self) -> &std::path::Path {
-        &self.project_path
-    }
-
-    pub fn add_flag(&mut self, _flag: ()) {}
 }

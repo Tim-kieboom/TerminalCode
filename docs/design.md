@@ -1,0 +1,169 @@
+# TerminalCode — Design
+
+A keyboard-driven TUI code editor in Rust (Ratatui), aiming for a Zed-like IDE feel in the terminal:
+explorer, integrated terminal, tree-sitter highlighting, and an optional vim layer on top of a
+normal-IDE editing core.
+
+This is a restart (branch `redo`). Reasons: vim was not in the original core design, and error handling
+used `anyhow` everywhere instead of typed errors.
+
+## Goals / Non-goals
+
+**0.1.0 goals**
+- Normal IDE-style editing as the primary mode; vim motions as an optional layer.
+- File explorer, tabs/splits, integrated terminal, tree-sitter syntax highlighting.
+- Fully rebindable keymap (data, not code).
+- Linux and Windows tier 1; macOS best-effort.
+
+**Explicitly after 0.1.0**
+- Debugger (DAP), LSP, Lua plugin system (LSP and debugger may be delivered as Lua plugins).
+- Collaboration, remote dev, AI features.
+
+**Constraint for 0.1.0 that keeps the above possible:** every user-visible operation goes through the
+`Action` registry with serializable arguments. Lua will call the same registry later.
+
+## Principles
+
+1. **Single owner of state.** One task owns `AppState` and processes a single `Event` channel. All other
+   tasks (input, PTY, file watcher, parse workers, timers) only send events.
+2. **Edits are data.** All text changes are an `Edit` applied via `Buffer::apply`.
+3. **Keymap is data.** Keys resolve to `Action`s through layered tables; no key matching in logic code.
+4. **Core is UI-agnostic.** Display width, tabs, and rendering live only in the view layer.
+5. **Typed errors.** Each module defines its own error enum with `thiserror`; errors wrap their
+   parents/sources. `anyhow` is allowed only in `main.rs`.
+
+## Components, layout, theme, plugins
+
+- `ComponentKind` is a closed enum plus one open variant, `Plugin(PluginViewId)`. Component state lives in
+  `AppState`; views are pure functions of state, theme and area.
+- Layout is a tree of data in RON (`defaults/default_layout.ron`, embedded at compile time). `LayoutTree::from_ron`
+  parses and validates, so a user settings file can reuse it after 0.1.0.
+- Theme is named style slots in TOML (`defaults/default_theme.toml`, embedded the same way). Components ask for a slot,
+  never a color; unknown slots fall back to the default style.
+- Plugins push declarative `ViewNode` trees into their pane and never touch `Frame` or `Rect`.
+- **Plugin state access: snapshots (decided).** The loop publishes immutable snapshots (ropey clones are O(1));
+  plugins read them without round trips. Writes carry the buffer `version` they were based on so stale writes
+  can be detected. What the host does on a stale write (reject or rebase) is decided when the plugin API is
+  designed, post-0.1.0.
+
+## Architecture
+
+```
+ input task ─┐
+ pty tasks  ─┤
+ fs watcher ─┼──► mpsc<Event> ──► App loop (owns AppState) ──► render (ratatui, dirty-flag, ≤60fps)
+ parse jobs ─┤                         │
+ timers     ─┘                         └─► spawns workers (parse, fs, pty) that reply with Events
+```
+
+### Event loop
+- Tokio runtime. One `mpsc` channel for bulk events; input has its own high-priority channel, polled
+  first with a biased `select!`, so Ctrl+C is never queued behind terminal output.
+- Render only when state is dirty, capped near 60 fps. Never one render per event.
+- PTY readers batch reads into one event and use a bounded channel for backpressure.
+- Timers: vim `timeoutlen` for pending key sequences, notification expiry, cursor blink.
+
+### Text core
+- **Buffer:** `ropey::Rope` plus language, path, line-ending style, dirty flag, and a `version: u64`
+  that increments on every edit.
+- **Edit:** `{ start_byte, old_end_byte, new_end_byte, start_point, old_end_point, new_end_point, text }`.
+  Single entry point `Buffer::apply(Edit)`. Tree-sitter incremental parsing and (later) LSP sync consume
+  the same struct.
+- **Undo:** history stores inverse edits grouped into **transactions**. A transaction is one logical
+  change (typing burst, a vim operator, a paste). Cursor/selection state is saved with each
+  transaction. Vim `u`/`.` and normal-editor Ctrl+Z share it. Undo tree/branching is out of scope for
+  0.1.0 (linear history).
+- **Position:** `(line, grapheme_index)` using `unicode-segmentation`. The buffer layer converts to and
+  from byte/char offsets. Only the view layer knows display width (`unicode-width`) and tab expansion.
+- **Cursor/Selection:** selections are the primary model (a cursor is an empty selection). Core cursor
+  stores `desired_column` for Up/Down. Multi-cursor is not in 0.1.0 but the type is a list of
+  selections from day one to avoid a later rewrite.
+- **Known limit:** grapheme-index to byte conversion is O(line length); extremely long single-line files
+  will be slow.
+
+### Highlighting
+- `tree-sitter` + `tree-sitter-highlight`, with grammars bundled for a starter set (Rust, TOML, JSON,
+  Markdown, Python, JS/TS, C/C++, Bash).
+- Parse jobs run off the loop and carry the buffer `version`. Stale results (version mismatch) are
+  discarded and a new parse is queued. Old highlights remain until fresh ones arrive.
+
+### Input and keymap
+- Terminal key events are normalized into a `KeyChord`. At startup the app **probes the kitty keyboard
+  protocol**; if present, it is enabled for full modifier support. Otherwise a **fallback keymap** is
+  used. Every default bind needs a fallback.
+- **Keymap layers** (highest priority first): terminal-focus prefix layer, vim mode layer (when
+  enabled), pane/context layer, global layer.
+- **Vim layer:** a modal parser on top of the normal editor. It turns key sequences (`d2w`, `ci"`, `.`,
+  registers, macros) into the same `Action`s the normal editor uses. Vim's "cursor sits on a character"
+  semantics live in this layer, not the core. Scope for 0.1.0: normal/insert/visual (char and line),
+  operators + motions + text objects, counts, `.` repeat, registers, `/` search. Visual-block, macros
+  and ex commands beyond `:w :q :wq :e` are post-0.1.0 unless time allows.
+- **Terminal focus:** when the integrated terminal is focused, all keys go to the shell except the IDE
+  prefix chord (default to be chosen in M1), which makes the next key an IDE shortcut.
+- All keybinds are redesigned from scratch (the old `keybind_defaults.json` is discarded). User keymap
+  file overrides defaults.
+
+### UI layout
+- Ratatui. Regions: sidebar (explorer), editor area (tabs, splits), bottom panel (terminal), status
+  bar, notifications overlay, command palette / fuzzy finder overlay.
+- Components are views over `AppState`; they emit `Action`s, they do not mutate state directly.
+
+### Integrated terminal
+- PTY via `portable-pty` (Unix PTY and Windows ConPTY). Emulation via `alacritty_terminal`.
+- Multiple terminal tabs, scrollback, resize, alternate screen, bracketed paste.
+- Default shell: `$SHELL` on Unix, PowerShell on Windows; configurable.
+
+### Explorer
+- Tree view over the project root, lazy-loaded, file watcher driven refresh, create/rename/delete/move,
+  gitignore-aware.
+
+### Search
+- Fuzzy file finder (project files) and project-wide text search (ripgrep-style via `ignore` +
+  `grep-searcher` or similar). Both are in 0.1.0.
+
+### Config
+- TOML config (`config.toml`) and keymap file; layered: defaults → user → project (project layer
+  optional in 0.1.0).
+
+### Errors
+- Per-module `thiserror` enums wrapping sources. User-facing errors become notifications. No panics for
+  recoverable failures. `anyhow` only at `main`.
+
+## Platform support
+| Platform | Status | Notes |
+|---|---|---|
+| Linux | Tier 1 | tested in CI and daily |
+| Windows | Tier 1 | ConPTY, CRLF handling, Windows Terminal kitty support varies |
+| macOS | Best-effort | CI builds, no promises on behavior |
+
+CI (GitHub Actions) builds and runs `cargo test` and `clippy` on Linux and Windows; release binaries
+per OS.
+
+## Testing strategy
+- Core (buffer, edits, undo, positions, vim parser, keymap resolution) is pure and unit-tested in
+  sibling `tests.rs` files.
+- The App loop takes `Event`s and exposes state, so it can be tested headless by feeding events.
+- Render tests via Ratatui `TestBackend` for key components.
+- Property tests for `Buffer::apply` + undo (apply then invert returns the original text).
+
+## Module layout (proposed)
+```
+src/
+  main.rs
+  app/        # AppState, Event, loop, dispatch
+  buffer/     # rope, Edit, transactions, positions, selections
+  action/     # Action enum + registry
+  keymap/     # KeyChord, layers, kitty detection, fallbacks, vim parser
+  syntax/     # tree-sitter, parse jobs, highlight spans
+  ui/         # layout, editor view, explorer, tabs, status, overlays
+  terminal/   # pty + alacritty_terminal integration
+  fs/         # watcher, project tree, search
+  config/
+```
+
+## Open questions
+- Default IDE prefix chord and the default keymap (decided in M1).
+- Whether a project-wide search crate or shelling out to `rg` is used.
+- Clipboard integration: system clipboard (`arboard`) vs OSC 52 (needed over SSH).
+- Mouse support scope (click to place cursor, scroll, pane resize) for 0.1.0.
+- Who tests Windows regularly beyond CI.

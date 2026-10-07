@@ -1,62 +1,26 @@
-extern crate terminal_code;
+use terminal_code::error::IdeResult;
 
-use std::{
-    env::{self, args_os},
-    eprintln, panic,
-    path::PathBuf,
-    process::ExitCode,
-};
-
-use anyhow::{Result, bail};
-use terminal_code::{App, StartupArgs, terminal, theme::Theme};
-
-fn main() -> ExitCode {
-    install_panic_hook();
-
-    match run() {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(err) => {
-            terminal::force_restore();
-            eprintln!("Terminal Code Fatal Error!!: {err}");
-            ExitCode::FAILURE
-        }
+fn main() {
+    if let Err(err) = start() {
+        eprint!("error: {err}")
     }
 }
 
-fn run() -> Result<()> {
-    let args = parse_args()?;
+fn start() -> IdeResult {
+    set_restore_on_panic();
 
-    Theme::init(args.project_path());
-
-    let mut terminal = terminal::init()?;
-    let mut app = App::new(args)?;
-
-    let result = app.run(&mut terminal);
-    terminal::restore(&mut terminal)?;
+    let terminal = ratatui::init();
+    let result = terminal_code::run(terminal);
+    ratatui::restore();
     result
 }
 
-fn install_panic_hook() {
-    let default_hook = panic::take_hook();
+fn set_restore_on_panic() {
+    use std::panic::{set_hook, take_hook};
+    let original_hook = take_hook();
 
-    panic::set_hook(Box::new(move |panic_info| {
-        terminal::force_restore();
-        default_hook(panic_info);
+    set_hook(Box::new(move |info| {
+        ratatui::restore();
+        original_hook(info);
     }));
-}
-
-fn parse_args() -> Result<StartupArgs> {
-    let mut args = args_os();
-    _ = args.next();
-
-    let path = args
-        .next()
-        .map(PathBuf::from)
-        .unwrap_or(env::current_dir()?);
-
-    if args.next().is_some() {
-        bail!("flag not yet impl")
-    }
-
-    Ok(StartupArgs::new(path))
 }

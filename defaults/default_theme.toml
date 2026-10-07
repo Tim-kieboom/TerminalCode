@@ -1,0 +1,12 @@
+# Default theme. Each table is a style slot.
+# Colors: names such as "red" or "dark_gray", or hex such as "#1e1e2e".
+# Modifiers: bold, dim, italic, underlined, reversed, crossed_out.
+
+["pane.border"]
+fg = "dark_gray"
+
+["pane.title"]
+modifiers = ["bold"]
+
+["list.selected"]
+modifiers = ["reversed"]
