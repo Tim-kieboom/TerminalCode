@@ -5,7 +5,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 ## M0 — Foundation
 - [x] Decide what to keep from the old code (git history) vs. delete; clean the working tree
 - [x] New crate skeleton, module layout from design.md, `thiserror` error enums per module
-- [ ] CI: GitHub Actions matrix (Linux + Windows): build, `cargo test`, `clippy`, `fmt --check`
+- [x] CI: GitHub Actions matrix (Linux + Windows): build, `cargo test`, `clippy`, `fmt --check`
 - [x] Tokio runtime, `Event` enum, single-owner `AppState`, input channel + bulk channel
 - [x] Ratatui terminal setup/teardown with panic-safe restore
 - [x] Dirty-flag render loop capped at ~60 fps
