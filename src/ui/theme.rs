@@ -91,12 +91,15 @@ fn build_style(slot: &str, spec: &StyleSpec) -> Result<Style, ThemeError> {
     if let Some(fg) = &spec.fg {
         style = style.fg(parse_color(slot, fg)?);
     }
+
     if let Some(bg) = &spec.bg {
         style = style.bg(parse_color(slot, bg)?);
     }
+
     for modifier in &spec.modifiers {
         style = style.add_modifier(Modifier::from(*modifier));
     }
+
     Ok(style)
 }
 

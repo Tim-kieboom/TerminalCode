@@ -16,3 +16,9 @@ pub enum IdeError {
     #[error("invalid theme: {0}")]
     Theme(#[from] ThemeError),
 }
+
+impl From<std::convert::Infallible> for IdeError {
+    fn from(never: std::convert::Infallible) -> Self {
+        match never {}
+    }
+}

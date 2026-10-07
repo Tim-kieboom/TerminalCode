@@ -1,11 +1,12 @@
-use crossterm::event::Event;
 use ratatui::{Terminal, backend::Backend};
 
+use crate::app::Sources;
 use crate::error::{IdeError, IdeResult};
-use crate::state::AppState;
 
+mod app;
 mod component;
 pub mod error;
+mod event;
 mod state;
 mod ui;
 
@@ -14,15 +15,12 @@ where
     B: Backend,
     B::Error: Into<IdeError>,
 {
-    let state = AppState::default();
-    loop {
-        terminal
-            .draw(|frame| ui::render(frame, &state))
-            .map_err(|e| e.into())?;
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
 
-        let input = crossterm::event::read()?;
-        if matches!(input, Event::Key(_)) {
-            break Ok(());
-        }
-    }
+    runtime.block_on(async {
+        let (sources, _events) = Sources::spawn();
+        app::run(&mut terminal, sources).await
+    })
 }

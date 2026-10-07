@@ -34,7 +34,7 @@ fn render_component(frame: &mut Frame, state: &AppState, placement: &Placement) 
         return;
     };
 
-    let Some(view) = state.plugin_view(&id) else {
+    let Some(view) = state.plugin_view(id) else {
         return;
     };
 
@@ -49,11 +49,13 @@ fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect)
                 .iter()
                 .map(|line| Line::styled(line.text.as_ref(), theme.style(&line.slot)))
                 .collect();
+
             frame.render_widget(Paragraph::new(lines), area);
         }
         ViewNode::List { items, selected } => {
             let list = List::new(items.iter().map(|item| item.as_ref()))
                 .highlight_style(theme.style("list.selected"));
+
             let mut list_state = ListState::default().with_selected(*selected);
             frame.render_stateful_widget(list, area, &mut list_state);
         }

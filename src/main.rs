@@ -16,10 +16,9 @@ fn start() -> IdeResult {
 }
 
 fn set_restore_on_panic() {
-    use std::panic::{set_hook, take_hook};
-    let original_hook = take_hook();
+    let original_hook = std::panic::take_hook();
 
-    set_hook(Box::new(move |info| {
+    std::panic::set_hook(Box::new(move |info| {
         ratatui::restore();
         original_hook(info);
     }));

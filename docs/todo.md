@@ -3,13 +3,13 @@
 See `design.md` for decisions. Milestones are ordered; each ends in something runnable.
 
 ## M0 — Foundation
-- [ ] Decide what to keep from the old code (git history) vs. delete; clean the working tree
-- [ ] New crate skeleton, module layout from design.md, `thiserror` error enums per module
+- [x] Decide what to keep from the old code (git history) vs. delete; clean the working tree
+- [x] New crate skeleton, module layout from design.md, `thiserror` error enums per module
 - [ ] CI: GitHub Actions matrix (Linux + Windows): build, `cargo test`, `clippy`, `fmt --check`
-- [ ] Tokio runtime, `Event` enum, single-owner `AppState`, input channel + bulk channel
-- [ ] Ratatui terminal setup/teardown with panic-safe restore
-- [ ] Dirty-flag render loop capped at ~60 fps
-- [ ] Headless test harness: feed `Event`s, assert state
+- [x] Tokio runtime, `Event` enum, single-owner `AppState`, input channel + bulk channel
+- [x] Ratatui terminal setup/teardown with panic-safe restore
+- [x] Dirty-flag render loop capped at ~60 fps
+- [x] Headless test harness: feed `Event`s, assert state
 
 ## M1 — Text core
 - [ ] `Position` (line, grapheme) and conversions to byte/char (`unicode-segmentation`)
