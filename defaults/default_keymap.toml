@@ -2,9 +2,10 @@
 # Keys: modifiers (ctrl, alt, shift, super) joined with "+", then a key:
 #   a single character, or a name such as enter, esc, tab, space, up, f5.
 # Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
+#   "delete_word_backward", "delete_word_forward", "select_all",
 #   "delete_forward", { insert_text = "..." }, { move = motion },
 #   { select = motion }, { plugin = "name" }.
-# Motions: left, right, up, down, line_start, line_end, document_start,
+# Motions: left, right, up, down, word_left, word_right, line_start, line_end, document_start,
 #   document_end.
 # Plain printable keys with no binding are typed into the editor.
 
@@ -112,3 +113,56 @@ action = { select = "document_start" }
 [[binding]]
 keys = "ctrl+shift+end"
 action = { select = "document_end" }
+
+# Words (alt+arrows and alt+backspace work where terminals cannot report ctrl+arrows)
+[[binding]]
+keys = "ctrl+left"
+action = { move = "word_left" }
+
+[[binding]]
+keys = "ctrl+right"
+action = { move = "word_right" }
+
+[[binding]]
+keys = "alt+left"
+action = { move = "word_left" }
+
+[[binding]]
+keys = "alt+right"
+action = { move = "word_right" }
+
+[[binding]]
+keys = "ctrl+shift+left"
+action = { select = "word_left" }
+
+[[binding]]
+keys = "ctrl+shift+right"
+action = { select = "word_right" }
+
+[[binding]]
+keys = "alt+shift+left"
+action = { select = "word_left" }
+
+[[binding]]
+keys = "alt+shift+right"
+action = { select = "word_right" }
+
+[[binding]]
+keys = "ctrl+backspace"
+action = "delete_word_backward"
+
+[[binding]]
+keys = "alt+backspace"
+action = "delete_word_backward"
+
+[[binding]]
+keys = "ctrl+delete"
+action = "delete_word_forward"
+
+[[binding]]
+keys = "alt+delete"
+action = "delete_word_forward"
+
+[[binding]]
+keys = "ctrl+a"
+action = "select_all"

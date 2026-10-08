@@ -270,3 +270,25 @@ fn the_next_handled_key_clears_the_status() {
 
     assert_eq!(app.state().status(), None);
 }
+
+#[test]
+fn ctrl_a_then_typing_replaces_everything() {
+    let mut app = App::default();
+    type_str(&mut app, "old text");
+
+    press(&mut app, KeyCode::Char('a'), KeyModifiers::CONTROL);
+    type_str(&mut app, "new");
+
+    assert_eq!(buffer_text(&app), "new");
+}
+
+#[test]
+fn ctrl_arrows_move_by_word_and_ctrl_backspace_deletes_a_word() {
+    let mut app = App::default();
+    type_str(&mut app, "one two");
+
+    press(&mut app, KeyCode::Left, KeyModifiers::CONTROL);
+    press(&mut app, KeyCode::Backspace, KeyModifiers::CONTROL);
+
+    assert_eq!(buffer_text(&app), "two");
+}

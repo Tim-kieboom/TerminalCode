@@ -108,6 +108,16 @@ impl Editor {
         Ok(())
     }
 
+    /// Selects the whole document.
+    pub(crate) fn select_all(&mut self) -> Result<(), BufferError> {
+        self.last_edit = None;
+        let last_line = self.buffer.len_lines() - 1;
+        let end = Position::new(last_line, self.buffer.line_len(last_line)?);
+
+        self.selections = Selections::single(Selection::new(Position::default(), end));
+        Ok(())
+    }
+
     /// Replaces the selection (or inserts at the cursor) with `text`.
     pub(crate) fn insert_text(&mut self, text: &str) -> Result<(), BufferError> {
         let range = self.selection_bytes()?;
@@ -161,6 +171,36 @@ impl Editor {
         } else {
             return Ok(());
         };
+        self.replace_between(head, end, EditKind::Delete)
+    }
+
+    /// Deletes the selection, or back to the start of the previous word.
+    pub(crate) fn delete_word_backward(&mut self) -> Result<(), BufferError> {
+        let selection = *self.selections.primary();
+        if !selection.is_empty() {
+            return self.replace(self.selection_bytes()?, "", None);
+        }
+
+        let head = selection.head();
+        let start = self.target(&selection, Motion::WordLeft)?.position;
+        if start == head {
+            return Ok(());
+        }
+        self.replace_between(start, head, EditKind::Backspace)
+    }
+
+    /// Deletes the selection, or forward to the end of the next word.
+    pub(crate) fn delete_word_forward(&mut self) -> Result<(), BufferError> {
+        let selection = *self.selections.primary();
+        if !selection.is_empty() {
+            return self.replace(self.selection_bytes()?, "", None);
+        }
+
+        let head = selection.head();
+        let end = self.target(&selection, Motion::WordRight)?.position;
+        if end == head {
+            return Ok(());
+        }
         self.replace_between(head, end, EditKind::Delete)
     }
 

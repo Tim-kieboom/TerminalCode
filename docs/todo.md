@@ -33,7 +33,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 ## M3 — Editor UI
 - [x] Editor view: gutter, scrolling, selection highlight, cursor, display-width/tab handling in the view layer only
 - [x] Normal-IDE editing: typing, delete, line/document motion, shift-select, undo/redo, save
-- [ ] Normal-IDE editing: word motion (ctrl+arrows), select all, copy/cut/paste (needs clipboard), auto-indent, page up/down
+- [x] Word motion (ctrl/alt+arrows), delete word, select all
+- [ ] Normal-IDE editing: copy/cut/paste (needs clipboard), auto-indent, page up/down
 - [ ] Mouse: click to place cursor, drag to select, scroll wheel
 - [x] Status bar (file, modified marker, line/column, messages)
 - [ ] Tabs and splits (multiple open documents)

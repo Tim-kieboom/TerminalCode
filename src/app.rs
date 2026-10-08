@@ -183,6 +183,9 @@ impl App {
             Action::InsertNewline => self.state.editor_mut().insert_newline()?,
             Action::DeleteBackward => self.state.editor_mut().delete_backward()?,
             Action::DeleteForward => self.state.editor_mut().delete_forward()?,
+            Action::DeleteWordBackward => self.state.editor_mut().delete_word_backward()?,
+            Action::DeleteWordForward => self.state.editor_mut().delete_word_forward()?,
+            Action::SelectAll => self.state.editor_mut().select_all()?,
             Action::Move(motion) => self.state.editor_mut().move_cursor(motion)?,
             Action::Select(motion) => self.state.editor_mut().select(motion)?,
             // Plugin actions need the plugin runtime, which is post-0.1.0.

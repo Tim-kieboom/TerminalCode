@@ -163,3 +163,111 @@ fn moving_in_an_empty_buffer_stays_at_the_origin() {
         assert_eq!(head(&editor), Position::new(0, 0));
     }
 }
+
+fn word_stops_right(text: &str) -> Vec<usize> {
+    let mut editor = editor(text);
+    let mut stops = Vec::new();
+    loop {
+        let before = head(&editor);
+        editor.move_cursor(Motion::WordRight).unwrap();
+        if head(&editor) == before {
+            return stops;
+        }
+        stops.push(head(&editor).column);
+    }
+}
+
+#[test]
+fn word_right_stops_at_the_end_of_each_word_and_punctuation_run() {
+    //            0123456789012345
+    let stops = word_stops_right("foo bar_baz, (qux)");
+
+    assert_eq!(stops, [3, 11, 12, 14, 17, 18]);
+}
+
+#[test]
+fn word_left_stops_at_the_start_of_each_word() {
+    let mut editor = editor("foo  bar_baz");
+    editor.move_cursor(Motion::LineEnd).unwrap();
+
+    editor.move_cursor(Motion::WordLeft).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 5));
+
+    editor.move_cursor(Motion::WordLeft).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 0));
+}
+
+#[test]
+fn word_motions_cross_line_boundaries_one_step_at_a_time() {
+    let mut editor = editor("ab\ncd");
+    goto(&mut editor, 0, 2);
+
+    editor.move_cursor(Motion::WordRight).unwrap();
+    assert_eq!(head(&editor), Position::new(1, 0));
+
+    editor.move_cursor(Motion::WordLeft).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 2));
+}
+
+#[test]
+fn trailing_spaces_stop_at_the_line_end_not_the_next_line() {
+    let mut editor = editor("ab   \ncd");
+    goto(&mut editor, 0, 2);
+
+    editor.move_cursor(Motion::WordRight).unwrap();
+
+    assert_eq!(head(&editor), Position::new(0, 5));
+}
+
+#[test]
+fn unicode_letters_and_graphemes_count_as_word_characters() {
+    let mut editor = editor(&format!("caf\u{e9} \u{3053}\u{3093} {FLAG}x"));
+
+    editor.move_cursor(Motion::WordRight).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 4));
+
+    editor.move_cursor(Motion::WordRight).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 7));
+}
+
+#[test]
+fn word_motions_in_an_empty_buffer_stay_put() {
+    let mut editor = Editor::default();
+
+    editor.move_cursor(Motion::WordRight).unwrap();
+    editor.move_cursor(Motion::WordLeft).unwrap();
+
+    assert_eq!(head(&editor), Position::new(0, 0));
+}
+
+#[test]
+fn select_word_extends_the_selection() {
+    let mut editor = editor("hello world");
+
+    editor.select(Motion::WordRight).unwrap();
+    editor.select(Motion::WordRight).unwrap();
+
+    let selection = *editor.selections().primary();
+    assert_eq!(selection.start(), Position::new(0, 0));
+    assert_eq!(selection.end(), Position::new(0, 11));
+}
+
+#[test]
+fn select_all_covers_the_whole_document() {
+    let mut editor = editor("ab\ncd\nef");
+
+    editor.select_all().unwrap();
+
+    let selection = *editor.selections().primary();
+    assert_eq!(selection.start(), Position::new(0, 0));
+    assert_eq!(selection.end(), Position::new(2, 2));
+}
+
+#[test]
+fn select_all_in_an_empty_buffer_is_an_empty_selection() {
+    let mut editor = Editor::default();
+
+    editor.select_all().unwrap();
+
+    assert!(editor.selections().primary().is_empty());
+}

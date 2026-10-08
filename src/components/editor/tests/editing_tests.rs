@@ -273,3 +273,60 @@ fn undo_then_typing_does_not_merge_with_older_steps() {
     editor.redo().unwrap();
     assert_eq!(text(&editor), "cd");
 }
+
+#[test]
+fn delete_word_backward_removes_back_to_the_word_start() {
+    let mut editor = editor("hello big world");
+    editor.move_cursor(Motion::LineEnd).unwrap();
+
+    editor.delete_word_backward().unwrap();
+
+    assert_eq!(text(&editor), "hello big ");
+    assert_eq!(head(&editor), Position::new(0, 10));
+}
+
+#[test]
+fn delete_word_forward_removes_to_the_word_end() {
+    let mut editor = editor("hello big world");
+    editor.move_cursor(Motion::Right).unwrap();
+
+    editor.delete_word_forward().unwrap();
+
+    assert_eq!(text(&editor), "h big world");
+    assert_eq!(head(&editor), Position::new(0, 1));
+}
+
+#[test]
+fn delete_word_with_a_selection_deletes_the_selection() {
+    let mut editor = editor("hello world");
+    editor.select(Motion::Right).unwrap();
+    editor.select(Motion::Right).unwrap();
+
+    editor.delete_word_backward().unwrap();
+
+    assert_eq!(text(&editor), "llo world");
+}
+
+#[test]
+fn delete_word_at_the_document_edges_does_nothing() {
+    let mut editor = editor("ab");
+    editor.delete_word_backward().unwrap();
+    editor.move_cursor(Motion::DocumentEnd).unwrap();
+    editor.delete_word_forward().unwrap();
+
+    assert_eq!(text(&editor), "ab");
+    assert_eq!(editor.buffer().version(), 0);
+}
+
+#[test]
+fn repeated_word_deletes_undo_in_one_step() {
+    let mut editor = editor("one two three");
+    editor.move_cursor(Motion::LineEnd).unwrap();
+
+    editor.delete_word_backward().unwrap();
+    editor.delete_word_backward().unwrap();
+    assert_eq!(text(&editor), "one ");
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "one two three");
+}
