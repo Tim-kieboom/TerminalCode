@@ -1,20 +1,5 @@
 use serde::Deserialize;
 
-/// Identifies a view registered by a plugin. Layout files reference it by name.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
-#[serde(transparent)]
-pub(crate) struct PluginViewId(Box<str>);
-
-impl PluginViewId {
-    pub(crate) fn new(id: impl Into<Box<str>>) -> Self {
-        Self(id.into())
-    }
-
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 /// Every kind of pane that can appear in a layout.
 ///
 /// The enum is closed except for [`ComponentKind::Plugin`], the single hole
@@ -38,5 +23,20 @@ impl ComponentKind {
             Self::StatusBar => "Status",
             Self::Plugin(id) => id.as_str(),
         }
+    }
+}
+
+/// Identifies a view registered by a plugin. Layout files reference it by name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(transparent)]
+pub(crate) struct PluginViewId(Box<str>);
+
+impl PluginViewId {
+    pub(crate) fn new(id: impl Into<Box<str>>) -> Self {
+        Self(id.into())
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
     }
 }

@@ -1,0 +1,111 @@
+use serde::Deserialize;
+
+use crate::buffer::{Buffer, BufferError, Position};
+
+/// A cursor movement, shared by plain movement and selection extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Motion {
+    Left,
+    Right,
+    Up,
+    Down,
+    LineStart,
+    LineEnd,
+    DocumentStart,
+    DocumentEnd,
+}
+
+/// Where a motion lands. `desired_column` is only set by vertical motions.
+pub(super) struct Target {
+    pub(super) position: Position,
+    pub(super) desired_column: Option<usize>,
+}
+
+impl Target {
+    fn at(line: usize, column: usize) -> Self {
+        Self {
+            position: Position::new(line, column),
+            desired_column: None,
+        }
+    }
+}
+
+pub(super) fn target(
+    buffer: &Buffer,
+    from: Position,
+    desired_column: Option<usize>,
+    motion: Motion,
+) -> Result<Target, BufferError> {
+    let last_line = buffer.len_lines() - 1;
+    match motion {
+        Motion::Left => left(buffer, from),
+        Motion::Right => right(buffer, from, last_line),
+        Motion::Up => up(buffer, from, desired_column),
+        Motion::Down => down(buffer, from, desired_column, last_line),
+        Motion::LineStart => Ok(Target::at(from.line, 0)),
+        Motion::LineEnd => Ok(Target::at(from.line, buffer.line_len(from.line)?)),
+        Motion::DocumentStart => Ok(Target::at(0, 0)),
+        Motion::DocumentEnd => Ok(Target::at(last_line, buffer.line_len(last_line)?)),
+    }
+}
+
+fn left(buffer: &Buffer, from: Position) -> Result<Target, BufferError> {
+    if from.column > 0 {
+        return Ok(Target::at(from.line, from.column - 1));
+    }
+    let Some(line) = from.line.checked_sub(1) else {
+        return Ok(Target::at(0, 0));
+    };
+    Ok(Target::at(line, buffer.line_len(line)?))
+}
+
+fn right(buffer: &Buffer, from: Position, last_line: usize) -> Result<Target, BufferError> {
+    let len = buffer.line_len(from.line)?;
+    if from.column < len {
+        return Ok(Target::at(from.line, from.column + 1));
+    }
+    if from.line < last_line {
+        return Ok(Target::at(from.line + 1, 0));
+    }
+    Ok(Target::at(from.line, len))
+}
+
+fn up(
+    buffer: &Buffer,
+    from: Position,
+    desired_column: Option<usize>,
+) -> Result<Target, BufferError> {
+    let Some(line) = from.line.checked_sub(1) else {
+        return Ok(Target::at(0, 0));
+    };
+    vertical(buffer, from, desired_column, line)
+}
+
+fn down(
+    buffer: &Buffer,
+    from: Position,
+    desired_column: Option<usize>,
+    last_line: usize,
+) -> Result<Target, BufferError> {
+    if from.line >= last_line {
+        return Ok(Target::at(last_line, buffer.line_len(last_line)?));
+    }
+    vertical(buffer, from, desired_column, from.line + 1)
+}
+
+/// Moves to `line`, aiming for the remembered column but stopping at the end
+/// of a shorter line.
+fn vertical(
+    buffer: &Buffer,
+    from: Position,
+    desired_column: Option<usize>,
+    line: usize,
+) -> Result<Target, BufferError> {
+    let wanted = desired_column.unwrap_or(from.column);
+    let column = wanted.min(buffer.line_len(line)?);
+    Ok(Target {
+        position: Position::new(line, column),
+        desired_column: Some(wanted),
+    })
+}

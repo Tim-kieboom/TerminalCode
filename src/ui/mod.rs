@@ -8,15 +8,22 @@ use crate::state::AppState;
 use crate::ui::layout::Placement;
 use crate::ui::view::ViewNode;
 
+mod editor_view;
 pub mod layout;
+mod status_view;
 #[cfg(test)]
 mod tests;
+mod text_layout;
 pub mod theme;
 pub mod view;
 
-pub(crate) fn render(frame: &mut Frame, state: &AppState) {
+pub(crate) fn render(frame: &mut Frame, state: &mut AppState) {
     for placement in state.layout().resolve(frame.area()) {
-        render_component(frame, state, &placement);
+        match placement.kind {
+            ComponentKind::Editor => editor_view::render(frame, state, placement.area),
+            ComponentKind::StatusBar => status_view::render(frame, state, placement.area),
+            _ => render_component(frame, state, &placement),
+        }
     }
 }
 

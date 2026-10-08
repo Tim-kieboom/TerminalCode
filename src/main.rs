@@ -10,7 +10,8 @@ fn start() -> IdeResult {
     set_restore_on_panic();
 
     let terminal = ratatui::init();
-    let result = terminal_code::run(terminal);
+    let path = std::env::args_os().nth(1).map(std::path::PathBuf::from);
+    let result = terminal_code::run(terminal, path.as_deref());
     ratatui::restore();
     result
 }

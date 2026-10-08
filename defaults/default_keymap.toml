@@ -1,0 +1,114 @@
+# Default keymap. Each [[binding]] maps a key chord to an action.
+# Keys: modifiers (ctrl, alt, shift, super) joined with "+", then a key:
+#   a single character, or a name such as enter, esc, tab, space, up, f5.
+# Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
+#   "delete_forward", { insert_text = "..." }, { move = motion },
+#   { select = motion }, { plugin = "name" }.
+# Motions: left, right, up, down, line_start, line_end, document_start,
+#   document_end.
+# Plain printable keys with no binding are typed into the editor.
+
+# Application
+[[binding]]
+keys = "ctrl+q"
+action = "quit"
+
+[[binding]]
+keys = "ctrl+s"
+action = "save"
+
+# History
+[[binding]]
+keys = "ctrl+z"
+action = "undo"
+
+[[binding]]
+keys = "ctrl+y"
+action = "redo"
+
+[[binding]]
+keys = "ctrl+shift+z"
+action = "redo"
+
+# Editing
+[[binding]]
+keys = "enter"
+action = "insert_newline"
+
+[[binding]]
+keys = "tab"
+action = { insert_text = "    " }
+
+[[binding]]
+keys = "backspace"
+action = "delete_backward"
+
+[[binding]]
+keys = "delete"
+action = "delete_forward"
+
+# Movement
+[[binding]]
+keys = "left"
+action = { move = "left" }
+
+[[binding]]
+keys = "right"
+action = { move = "right" }
+
+[[binding]]
+keys = "up"
+action = { move = "up" }
+
+[[binding]]
+keys = "down"
+action = { move = "down" }
+
+[[binding]]
+keys = "home"
+action = { move = "line_start" }
+
+[[binding]]
+keys = "end"
+action = { move = "line_end" }
+
+[[binding]]
+keys = "ctrl+home"
+action = { move = "document_start" }
+
+[[binding]]
+keys = "ctrl+end"
+action = { move = "document_end" }
+
+# Selection
+[[binding]]
+keys = "shift+left"
+action = { select = "left" }
+
+[[binding]]
+keys = "shift+right"
+action = { select = "right" }
+
+[[binding]]
+keys = "shift+up"
+action = { select = "up" }
+
+[[binding]]
+keys = "shift+down"
+action = { select = "down" }
+
+[[binding]]
+keys = "shift+home"
+action = { select = "line_start" }
+
+[[binding]]
+keys = "shift+end"
+action = { select = "line_end" }
+
+[[binding]]
+keys = "ctrl+shift+home"
+action = { select = "document_start" }
+
+[[binding]]
+keys = "ctrl+shift+end"
+action = { select = "document_end" }

@@ -1,3 +1,5 @@
+use crate::{component::PluginViewId, state::AppState, ui::view::ViewNode};
+
 use super::*;
 
 fn text(line: &str) -> ViewNode {
@@ -27,6 +29,6 @@ fn updating_a_plugin_view_bumps_its_version() {
     state.set_plugin_view(id.clone(), text("b"));
 
     let view = state.plugin_view(&id).unwrap();
-    assert_eq!(view.version, 1);
+    assert_eq!(view.version(), 1);
     assert_eq!(view.content(), &text("b"));
 }

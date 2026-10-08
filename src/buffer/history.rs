@@ -31,6 +31,11 @@ pub(crate) struct Transaction<'a> {
 }
 
 impl Transaction<'_> {
+    /// The buffer as it is after the edits applied so far.
+    pub(crate) fn buffer(&self) -> &Buffer {
+        self.buffer
+    }
+
     pub(crate) fn apply(&mut self, edit: &Edit) -> Result<(), BufferError> {
         let applied = self.buffer.apply(edit)?;
         if let Some(record) = &mut self.record {

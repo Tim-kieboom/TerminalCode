@@ -23,17 +23,20 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] File open/save (atomic write, encoding: UTF-8 only in 0.1.0, clear error otherwise)
 
 ## M2 — Action + keymap
-- [ ] `Action` enum + registry with serializable args
-- [ ] `KeyChord`, crossterm normalization
+- [x] `Action` enum with serializable args and a plugin hole (grows as features land)
+- [x] `KeyChord`, crossterm normalization, string parsing
 - [ ] Kitty keyboard protocol probe + fallback keymap
-- [ ] Layered keymap tables loaded from data; user override file
+- [ ] Layered keymap tables (single default layer loads from `defaults/default_keymap.toml` already); user override file
 - [ ] Design and write the default keymap + fallbacks; choose IDE prefix chord
 - [ ] Key-sequence resolver with timeout (needed for vim and prefix chords)
 
 ## M3 — Editor UI
-- [ ] Editor view: gutter, scrolling, display-width/tab handling in the view layer only
-- [ ] Normal-IDE editing: typing, delete, word/line motion, shift-select, copy/cut/paste, undo/redo
-- [ ] Tabs, splits, status bar
+- [x] Editor view: gutter, scrolling, selection highlight, cursor, display-width/tab handling in the view layer only
+- [x] Normal-IDE editing: typing, delete, line/document motion, shift-select, undo/redo, save
+- [ ] Normal-IDE editing: word motion (ctrl+arrows), select all, copy/cut/paste (needs clipboard), auto-indent, page up/down
+- [ ] Mouse: click to place cursor, drag to select, scroll wheel
+- [x] Status bar (file, modified marker, line/column, messages)
+- [ ] Tabs and splits (multiple open documents)
 - [ ] Clipboard (system + OSC 52 fallback)
 - [ ] Notifications overlay
 - [ ] Command palette over the Action registry

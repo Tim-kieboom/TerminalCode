@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::component::PluginViewId;
+use crate::editor::Editor;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::Theme;
 use crate::ui::view::ViewNode;
@@ -8,8 +9,10 @@ use crate::ui::view::ViewNode;
 /// Everything the UI renders from. Owned by the app loop alone.
 #[derive(Debug, Default)]
 pub(crate) struct AppState {
-    layout: LayoutTree,
     theme: Theme,
+    editor: Editor,
+    layout: LayoutTree,
+    status: Option<Box<str>>,
     plugin_views: HashMap<PluginViewId, PluginView>,
 }
 
@@ -22,12 +25,43 @@ pub(crate) struct PluginView {
 }
 
 impl PluginView {
+    pub(crate) fn version(&self) -> u64 {
+        self.version
+    }
     pub(crate) fn content(&self) -> &ViewNode {
         &self.content
     }
 }
 
 impl AppState {
+    pub(crate) fn new(editor: Editor) -> Self {
+        Self {
+            editor,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn editor(&self) -> &Editor {
+        &self.editor
+    }
+
+    pub(crate) fn editor_mut(&mut self) -> &mut Editor {
+        &mut self.editor
+    }
+
+    /// One-line message for the status bar, such as an error or "saved".
+    pub(crate) fn status(&self) -> Option<&str> {
+        self.status.as_deref()
+    }
+
+    pub(crate) fn set_status(&mut self, message: impl Into<Box<str>>) {
+        self.status = Some(message.into());
+    }
+
+    pub(crate) fn clear_status(&mut self) {
+        self.status = None;
+    }
+
     pub(crate) fn layout(&self) -> &LayoutTree {
         &self.layout
     }
@@ -50,7 +84,3 @@ impl AppState {
             .insert(id, PluginView { version, content });
     }
 }
-
-#[cfg(test)]
-#[path = "state_tests.rs"]
-mod tests;

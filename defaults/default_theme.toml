@@ -10,3 +10,15 @@ modifiers = ["bold"]
 
 ["list.selected"]
 modifiers = ["reversed"]
+
+["editor.line_number"]
+fg = "dark_gray"
+
+["editor.line_number.current"]
+fg = "white"
+
+["editor.selection"]
+bg = "blue"
+
+["status.bar"]
+modifiers = ["reversed"]

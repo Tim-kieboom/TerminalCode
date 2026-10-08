@@ -7,10 +7,13 @@ use unicode_segmentation::UnicodeSegmentation;
 pub use error::BufferError;
 pub use file::FileError;
 
-use edit::{AppliedEdit, Edit, EditInfo};
+pub(crate) use edit::Edit;
+use edit::{AppliedEdit, EditInfo};
 use history::History;
 use line_ending::LineEnding;
-use position::{Point, Position};
+use position::Point;
+pub(crate) use position::Position;
+pub(crate) use selection::{Selection, Selections};
 
 mod edit;
 mod error;
@@ -65,6 +68,11 @@ impl Buffer {
     /// back to the saved text still counts as modified.
     pub(crate) fn is_dirty(&self) -> bool {
         self.version != self.saved_version
+    }
+
+    /// Number of grapheme columns in `line`, not counting its line break.
+    pub(crate) fn line_len(&self, line: usize) -> Result<usize, BufferError> {
+        Ok(self.line_content(line)?.graphemes(true).count())
     }
 
     pub(crate) fn len_bytes(&self) -> usize {
@@ -188,7 +196,7 @@ impl Buffer {
     }
 
     /// Text of `line` without its line break.
-    fn line_content(&self, line: usize) -> Result<Cow<'_, str>, BufferError> {
+    pub(crate) fn line_content(&self, line: usize) -> Result<Cow<'_, str>, BufferError> {
         let lines = self.rope.len_lines();
         let Some(slice) = self.rope.get_line(line) else {
             return Err(BufferError::LineOutOfBounds { line, lines });

@@ -39,6 +39,20 @@ impl Buffer {
         Ok(buffer)
     }
 
+    /// Like [`Buffer::open`], but a missing file gives an empty buffer that
+    /// will create the file when saved.
+    pub(crate) fn open_or_new(path: impl Into<PathBuf>) -> Result<Self, FileError> {
+        let path = path.into();
+        match Self::open(&path) {
+            Err(FileError::Io { source, .. }) if source.kind() == io::ErrorKind::NotFound => {
+                let mut buffer = Self::default();
+                buffer.path = Some(path);
+                Ok(buffer)
+            }
+            other => other,
+        }
+    }
+
     /// Writes the buffer to its own path.
     pub(crate) fn save(&mut self) -> Result<(), FileError> {
         let Some(path) = self.path.clone() else {
