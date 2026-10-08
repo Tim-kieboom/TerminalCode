@@ -17,10 +17,7 @@ fn text(workspace: &Workspace) -> String {
 
 /// Runs a layout pass so panes know their screen areas.
 fn layout(workspace: &mut Workspace, area: Rect) {
-    workspace.prepare(&Placement {
-        kind: ComponentKind::Editor,
-        area,
-    });
+    workspace.prepare(&Placement::new(ComponentKind::Editor, area));
 }
 
 const AREA: Rect = Rect::new(0, 0, 100, 40);

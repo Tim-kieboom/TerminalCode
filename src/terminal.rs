@@ -85,3 +85,19 @@ pub fn set_mouse_capture(enabled: bool) {
     };
     MOUSE_CAPTURED.store(enabled && result.is_ok(), Ordering::SeqCst);
 }
+
+/// How long to wait for the terminal to answer a color query. Terminals that
+/// cannot be asked usually say so well before this; the wait is for slow
+/// links such as SSH.
+const COLOR_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// The terminal's own background color, asked with an OSC 11 query. Call it
+/// after [`init`] and before input is being read. `None` if the terminal does
+/// not answer.
+pub(crate) fn query_background() -> Option<crate::ui::theme::Rgb> {
+    let mut options = terminal_colorsaurus::QueryOptions::default();
+    options.timeout = COLOR_QUERY_TIMEOUT;
+    let color = terminal_colorsaurus::background_color(options).ok()?;
+    let (r, g, b) = color.scale_to_8bit();
+    Some(crate::ui::theme::Rgb { r, g, b })
+}

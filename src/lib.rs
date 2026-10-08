@@ -68,6 +68,10 @@ where
     B::Error: Into<IdeError>,
 {
     let mut state = initial_state(paths)?;
+    state.learn_terminal_background(terminal::query_background);
+    if let Some(hint) = state.theme().terminal_hint() {
+        state.set_status(hint);
+    }
     let loaded = config::load_keymap(config::user_keymap_path().as_deref(), capabilities.keyboard);
     if let Some(warning) = loaded.warning {
         state.set_status(warning);

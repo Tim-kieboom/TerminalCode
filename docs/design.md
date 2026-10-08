@@ -258,3 +258,36 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   drags and releases go to the focused pane; the wheel scrolls the pane under the pointer without moving focus;
   a middle press on a tab closes that tab (`close_tab_at`), whether or not it is active or its pane is focused.
 - Command line: every path argument opens a tab (first one active).
+
+## Component frames
+- Every component is drawn inside a `PaneFrame` (`ui::pane_frame`): a border (`Off`, `Plain`, `Rounded`, `Double`,
+  `Thick`), a title (`Hidden`, `Name`, `Text("...")`), a title alignment, and the theme slots that style the title
+  and the border. The layout file sets them per component with `Framed(component: X, frame: (...))`; `Leaf(X)`
+  keeps the component's default. Anything left out of a frame takes the default, and unknown fields or variants are
+  errors (so a typo does not silently do nothing).
+- Defaults: panes `Plain` + `Name`; the editor `Plain` + `Hidden` (its tab bar shows file names; `title: Name` adds the
+  active file's name to the border); the status bar `Off` + `Hidden`.
+- The resolved frame travels with the `Placement`, so each component reads `placement.frame`. `PaneFrame::inner`
+  gives the content area exactly as `PaneFrame::block` draws it: a title costs a row even without a border.
+- A focused editor pane uses `<border_slot>.focused` when the theme defines it, otherwise the plain slot. Style
+  slots are plain theme names, so the same layout file can point two components at differently styled slots.
+- `Off` is not spelled `None`: with implicit `Some` in the RON reader, a bare `None` means "field not set".
+
+## Background and transparency
+- A text-mode program only picks a color per cell; opacity and blur are the terminal's (kitty: `background_opacity`,
+  `background_blur`; WezTerm, Ghostty and others have equivalents) and apply to the terminal's default background.
+  With no `[background]` in the theme the editor paints no background at all, so those effects show through.
+- `[background]` in `theme.toml` (a reserved table, not a style slot): `color` (a color, or `"transparent"` / `"reset"`)
+  and `opacity` (0 to 1, integer or float). Opacity 0 or a transparent color paints nothing; opacity 1 paints the color;
+  in between the color is blended per channel with the terminal's own background color, which the editor asks for once
+  at startup (OSC 11, via `terminal-colorsaurus`, 500 ms timeout) and only when the theme needs it. If the terminal does
+  not answer, the tint color is used as is. A blend needs a hex color, since a named ANSI color has no known RGB.
+- Painting is one `Block` over the whole frame at the start of every draw (`components::paint_background`); slots with
+  their own `bg` (selection, tabs, status bar) draw over it.
+- `blend = "terminal"` (the default) paints a solid blended color, so the terminal's translucency and blur do not show
+  in those cells: terminals only make their *default* background translucent. `blend = "none"` paints the exact
+  color instead, for terminals that can make one exact color translucent (kitty 0.39+:
+  `transparent_background_colors #rrggbb@alpha` in kitty.conf); the startup status line shows that exact setting.
+  To see the terminal's blur through the whole editor, paint nothing (no `[background]`, or `color = "transparent"`).
+- A blend is not a blur and not true see-through: it gives a tinted look in terminals that cannot be made
+  translucent. For real translucency leave the background transparent and configure the terminal.

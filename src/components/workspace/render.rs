@@ -1,12 +1,13 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::Paragraph;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::components::editor::{display_name, render as editor_render};
+use crate::components::editor::{EditorRef, display_name, render as editor_render};
 use crate::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
+use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 
 use super::Workspace;
@@ -17,7 +18,7 @@ impl Render for Workspace {
     fn prepare(&mut self, placement: &Placement) {
         for (id, area) in self.tree.layout(placement.area) {
             if let Some(index) = self.panes.iter().position(|pane| pane.id == id) {
-                self.layout_pane(index, area);
+                self.layout_pane(index, area, &placement.frame);
             }
         }
     }
@@ -44,24 +45,26 @@ impl Render for Workspace {
                 frame.render_widget(Paragraph::new(label).style(theme.style(slot)), *rect);
             }
 
+            let focused = pane.id == self.focused;
             let Some(tab) = pane.tabs.get(pane.active) else {
-                draw_empty(frame, theme, pane.editor_area, pane.id == self.focused);
+                draw_empty(frame, theme, pane.editor_area, &placement.frame, focused);
                 continue;
             };
+            let editor = EditorRef::new(&self.documents[&tab.document].buffer, &tab.view);
             editor_render::draw(
                 frame,
                 theme,
-                &self.documents[&tab.document].buffer,
-                &tab.view,
+                editor,
                 pane.editor_area,
-                pane.id == self.focused,
+                &placement.frame,
+                focused,
             );
         }
     }
 }
 
 impl Workspace {
-    fn layout_pane(&mut self, index: usize, area: Rect) {
+    fn layout_pane(&mut self, index: usize, area: Rect, frame: &PaneFrame) {
         let labels: Vec<String> = self.panes[index]
             .tabs
             .iter()
@@ -85,18 +88,13 @@ impl Workspace {
             return;
         };
         let buffer = &self.documents[&tab.document].buffer;
-        editor_render::prepare(buffer, &mut tab.view, pane.editor_area);
+        editor_render::prepare(buffer, &mut tab.view, pane.editor_area, frame);
     }
 }
 
 /// What an editor area with no open file shows.
-fn draw_empty(frame: &mut Frame, theme: &Theme, area: Rect, focused: bool) {
-    let border = if focused {
-        "pane.border.focused"
-    } else {
-        "pane.border"
-    };
-    let block = Block::bordered().border_style(theme.style(border));
+fn draw_empty(frame: &mut Frame, theme: &Theme, area: Rect, pane_frame: &PaneFrame, focused: bool) {
+    let block = pane_frame.block(theme, pane_frame.title_text("Editor"), focused);
     let inner = block.inner(area);
     frame.render_widget(block, area);
     frame.render_widget(

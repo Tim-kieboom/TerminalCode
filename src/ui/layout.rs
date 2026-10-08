@@ -3,6 +3,7 @@ use serde::Deserialize;
 use thiserror::Error;
 
 use crate::components::ComponentKind;
+use crate::ui::pane_frame::{FrameSpec, PaneFrame};
 
 #[derive(Debug, Error)]
 pub enum LayoutError {
@@ -59,6 +60,13 @@ pub(crate) struct Child {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub(crate) enum LayoutNode {
     Leaf(ComponentKind),
+    /// A component with its frame (border and title) set explicitly. What the
+    /// spec leaves out takes the component's default.
+    Framed {
+        component: ComponentKind,
+        #[serde(default)]
+        frame: FrameSpec,
+    },
     Split {
         direction: Axis,
         children: Vec<Child>,
@@ -70,6 +78,15 @@ pub(crate) enum LayoutNode {
 pub(crate) struct Placement {
     pub(crate) kind: ComponentKind,
     pub(crate) area: Rect,
+    pub(crate) frame: PaneFrame,
+}
+
+impl Placement {
+    /// A placement with the component's default frame.
+    pub(crate) fn new(kind: ComponentKind, area: Rect) -> Self {
+        let frame = PaneFrame::default_for(&kind);
+        Self { kind, area, frame }
+    }
 }
 
 /// Built-in layout, embedded at compile time.
@@ -87,7 +104,9 @@ pub(crate) struct LayoutTree {
 impl LayoutTree {
     /// Parses and validates a layout described as RON.
     pub(crate) fn from_ron(source: &str) -> Result<Self, LayoutError> {
-        let root: LayoutNode = ron::from_str(source)?;
+        let root: LayoutNode = ron::Options::default()
+            .with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME)
+            .from_str(source)?;
         Self::new(root)
     }
 
@@ -117,7 +136,7 @@ impl Default for LayoutTree {
 
 fn validate(node: &LayoutNode, has_editor: &mut bool) -> Result<(), LayoutError> {
     match node {
-        LayoutNode::Leaf(component) => {
+        LayoutNode::Leaf(component) | LayoutNode::Framed { component, .. } => {
             *has_editor |= *component == ComponentKind::Editor;
             Ok(())
         }
@@ -140,9 +159,11 @@ fn validate(node: &LayoutNode, has_editor: &mut bool) -> Result<(), LayoutError>
 
 fn place(node: &LayoutNode, area: Rect, out: &mut Vec<Placement>) {
     match node {
-        LayoutNode::Leaf(component) => out.push(Placement {
+        LayoutNode::Leaf(component) => out.push(Placement::new(component.clone(), area)),
+        LayoutNode::Framed { component, frame } => out.push(Placement {
             kind: component.clone(),
             area,
+            frame: PaneFrame::resolve(frame, component),
         }),
         LayoutNode::Split {
             direction,

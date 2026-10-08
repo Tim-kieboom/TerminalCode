@@ -45,12 +45,10 @@ impl<'a> EditorRef<'a> {
         Self { buffer, view }
     }
 
-    #[cfg(test)]
     pub(crate) fn buffer(&self) -> &'a Buffer {
         self.buffer
     }
 
-    #[cfg(test)]
     pub(crate) fn view(&self) -> &'a ViewState {
         self.view
     }

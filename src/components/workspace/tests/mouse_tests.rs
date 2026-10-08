@@ -11,10 +11,7 @@ use crate::ui::layout::{Axis, Placement};
 const AREA: Rect = Rect::new(0, 0, 100, 40);
 
 fn layout(workspace: &mut Workspace) {
-    workspace.prepare(&Placement {
-        kind: ComponentKind::Editor,
-        area: AREA,
-    });
+    workspace.prepare(&Placement::new(ComponentKind::Editor, AREA));
 }
 
 fn two_panes(text: &str) -> Workspace {
@@ -76,10 +73,7 @@ fn the_wheel_scrolls_the_pane_under_the_pointer_without_moving_focus() {
         .collect::<Vec<_>>()
         .join("\n");
     let mut workspace = two_panes(&text);
-    workspace.prepare(&Placement {
-        kind: ComponentKind::Editor,
-        area: AREA,
-    });
+    workspace.prepare(&Placement::new(ComponentKind::Editor, AREA));
     let focused = workspace.focused_area();
 
     // Pointer over the left pane while focus is on the right.

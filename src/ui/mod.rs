@@ -1,12 +1,10 @@
 use ratatui::Frame;
-use ratatui::layout::Rect;
-use ratatui::text::Line;
-use ratatui::widgets::Block;
 
 use crate::state::AppState;
 use crate::ui::layout::Placement;
 
 pub mod layout;
+pub mod pane_frame;
 #[cfg(test)]
 mod tests;
 pub mod theme;
@@ -25,18 +23,4 @@ pub trait Render {
     /// Draws the component. Must not depend on anything `prepare` did not set
     /// up, and cannot change state.
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement);
-}
-
-/// The area inside the frame that [`get_block`] draws around `area`.
-pub fn pane_inner(area: Rect) -> Rect {
-    Block::bordered().inner(area)
-}
-
-/// The bordered pane frame shared by all components, titled with `title`.
-pub fn get_block<'a>(state: &AppState, title: impl Into<Line<'a>>) -> Block<'a> {
-    let theme = state.theme();
-    Block::bordered()
-        .title(title)
-        .title_style(theme.style("pane.title"))
-        .border_style(theme.style("pane.border"))
 }

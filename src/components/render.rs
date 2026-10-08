@@ -1,19 +1,21 @@
 use ratatui::{
     Frame,
     layout::Rect,
+    style::Style,
     text::Line,
-    widgets::{List, ListState, Paragraph},
+    widgets::{Block, List, ListState, Paragraph},
 };
 
 use crate::{
     components::ComponentKind,
     state::AppState,
-    ui::{Render, get_block, layout::Placement, view::ViewNode},
+    ui::{Render, layout::Placement, view::ViewNode},
 };
 
 /// Draws every component of the layout: first all `prepare` steps, then all
 /// read-only draws.
 pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
+    paint_background(frame, state);
     let placements = state.layout().resolve(frame.area());
     for placement in &placements {
         prepare_component(state, placement);
@@ -21,6 +23,16 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     for placement in &placements {
         draw_component(frame, state, placement);
     }
+}
+
+/// Fills the whole screen with the theme's background, if it has one, so that
+/// everything drawn afterwards sits on it. Without one the terminal's own
+/// background (and its opacity or blur) shows through.
+fn paint_background(frame: &mut Frame, state: &AppState) {
+    let Some(color) = state.theme().background_color() else {
+        return;
+    };
+    frame.render_widget(Block::new().style(Style::new().bg(color)), frame.area());
 }
 
 fn prepare_component(state: &mut AppState, placement: &Placement) {
@@ -40,7 +52,8 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
 }
 
 fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
-    let block = get_block(state, placement.kind.title());
+    let title = placement.frame.title_text(placement.kind.title());
+    let block = placement.frame.block(state.theme(), title, false);
 
     let inner = block.inner(placement.area);
     frame.render_widget(block, placement.area);

@@ -27,10 +27,13 @@ impl Render for StatusBar {
             text.push_str(message);
         }
 
-        let style = state.theme().style("status.bar");
-        frame.render_widget(
-            Paragraph::new(Line::from(text)).style(style),
-            placement.area,
-        );
+        let theme = state.theme();
+        let title = placement.frame.title_text("Status");
+        let block = placement.frame.block(theme, title, false);
+        let inner = block.inner(placement.area);
+        frame.render_widget(block, placement.area);
+
+        let style = theme.style("status.bar");
+        frame.render_widget(Paragraph::new(Line::from(text)).style(style), inner);
     }
 }

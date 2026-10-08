@@ -53,10 +53,7 @@ fn screen(workspace: &mut Workspace, width: u16, height: u16) -> String {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal
         .draw(|frame| {
-            let placement = Placement {
-                kind: ComponentKind::Editor,
-                area: frame.area(),
-            };
+            let placement = Placement::new(ComponentKind::Editor, frame.area());
             workspace.prepare(&placement);
             workspace.render(frame, &state, &placement);
         })

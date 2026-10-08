@@ -14,10 +14,7 @@ fn state_with(text: &str) -> AppState {
 }
 
 fn to_placement(frame: &Frame) -> Placement {
-    Placement {
-        kind: ComponentKind::Editor,
-        area: frame.area(),
-    }
+    Placement::new(ComponentKind::Editor, frame.area())
 }
 
 /// Draws the editor into a terminal of `width` x `height` and returns the

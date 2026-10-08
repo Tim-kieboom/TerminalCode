@@ -5,7 +5,7 @@ use crate::components::editor::{Editor, EditorRef};
 use crate::components::status_view::StatusBar;
 use crate::components::workspace::Workspace;
 use crate::ui::layout::LayoutTree;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
 
 /// Everything the UI renders from. Owned by the app loop alone.
@@ -104,8 +104,27 @@ impl AppState {
         self.pending_keys = keys.map(String::into_boxed_str);
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_layout(&mut self, layout: LayoutTree) {
+        self.layout = layout;
+    }
+
     pub(crate) fn layout(&self) -> &LayoutTree {
         &self.layout
+    }
+
+    /// Gives the theme the terminal's own background color if the theme
+    /// blends with it. `query` only runs in that case, since asking the
+    /// terminal takes a round trip.
+    pub(crate) fn learn_terminal_background(&mut self, query: impl FnOnce() -> Option<Rgb>) {
+        if self.theme.needs_terminal_background() {
+            self.theme.set_terminal_background(query());
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_theme(&mut self, theme: Theme) {
+        self.theme = theme;
     }
 
     pub(crate) fn theme(&self) -> &Theme {

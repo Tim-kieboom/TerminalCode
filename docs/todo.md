@@ -43,6 +43,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] **Quit with unsaved changes** must ask first (today ctrl+q exits and drops every modified document)
 - [ ] Tabs/panes follow-ups: open a path that is already open by switching to it, overflow markers in a crowded tab bar, close other/all tabs, move a tab between panes, resize panes (drag the divider), close pane without closing its tabs one by one, reopen closed tab, save all, per-pane tab history
 - [x] Clipboard (arboard, OSC 52 write-only fallback, one-time notice when the system clipboard is unreadable)
+- [x] Per-component frames in the layout file: border type, title text, title alignment and title/border theme slots (`Framed(component: X, frame: (...))`)
+- [x] `[background]` in theme.toml: color + opacity, blended with the terminal background (OSC 11 query) or transparent so the terminal's own opacity/blur shows
 - [ ] Notifications overlay
 - [ ] Command palette over the Action registry
 

@@ -8,12 +8,12 @@ use ratatui::Frame;
 use ratatui::layout::{Position as ScreenPosition, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::Paragraph;
 
 use crate::buffer::{Buffer, Selection};
-use crate::components::editor::ViewState;
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
-use crate::ui::pane_inner;
+use crate::components::editor::{EditorRef, ViewState, display_name};
+use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 
 /// Smallest line-number column, in digits.
@@ -21,30 +21,27 @@ const MIN_GUTTER_DIGITS: usize = 3;
 
 /// Records where the text will be drawn inside `area` and, if the cursor,
 /// the text or the area changed, scrolls so the cursor stays visible.
-pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect) {
-    let geometry = Geometry::new(pane_inner(area), buffer.len_lines());
+pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect, frame: &PaneFrame) {
+    let geometry = Geometry::new(frame.inner(area), buffer.len_lines());
     view.set_viewport(geometry.text);
     if view.take_view_change(buffer.version()) {
         keep_cursor_visible(buffer, view, &geometry);
     }
 }
 
-/// Draws the editor into `area`. Only the focused editor gets the terminal
-/// cursor and the highlighted border.
+/// Draws the editor into `area` inside `pane_frame`. Only the focused editor
+/// gets the terminal cursor and the highlighted border.
 pub(crate) fn draw(
     frame: &mut Frame,
     theme: &Theme,
-    buffer: &Buffer,
-    view: &ViewState,
+    editor: EditorRef<'_>,
     area: Rect,
+    pane_frame: &PaneFrame,
     focused: bool,
 ) {
-    let border = if focused {
-        "pane.border.focused"
-    } else {
-        "pane.border"
-    };
-    let block = Block::bordered().border_style(theme.style(border));
+    let (buffer, view) = (editor.buffer(), editor.view());
+    let name = display_name(buffer);
+    let block = pane_frame.block(theme, pane_frame.title_text(&name), focused);
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
