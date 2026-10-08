@@ -45,7 +45,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Clipboard (arboard, OSC 52 write-only fallback, one-time notice when the system clipboard is unreadable)
 - [x] Per-component frames in the layout file: border type, title text, title alignment and title/border theme slots (`Framed(component: X, frame: (...))`)
 - [x] `[background]` in theme.toml: color + opacity, blended with the terminal background (OSC 11 query) or transparent so the terminal's own opacity/blur shows
-- [ ] Notifications overlay
+- [x] Notifications: info messages (saved, mouse on, hints) time out after 4 s, errors are sticky until the next key press or click (the key is still handled; the error a key causes survives that key); stacked bottom right above the status bar, newest at the bottom, same message replaces itself, 20 kept, long text wraps; `notification.info` / `notification.error` theme slots; the status bar no longer carries messages
+- [ ] Notification follow-ups: `[+N more]` when the stack does not fit, a message history (palette entry), per-notification dismiss and click-to-dismiss, lifetime as a setting
 - [x] Command palette (`f1`, `alt+p`; not `ctrl+shift+p`, which kitty and Windows Terminal keep for themselves): fuzzy search over hand-written action titles ("File: Save"), actions with an argument expanded per value ("Pane: Focus Left"), the bound keys shown beside each entry, enter runs it, esc closes; every action that has a title is listed explicitly in `Action::palette_actions`
 - [ ] Palette follow-ups: argument prompts (open file path, go to line), save as for untitled files, recently used first, mouse selection, paste into the query
 

@@ -205,7 +205,7 @@ fn a_file_that_cannot_be_saved_stays_in_the_prompt_with_the_error() {
     assert!(!app.should_quit());
     let prompt = app.state().quit_prompt().unwrap();
     assert_eq!(prompt.items().len(), 1);
-    assert!(app.state().status().is_some());
+    assert!(app.state().latest_notification().is_some());
 
     // It can still be discarded.
     app.handle_input(ctrl('d'));

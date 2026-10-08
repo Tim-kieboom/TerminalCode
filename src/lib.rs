@@ -43,7 +43,8 @@ fn initial_state(paths: &[PathBuf]) -> IdeResult<AppState> {
         return Ok(AppState::default());
     };
 
-    let mut state = AppState::new(Editor::new(Buffer::open_or_new(first)?));
+    let buffer = Buffer::open_or_new(first)?;
+    let mut state = AppState::new(Editor::new(buffer));
     for path in rest {
         state
             .workspace_mut()
@@ -56,8 +57,9 @@ fn initial_state(paths: &[PathBuf]) -> IdeResult<AppState> {
         .filter(|path| !path.exists())
         .map(|path| path.display().to_string())
         .collect();
+
     if !new_files.is_empty() {
-        state.set_status(format!("new file: {}", new_files.join(", ")));
+        state.notify(format!("new file: {}", new_files.join(", ")));
     }
     Ok(state)
 }
@@ -70,11 +72,11 @@ where
     let mut state = initial_state(paths)?;
     state.learn_terminal_background(terminal::query_background);
     if let Some(hint) = state.theme().terminal_hint() {
-        state.set_status(hint);
+        state.notify(hint);
     }
     let loaded = config::load_keymap(config::user_keymap_path().as_deref(), capabilities.keyboard);
     if let Some(warning) = loaded.warning {
-        state.set_status(warning);
+        state.notify_error(warning);
     }
 
     let clipboard = Clipboard::new(System::detect());

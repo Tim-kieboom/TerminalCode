@@ -23,6 +23,11 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     for placement in &placements {
         draw_component(frame, state, placement);
     }
+    let bottom = placements
+        .iter()
+        .find(|placement| placement.kind == ComponentKind::StatusBar)
+        .map_or(frame.area().bottom(), |placement| placement.area.y);
+    state.notifications().render(frame, state.theme(), bottom);
     if let Some(palette) = state.palette() {
         palette.render(frame, state.theme());
     }

@@ -56,3 +56,10 @@ modifiers = ["bold", "reversed"]
 
 ["tab.inactive"]
 fg = "gray"
+
+["notification.info"]
+fg = "cyan"
+
+["notification.error"]
+fg = "red"
+modifiers = ["bold"]

@@ -248,7 +248,7 @@ fn ctrl_s_saves_and_reports_it_in_the_status() {
     press(&mut app, KeyCode::Char('s'), KeyModifiers::CONTROL);
 
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "saved text");
-    assert_eq!(app.state().status(), Some("saved note.txt"));
+    assert_eq!(app.state().latest_notification(), Some("saved note.txt"));
 }
 
 #[test]
@@ -258,20 +258,21 @@ fn saving_a_buffer_without_a_path_reports_an_error_and_keeps_running() {
 
     press(&mut app, KeyCode::Char('s'), KeyModifiers::CONTROL);
 
-    let status = app.state().status().unwrap();
+    let status = app.state().latest_notification().unwrap();
     assert!(status.contains("no file path"), "status was {status:?}");
     assert!(!app.should_quit());
 }
 
 #[test]
-fn the_next_handled_key_clears_the_status() {
+fn the_next_key_dismisses_an_error_and_is_still_handled() {
     let mut app = App::default();
     press(&mut app, KeyCode::Char('s'), KeyModifiers::CONTROL);
-    assert!(app.state().status().is_some());
+    assert!(app.state().latest_notification().is_some());
 
     type_str(&mut app, "a");
 
-    assert_eq!(app.state().status(), None);
+    assert_eq!(app.state().latest_notification(), None);
+    assert_eq!(buffer_text(&app), "a");
 }
 
 #[test]
@@ -450,7 +451,7 @@ fn paste_with_nothing_copied_says_so() {
 
     ctrl(&mut app, 'v');
 
-    assert_eq!(app.state().status(), Some("nothing to paste"));
+    assert_eq!(app.state().latest_notification(), Some("nothing to paste"));
     assert_eq!(buffer_text(&app), "");
 }
 
@@ -482,12 +483,16 @@ fn an_unreadable_system_clipboard_pastes_the_register_and_explains_once() {
 
     ctrl(&mut app, 'v');
     assert_eq!(buffer_text(&app), "xx");
-    let first = app.state().status().unwrap().to_owned();
+    let first = app.state().latest_notification().unwrap().to_owned();
     assert!(first.contains("not readable"), "{first}");
 
     ctrl(&mut app, 'v');
     assert_eq!(buffer_text(&app), "xxx");
-    assert_eq!(app.state().status(), None);
+    assert_eq!(
+        app.state().notifications().len(),
+        1,
+        "the explanation is only given once"
+    );
 }
 
 #[test]
@@ -771,11 +776,16 @@ fn alt_m_toggles_mouse_capture_and_tells_the_terminal_once() {
     press(&mut app, KeyCode::Char('m'), KeyModifiers::ALT);
     assert_eq!(app.take_mouse_change(), Some(false));
     assert_eq!(app.take_mouse_change(), None);
-    assert_eq!(app.state().status(), Some("mouse off"));
+    assert_eq!(app.state().latest_notification(), Some("mouse off"));
 
     press(&mut app, KeyCode::Char('m'), KeyModifiers::ALT);
     assert_eq!(app.take_mouse_change(), Some(true));
-    assert!(app.state().status().unwrap().contains("mouse on"));
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("mouse on")
+    );
 }
 
 #[test]
@@ -819,7 +829,7 @@ fn ctrl_w_closes_a_tab_and_warns_before_discarding_changes() {
     type_str(&mut app, "two");
 
     ctrl(&mut app, 'w');
-    let status = app.state().status().unwrap().to_owned();
+    let status = app.state().latest_notification().unwrap().to_owned();
     assert!(status.contains("unsaved changes"), "{status}");
     assert_eq!(tab_names(&app).len(), 2);
 
@@ -925,7 +935,7 @@ fn middle_clicking_a_tab_closes_it() {
     // "first" was modified (and saving a nameless buffer failed), so the
     // first middle click only warns.
     assert_eq!(tab_names(&app).len(), 2);
-    let status = app.state().status().unwrap().to_owned();
+    let status = app.state().latest_notification().unwrap().to_owned();
     assert!(status.contains("unsaved changes"), "{status}");
 
     app.handle_input(mouse(
@@ -993,7 +1003,7 @@ fn typing_with_no_open_file_explains_what_to_do() {
 
     type_str(&mut app, "x");
 
-    let status = app.state().status().unwrap().to_owned();
+    let status = app.state().latest_notification().unwrap().to_owned();
     assert!(status.contains("no open file"), "{status}");
     assert!(status.contains("ctrl+n"), "{status}");
     assert!(!app.state().workspace().has_tabs());
@@ -1020,7 +1030,12 @@ fn bracketed_paste_with_no_open_file_explains_too() {
 
     app.handle_input(InputEvent::Paste("text".to_owned()));
 
-    assert!(app.state().status().unwrap().contains("no open file"));
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("no open file")
+    );
 }
 
 #[test]

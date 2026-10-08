@@ -8,7 +8,7 @@ fn no_path_starts_with_an_empty_unnamed_buffer() {
 
     assert_eq!(state.editor().buffer().text(), "");
     assert_eq!(state.editor().buffer().path(), None);
-    assert_eq!(state.status(), None);
+    assert_eq!(state.latest_notification(), None);
 }
 
 #[test]
@@ -20,7 +20,7 @@ fn an_existing_file_is_opened_without_a_message() {
     let state = initial_state(std::slice::from_ref(&path)).unwrap();
 
     assert_eq!(state.editor().buffer().text(), "# TODO\n- thing\n");
-    assert_eq!(state.status(), None);
+    assert_eq!(state.latest_notification(), None);
 }
 
 #[test]
@@ -32,7 +32,7 @@ fn a_missing_file_opens_empty_and_says_it_is_new() {
 
     assert_eq!(state.editor().buffer().text(), "");
     assert_eq!(state.editor().buffer().path(), Some(path.as_path()));
-    let status = state.status().unwrap();
+    let status = state.latest_notification().unwrap();
     assert!(status.contains("new file"), "{status}");
     assert!(status.contains("typo.md"), "{status}");
     assert!(!path.exists(), "opening must not create the file");
@@ -65,7 +65,7 @@ fn several_paths_open_as_tabs_with_the_first_active() {
     assert_eq!(names, ["a.txt", "b.txt", "c.txt"]);
     assert_eq!(active, 0);
     assert_eq!(state.editor().buffer().text(), "alpha");
-    assert_eq!(state.status(), None);
+    assert_eq!(state.latest_notification(), None);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn missing_files_among_several_are_all_reported() {
 
     let state = initial_state(&[new_a, existing, new_b]).unwrap();
 
-    let status = state.status().unwrap();
+    let status = state.latest_notification().unwrap();
     assert!(
         status.contains("new_a.txt") && status.contains("new_b.txt"),
         "{status}"

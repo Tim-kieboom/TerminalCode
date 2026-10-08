@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::time::Instant;
 
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
+use crate::components::notifications::{Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
 use crate::components::status_view::StatusBar;
@@ -16,7 +18,7 @@ pub(crate) struct AppState {
     components: AppComponents,
     theme: Theme,
     layout: LayoutTree,
-    status: Option<Box<str>>,
+    notifications: Notifications,
     pending_keys: Option<Box<str>>,
     quit_prompt: Option<QuitPrompt>,
     palette: Option<Palette>,
@@ -85,17 +87,37 @@ impl AppState {
         self.components.workspace.with_editor(f)
     }
 
-    /// One-line message for the status bar, such as an error or "saved".
-    pub(crate) fn status(&self) -> Option<&str> {
-        self.status.as_deref()
+    /// Shows an info message that goes away by itself.
+    pub(crate) fn notify(&mut self, message: impl Into<Box<str>>) {
+        self.notifications
+            .push(Level::Info, message, Instant::now());
     }
 
-    pub(crate) fn set_status(&mut self, message: impl Into<Box<str>>) {
-        self.status = Some(message.into());
+    /// Shows an error that stays until the user presses a key or clicks.
+    pub(crate) fn notify_error(&mut self, message: impl Into<Box<str>>) {
+        self.notifications
+            .push(Level::Error, message, Instant::now());
     }
 
-    pub(crate) fn clear_status(&mut self) {
-        self.status = None;
+    pub(crate) fn notifications(&self) -> &Notifications {
+        &self.notifications
+    }
+
+    /// The text of the newest message, if any.
+    #[cfg(test)]
+    pub(crate) fn latest_notification(&self) -> Option<&str> {
+        self.notifications.latest().map(|item| &*item.text)
+    }
+
+    /// Removes errors the user has had a chance to see. Returns whether there
+    /// were any.
+    pub(crate) fn dismiss_errors(&mut self) -> bool {
+        self.notifications.dismiss_errors()
+    }
+
+    /// Removes info messages that are over by `now`. Returns whether any went.
+    pub(crate) fn expire_notifications(&mut self, now: Instant) -> bool {
+        self.notifications.expire(now)
     }
 
     /// The first chords of a key sequence that is waiting for more, shown in

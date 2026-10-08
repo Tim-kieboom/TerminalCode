@@ -2,8 +2,8 @@ use std::io;
 use std::time::Duration;
 
 use crossterm::event::{
-    Event as InputEvent, EventStream, KeyEvent, KeyModifiers, MouseButton, MouseEvent,
-    MouseEventKind,
+    Event as InputEvent, EventStream, KeyEvent, KeyEventKind, KeyModifiers, MouseButton,
+    MouseEvent, MouseEventKind,
 };
 use futures::StreamExt;
 use ratatui::{Terminal, backend::Backend};
@@ -63,6 +63,7 @@ where
         // draw itself happens at the top of the loop, at most once per frame
         // interval.
         let sequence_deadline = app.pending_deadline().map(Instant::from_std);
+        let notification_deadline = app.notification_deadline().map(Instant::from_std);
 
         tokio::select! {
             biased;
@@ -76,6 +77,8 @@ where
             Some(event) = sources.events.recv() => app.handle_event(event),
             _ = sleep_until(sequence_deadline.unwrap_or_else(Instant::now)),
             if sequence_deadline.is_some() => app.expire_pending(),
+            _ = sleep_until(notification_deadline.unwrap_or_else(Instant::now)),
+            if notification_deadline.is_some() => app.expire_notifications(std::time::Instant::now()),
         }
 
         if let Some(enabled) = app.take_mouse_change() {
@@ -175,6 +178,18 @@ impl App {
         self
     }
 
+    /// When the next info message goes away, if there is one.
+    pub(crate) fn notification_deadline(&self) -> Option<std::time::Instant> {
+        self.state.notifications().next_expiry()
+    }
+
+    /// Removes the info messages that have run out.
+    pub(crate) fn expire_notifications(&mut self, now: std::time::Instant) {
+        if self.state.expire_notifications(now) {
+            self.needs_redraw = true;
+        }
+    }
+
     /// When the half-typed key sequence, if any, gives up waiting.
     pub(crate) fn pending_deadline(&self) -> Option<std::time::Instant> {
         self.pending_deadline
@@ -217,6 +232,12 @@ impl App {
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
+        // An error has had its moment once the user acts. Dismissed before the key
+        // is handled, so an error that this very key causes stays, and the key
+        // itself still does its job.
+        if key.kind == KeyEventKind::Press && self.state.dismiss_errors() {
+            self.needs_redraw = true;
+        }
         if self.state.palette().is_some() {
             self.handle_palette_key(key);
             return;
@@ -262,16 +283,15 @@ impl App {
     }
 
     fn run_action(&mut self, action: Action) {
-        self.state.clear_status();
         if let Err(error) = self.dispatch(action) {
-            self.state.set_status(error.to_string());
+            self.state.notify_error(error.to_string());
         }
         self.needs_redraw = true;
     }
 
     fn dispatch(&mut self, action: Action) -> IdeResult {
         if action.needs_editor() && !self.state.workspace().has_tabs() {
-            self.state.set_status(NO_FILE_MESSAGE);
+            self.state.notify(NO_FILE_MESSAGE);
             return Ok(());
         }
         match action {
@@ -323,10 +343,13 @@ impl App {
             true => "mouse on (hold shift to select text in the terminal)",
             false => "mouse off",
         };
-        self.state.set_status(message);
+        self.state.notify(message);
     }
 
     fn handle_mouse(&mut self, event: MouseEvent) {
+        if matches!(event.kind, MouseEventKind::Down(_)) && self.state.dismiss_errors() {
+            self.needs_redraw = true;
+        }
         if !self.mouse_enabled || self.modal_open() {
             return;
         }
@@ -386,7 +409,7 @@ impl App {
             self.warn_if_unsaved(result);
         }
         if let Err(error) = result {
-            self.state.set_status(error.to_string());
+            self.state.notify_error(error.to_string());
         }
         self.needs_redraw = true;
     }
@@ -460,7 +483,6 @@ impl App {
         let Some(mut prompt) = self.state.take_quit_prompt() else {
             return;
         };
-        self.state.clear_status();
 
         let mut keep_open = true;
         match command {
@@ -499,7 +521,7 @@ impl App {
                 true
             }
             Err(error) => {
-                self.state.set_status(format!("{name}: {error}"));
+                self.state.notify_error(format!("{name}: {error}"));
                 false
             }
         }
@@ -512,7 +534,7 @@ impl App {
 
     fn warn_if_unsaved(&mut self, result: CloseResult) {
         if let CloseResult::Unsaved(name) = result {
-            self.state.set_status(format!(
+            self.state.notify(format!(
                 "{name} has unsaved changes; close again to discard them"
             ));
         }
@@ -532,13 +554,13 @@ impl App {
 
     fn paste(&mut self) -> IdeResult {
         let Some(fetched) = self.clipboard.get() else {
-            self.state.set_status("nothing to paste");
+            self.state.notify("nothing to paste");
             return Ok(());
         };
         self.state.edit(|editor| editor.paste(&fetched.register))?;
         if fetched.notice == Some(Notice::SystemUnreadable) {
             self.state
-                .set_status("system clipboard is not readable here; pasted the editor's own copy");
+                .notify("system clipboard is not readable here; pasted the editor's own copy");
         }
         Ok(())
     }
@@ -550,15 +572,14 @@ impl App {
         if self.modal_open() {
             return;
         }
-        self.state.clear_status();
         if !self.state.workspace().has_tabs() {
-            self.state.set_status(NO_FILE_MESSAGE);
+            self.state.notify(NO_FILE_MESSAGE);
             self.needs_redraw = true;
             return;
         }
         let paste = Register::charwise(text);
         if let Err(error) = self.state.edit(|editor| editor.paste(&paste)) {
-            self.state.set_status(error.to_string());
+            self.state.notify_error(error.to_string());
         }
         self.needs_redraw = true;
     }
@@ -566,7 +587,7 @@ impl App {
     fn save(&mut self) -> IdeResult {
         self.state.edit(|editor| editor.save())?;
         let name = self.state.editor().display_name();
-        self.state.set_status(format!("saved {name}"));
+        self.state.notify(format!("saved {name}"));
         Ok(())
     }
 

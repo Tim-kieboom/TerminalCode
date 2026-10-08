@@ -125,6 +125,11 @@ used `anyhow` everywhere instead of typed errors.
   over every component. While one is open it takes all keys; mouse and paste are ignored. Quitting with
   modified documents opens it; it lists them, lets each be saved or discarded alone or all at once, and
   quits when none are left. A save that fails keeps the file listed with the error.
+- Notifications live in `AppState` (`Notifications`) and are drawn over the components and under the modals,
+  stacked bottom right above the status bar. `Level::Info` expires (the app loop has a timer branch
+  for the next expiry), `Level::Error` stays until a key press or mouse click, which is handled as usual; the
+  dismissal runs before the key so an error that key causes is kept. Every user-visible message goes through
+  `notify` / `notify_error`, never straight to the status bar.
 - The command palette is a modal of the same kind. Its entries come from `Action::palette_actions()`, each with
   a hand-written title from `Action::title()` (an exhaustive match, so a new action must decide whether it is
   listed); actions with an argument are listed once per useful value. App builds the entries when it opens
