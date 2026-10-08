@@ -15,8 +15,9 @@ use std::collections::HashMap;
 use ratatui::layout::Rect;
 use serde::Deserialize;
 
-use crate::buffer::{Buffer, EditInfo, Selection, Selections};
+use crate::buffer::{Buffer, EditInfo, FileError, Selection, Selections};
 use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, display_name};
+use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
 use crate::ui::layout::Axis;
 
@@ -27,7 +28,7 @@ mod render;
 mod tests;
 mod tree;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) struct DocumentId(u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -183,6 +184,30 @@ impl Workspace {
     pub(crate) fn with_editor<R>(&mut self, f: impl FnOnce(&mut Editor) -> R) -> R {
         let index = self.focused_index();
         self.with_editor_in(index, f)
+    }
+
+    /// Every document with unsaved changes, in the order they were opened.
+    pub(crate) fn dirty_documents(&self) -> Vec<Item> {
+        let mut dirty: Vec<_> = self
+            .documents
+            .iter()
+            .filter(|(_, doc)| doc.buffer.is_dirty())
+            .map(|(id, doc)| Item {
+                document: *id,
+                name: display_name(&doc.buffer),
+            })
+            .collect();
+        dirty.sort_by_key(|item| item.document);
+        dirty
+    }
+
+    /// Writes document `id` to its file. A document that is no longer open
+    /// counts as saved.
+    pub(crate) fn save_document(&mut self, id: DocumentId) -> Result<(), FileError> {
+        match self.documents.get_mut(&id) {
+            Some(doc) => doc.buffer.save(),
+            None => Ok(()),
+        }
     }
 
     /// Opens `buffer` in a new tab of the focused pane and activates it.

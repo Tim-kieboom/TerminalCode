@@ -23,6 +23,9 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     for placement in &placements {
         draw_component(frame, state, placement);
     }
+    if let Some(prompt) = state.quit_prompt() {
+        prompt.render(frame, state.theme());
+    }
 }
 
 /// Fills the whole screen with the theme's background, if it has one, so that

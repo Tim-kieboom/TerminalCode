@@ -121,6 +121,10 @@ used `anyhow` everywhere instead of typed errors.
 ### UI layout
 - Ratatui. Regions: sidebar (explorer), editor area (tabs, splits), bottom panel (terminal), status
   bar, notifications overlay, command palette / fuzzy finder overlay.
+- Modal prompts (the unsaved-changes prompt on quit) live in `AppState` as `Option<...>` and are drawn last,
+  over every component. While one is open it takes all keys; mouse and paste are ignored. Quitting with
+  modified documents opens it; it lists them, lets each be saved or discarded alone or all at once, and
+  quits when none are left. A save that fails keeps the file listed with the error.
 - Components are views over `AppState`; they emit `Action`s, they do not mutate state directly.
 
 ### Integrated terminal

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
+use crate::components::quit_prompt::QuitPrompt;
 use crate::components::status_view::StatusBar;
 use crate::components::workspace::Workspace;
 use crate::ui::layout::LayoutTree;
@@ -16,6 +17,7 @@ pub(crate) struct AppState {
     layout: LayoutTree,
     status: Option<Box<str>>,
     pending_keys: Option<Box<str>>,
+    quit_prompt: Option<QuitPrompt>,
 }
 
 #[derive(Debug, Default)]
@@ -102,6 +104,19 @@ impl AppState {
 
     pub(crate) fn set_pending_keys(&mut self, keys: Option<String>) {
         self.pending_keys = keys.map(String::into_boxed_str);
+    }
+
+    /// The unsaved-changes prompt, while it is open. It takes all keys.
+    pub(crate) fn quit_prompt(&self) -> Option<&QuitPrompt> {
+        self.quit_prompt.as_ref()
+    }
+
+    pub(crate) fn open_quit_prompt(&mut self, prompt: QuitPrompt) {
+        self.quit_prompt = Some(prompt);
+    }
+
+    pub(crate) fn take_quit_prompt(&mut self) -> Option<QuitPrompt> {
+        self.quit_prompt.take()
     }
 
     #[cfg(test)]

@@ -135,12 +135,6 @@ impl Editor {
         self.view.scroll
     }
 
-    /// File name for titles and the status bar, with `[+]` when modified.
-    #[cfg(test)]
-    pub(crate) fn display_name(&self) -> String {
-        display_name(&self.buffer)
-    }
-
     /// The edits applied to the buffer since the last call; see
     /// [`Buffer::take_edit_log`].
     pub(crate) fn take_edit_log(&mut self) -> Vec<crate::buffer::EditInfo> {

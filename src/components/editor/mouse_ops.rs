@@ -27,13 +27,6 @@ enum Outside {
 }
 
 impl Editor {
-    /// Where the text is on screen, as last drawn.
-    /// Where the text was last drawn.
-    #[cfg(test)]
-    pub(crate) fn text_area(&self) -> Option<Rect> {
-        self.view.text_area
-    }
-
     #[cfg(test)]
     pub(crate) fn set_viewport(&mut self, text_area: Rect) {
         self.view.set_viewport(text_area);
