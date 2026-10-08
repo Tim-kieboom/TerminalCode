@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use super::KeyChord;
-use crate::action::Action;
+use crate::event::action::Action;
 
 /// Key sequences as a tree: each step is one chord. A node can have an action
 /// (the sequence so far is a binding) and children (it is also a prefix).

@@ -1,4 +1,4 @@
-use crate::action::Action;
+use crate::event::action::Action;
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
 
 const CONTEXTS: [Context; 1] = [Context::Global];

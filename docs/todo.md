@@ -36,7 +36,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Word motion (ctrl/alt+arrows), delete word, select all
 - [x] Copy/cut/paste: internal register (charwise or linewise) mirrored to the system clipboard; whole-line copy/cut with no selection; linewise paste goes above the cursor line; bracketed paste is a separate path
 - [x] Auto-indent on Enter (copies the leading whitespace left of the cursor, verbatim), Tab/Shift+Tab with the indent style detected from the file (tabs, or 2-4 spaces; fallback 4 spaces), block indent/outdent of selected lines, page up/down (+ shift to select)
-- [ ] Mouse: click to place cursor, drag to select, scroll wheel
+- [x] Mouse: click, drag, wheel (shift+wheel and horizontal wheel scroll sideways), shift+click extends, double click selects a word run, triple click the line; on by default, `alt+m` (`toggle_mouse`) switches it at runtime
+- [ ] Mouse follow-ups: auto-scroll while dragging past the edge (needs a repeating timer), middle-click paste, right-click menu, click in the gutter selects the line, wheel goes to the pane under the pointer once there are several panes, `mouse` setting in `settings.json`, Shift+click may be taken by the terminal itself (kitty uses shift for its own selection) so consider alt+click for extending
 - [x] Status bar (file, modified marker, line/column, messages)
 - [ ] Tabs and splits (multiple open documents)
 - [x] Clipboard (arboard, OSC 52 write-only fallback, one-time notice when the system clipboard is unreadable)
@@ -75,7 +76,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 
 ## M8 — Config + polish
 - [ ] `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings: theme, shell, vim on/off, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
-- [ ] Mouse: click to place cursor, scroll, pane focus
+- [ ] Mouse: pane focus by click (needs several panes)
 - [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux

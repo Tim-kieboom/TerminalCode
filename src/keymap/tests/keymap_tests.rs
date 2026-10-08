@@ -1,4 +1,4 @@
-use crate::action::Action;
+use crate::event::action::Action;
 use crate::keymap::{Context, KeyChord, Keymap, KeymapError, Lookup};
 use crate::terminal::KeyboardSupport;
 

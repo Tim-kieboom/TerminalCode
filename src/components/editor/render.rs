@@ -20,11 +20,15 @@ use crate::ui::{Render, get_block, pane_inner};
 const MIN_GUTTER_DIGITS: usize = 3;
 
 impl Render for Editor {
-    /// Scrolls so the cursor stays visible in the area the editor will get.
+    /// Records where the text will be drawn and, if the cursor or text moved,
+    /// scrolls so the cursor stays visible.
     fn prepare(&mut self, placement: &Placement) {
         let inner = pane_inner(placement.area);
         let geometry = Geometry::new(inner, self.buffer().len_lines());
-        keep_cursor_visible(self, &geometry);
+        self.set_viewport(geometry.text);
+        if self.take_view_change() {
+            keep_cursor_visible(self, &geometry);
+        }
     }
 
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {

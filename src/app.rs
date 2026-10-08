@@ -1,20 +1,22 @@
 use std::io;
 use std::time::Duration;
 
-use crossterm::event::{Event as InputEvent, EventStream, KeyEvent};
+use crossterm::event::{
+    Event as InputEvent, EventStream, KeyEvent, KeyModifiers, MouseButton, MouseEvent,
+    MouseEventKind,
+};
 use futures::StreamExt;
 use ratatui::{Terminal, backend::Backend};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 
-use crate::action::Action;
 use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components;
 use crate::error::{IdeError, IdeResult};
-use crate::event::Event;
+use crate::event::{Event, action::Action, mouse::ClickTracker};
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
 use crate::state::AppState;
-use crate::terminal::KeyboardSupport;
+use crate::terminal::{self, KeyboardSupport};
 
 /// Upper bound on redraw rate (about 60 fps).
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -70,6 +72,10 @@ where
             if sequence_deadline.is_some() => app.expire_pending(),
         }
 
+        if let Some(enabled) = app.take_mouse_change() {
+            terminal::set_mouse_capture(enabled);
+        }
+
         if app.should_quit() {
             return Ok(());
         }
@@ -85,6 +91,9 @@ pub(crate) struct App {
     resolver: Resolver,
     needs_redraw: bool,
     clipboard: Clipboard,
+    clicks: ClickTracker,
+    mouse_enabled: bool,
+    mouse_change: Option<bool>,
     sequence_timeout: Duration,
     pending_deadline: Option<std::time::Instant>,
 }
@@ -136,6 +145,9 @@ impl App {
             state,
             keymap,
             clipboard: Clipboard::internal_only(),
+            clicks: ClickTracker::default(),
+            mouse_enabled: true,
+            mouse_change: None,
             resolver: Resolver::default(),
             sequence_timeout: SEQUENCE_TIMEOUT,
             pending_deadline: None,
@@ -183,6 +195,7 @@ impl App {
         match input {
             InputEvent::Key(key) => self.handle_key(key),
             InputEvent::Paste(text) => self.paste_from_terminal(text),
+            InputEvent::Mouse(event) => self.handle_mouse(event),
             InputEvent::Resize(..) => self.needs_redraw = true,
             _ => {}
         }
@@ -260,12 +273,82 @@ impl App {
             Action::Copy => self.copy()?,
             Action::Cut => self.cut()?,
             Action::Paste => self.paste()?,
+            Action::ToggleMouse => self.toggle_mouse(),
             Action::Move(motion) => self.state.editor_mut().move_cursor(motion)?,
             Action::Select(motion) => self.state.editor_mut().select(motion)?,
             // Plugin actions need the plugin runtime, which is post-0.1.0.
             Action::Plugin(_) => {}
         }
         Ok(())
+    }
+
+    /// A mouse change the terminal has to be told about, once.
+    pub(crate) fn take_mouse_change(&mut self) -> Option<bool> {
+        self.mouse_change.take()
+    }
+
+    fn toggle_mouse(&mut self) {
+        self.mouse_enabled = !self.mouse_enabled;
+        self.mouse_change = Some(self.mouse_enabled);
+        let message = match self.mouse_enabled {
+            true => "mouse on (hold shift to select text in the terminal)",
+            false => "mouse off",
+        };
+        self.state.set_status(message);
+    }
+
+    fn handle_mouse(&mut self, event: MouseEvent) {
+        if !self.mouse_enabled {
+            return;
+        }
+        let extend = event.modifiers.contains(KeyModifiers::SHIFT);
+        let sideways = extend;
+        let editor = self.state.editor_mut();
+
+        let result = match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let clicks =
+                    self.clicks
+                        .register(std::time::Instant::now(), event.column, event.row);
+                editor.mouse_press(event.column, event.row, extend, clicks)
+            }
+            MouseEventKind::Drag(MouseButton::Left) => editor.mouse_drag(event.column, event.row),
+            MouseEventKind::Up(MouseButton::Left) => {
+                editor.mouse_release();
+                Ok(())
+            }
+            // One editor pane for now; with more panes the wheel goes to the one under the pointer.
+            MouseEventKind::ScrollUp if sideways => {
+                editor.scroll_columns(-1);
+                Ok(())
+            }
+            MouseEventKind::ScrollDown if sideways => {
+                editor.scroll_columns(1);
+                Ok(())
+            }
+            MouseEventKind::ScrollUp => {
+                editor.scroll_lines(-1);
+                Ok(())
+            }
+            MouseEventKind::ScrollDown => {
+                editor.scroll_lines(1);
+                Ok(())
+            }
+            MouseEventKind::ScrollLeft => {
+                editor.scroll_columns(-1);
+                Ok(())
+            }
+            MouseEventKind::ScrollRight => {
+                editor.scroll_columns(1);
+                Ok(())
+            }
+            _ => return,
+        };
+
+        if let Err(error) = result {
+            self.state.set_status(error.to_string());
+        }
+        self.needs_redraw = true;
     }
 
     fn copy(&mut self) -> IdeResult {

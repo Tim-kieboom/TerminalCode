@@ -4,8 +4,8 @@ use std::io::stdout;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{
-    DisableBracketedPaste, EnableBracketedPaste, KeyboardEnhancementFlags,
-    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::execute;
 use crossterm::terminal::supports_keyboard_enhancement;
@@ -32,6 +32,7 @@ pub struct Capabilities {
 /// from the panic hook) knows whether to pop them.
 static KEYBOARD_ENHANCED: AtomicBool = AtomicBool::new(false);
 static BRACKETED_PASTE: AtomicBool = AtomicBool::new(false);
+static MOUSE_CAPTURED: AtomicBool = AtomicBool::new(false);
 
 /// Enters raw mode and the alternate screen, and enables the kitty keyboard
 /// protocol when the terminal supports it.
@@ -40,6 +41,7 @@ pub fn init() -> (DefaultTerminal, Capabilities) {
     if execute!(stdout(), EnableBracketedPaste).is_ok() {
         BRACKETED_PASTE.store(true, Ordering::SeqCst);
     }
+    set_mouse_capture(true);
     let capabilities = Capabilities {
         keyboard: probe_keyboard(),
     };
@@ -48,6 +50,9 @@ pub fn init() -> (DefaultTerminal, Capabilities) {
 
 /// Undoes [`init`]. Safe to call more than once and from a panic hook.
 pub fn restore() {
+    if MOUSE_CAPTURED.swap(false, Ordering::SeqCst) {
+        let _ = execute!(stdout(), DisableMouseCapture);
+    }
     if BRACKETED_PASTE.swap(false, Ordering::SeqCst) {
         let _ = execute!(stdout(), DisableBracketedPaste);
     }
@@ -68,4 +73,15 @@ fn probe_keyboard() -> KeyboardSupport {
     }
     KEYBOARD_ENHANCED.store(true, Ordering::SeqCst);
     KeyboardSupport::Enhanced
+}
+
+/// Turns mouse reporting on or off. With it on, clicks, drags and the wheel
+/// reach the editor; the terminal's own text selection then needs a modifier
+/// (usually Shift).
+pub fn set_mouse_capture(enabled: bool) {
+    let result = match enabled {
+        true => execute!(stdout(), EnableMouseCapture),
+        false => execute!(stdout(), DisableMouseCapture),
+    };
+    MOUSE_CAPTURED.store(enabled && result.is_ok(), Ordering::SeqCst);
 }

@@ -215,3 +215,18 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   or changes the register or system clipboard. Each paste is one undo step and never merges with typing.
 - Tests never touch the real clipboard: `App` defaults to `Clipboard::internal_only()`; `lib::run` installs
   `System::detect()`.
+
+## Mouse
+- `terminal::init` turns mouse capture on; `terminal::set_mouse_capture` switches it. With capture on the terminal's
+  own selection needs a modifier (Shift in most terminals), which the status bar mentions when you toggle with
+  `alt+m`. A `mouse` setting joins `settings.json` later (default on).
+- The editor records where its text was drawn (`set_viewport`, called from `prepare`), so a screen cell maps back
+  to a buffer position: undo the horizontal scroll, expand tabs and wide characters, and pick the nearest cell
+  boundary (left half of a character -> before it). Below the last line is the end of the document.
+- `mouse::ClickTracker` counts quick clicks on the same cell (400 ms) as single, double or triple; a fourth starts over.
+  Double click selects the run of same-kind characters (word, punctuation or spaces); triple click the whole line
+  including its break. A drag extends from the start of whatever the press selected, clamped to the text area.
+- Scrolling (wheel) never moves the cursor. To keep the next frame from snapping the view back, the editor only
+  scrolls to the cursor when the cursor, the text or the viewport changed (`take_view_change`).
+- Deferred: auto-scroll while dragging beyond the edge (mouse events stop while the pointer is still, so it needs a
+  repeating timer in the app loop).

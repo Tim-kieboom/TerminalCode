@@ -6,7 +6,7 @@
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
-#   "indent", "outdent",
+#   "indent", "outdent", "toggle_mouse",
 #   "delete_forward", { insert_text = "..." }, { move = motion },
 #   { select = motion }, { plugin = "name" }.
 # Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
@@ -265,3 +265,9 @@ action = { select = "page_up" }
 keys = "shift+pagedown"
 context = "editor"
 action = { select = "page_down" }
+
+# Mouse capture. While it is on, the editor handles clicks, drags and the wheel,
+# and the terminal's own text selection needs a modifier (usually shift).
+[[binding]]
+keys = "alt+m"
+action = "toggle_mouse"

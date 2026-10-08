@@ -4,7 +4,7 @@ use std::str::FromStr;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::action::Action;
+use crate::event::action::Action;
 use crate::terminal::KeyboardSupport;
 
 pub(crate) use key::KeyChord;

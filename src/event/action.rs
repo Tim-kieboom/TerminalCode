@@ -26,6 +26,7 @@ pub(crate) enum Action {
     Copy,
     Cut,
     Paste,
+    ToggleMouse,
     Move(Motion),
     Select(Motion),
     Plugin(Box<str>),

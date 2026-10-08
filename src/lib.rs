@@ -10,7 +10,6 @@ use crate::error::{IdeError, IdeResult};
 use crate::state::AppState;
 use crate::terminal::Capabilities;
 
-mod action;
 mod app;
 mod buffer;
 mod clipboard;

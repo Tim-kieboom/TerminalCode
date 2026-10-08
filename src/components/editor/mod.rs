@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use ratatui::layout::Rect;
+
 use crate::buffer::{Buffer, BufferError, Edit, FileError, Position, Selection, Selections};
 
 pub(crate) use indent::IndentStyle;
@@ -8,6 +10,7 @@ pub(crate) use motion::Motion;
 mod clipboard_ops;
 mod indent;
 mod motion;
+mod mouse_ops;
 mod render;
 #[cfg(test)]
 mod tests;
@@ -39,6 +42,9 @@ pub(crate) struct Editor {
     selections: Selections,
     scroll: Scroll,
     viewport_height: usize,
+    text_area: Option<Rect>,
+    drag_anchor: Option<Position>,
+    seen_view: Option<(Position, u64, Rect)>,
     indent: IndentStyle,
     last_edit: Option<EditKind>,
 }
@@ -51,6 +57,9 @@ impl Editor {
             selections: Selections::default(),
             scroll: Scroll::default(),
             viewport_height: 0,
+            text_area: None,
+            drag_anchor: None,
+            seen_view: None,
             indent,
             last_edit: None,
         }

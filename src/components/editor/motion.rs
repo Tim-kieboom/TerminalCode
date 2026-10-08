@@ -138,13 +138,13 @@ fn page_down(
 
 /// What a grapheme counts as for word motion.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum CharClass {
+pub(super) enum CharClass {
     Space,
     Word,
     Punctuation,
 }
 
-fn classify(grapheme: &str) -> CharClass {
+pub(super) fn classify(grapheme: &str) -> CharClass {
     let Some(first) = grapheme.chars().next() else {
         return CharClass::Space;
     };

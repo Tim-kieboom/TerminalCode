@@ -35,6 +35,21 @@ pub(super) fn display_column(text: &str, grapheme_column: usize) -> usize {
         .fold(0, |column, grapheme| column + width_at(grapheme, column))
 }
 
+/// Grapheme column of the cell boundary nearest to display column
+/// `display_column`: a click in the left half of a character lands before it,
+/// in the right half after it, and past the end of the line at the end.
+pub(super) fn column_at_display(text: &str, display_column: usize) -> usize {
+    let mut column = 0;
+    for (index, grapheme) in text.graphemes(true).enumerate() {
+        let width = width_at(grapheme, column);
+        if display_column < column + width.div_ceil(2) {
+            return index;
+        }
+        column += width;
+    }
+    text.graphemes(true).count()
+}
+
 /// The cells of `text` that fall in display columns `left..left + width`.
 /// Zero-width graphemes are skipped. A wide grapheme or tab cut by an edge of
 /// the window is replaced by spaces for its visible part.

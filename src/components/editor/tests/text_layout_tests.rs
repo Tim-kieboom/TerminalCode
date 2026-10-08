@@ -70,3 +70,54 @@ fn grapheme_clusters_stay_one_cell() {
 fn zero_width_window_has_no_cells() {
     assert!(visible_cells("abc", 0, 0).is_empty());
 }
+
+#[test]
+fn clicking_the_left_half_of_a_cell_lands_before_it_and_the_right_half_after() {
+    // "ab": a is column 0, b is column 1.
+    assert_eq!(column_at_display("ab", 0), 0);
+    assert_eq!(column_at_display("ab", 1), 1);
+    assert_eq!(column_at_display("ab", 2), 2);
+}
+
+#[test]
+fn clicking_a_wide_character_picks_the_nearest_edge() {
+    // The wide character covers display columns 0 and 1.
+    assert_eq!(column_at_display("\u{3053}a", 0), 0);
+    assert_eq!(column_at_display("\u{3053}a", 1), 1);
+    assert_eq!(column_at_display("\u{3053}a", 2), 1);
+    assert_eq!(column_at_display("\u{3053}a", 3), 2);
+}
+
+#[test]
+fn clicking_a_tab_picks_the_nearest_edge() {
+    // The tab covers display columns 0..4.
+    assert_eq!(column_at_display("\tx", 0), 0);
+    assert_eq!(column_at_display("\tx", 1), 0);
+    assert_eq!(column_at_display("\tx", 2), 1);
+    assert_eq!(column_at_display("\tx", 3), 1);
+    assert_eq!(column_at_display("\tx", 4), 1);
+}
+
+#[test]
+fn clicking_past_the_end_of_a_line_lands_at_its_end() {
+    assert_eq!(column_at_display("abc", 50), 3);
+    assert_eq!(column_at_display("", 5), 0);
+}
+
+#[test]
+fn clicking_inside_a_grapheme_cluster_never_splits_it() {
+    let flag = "\u{1F1F3}\u{1F1F1}";
+
+    assert_eq!(column_at_display(&format!("{flag}x"), 0), 0);
+    assert_eq!(column_at_display(&format!("{flag}x"), 2), 1);
+}
+
+#[test]
+fn column_at_display_inverts_display_column_on_boundaries() {
+    let text = "a\tb\u{3053}c";
+    for column in 0..=5 {
+        let display = display_column(text, column);
+
+        assert_eq!(column_at_display(text, display), column);
+    }
+}

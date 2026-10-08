@@ -1,3 +1,5 @@
+pub mod action;
+pub mod mouse;
 use crate::components::PluginViewId;
 use crate::ui::view::ViewNode;
 

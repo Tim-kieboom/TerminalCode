@@ -1,5 +1,5 @@
 use super::{Context, KeyChord, Keymap, Lookup};
-use crate::action::Action;
+use crate::event::action::Action;
 
 /// What a chord turned into.
 #[derive(Debug, Clone, PartialEq, Eq)]

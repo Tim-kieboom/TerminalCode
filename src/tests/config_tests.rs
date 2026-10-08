@@ -1,7 +1,7 @@
 use std::fs;
 
-use crate::action::Action;
 use crate::config::load_keymap;
+use crate::event::action::Action;
 use crate::keymap::{Context, KeyChord, Keymap, Lookup};
 use crate::terminal::KeyboardSupport;
 

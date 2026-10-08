@@ -52,7 +52,7 @@ impl Buffer {
         }
     }
 
-    #[cfg(test)]
+    /// Increases on every change, so cached results can tell they are stale.
     pub(crate) fn version(&self) -> u64 {
         self.version
     }
