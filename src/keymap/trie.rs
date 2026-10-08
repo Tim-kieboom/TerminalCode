@@ -52,6 +52,29 @@ impl Node {
         }
     }
 
+    /// Every sequence in this tree that is bound to `action`.
+    pub(super) fn sequences_for(&self, action: &Action) -> Vec<Vec<KeyChord>> {
+        let mut found = Vec::new();
+        self.collect_sequences(action, &mut Vec::new(), &mut found);
+        found
+    }
+
+    fn collect_sequences(
+        &self,
+        action: &Action,
+        path: &mut Vec<KeyChord>,
+        found: &mut Vec<Vec<KeyChord>>,
+    ) {
+        if !path.is_empty() && self.action.as_ref() == Some(action) {
+            found.push(path.clone());
+        }
+        for (chord, child) in &self.children {
+            path.push(*chord);
+            child.collect_sequences(action, path, found);
+            path.pop();
+        }
+    }
+
     fn is_empty(&self) -> bool {
         self.action.is_none() && self.children.is_empty()
     }

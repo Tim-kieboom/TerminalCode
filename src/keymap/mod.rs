@@ -139,6 +139,22 @@ impl Keymap {
         Ok(())
     }
 
+    /// The shortest key sequence bound to `action` in any of `contexts`, as
+    /// text such as `ctrl+k right`. Fewer chords win, then the shorter text.
+    pub(crate) fn keys_for(&self, action: &Action, contexts: &[Context]) -> Option<String> {
+        contexts
+            .iter()
+            .filter_map(|context| self.contexts.get(context))
+            .flat_map(|root| root.sequences_for(action))
+            .map(|keys| {
+                let text: Vec<_> = keys.iter().map(ToString::to_string).collect();
+                let text = text.join(" ");
+                (keys.len(), text.len(), text)
+            })
+            .min()
+            .map(|(_, _, text)| text)
+    }
+
     /// Looks `keys` up in each of `contexts` in order; the first context that
     /// knows the sequence answers.
     pub(crate) fn find(&self, contexts: &[Context], keys: &[KeyChord]) -> Lookup<'_> {

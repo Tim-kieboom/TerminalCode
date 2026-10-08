@@ -4,7 +4,7 @@
 #          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
 # context: "global" (default) or "editor". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
-# Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
+# Actions: "quit", "command_palette", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
@@ -339,3 +339,13 @@ action = { focus_pane = "up" }
 keys = "alt+l"
 context = "editor"
 action = { focus_pane = "right" }
+
+# Command palette. ctrl+shift+p is avoided on purpose: kitty and Windows Terminal keep it for
+# themselves (kitty waits for a second key before passing anything on).
+[[binding]]
+keys = "f1"
+action = "command_palette"
+
+[[binding]]
+keys = "alt+p"
+action = "command_palette"

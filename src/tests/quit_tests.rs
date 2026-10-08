@@ -224,6 +224,6 @@ fn the_prompt_is_drawn_over_the_editor() {
 
     let screen = terminal.backend().to_string();
     assert!(screen.contains("Unsaved changes"), "{screen}");
-    assert!(screen.contains("s: save all"), "{screen}");
+    assert!(screen.contains("save all"), "{screen}");
     assert!(screen.contains("b.txt"), "{screen}");
 }

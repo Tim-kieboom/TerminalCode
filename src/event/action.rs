@@ -12,6 +12,7 @@ use crate::components::workspace::FocusDirection;
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Action {
     Quit,
+    CommandPalette,
     Save,
     Undo,
     Redo,
@@ -48,6 +49,7 @@ impl Action {
         !matches!(
             self,
             Self::Quit
+                | Self::CommandPalette
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseTab
@@ -59,5 +61,85 @@ impl Action {
                 | Self::FocusPane(_)
                 | Self::Plugin(_)
         )
+    }
+}
+
+impl Action {
+    /// The name the command palette shows, written as "Group: Verb". `None`
+    /// for actions that are not worth searching for: typing, single cursor
+    /// steps and plugin hooks.
+    pub(crate) fn title(&self) -> Option<&'static str> {
+        use FocusDirection::*;
+        Some(match self {
+            Self::Quit => "Application: Quit",
+            Self::CommandPalette => "Application: Command Palette",
+            Self::ToggleMouse => "View: Toggle Mouse",
+            Self::Save => "File: Save",
+            Self::NewFile => "File: New",
+            Self::CloseTab => "Tab: Close",
+            Self::NextTab => "Tab: Next",
+            Self::PreviousTab => "Tab: Previous",
+            Self::SplitRight => "Pane: Split Right",
+            Self::SplitDown => "Pane: Split Down",
+            Self::FocusNextPane => "Pane: Focus Next",
+            Self::FocusPane(Left) => "Pane: Focus Left",
+            Self::FocusPane(Right) => "Pane: Focus Right",
+            Self::FocusPane(Up) => "Pane: Focus Up",
+            Self::FocusPane(Down) => "Pane: Focus Down",
+            Self::Undo => "Edit: Undo",
+            Self::Redo => "Edit: Redo",
+            Self::Cut => "Edit: Cut",
+            Self::Copy => "Edit: Copy",
+            Self::Paste => "Edit: Paste",
+            Self::Indent => "Edit: Indent",
+            Self::Outdent => "Edit: Outdent",
+            Self::DeleteWordBackward => "Edit: Delete Word Backward",
+            Self::DeleteWordForward => "Edit: Delete Word Forward",
+            Self::SelectAll => "Selection: Select All",
+            Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
+            Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
+            Self::Move(_)
+            | Self::Select(_)
+            | Self::InsertText(_)
+            | Self::InsertNewline
+            | Self::DeleteBackward
+            | Self::DeleteForward
+            | Self::Plugin(_) => return None,
+        })
+    }
+
+    /// Every action the command palette lists. Actions with an argument appear
+    /// once per useful value.
+    pub(crate) fn palette_actions() -> Vec<Self> {
+        use FocusDirection::*;
+        vec![
+            Self::CommandPalette,
+            Self::Save,
+            Self::NewFile,
+            Self::CloseTab,
+            Self::NextTab,
+            Self::PreviousTab,
+            Self::SplitRight,
+            Self::SplitDown,
+            Self::FocusNextPane,
+            Self::FocusPane(Left),
+            Self::FocusPane(Right),
+            Self::FocusPane(Up),
+            Self::FocusPane(Down),
+            Self::Undo,
+            Self::Redo,
+            Self::Cut,
+            Self::Copy,
+            Self::Paste,
+            Self::SelectAll,
+            Self::Indent,
+            Self::Outdent,
+            Self::DeleteWordBackward,
+            Self::DeleteWordForward,
+            Self::Move(Motion::DocumentStart),
+            Self::Move(Motion::DocumentEnd),
+            Self::ToggleMouse,
+            Self::Quit,
+        ]
     }
 }

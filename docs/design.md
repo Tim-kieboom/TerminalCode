@@ -125,6 +125,11 @@ used `anyhow` everywhere instead of typed errors.
   over every component. While one is open it takes all keys; mouse and paste are ignored. Quitting with
   modified documents opens it; it lists them, lets each be saved or discarded alone or all at once, and
   quits when none are left. A save that fails keeps the file listed with the error.
+- The command palette is a modal of the same kind. Its entries come from `Action::palette_actions()`, each with
+  a hand-written title from `Action::title()` (an exhaustive match, so a new action must decide whether it is
+  listed); actions with an argument are listed once per useful value. App builds the entries when it opens
+  the palette, including the keys from `Keymap::keys_for`, so rendering needs nothing but `AppState`. Matching
+  is `ui::fuzzy::score`, shared with the file finder later.
 - Components are views over `AppState`; they emit `Action`s, they do not mutate state directly.
 
 ### Integrated terminal

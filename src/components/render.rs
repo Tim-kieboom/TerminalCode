@@ -23,6 +23,9 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     for placement in &placements {
         draw_component(frame, state, placement);
     }
+    if let Some(palette) = state.palette() {
+        palette.render(frame, state.theme());
+    }
     if let Some(prompt) = state.quit_prompt() {
         prompt.render(frame, state.theme());
     }

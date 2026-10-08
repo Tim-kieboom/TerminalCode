@@ -3,6 +3,7 @@ use ratatui::Frame;
 use crate::state::AppState;
 use crate::ui::layout::Placement;
 
+pub mod fuzzy;
 pub mod layout;
 pub mod pane_frame;
 #[cfg(test)]

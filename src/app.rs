@@ -12,7 +12,8 @@ use tokio::time::{Instant, sleep_until};
 
 use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components;
-use crate::components::quit_prompt::{Command, QuitPrompt};
+use crate::components::palette::{self, Entry, Palette};
+use crate::components::quit_prompt::{self, QuitPrompt};
 use crate::components::workspace::{CloseResult, DocumentId};
 use crate::error::{IdeError, IdeResult};
 use crate::event::{Event, action::Action, mouse::ClickTracker};
@@ -216,6 +217,10 @@ impl App {
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
+        if self.state.palette().is_some() {
+            self.handle_palette_key(key);
+            return;
+        }
         if self.state.quit_prompt().is_some() {
             self.handle_prompt_key(key);
             return;
@@ -271,6 +276,7 @@ impl App {
         }
         match action {
             Action::Quit => self.quit(),
+            Action::CommandPalette => self.open_palette(),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,
@@ -321,7 +327,7 @@ impl App {
     }
 
     fn handle_mouse(&mut self, event: MouseEvent) {
-        if !self.mouse_enabled || self.state.quit_prompt().is_some() {
+        if !self.mouse_enabled || self.modal_open() {
             return;
         }
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
@@ -385,6 +391,57 @@ impl App {
         self.needs_redraw = true;
     }
 
+    /// Whether an overlay is open and taking all input.
+    fn modal_open(&self) -> bool {
+        self.state.quit_prompt().is_some() || self.state.palette().is_some()
+    }
+
+    fn open_palette(&mut self) {
+        let entries = Action::palette_actions()
+            .into_iter()
+            .filter_map(|action| {
+                let title = action.title()?;
+                let keys = self.keymap.keys_for(&action, &EDITOR_CONTEXTS);
+                Some(Entry {
+                    title,
+                    action,
+                    keys,
+                })
+            })
+            .collect();
+        self.state.open_palette(Palette::new(entries));
+    }
+
+    fn handle_palette_key(&mut self, key: KeyEvent) {
+        let Some(command) = palette::Command::from_key(key) else {
+            return;
+        };
+        let Some(mut palette) = self.state.take_palette() else {
+            return;
+        };
+        let mut keep_open = true;
+        let mut chosen = None;
+        match command {
+            palette::Command::Insert(c) => palette.insert(c),
+            palette::Command::Backspace => palette.backspace(),
+            palette::Command::ClearQuery => palette.clear_query(),
+            palette::Command::Previous => palette.select_previous(),
+            palette::Command::Next => palette.select_next(),
+            palette::Command::Cancel => keep_open = false,
+            palette::Command::Run => {
+                chosen = palette.selected_entry().map(|entry| entry.action.clone());
+                keep_open = chosen.is_none();
+            }
+        }
+        if keep_open {
+            self.state.open_palette(palette);
+        }
+        self.needs_redraw = true;
+        if let Some(action) = chosen {
+            self.run_action(action);
+        }
+    }
+
     /// Quits, after asking what to do with documents that have unsaved
     /// changes.
     fn quit(&mut self) {
@@ -397,7 +454,7 @@ impl App {
     }
 
     fn handle_prompt_key(&mut self, key: KeyEvent) {
-        let Some(command) = Command::from_key(key) else {
+        let Some(command) = quit_prompt::Command::from_key(key) else {
             return;
         };
         let Some(mut prompt) = self.state.take_quit_prompt() else {
@@ -407,17 +464,17 @@ impl App {
 
         let mut keep_open = true;
         match command {
-            Command::Previous => prompt.select_previous(),
-            Command::Next => prompt.select_next(),
-            Command::Cancel => keep_open = false,
-            Command::Discard => prompt.remove_selected(),
-            Command::DiscardAll => self.flow = Flow::Quit,
-            Command::Save => {
+            quit_prompt::Command::Previous => prompt.select_previous(),
+            quit_prompt::Command::Next => prompt.select_next(),
+            quit_prompt::Command::Cancel => keep_open = false,
+            quit_prompt::Command::Discard => prompt.remove_selected(),
+            quit_prompt::Command::DiscardAll => self.flow = Flow::Quit,
+            quit_prompt::Command::Save => {
                 if let Some(item) = prompt.selected_item().cloned() {
                     self.save_for_prompt(&mut prompt, &item.name, item.document);
                 }
             }
-            Command::SaveAll => {
+            quit_prompt::Command::SaveAll => {
                 while let Some(item) = prompt.selected_item().cloned() {
                     if !self.save_for_prompt(&mut prompt, &item.name, item.document) {
                         break;
@@ -490,7 +547,7 @@ impl App {
     /// click). Goes straight into the editor; it neither reads nor changes the
     /// clipboard.
     fn paste_from_terminal(&mut self, text: String) {
-        if self.state.quit_prompt().is_some() {
+        if self.modal_open() {
             return;
         }
         self.state.clear_status();

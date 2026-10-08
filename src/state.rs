@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
+use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
 use crate::components::status_view::StatusBar;
 use crate::components::workspace::Workspace;
@@ -18,6 +19,7 @@ pub(crate) struct AppState {
     status: Option<Box<str>>,
     pending_keys: Option<Box<str>>,
     quit_prompt: Option<QuitPrompt>,
+    palette: Option<Palette>,
 }
 
 #[derive(Debug, Default)]
@@ -117,6 +119,19 @@ impl AppState {
 
     pub(crate) fn take_quit_prompt(&mut self) -> Option<QuitPrompt> {
         self.quit_prompt.take()
+    }
+
+    /// The command palette, while it is open. It takes all keys.
+    pub(crate) fn palette(&self) -> Option<&Palette> {
+        self.palette.as_ref()
+    }
+
+    pub(crate) fn open_palette(&mut self, palette: Palette) {
+        self.palette = Some(palette);
+    }
+
+    pub(crate) fn take_palette(&mut self) -> Option<Palette> {
+        self.palette.take()
     }
 
     #[cfg(test)]

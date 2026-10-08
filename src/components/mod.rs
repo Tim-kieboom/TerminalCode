@@ -1,4 +1,5 @@
 pub mod editor;
+pub mod palette;
 pub mod quit_prompt;
 mod render;
 pub mod status_view;

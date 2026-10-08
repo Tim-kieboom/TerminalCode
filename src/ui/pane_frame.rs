@@ -149,6 +149,7 @@ impl PaneFrame {
         let mut block = self
             .shell()
             .border_style(theme.style(&self.border_style_slot(theme, focused)));
+
         if let Some(title) = title {
             block = block
                 .title(title)

@@ -358,3 +358,45 @@ fn an_invalid_layer_changes_nothing() {
     assert!(result.is_err());
     assert_eq!(keymap, before);
 }
+
+#[test]
+fn keys_for_prefers_fewer_chords_then_shorter_text() {
+    let keymap = Keymap::from_toml(
+        r#"
+        [[binding]]
+        keys = "ctrl+k ctrl+s"
+        action = "save"
+        [[binding]]
+        keys = "ctrl+shift+s"
+        action = "save"
+        [[binding]]
+        keys = "f2"
+        action = "save"
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(keymap.keys_for(&Action::Save, &BOTH).as_deref(), Some("f2"));
+}
+
+#[test]
+fn keys_for_is_none_for_an_unbound_action_or_a_context_not_asked_for() {
+    let keymap = Keymap::from_toml(
+        r#"
+        [[binding]]
+        keys = "ctrl+s"
+        context = "editor"
+        action = "save"
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(keymap.keys_for(&Action::Undo, &BOTH), None);
+    assert_eq!(keymap.keys_for(&Action::Save, &[Context::Global]), None);
+    assert_eq!(
+        keymap
+            .keys_for(&Action::Save, &[Context::Editor])
+            .as_deref(),
+        Some("ctrl+s")
+    );
+}

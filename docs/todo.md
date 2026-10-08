@@ -46,7 +46,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Per-component frames in the layout file: border type, title text, title alignment and title/border theme slots (`Framed(component: X, frame: (...))`)
 - [x] `[background]` in theme.toml: color + opacity, blended with the terminal background (OSC 11 query) or transparent so the terminal's own opacity/blur shows
 - [ ] Notifications overlay
-- [ ] Command palette over the Action registry
+- [x] Command palette (`f1`, `alt+p`; not `ctrl+shift+p`, which kitty and Windows Terminal keep for themselves): fuzzy search over hand-written action titles ("File: Save"), actions with an argument expanded per value ("Pane: Focus Left"), the bound keys shown beside each entry, enter runs it, esc closes; every action that has a title is listed explicitly in `Action::palette_actions`
+- [ ] Palette follow-ups: argument prompts (open file path, go to line), save as for untitled files, recently used first, mouse selection, paste into the query
 
 ## M4 — Explorer + search
 - [ ] Project tree, lazy load, gitignore-aware
