@@ -1,0 +1,21 @@
+// Project tasks configuration. See https://zed.dev/docs/tasks for documentation.
+//
+// Example:
+[
+  {
+    "label": "Cargo run",
+    "command": "cargo run",
+  },
+  {
+    "label": "Cargo build",
+    "command": "cargo build",
+  },
+  {
+    "label": "Cargo run Release",
+    "command": "cargo run --release",
+  },
+  {
+    "label": "Cargo build Release",
+    "command": "cargo build --release",
+  },
+]
