@@ -4,6 +4,7 @@ use crate::buffer::{Buffer, BufferError, Edit, FileError, Position, Selection, S
 
 pub(crate) use motion::Motion;
 
+mod clipboard_ops;
 mod motion;
 mod render;
 #[cfg(test)]
@@ -272,12 +273,24 @@ impl Editor {
         text: &str,
         kind: Option<EditKind>,
     ) -> Result<(), BufferError> {
+        self.replace_with(range, text, kind, |buffer, end| {
+            buffer.byte_to_position(end)
+        })
+    }
+
+    /// Like [`Editor::replace`], but `cursor` picks where the cursor goes. It
+    /// gets the edited buffer and the byte offset just after the new text.
+    fn replace_with(
+        &mut self,
+        range: Range<usize>,
+        text: &str,
+        kind: Option<EditKind>,
+        cursor: impl FnOnce(&Buffer, usize) -> Result<Position, BufferError>,
+    ) -> Result<(), BufferError> {
         let previous = self.last_edit.take();
         let mut transaction = self.buffer.begin_transaction(self.selections.clone());
         transaction.apply(&Edit::new(range.clone(), text))?;
-        let cursor = transaction
-            .buffer()
-            .byte_to_position(range.start + text.len())?;
+        let cursor = cursor(transaction.buffer(), range.start + text.len())?;
 
         let after = Selections::single(Selection::cursor(cursor));
         transaction.commit(after.clone());

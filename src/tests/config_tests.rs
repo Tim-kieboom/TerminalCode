@@ -1,8 +1,9 @@
 use std::fs;
 
-use super::*;
 use crate::action::Action;
-use crate::keymap::{Context, KeyChord, Lookup};
+use crate::config::load_keymap;
+use crate::keymap::{Context, KeyChord, Keymap, Lookup};
+use crate::terminal::KeyboardSupport;
 
 fn bound(keymap: &Keymap, keys: &str) -> Option<Action> {
     let chords: Vec<KeyChord> = keys

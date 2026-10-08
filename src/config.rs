@@ -63,7 +63,3 @@ fn unusable(keymap: Keymap, path: &Path, error: &dyn std::fmt::Display) -> Loade
         )),
     }
 }
-
-#[cfg(test)]
-#[path = "config_tests.rs"]
-mod tests;

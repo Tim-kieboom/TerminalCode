@@ -41,5 +41,5 @@ fn set_restore_on_panic() {
 }
 
 #[cfg(test)]
-#[path = "main_tests.rs"]
-mod tests;
+#[path = "tests/main_tests.rs"]
+mod main_tests;

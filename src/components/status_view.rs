@@ -6,6 +6,7 @@ use crate::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 
+#[derive(Debug, Default)]
 pub struct StatusBar;
 impl Render for StatusBar {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {

@@ -5,7 +5,7 @@
 # context: "global" (default) or "editor". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
-#   "delete_word_backward", "delete_word_forward", "select_all",
+#   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
 #   "delete_forward", { insert_text = "..." }, { move = motion },
 #   { select = motion }, { plugin = "name" }.
 # Motions: left, right, up, down, word_left, word_right, line_start, line_end, document_start,
@@ -206,3 +206,35 @@ action = "delete_word_forward"
 keys = "ctrl+a"
 context = "editor"
 action = "select_all"
+
+# Clipboard. With nothing selected, copy and cut take the whole line.
+# (The terminal's own paste, e.g. ctrl+shift+v, arrives as bracketed paste and needs no binding.)
+[[binding]]
+keys = "ctrl+c"
+context = "editor"
+action = "copy"
+
+[[binding]]
+keys = "ctrl+x"
+context = "editor"
+action = "cut"
+
+[[binding]]
+keys = "ctrl+v"
+context = "editor"
+action = "paste"
+
+[[binding]]
+keys = "ctrl+insert"
+context = "editor"
+action = "copy"
+
+[[binding]]
+keys = "shift+delete"
+context = "editor"
+action = "cut"
+
+[[binding]]
+keys = "shift+insert"
+context = "editor"
+action = "paste"

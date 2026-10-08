@@ -1,3 +1,4 @@
+mod clipboard_tests;
 mod editing_tests;
 mod editor_view_tests;
 mod motion_tests;

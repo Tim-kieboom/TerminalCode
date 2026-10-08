@@ -47,7 +47,7 @@ fn editing_bindings_only_apply_in_the_editor_context() {
 fn unbound_chord_is_not_found() {
     let keymap = defaults(KeyboardSupport::Enhanced);
 
-    assert_eq!(keymap.find(&BOTH, &sequence("ctrl+x")), Lookup::NotFound);
+    assert_eq!(keymap.find(&BOTH, &sequence("ctrl+l")), Lookup::NotFound);
 }
 
 #[test]

@@ -6,7 +6,7 @@ use ratatui::{
 };
 
 use crate::{
-    components::{ComponentKind, status_view::StatusBar},
+    components::ComponentKind,
     state::AppState,
     ui::{Render, get_block, layout::Placement, view::ViewNode},
 };
@@ -24,15 +24,17 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
 }
 
 fn prepare_component(state: &mut AppState, placement: &Placement) {
-    if placement.kind == ComponentKind::Editor {
-        state.editor_mut().prepare(placement);
+    match placement.kind {
+        ComponentKind::Editor => state.editor_mut().prepare(placement),
+        ComponentKind::StatusBar => state.status_bar_mut().prepare(placement),
+        _ => (),
     }
 }
 
 fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
     match placement.kind {
         ComponentKind::Editor => state.editor().render(frame, state, placement),
-        ComponentKind::StatusBar => StatusBar.render(frame, state, placement),
+        ComponentKind::StatusBar => state.status_bar().render(frame, state, placement),
         _ => render_plain(frame, state, placement),
     }
 }

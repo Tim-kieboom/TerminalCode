@@ -10,7 +10,7 @@ pub use file::FileError;
 pub(crate) use edit::Edit;
 use edit::{AppliedEdit, EditInfo};
 use history::History;
-use line_ending::LineEnding;
+pub(crate) use line_ending::LineEnding;
 use position::Point;
 pub(crate) use position::Position;
 pub(crate) use selection::{Selection, Selections};
@@ -69,6 +69,14 @@ impl Buffer {
     /// back to the saved text still counts as modified.
     pub(crate) fn is_dirty(&self) -> bool {
         self.version != self.saved_version
+    }
+
+    /// The text in the byte range `range`.
+    pub(crate) fn text_in(&self, range: std::ops::Range<usize>) -> Result<String, BufferError> {
+        self.check_range(range.start, range.end)?;
+        let start = self.rope.byte_to_char(range.start);
+        let end = self.rope.byte_to_char(range.end);
+        Ok(self.rope.slice(start..end).to_string())
     }
 
     /// Number of grapheme columns in `line`, not counting its line break.

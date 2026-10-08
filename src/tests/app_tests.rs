@@ -217,7 +217,7 @@ fn unbound_modified_keys_do_nothing() {
     let mut app = App::default();
     app.mark_drawn();
 
-    press(&mut app, KeyCode::Char('x'), KeyModifiers::CONTROL);
+    press(&mut app, KeyCode::Char('l'), KeyModifiers::CONTROL);
 
     assert_eq!(buffer_text(&app), "");
     assert!(!app.needs_redraw());
@@ -402,4 +402,123 @@ async fn the_loop_fires_a_pending_sequence_when_its_timeout_passes() {
     assert!(result.is_ok());
     let screen = terminal.backend().to_string();
     assert!(screen.contains("  1 G"), "screen:\n{screen}");
+}
+
+fn app_with_clipboard(memory: crate::clipboard::Memory) -> App {
+    let clipboard = crate::clipboard::Clipboard::new(crate::clipboard::System::Memory(memory));
+    App::default().with_clipboard(clipboard)
+}
+
+fn ctrl(app: &mut App, c: char) {
+    press(app, KeyCode::Char(c), KeyModifiers::CONTROL);
+}
+
+#[test]
+fn ctrl_c_ctrl_v_duplicates_the_selection() {
+    let mut app = App::default();
+    type_str(&mut app, "abc");
+    press(&mut app, KeyCode::Left, KeyModifiers::SHIFT);
+    press(&mut app, KeyCode::Left, KeyModifiers::SHIFT);
+
+    ctrl(&mut app, 'c');
+    press(&mut app, KeyCode::End, KeyModifiers::NONE);
+    ctrl(&mut app, 'v');
+
+    assert_eq!(buffer_text(&app), "abcbc");
+}
+
+#[test]
+fn ctrl_x_with_nothing_selected_cuts_the_line_and_ctrl_v_puts_it_back_above() {
+    let mut app = App::default();
+    type_str(&mut app, "one");
+    press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    type_str(&mut app, "two");
+
+    ctrl(&mut app, 'x');
+    assert_eq!(buffer_text(&app), "one");
+    ctrl(&mut app, 'v');
+
+    assert_eq!(buffer_text(&app), "two\none");
+}
+
+#[test]
+fn paste_with_nothing_copied_says_so() {
+    let mut app = App::default();
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(app.state().status(), Some("nothing to paste"));
+    assert_eq!(buffer_text(&app), "");
+}
+
+#[test]
+fn text_copied_in_another_program_is_pasted() {
+    use crate::clipboard::Memory;
+    let mut app = app_with_clipboard(Memory {
+        content: Some("theirs".to_owned()),
+        ..Memory::default()
+    });
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(buffer_text(&app), "theirs");
+}
+
+#[test]
+fn an_unreadable_system_clipboard_pastes_the_register_and_explains_once() {
+    use crate::clipboard::Memory;
+    let mut app = app_with_clipboard(Memory {
+        readable: false,
+        writable: false,
+        ..Memory::default()
+    });
+    type_str(&mut app, "x");
+    ctrl(&mut app, 'a');
+    ctrl(&mut app, 'c');
+    press(&mut app, KeyCode::End, KeyModifiers::NONE);
+
+    ctrl(&mut app, 'v');
+    assert_eq!(buffer_text(&app), "xx");
+    let first = app.state().status().unwrap().to_owned();
+    assert!(first.contains("not readable"), "{first}");
+
+    ctrl(&mut app, 'v');
+    assert_eq!(buffer_text(&app), "xxx");
+    assert_eq!(app.state().status(), None);
+}
+
+#[test]
+fn bracketed_paste_inserts_text_without_touching_the_clipboard() {
+    let mut app = App::default();
+    type_str(&mut app, "ab");
+    ctrl(&mut app, 'a');
+    ctrl(&mut app, 'c');
+    press(&mut app, KeyCode::End, KeyModifiers::NONE);
+
+    app.handle_input(InputEvent::Paste("PASTED\r\ntext".to_owned()));
+
+    assert_eq!(buffer_text(&app), "abPASTED\ntext");
+    // The register still holds the earlier copy.
+    ctrl(&mut app, 'v');
+    assert_eq!(buffer_text(&app), "abPASTED\ntextab");
+}
+
+#[test]
+fn bracketed_paste_requests_a_redraw() {
+    let mut app = App::default();
+    app.mark_drawn();
+
+    app.handle_input(InputEvent::Paste("x".to_owned()));
+
+    assert!(app.needs_redraw());
+}
+
+#[test]
+fn one_large_bracketed_paste_is_a_single_undo_step() {
+    let mut app = App::default();
+
+    app.handle_input(InputEvent::Paste("line\n".repeat(1000)));
+    ctrl(&mut app, 'z');
+
+    assert_eq!(buffer_text(&app), "");
 }

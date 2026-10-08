@@ -34,11 +34,12 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Editor view: gutter, scrolling, selection highlight, cursor, display-width/tab handling in the view layer only
 - [x] Normal-IDE editing: typing, delete, line/document motion, shift-select, undo/redo, save
 - [x] Word motion (ctrl/alt+arrows), delete word, select all
-- [ ] Normal-IDE editing: copy/cut/paste (needs clipboard), auto-indent, page up/down
+- [x] Copy/cut/paste: internal register (charwise or linewise) mirrored to the system clipboard; whole-line copy/cut with no selection; linewise paste goes above the cursor line; bracketed paste is a separate path
+- [ ] Auto-indent, page up/down
 - [ ] Mouse: click to place cursor, drag to select, scroll wheel
 - [x] Status bar (file, modified marker, line/column, messages)
 - [ ] Tabs and splits (multiple open documents)
-- [ ] Clipboard (system + OSC 52 fallback)
+- [x] Clipboard (arboard, OSC 52 write-only fallback, one-time notice when the system clipboard is unreadable)
 - [ ] Notifications overlay
 - [ ] Command palette over the Action registry
 

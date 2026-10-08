@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::components::status_view::StatusBar;
 use crate::components::{PluginViewId, editor::Editor};
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::Theme;
@@ -8,10 +9,16 @@ use crate::ui::view::ViewNode;
 /// Everything the UI renders from. Owned by the app loop alone.
 #[derive(Debug, Default)]
 pub(crate) struct AppState {
+    components: AppComponents,
     theme: Theme,
-    editor: Editor,
     layout: LayoutTree,
     status: Option<Box<str>>,
+}
+
+#[derive(Debug, Default)]
+struct AppComponents {
+    editor: Editor,
+    status_bar: StatusBar,
     plugin_views: HashMap<PluginViewId, PluginView>,
 }
 
@@ -37,17 +44,28 @@ impl PluginView {
 impl AppState {
     pub(crate) fn new(editor: Editor) -> Self {
         Self {
-            editor,
+            components: AppComponents {
+                editor,
+                ..Default::default()
+            },
             ..Self::default()
         }
     }
 
+    pub(crate) fn status_bar(&self) -> &StatusBar {
+        &self.components.status_bar
+    }
+
+    pub(crate) fn status_bar_mut(&mut self) -> &mut StatusBar {
+        &mut self.components.status_bar
+    }
+
     pub(crate) fn editor(&self) -> &Editor {
-        &self.editor
+        &self.components.editor
     }
 
     pub(crate) fn editor_mut(&mut self) -> &mut Editor {
-        &mut self.editor
+        &mut self.components.editor
     }
 
     /// One-line message for the status bar, such as an error or "saved".
@@ -72,16 +90,18 @@ impl AppState {
     }
 
     pub(crate) fn plugin_view(&self, id: &PluginViewId) -> Option<&PluginView> {
-        self.plugin_views.get(id)
+        self.components.plugin_views.get(id)
     }
 
     pub(crate) fn set_plugin_view(&mut self, id: PluginViewId, content: ViewNode) {
         let version = self
+            .components
             .plugin_views
             .get(&id)
             .map_or(0, |existing| existing.version + 1);
 
-        self.plugin_views
+        self.components
+            .plugin_views
             .insert(id, PluginView { version, content });
     }
 }

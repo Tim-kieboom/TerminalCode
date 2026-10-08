@@ -4,6 +4,7 @@ use ratatui::{Terminal, backend::Backend};
 
 use crate::app::{App, Sources};
 use crate::buffer::Buffer;
+use crate::clipboard::{Clipboard, System};
 use crate::components::editor::Editor;
 use crate::error::{IdeError, IdeResult};
 use crate::state::AppState;
@@ -12,6 +13,7 @@ use crate::terminal::Capabilities;
 mod action;
 mod app;
 mod buffer;
+mod clipboard;
 mod components;
 mod config;
 pub mod error;
@@ -30,11 +32,13 @@ fn initial_state(path: Option<&Path>) -> IdeResult<AppState> {
     let Some(path) = path else {
         return Ok(AppState::default());
     };
+
     let is_new = !path.exists();
     let mut state = AppState::new(Editor::new(Buffer::open_or_new(path)?));
     if is_new {
         state.set_status(format!("new file: {}", path.display()));
     }
+
     Ok(state)
 }
 
@@ -52,7 +56,9 @@ where
     if let Some(warning) = loaded.warning {
         state.set_status(warning);
     }
-    let app = App::with_keymap(state, loaded.keymap);
+
+    let clipboard = Clipboard::new(System::detect());
+    let app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

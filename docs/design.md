@@ -197,3 +197,17 @@ src/
 specificity, inheritance, pseudo-states, optional SCSS) is the real candidate. The `Theme::style(slot)` API is
 the seam: slots can become selector paths (`editor .selection`) without touching components. Evaluate maturity
 (single maintainer, 0.2.0) before adopting; keep TOML slots as the fallback.
+
+## Clipboard
+- `clipboard::Clipboard` owns an internal `Register { text, kind: Charwise | Linewise }` and a `System`
+  (`arboard` native clipboard, else OSC 52 write-only through the terminal, else nothing).
+- Copy/cut always fill the register and try to write the system clipboard; `last_written` remembers what we
+  wrote (even if the write failed). Paste reads the system clipboard: text different from `last_written` came
+  from another program and wins (charwise); same text, empty, or unreadable -> the register wins and keeps its kind.
+  The first time the system clipboard is unreadable while a register exists, the status bar says so.
+- Copy/cut with no selection take the whole line (including its line break). Linewise paste inserts above the
+  current line and keeps the cursor on the same character. Pasted line breaks are converted to the buffer's style.
+- Bracketed paste (`ctrl+shift+v`, middle click) arrives as `Event::Paste` and is inserted charwise; it never reads
+  or changes the register or system clipboard. Each paste is one undo step and never merges with typing.
+- Tests never touch the real clipboard: `App` defaults to `Clipboard::internal_only()`; `lib::run` installs
+  `System::detect()`.

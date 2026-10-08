@@ -4,7 +4,8 @@ use std::io::stdout;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{
-    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, EnableBracketedPaste, KeyboardEnhancementFlags,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
 };
 use crossterm::execute;
 use crossterm::terminal::supports_keyboard_enhancement;
@@ -30,11 +31,15 @@ pub struct Capabilities {
 /// Set while the kitty keyboard flags are pushed, so [`restore`] (also called
 /// from the panic hook) knows whether to pop them.
 static KEYBOARD_ENHANCED: AtomicBool = AtomicBool::new(false);
+static BRACKETED_PASTE: AtomicBool = AtomicBool::new(false);
 
 /// Enters raw mode and the alternate screen, and enables the kitty keyboard
 /// protocol when the terminal supports it.
 pub fn init() -> (DefaultTerminal, Capabilities) {
     let terminal = ratatui::init();
+    if execute!(stdout(), EnableBracketedPaste).is_ok() {
+        BRACKETED_PASTE.store(true, Ordering::SeqCst);
+    }
     let capabilities = Capabilities {
         keyboard: probe_keyboard(),
     };
@@ -43,6 +48,9 @@ pub fn init() -> (DefaultTerminal, Capabilities) {
 
 /// Undoes [`init`]. Safe to call more than once and from a panic hook.
 pub fn restore() {
+    if BRACKETED_PASTE.swap(false, Ordering::SeqCst) {
+        let _ = execute!(stdout(), DisableBracketedPaste);
+    }
     if KEYBOARD_ENHANCED.swap(false, Ordering::SeqCst) {
         // Nothing useful to do if the terminal is already gone.
         let _ = execute!(stdout(), PopKeyboardEnhancementFlags);

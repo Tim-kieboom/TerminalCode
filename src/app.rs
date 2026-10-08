@@ -8,6 +8,7 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 
 use crate::action::Action;
+use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
@@ -78,13 +79,14 @@ where
 /// The single owner of [`AppState`]. Everything else sends it events.
 #[derive(Debug)]
 pub(crate) struct App {
-    state: AppState,
+    flow: Flow,
     keymap: Keymap,
+    state: AppState,
     resolver: Resolver,
+    needs_redraw: bool,
+    clipboard: Clipboard,
     sequence_timeout: Duration,
     pending_deadline: Option<std::time::Instant>,
-    flow: Flow,
-    needs_redraw: bool,
 }
 
 /// Everything that can wake the app loop.
@@ -133,12 +135,20 @@ impl App {
         Self {
             state,
             keymap,
+            clipboard: Clipboard::internal_only(),
             resolver: Resolver::default(),
             sequence_timeout: SEQUENCE_TIMEOUT,
             pending_deadline: None,
             flow: Flow::Continue,
             needs_redraw: true,
         }
+    }
+
+    /// Uses `clipboard` for copy, cut and paste. Without this the editor only
+    /// has its own register.
+    pub(crate) fn with_clipboard(mut self, clipboard: Clipboard) -> Self {
+        self.clipboard = clipboard;
+        self
     }
 
     #[cfg(test)]
@@ -172,6 +182,7 @@ impl App {
     pub(crate) fn handle_input(&mut self, input: InputEvent) {
         match input {
             InputEvent::Key(key) => self.handle_key(key),
+            InputEvent::Paste(text) => self.paste_from_terminal(text),
             InputEvent::Resize(..) => self.needs_redraw = true,
             _ => {}
         }
@@ -244,12 +255,51 @@ impl App {
             Action::DeleteWordBackward => self.state.editor_mut().delete_word_backward()?,
             Action::DeleteWordForward => self.state.editor_mut().delete_word_forward()?,
             Action::SelectAll => self.state.editor_mut().select_all()?,
+            Action::Copy => self.copy()?,
+            Action::Cut => self.cut()?,
+            Action::Paste => self.paste()?,
             Action::Move(motion) => self.state.editor_mut().move_cursor(motion)?,
             Action::Select(motion) => self.state.editor_mut().select(motion)?,
             // Plugin actions need the plugin runtime, which is post-0.1.0.
             Action::Plugin(_) => {}
         }
         Ok(())
+    }
+
+    fn copy(&mut self) -> IdeResult {
+        let register = self.state.editor().copy()?;
+        self.clipboard.set(register);
+        Ok(())
+    }
+
+    fn cut(&mut self) -> IdeResult {
+        let register = self.state.editor_mut().cut()?;
+        self.clipboard.set(register);
+        Ok(())
+    }
+
+    fn paste(&mut self) -> IdeResult {
+        let Some(fetched) = self.clipboard.get() else {
+            self.state.set_status("nothing to paste");
+            return Ok(());
+        };
+        self.state.editor_mut().paste(&fetched.register)?;
+        if fetched.notice == Some(Notice::SystemUnreadable) {
+            self.state
+                .set_status("system clipboard is not readable here; pasted the editor's own copy");
+        }
+        Ok(())
+    }
+
+    /// Text the terminal pasted (bracketed paste, e.g. ctrl+shift+v or a middle
+    /// click). Goes straight into the editor; it neither reads nor changes the
+    /// clipboard.
+    fn paste_from_terminal(&mut self, text: String) {
+        self.state.clear_status();
+        if let Err(error) = self.state.editor_mut().paste(&Register::charwise(text)) {
+            self.state.set_status(error.to_string());
+        }
+        self.needs_redraw = true;
     }
 
     fn save(&mut self) -> IdeResult {
