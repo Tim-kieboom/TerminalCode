@@ -19,16 +19,16 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Typing-burst coalescing for normal-editor undo (runs of typing, backspace or delete form one step; moves, newline, selection edits and undo/redo break a run; no time-based break yet)
 - [x] Selections (list of ranges, one used), `desired_column`
 - [x] Property tests: apply + invert == identity, undo/redo, position round-trip
-- [ ] Property tests for grapheme movement over emoji/CJK/combining marks (when cursor movement exists)
+- [x] Property tests for grapheme movement over emoji/CJK/combining marks
 - [x] File open/save (atomic write, encoding: UTF-8 only in 0.1.0, clear error otherwise)
 
 ## M2 — Action + keymap
 - [x] `Action` enum with serializable args and a plugin hole (grows as features land)
 - [x] `KeyChord`, crossterm normalization, string parsing
-- [ ] Kitty keyboard protocol probe + fallback keymap
-- [ ] Layered keymap tables (single default layer loads from `defaults/default_keymap.toml` already); user override file
-- [ ] Design and write the default keymap + fallbacks; choose IDE prefix chord
-- [ ] Key-sequence resolver with timeout (needed for vim and prefix chords)
+- [x] Kitty keyboard protocol probe (`terminal::init`) + legacy fallback keymap layer
+- [x] Layered keymap (contexts, defaults -> legacy -> user file, unbind support)
+- [x] Default keymap + fallbacks written; IDE prefix chord chosen (`ctrl+g`, bound in M6 with the terminal pane)
+- [x] Key-sequence resolver with timeout (needed for vim and prefix chords)
 
 ## M3 — Editor UI
 - [x] Editor view: gutter, scrolling, selection highlight, cursor, display-width/tab handling in the view layer only

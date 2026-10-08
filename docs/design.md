@@ -88,9 +88,22 @@ used `anyhow` everywhere instead of typed errors.
   discarded and a new parse is queued. Old highlights remain until fresh ones arrive.
 
 ### Input and keymap
-- Terminal key events are normalized into a `KeyChord`. At startup the app **probes the kitty keyboard
-  protocol**; if present, it is enabled for full modifier support. Otherwise a **fallback keymap** is
-  used. Every default bind needs a fallback.
+- Terminal key events are normalized into a `KeyChord` (`terminal::init` probes the kitty keyboard protocol
+  at startup and enables `DISAMBIGUATE_ESCAPE_CODES` when available; `terminal::restore`, also called from the
+  panic hook, pops it). Without kitty support (`KeyboardSupport::Legacy`) `defaults/default_keymap_legacy.toml`
+  is layered on the defaults; it holds chords that legacy terminals send as other keys (ctrl+backspace -> ctrl+h).
+  The same action must stay reachable on both: alt-based alternatives live in the main default file.
+- **Keymap = tries of chord sequences per `Context`** (`global`, `editor`; `terminal` and vim modes join later).
+  The active contexts are listed most specific first and the first context that knows a sequence answers.
+  Bindings are TOML `[[binding]]` tables: `keys` ("ctrl+k ctrl+s" is a sequence), optional `context`, and an
+  `action`; a binding with no `action` removes an earlier one. Layers apply in order: built-in defaults, then
+  legacy fallbacks, then the user file (`<config dir>/terminalcode/keymap.toml`, via `dirs`). An invalid user
+  file leaves the defaults in place and is reported in the status bar.
+- **Sequences:** `keymap::Resolver` feeds chords through the trie. Result: run an action, wait (pending), or
+  unbound. A broken sequence discards its old prefix and retries the new chord on its own, and printable
+  discarded chords are typed, so a stray prefix never swallows text or a command. A pending sequence expires
+  after 1 s (`App::expire_pending`, driven by a timer in the app loop): if the pending chords are themselves a
+  binding it fires, otherwise it is dropped.
 - **Keymap layers** (highest priority first): terminal-focus prefix layer, vim mode layer (when
   enabled), pane/context layer, global layer.
 - **Vim layer:** a modal parser on top of the normal editor. It turns key sequences (`d2w`, `ci"`, `.`,
@@ -99,7 +112,9 @@ used `anyhow` everywhere instead of typed errors.
   operators + motions + text objects, counts, `.` repeat, registers, `/` search. Visual-block, macros
   and ex commands beyond `:w :q :wq :e` are post-0.1.0 unless time allows.
 - **Terminal focus:** when the integrated terminal is focused, all keys go to the shell except the IDE
-  prefix chord (default to be chosen in M1), which makes the next key an IDE shortcut.
+  prefix chord, which makes the next key an IDE shortcut. Default prefix: `ctrl+g` (readline barely uses it;
+  zellij uses it too). It is just a binding in a `terminal` context that starts a sequence, so it is
+  rebindable; it is added with the terminal pane in M6.
 - All keybinds are redesigned from scratch (the old `keybind_defaults.json` is discarded). User keymap
   file overrides defaults.
 

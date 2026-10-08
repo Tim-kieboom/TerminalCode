@@ -99,7 +99,7 @@ async fn loop_draws_first_frame_then_quits_on_ctrl_q() {
     let (sources, input_tx, _events_tx) = test_sources();
     input_tx.send(Ok(ctrl_q())).await.unwrap();
 
-    let result = run(&mut terminal, sources, AppState::default()).await;
+    let result = run(&mut terminal, sources, App::default()).await;
 
     assert!(result.is_ok());
     let screen = terminal.backend().to_string();
@@ -116,7 +116,7 @@ async fn loop_accepts_events_before_quit() {
     events_tx.send(plugin_text("hi")).await.unwrap();
     input_tx.send(Ok(ctrl_q())).await.unwrap();
 
-    let result = run(&mut terminal, sources, AppState::default()).await;
+    let result = run(&mut terminal, sources, App::default()).await;
 
     assert!(result.is_ok());
 }
@@ -128,7 +128,7 @@ async fn loop_returns_input_errors() {
     let err = io::Error::other("boom");
     input_tx.send(Err(err)).await.unwrap();
 
-    let result = run(&mut terminal, sources, AppState::default()).await;
+    let result = run(&mut terminal, sources, App::default()).await;
 
     assert!(matches!(result, Err(IdeError::Io(_))));
 }
@@ -139,7 +139,7 @@ async fn loop_ends_when_input_closes() {
     let (sources, input_tx, _events_tx) = test_sources();
     drop(input_tx);
 
-    let result = run(&mut terminal, sources, AppState::default()).await;
+    let result = run(&mut terminal, sources, App::default()).await;
 
     assert!(result.is_ok());
 }
@@ -291,4 +291,115 @@ fn ctrl_arrows_move_by_word_and_ctrl_backspace_deletes_a_word() {
     press(&mut app, KeyCode::Backspace, KeyModifiers::CONTROL);
 
     assert_eq!(buffer_text(&app), "two");
+}
+
+fn app_with_keymap(source: &str) -> App {
+    let keymap = crate::keymap::Keymap::from_toml(source).unwrap();
+    App::with_keymap(AppState::default(), keymap)
+}
+
+const SEQUENCE_KEYMAP: &str = r#"
+    [[binding]]
+    keys = "ctrl+k ctrl+i"
+    action = { insert_text = "X" }
+
+    [[binding]]
+    keys = "ctrl+g"
+    action = { insert_text = "G" }
+
+    [[binding]]
+    keys = "ctrl+g ctrl+g"
+    action = { insert_text = "GG" }
+"#;
+
+#[test]
+fn a_key_sequence_runs_its_action_after_the_last_chord() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+
+    press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
+    assert_eq!(buffer_text(&app), "");
+    assert!(app.pending_deadline().is_some());
+
+    press(&mut app, KeyCode::Char('i'), KeyModifiers::CONTROL);
+    assert_eq!(buffer_text(&app), "X");
+    assert!(app.pending_deadline().is_none());
+}
+
+#[test]
+fn a_broken_sequence_does_not_swallow_typed_text() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+
+    press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
+    type_str(&mut app, "ab");
+
+    assert_eq!(buffer_text(&app), "ab");
+    assert!(app.pending_deadline().is_none());
+}
+
+#[test]
+fn a_pending_sequence_alone_changes_nothing_on_screen() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+    app.mark_drawn();
+
+    press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
+
+    assert!(!app.needs_redraw());
+}
+
+#[test]
+fn expiring_an_ambiguous_prefix_runs_the_shorter_binding() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+    press(&mut app, KeyCode::Char('g'), KeyModifiers::CONTROL);
+    assert_eq!(buffer_text(&app), "");
+
+    app.expire_pending();
+
+    assert_eq!(buffer_text(&app), "G");
+    assert!(app.pending_deadline().is_none());
+}
+
+#[test]
+fn completing_an_ambiguous_prefix_runs_the_longer_binding() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+
+    press(&mut app, KeyCode::Char('g'), KeyModifiers::CONTROL);
+    press(&mut app, KeyCode::Char('g'), KeyModifiers::CONTROL);
+
+    assert_eq!(buffer_text(&app), "GG");
+}
+
+#[test]
+fn expiring_a_pure_prefix_discards_it_silently() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+    press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
+
+    app.expire_pending();
+
+    assert_eq!(buffer_text(&app), "");
+    assert!(app.pending_deadline().is_none());
+}
+
+#[tokio::test]
+async fn the_loop_fires_a_pending_sequence_when_its_timeout_passes() {
+    let keymap = crate::keymap::Keymap::from_toml(SEQUENCE_KEYMAP).unwrap();
+    let app = App::with_keymap(AppState::default(), keymap)
+        .with_sequence_timeout(std::time::Duration::from_millis(20));
+    let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
+    let (sources, input_tx, _events_tx) = test_sources();
+
+    tokio::spawn(async move {
+        input_tx
+            .send(Ok(key(KeyCode::Char('g'), KeyModifiers::CONTROL)))
+            .await
+            .unwrap();
+        // No further key: only the timeout can produce the "G".
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        input_tx.send(Ok(ctrl_q())).await.unwrap();
+    });
+
+    let result = run(&mut terminal, sources, app).await;
+
+    assert!(result.is_ok());
+    let screen = terminal.backend().to_string();
+    assert!(screen.contains("  1 G"), "screen:\n{screen}");
 }

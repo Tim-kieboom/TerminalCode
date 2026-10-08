@@ -11,13 +11,18 @@ use crate::action::Action;
 use crate::components;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
-use crate::keymap::{KeyChord, Keymap};
+use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
 use crate::state::AppState;
+use crate::terminal::KeyboardSupport;
 
 /// Upper bound on redraw rate (about 60 fps).
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
 const INPUT_CHANNEL_CAPACITY: usize = 256;
 const EVENT_CHANNEL_CAPACITY: usize = 1024;
+/// How long a half-typed key sequence waits for its next chord.
+const SEQUENCE_TIMEOUT: Duration = Duration::from_millis(1000);
+/// Contexts whose bindings apply to the focused editor, most specific first.
+const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
 
 pub(crate) type InputResult = io::Result<InputEvent>;
 
@@ -25,13 +30,12 @@ pub(crate) type InputResult = io::Result<InputEvent>;
 pub(crate) async fn run<B>(
     terminal: &mut Terminal<B>,
     mut sources: Sources,
-    state: AppState,
+    mut app: App,
 ) -> IdeResult
 where
     B: Backend,
     B::Error: Into<IdeError>,
 {
-    let mut app = App::new(state);
     let mut last_draw: Option<Instant> = None;
 
     loop {
@@ -49,6 +53,8 @@ where
         // The sleep only wakes the loop when a pending redraw becomes due; the
         // draw itself happens at the top of the loop, at most once per frame
         // interval.
+        let sequence_deadline = app.pending_deadline().map(Instant::from_std);
+
         tokio::select! {
             biased;
             _ = sleep_until(draw_at),
@@ -59,6 +65,8 @@ where
                 None => return Ok(()),
             },
             Some(event) = sources.events.recv() => app.handle_event(event),
+            _ = sleep_until(sequence_deadline.unwrap_or_else(Instant::now)),
+            if sequence_deadline.is_some() => app.expire_pending(),
         }
 
         if app.should_quit() {
@@ -72,6 +80,9 @@ where
 pub(crate) struct App {
     state: AppState,
     keymap: Keymap,
+    resolver: Resolver,
+    sequence_timeout: Duration,
+    pending_deadline: Option<std::time::Instant>,
     flow: Flow,
     needs_redraw: bool,
 }
@@ -115,12 +126,30 @@ impl Default for App {
 
 impl App {
     pub(crate) fn new(state: AppState) -> Self {
+        Self::with_keymap(state, Keymap::defaults(KeyboardSupport::Enhanced))
+    }
+
+    pub(crate) fn with_keymap(state: AppState, keymap: Keymap) -> Self {
         Self {
             state,
-            keymap: Keymap::default(),
+            keymap,
+            resolver: Resolver::default(),
+            sequence_timeout: SEQUENCE_TIMEOUT,
+            pending_deadline: None,
             flow: Flow::Continue,
             needs_redraw: true,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_sequence_timeout(mut self, timeout: Duration) -> Self {
+        self.sequence_timeout = timeout;
+        self
+    }
+
+    /// When the half-typed key sequence, if any, gives up waiting.
+    pub(crate) fn pending_deadline(&self) -> Option<std::time::Instant> {
+        self.pending_deadline
     }
 
     #[cfg(test)]
@@ -161,11 +190,40 @@ impl App {
         let Some(chord) = KeyChord::from_event(key) else {
             return;
         };
-        let bound = self.keymap.lookup(&chord).cloned();
-        let Some(action) = bound.or_else(|| typed_text(&chord)) else {
-            return;
-        };
+        let resolution = self.resolver.feed(&self.keymap, &EDITOR_CONTEXTS, chord);
 
+        for discarded in resolution.discarded {
+            self.type_chord(discarded);
+        }
+        self.pending_deadline = None;
+        match resolution.outcome {
+            Outcome::Action(action) => self.run_action(action),
+            Outcome::Pending => {
+                self.pending_deadline = Some(std::time::Instant::now() + self.sequence_timeout);
+            }
+            Outcome::Unbound(chord) => self.type_chord(chord),
+        }
+    }
+
+    /// Gives up on a half-typed key sequence: runs it if it is a binding by
+    /// itself, otherwise types what can be typed.
+    pub(crate) fn expire_pending(&mut self) {
+        self.pending_deadline = None;
+        match self.resolver.expire(&self.keymap, &EDITOR_CONTEXTS) {
+            Expiry::Nothing => {}
+            Expiry::Fire(action) => self.run_action(action),
+            Expiry::Discard(chords) => chords.into_iter().for_each(|chord| self.type_chord(chord)),
+        }
+    }
+
+    /// Types the chord if it is a printable key; other keys do nothing.
+    fn type_chord(&mut self, chord: KeyChord) {
+        if let Some(action) = typed_text(&chord) {
+            self.run_action(action);
+        }
+    }
+
+    fn run_action(&mut self, action: Action) {
         self.state.clear_status();
         if let Err(error) = self.dispatch(action) {
             self.state.set_status(error.to_string());

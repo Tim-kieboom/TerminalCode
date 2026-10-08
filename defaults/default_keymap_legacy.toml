@@ -1,0 +1,8 @@
+# Extra bindings used only when the terminal does not support the kitty
+# keyboard protocol. Legacy terminals send some chords as other keys.
+
+# ctrl+backspace arrives as ctrl+h (byte 0x08).
+[[binding]]
+keys = "ctrl+h"
+action = "delete_word_backward"
+context = "editor"
