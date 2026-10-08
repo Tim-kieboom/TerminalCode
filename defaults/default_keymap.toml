@@ -1,0 +1,341 @@
+# Default keymap. Each [[binding]] maps a key chord to an action.
+# keys:    modifiers (ctrl, alt, shift, super) joined with "+", then a key: a single
+#          character, or a name such as enter, esc, tab, space, up, f5.
+#          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
+# context: "global" (default) or "editor". Editor bindings win over global ones.
+# action:  see below. Leave it out in your own keymap to remove a default binding.
+# Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
+#   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
+#   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
+#   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
+#   "delete_forward", { insert_text = "..." }, { move = motion },
+#   { select = motion }, { plugin = "name" }.
+# Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
+#   document_end.
+# Plain printable keys with no binding are typed into the editor.
+
+# Application
+[[binding]]
+keys = "ctrl+q"
+action = "quit"
+
+[[binding]]
+keys = "ctrl+s"
+context = "editor"
+action = "save"
+
+# History
+[[binding]]
+keys = "ctrl+z"
+context = "editor"
+action = "undo"
+
+[[binding]]
+keys = "ctrl+y"
+context = "editor"
+action = "redo"
+
+[[binding]]
+keys = "ctrl+shift+z"
+context = "editor"
+action = "redo"
+
+# Editing
+[[binding]]
+keys = "enter"
+context = "editor"
+action = "insert_newline"
+
+[[binding]]
+keys = "tab"
+context = "editor"
+action = "indent"
+
+[[binding]]
+keys = "shift+tab"
+context = "editor"
+action = "outdent"
+
+[[binding]]
+keys = "backspace"
+context = "editor"
+action = "delete_backward"
+
+[[binding]]
+keys = "delete"
+context = "editor"
+action = "delete_forward"
+
+# Movement
+[[binding]]
+keys = "left"
+context = "editor"
+action = { move = "left" }
+
+[[binding]]
+keys = "right"
+context = "editor"
+action = { move = "right" }
+
+[[binding]]
+keys = "up"
+context = "editor"
+action = { move = "up" }
+
+[[binding]]
+keys = "down"
+context = "editor"
+action = { move = "down" }
+
+[[binding]]
+keys = "home"
+context = "editor"
+action = { move = "line_start" }
+
+[[binding]]
+keys = "end"
+context = "editor"
+action = { move = "line_end" }
+
+[[binding]]
+keys = "ctrl+home"
+context = "editor"
+action = { move = "document_start" }
+
+[[binding]]
+keys = "ctrl+end"
+context = "editor"
+action = { move = "document_end" }
+
+# Selection
+[[binding]]
+keys = "shift+left"
+context = "editor"
+action = { select = "left" }
+
+[[binding]]
+keys = "shift+right"
+context = "editor"
+action = { select = "right" }
+
+[[binding]]
+keys = "shift+up"
+context = "editor"
+action = { select = "up" }
+
+[[binding]]
+keys = "shift+down"
+context = "editor"
+action = { select = "down" }
+
+[[binding]]
+keys = "shift+home"
+context = "editor"
+action = { select = "line_start" }
+
+[[binding]]
+keys = "shift+end"
+context = "editor"
+action = { select = "line_end" }
+
+[[binding]]
+keys = "ctrl+shift+home"
+context = "editor"
+action = { select = "document_start" }
+
+[[binding]]
+keys = "ctrl+shift+end"
+context = "editor"
+action = { select = "document_end" }
+
+# Words (alt+arrows and alt+backspace work where terminals cannot report ctrl+arrows)
+[[binding]]
+keys = "ctrl+left"
+context = "editor"
+action = { move = "word_left" }
+
+[[binding]]
+keys = "ctrl+right"
+context = "editor"
+action = { move = "word_right" }
+
+[[binding]]
+keys = "alt+left"
+context = "editor"
+action = { move = "word_left" }
+
+[[binding]]
+keys = "alt+right"
+context = "editor"
+action = { move = "word_right" }
+
+[[binding]]
+keys = "ctrl+shift+left"
+context = "editor"
+action = { select = "word_left" }
+
+[[binding]]
+keys = "ctrl+shift+right"
+context = "editor"
+action = { select = "word_right" }
+
+[[binding]]
+keys = "alt+shift+left"
+context = "editor"
+action = { select = "word_left" }
+
+[[binding]]
+keys = "alt+shift+right"
+context = "editor"
+action = { select = "word_right" }
+
+[[binding]]
+keys = "ctrl+backspace"
+context = "editor"
+action = "delete_word_backward"
+
+[[binding]]
+keys = "alt+backspace"
+context = "editor"
+action = "delete_word_backward"
+
+[[binding]]
+keys = "ctrl+delete"
+context = "editor"
+action = "delete_word_forward"
+
+[[binding]]
+keys = "alt+delete"
+context = "editor"
+action = "delete_word_forward"
+
+[[binding]]
+keys = "ctrl+a"
+context = "editor"
+action = "select_all"
+
+# Clipboard. With nothing selected, copy and cut take the whole line.
+# (The terminal's own paste, e.g. ctrl+shift+v, arrives as bracketed paste and needs no binding.)
+[[binding]]
+keys = "ctrl+c"
+context = "editor"
+action = "copy"
+
+[[binding]]
+keys = "ctrl+x"
+context = "editor"
+action = "cut"
+
+[[binding]]
+keys = "ctrl+v"
+context = "editor"
+action = "paste"
+
+[[binding]]
+keys = "ctrl+insert"
+context = "editor"
+action = "copy"
+
+[[binding]]
+keys = "shift+delete"
+context = "editor"
+action = "cut"
+
+[[binding]]
+keys = "shift+insert"
+context = "editor"
+action = "paste"
+
+# Pages
+[[binding]]
+keys = "pageup"
+context = "editor"
+action = { move = "page_up" }
+
+[[binding]]
+keys = "pagedown"
+context = "editor"
+action = { move = "page_down" }
+
+[[binding]]
+keys = "shift+pageup"
+context = "editor"
+action = { select = "page_up" }
+
+[[binding]]
+keys = "shift+pagedown"
+context = "editor"
+action = { select = "page_down" }
+
+# Mouse capture. While it is on, the editor handles clicks, drags and the wheel,
+# and the terminal's own text selection needs a modifier (usually shift).
+[[binding]]
+keys = "alt+m"
+action = "toggle_mouse"
+
+# Tabs and panes. Every pane has its own tab strip; splitting shows the same
+# document in a new pane (edits and undo are shared between views).
+[[binding]]
+keys = "ctrl+n"
+context = "editor"
+action = "new_file"
+
+[[binding]]
+keys = "ctrl+w"
+context = "editor"
+action = "close_tab"
+
+[[binding]]
+keys = "ctrl+pagedown"
+context = "editor"
+action = "next_tab"
+
+[[binding]]
+keys = "ctrl+pageup"
+context = "editor"
+action = "previous_tab"
+
+[[binding]]
+keys = "ctrl+tab"
+context = "editor"
+action = "next_tab"
+
+[[binding]]
+keys = "ctrl+shift+tab"
+context = "editor"
+action = "previous_tab"
+
+[[binding]]
+keys = "ctrl+k right"
+context = "editor"
+action = "split_right"
+
+[[binding]]
+keys = "ctrl+k down"
+context = "editor"
+action = "split_down"
+
+[[binding]]
+keys = "ctrl+k o"
+context = "editor"
+action = "focus_next_pane"
+
+[[binding]]
+keys = "alt+h"
+context = "editor"
+action = { focus_pane = "left" }
+
+[[binding]]
+keys = "alt+j"
+context = "editor"
+action = { focus_pane = "down" }
+
+[[binding]]
+keys = "alt+k"
+context = "editor"
+action = { focus_pane = "up" }
+
+[[binding]]
+keys = "alt+l"
+context = "editor"
+action = { focus_pane = "right" }

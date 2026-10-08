@@ -1,0 +1,55 @@
+// Default editor layout. Sizes: Fixed(cells), Percent(0..=100), Fill.
+// Components: Explorer, Editor, Terminal, StatusBar, Plugin("view.id").
+//
+// A component is written Leaf(Explorer) to take its default frame, or with its
+// frame spelled out; whatever you leave out keeps the component's default:
+//
+//   Framed(component: Explorer, frame: (
+//       border: Rounded,        // Off, Plain, Rounded, Double or Thick
+//       title: Text("Files"),   // Hidden, Name (its own name; the file name for
+//                               // the editor) or Text("...")
+//       title_align: Center,    // Left, Center or Right
+//       title_slot: "my.title", // theme slot that styles the title
+//       border_slot: "my.edge", // theme slot that styles the border; a focused
+//                               // pane uses "<slot>.focused" when the theme has it
+//   ))
+//
+// Defaults: panes get a Plain border and their Name; the Editor gets a Plain
+// border and no title (its tab bar names the files); the StatusBar has no border.
+Split(
+    direction: Vertical,
+    children: [
+        (
+            size: Fill,
+            node: Split(
+                direction: Horizontal,
+                children: [
+                    (size: Fixed(30), node: Framed(
+                        component: Explorer,
+                        frame: (
+                            border: Off,
+                            title: Name,
+                        ))
+                    ),
+                    (
+                        size: Fill,
+                        node: Split(
+                            direction: Vertical,
+                            children: [
+                                (size: Fill, node: Framed(
+                                    component: Editor,
+                                    frame: (
+                                        border: Off,
+                                        title: Hidden,
+                                    ))
+                                ),
+                                (size: Fixed(12), node: Leaf(Terminal)),
+                                (size: Fixed(1), node: Leaf(StatusBar)),
+                            ],
+                        ),
+                    ),
+                ],
+            ),
+        ),
+    ],
+)

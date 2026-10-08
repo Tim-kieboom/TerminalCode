@@ -1,0 +1,10 @@
+{
+  "configurations": [
+    {
+      "name": "Cargo Run",
+      "program": "cargo",
+      "args": ["build"],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

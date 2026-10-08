@@ -1,30 +1,91 @@
-mod app;
-pub mod keybinds;
-pub mod launch;
-mod layout;
-pub mod terminal;
-pub mod theme;
-pub mod utils;
-pub use app::App;
+use std::ffi::OsString;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone)]
-pub struct StartupArgs {
-    pub(crate) project_path: PathBuf,
-    pub(crate) _flags: (),
+use ratatui::{Terminal, backend::Backend};
+
+use crate::app::{App, Sources};
+use crate::buffer::Buffer;
+use crate::clipboard::{Clipboard, System};
+use crate::components::editor::Editor;
+use crate::error::{IdeError, IdeResult};
+use crate::state::AppState;
+use crate::terminal::Capabilities;
+
+mod app;
+mod buffer;
+mod clipboard;
+mod components;
+mod config;
+pub mod error;
+mod event;
+mod keymap;
+mod state;
+pub mod terminal;
+#[cfg(test)]
+mod tests;
+mod ui;
+
+/// The files to open: every argument after the program name. A leading `--`
+/// marks the end of options and is skipped.
+pub fn paths_from_args(args: impl Iterator<Item = OsString>) -> Vec<PathBuf> {
+    let mut args = args.skip(1).peekable();
+    if args.peek().is_some_and(|first| first == "--") {
+        args.next();
+    }
+    args.map(PathBuf::from).collect()
 }
 
-impl StartupArgs {
-    pub fn new(project_path: PathBuf) -> Self {
-        Self {
-            project_path,
-            _flags: (),
-        }
+/// State at startup: one tab per file named on the command line, the first
+/// one active. A path that does not exist yet opens an empty buffer and says
+/// so in the status bar, so a mistyped path is noticed.
+fn initial_state(paths: &[PathBuf]) -> IdeResult<AppState> {
+    let Some((first, rest)) = paths.split_first() else {
+        return Ok(AppState::default());
+    };
+
+    let mut state = AppState::new(Editor::new(Buffer::open_or_new(first)?));
+    for path in rest {
+        state
+            .workspace_mut()
+            .open_buffer(Buffer::open_or_new(path)?);
+    }
+    state.workspace_mut().activate_tab(0);
+
+    let new_files: Vec<_> = paths
+        .iter()
+        .filter(|path| !path.exists())
+        .map(|path| path.display().to_string())
+        .collect();
+    if !new_files.is_empty() {
+        state.set_status(format!("new file: {}", new_files.join(", ")));
+    }
+    Ok(state)
+}
+
+pub fn run<B>(mut terminal: Terminal<B>, paths: &[PathBuf], capabilities: Capabilities) -> IdeResult
+where
+    B: Backend,
+    B::Error: Into<IdeError>,
+{
+    let mut state = initial_state(paths)?;
+    state.learn_terminal_background(terminal::query_background);
+    if let Some(hint) = state.theme().terminal_hint() {
+        state.set_status(hint);
+    }
+    let loaded = config::load_keymap(config::user_keymap_path().as_deref(), capabilities.keyboard);
+    if let Some(warning) = loaded.warning {
+        state.set_status(warning);
     }
 
-    pub fn project_path(&self) -> &std::path::Path {
-        &self.project_path
-    }
+    let clipboard = Clipboard::new(System::detect());
+    let app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
 
-    pub fn add_flag(&mut self, _flag: ()) {}
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+
+    runtime.block_on(async {
+        let (sources, _events) = Sources::spawn();
+        app::run(&mut terminal, sources, app).await
+    })
 }

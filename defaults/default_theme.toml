@@ -1,0 +1,58 @@
+# Default theme. Each table is a style slot.
+#
+# [background]  (optional; reserved name, not a slot)
+#   color   = "#1e1e2e"   a color, or "transparent"/"reset" to paint nothing
+#   opacity = 0.8         0 (nothing painted) .. 1 (the color as is); below 1 the
+#                         color needs to be hex
+#   blend   = "terminal"  what opacity below 1 does:
+#                         "terminal" (default): mix the color with the terminal's own
+#                           background and paint that. The cells are SOLID, so the
+#                           terminal's blur and see-through do not show in them.
+#                         "none": paint the exact color and let the terminal make that
+#                           color translucent (kitty 0.39+: put
+#                           `transparent_background_colors #1e1e2e@0.3` in kitty.conf;
+#                           the editor prints the exact line at startup).
+#
+# To see your terminal's blur and opacity through the editor, paint no background:
+# leave out [background] or write color = "transparent". Terminals only make their
+# default background translucent, never a color the program paints. A text program
+# cannot blur anything itself; it can only choose cell colors.
+#
+# Colors: names such as "red" or "dark_gray", or hex such as "#1e1e2e".
+# Modifiers: bold, dim, italic, underlined, reversed, crossed_out.
+
+[background]
+color = "transparent"
+
+["pane.border"]
+fg = "dark_gray"
+
+["pane.title"]
+modifiers = ["bold"]
+
+["list.selected"]
+modifiers = ["reversed"]
+
+["editor.line_number"]
+fg = "dark_gray"
+
+["editor.line_number.current"]
+fg = "white"
+
+["editor.selection"]
+bg = "blue"
+
+["status.bar"]
+modifiers = ["reversed"]
+
+["pane.border.focused"]
+fg = "cyan"
+
+["tab.bar"]
+fg = "gray"
+
+["tab.active"]
+modifiers = ["bold", "reversed"]
+
+["tab.inactive"]
+fg = "gray"
