@@ -1,4 +1,4 @@
-use crate::component::PluginViewId;
+use crate::components::PluginViewId;
 use crate::ui::view::ViewNode;
 
 /// Non-input events delivered to the app loop (PTY output, file watcher,

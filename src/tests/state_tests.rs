@@ -1,6 +1,4 @@
-use crate::{component::PluginViewId, state::AppState, ui::view::ViewNode};
-
-use super::*;
+use crate::{components::PluginViewId, state::AppState, ui::view::ViewNode};
 
 fn text(line: &str) -> ViewNode {
     ViewNode::List {

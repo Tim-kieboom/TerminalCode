@@ -169,3 +169,48 @@ fn undo_and_redo_bump_the_version() {
 
     assert_eq!(buffer.version(), after_edit + 2);
 }
+
+#[test]
+fn merged_steps_undo_and_redo_together() {
+    let mut buffer = Buffer::from_text("");
+    commit(
+        &mut buffer,
+        cursor(0, 0),
+        &[Edit::insert(0, "a")],
+        cursor(0, 1),
+    );
+    commit(
+        &mut buffer,
+        cursor(0, 1),
+        &[Edit::insert(1, "b")],
+        cursor(0, 2),
+    );
+
+    buffer.merge_last_two_steps();
+
+    let restored = buffer.undo().unwrap();
+    assert_eq!(buffer.text(), "");
+    assert_eq!(restored, Some(cursor(0, 0)));
+    assert_eq!(buffer.undo().unwrap(), None);
+
+    let restored = buffer.redo().unwrap();
+    assert_eq!(buffer.text(), "ab");
+    assert_eq!(restored, Some(cursor(0, 2)));
+}
+
+#[test]
+fn merging_with_fewer_than_two_steps_does_nothing() {
+    let mut buffer = Buffer::from_text("");
+    buffer.merge_last_two_steps();
+    commit(
+        &mut buffer,
+        cursor(0, 0),
+        &[Edit::insert(0, "a")],
+        cursor(0, 1),
+    );
+
+    buffer.merge_last_two_steps();
+
+    buffer.undo().unwrap();
+    assert_eq!(buffer.text(), "");
+}

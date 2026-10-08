@@ -4,22 +4,59 @@ use ratatui::Frame;
 use ratatui::layout::{Position as ScreenPosition, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::Paragraph;
 
 use crate::buffer::Selection;
-use crate::editor::Editor;
+use crate::components::editor::{
+    Editor,
+    text_layout::{self, digits, display_column, visible_cells},
+};
 use crate::state::AppState;
-use crate::ui::text_layout::{self, digits, display_column, visible_cells};
+use crate::ui::layout::Placement;
+use crate::ui::theme::Theme;
+use crate::ui::{Render, get_block, pane_inner};
 
 /// Smallest line-number column, in digits.
 const MIN_GUTTER_DIGITS: usize = 3;
+
+impl Render for Editor {
+    /// Scrolls so the cursor stays visible in the area the editor will get.
+    fn prepare(&mut self, placement: &Placement) {
+        let inner = pane_inner(placement.area);
+        let geometry = Geometry::new(inner, self.buffer().len_lines());
+        keep_cursor_visible(self, &geometry);
+    }
+
+    fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
+        let block = get_block(state, self.display_name());
+        let inner = block.inner(placement.area);
+        frame.render_widget(block, placement.area);
+
+        let geometry = Geometry::new(inner, self.buffer().len_lines());
+        draw_lines(frame, state.theme(), self, &geometry);
+        place_cursor(frame, self, &geometry);
+    }
+}
+
+fn keep_cursor_visible(editor: &mut Editor, geometry: &Geometry) {
+    let head = editor.selections().primary().head();
+    let Ok(text) = editor.buffer().line_content(head.line) else {
+        return;
+    };
+    let column = display_column(&text, head.column);
+    editor.scroll_to_show(
+        head.line,
+        column,
+        usize::from(geometry.text.height),
+        usize::from(geometry.text.width),
+    );
+}
 
 /// Where the line numbers and the text go inside the editor pane.
 struct Geometry {
     gutter: Rect,
     text: Rect,
 }
-
 impl Geometry {
     fn new(inner: Rect, line_count: usize) -> Self {
         let gutter_width = (digits(line_count).max(MIN_GUTTER_DIGITS) + 1) as u16;
@@ -38,39 +75,7 @@ impl Geometry {
     }
 }
 
-/// Draws the editor into `area`, scrolling first so the cursor stays visible.
-pub(super) fn render(frame: &mut Frame, state: &mut AppState, area: Rect) {
-    let theme = state.theme();
-    let block = Block::bordered()
-        .title(state.editor().display_name())
-        .title_style(theme.style("pane.title"))
-        .border_style(theme.style("pane.border"));
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-
-    let geometry = Geometry::new(inner, state.editor().buffer().len_lines());
-    keep_cursor_visible(state.editor_mut(), &geometry);
-    draw_lines(frame, state, &geometry);
-    place_cursor(frame, state.editor(), &geometry);
-}
-
-fn keep_cursor_visible(editor: &mut Editor, geometry: &Geometry) {
-    let head = editor.selections().primary().head();
-    let Ok(text) = editor.buffer().line_content(head.line) else {
-        return;
-    };
-    let column = display_column(&text, head.column);
-    editor.scroll_to_show(
-        head.line,
-        column,
-        usize::from(geometry.text.height),
-        usize::from(geometry.text.width),
-    );
-}
-
-fn draw_lines(frame: &mut Frame, state: &AppState, geometry: &Geometry) {
-    let theme = state.theme();
-    let editor = state.editor();
+fn draw_lines(frame: &mut Frame, theme: &Theme, editor: &Editor, geometry: &Geometry) {
     let scroll = editor.scroll();
     let head_line = editor.selections().primary().head().line;
     let selection = editor.selections().primary();

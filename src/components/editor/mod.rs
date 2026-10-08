@@ -5,14 +5,25 @@ use crate::buffer::{Buffer, BufferError, Edit, FileError, Position, Selection, S
 pub(crate) use motion::Motion;
 
 mod motion;
+mod render;
 #[cfg(test)]
 mod tests;
+mod text_layout;
 
 /// First visible line and display column of the editor viewport.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct Scroll {
     pub(crate) top: usize,
     pub(crate) left: usize,
+}
+
+/// What kind of edit the previous editing action was. Consecutive edits of
+/// the same kind form one undo step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EditKind {
+    Typing,
+    Backspace,
+    Delete,
 }
 
 /// One open document with its selection and viewport.
@@ -24,6 +35,7 @@ pub(crate) struct Editor {
     buffer: Buffer,
     selections: Selections,
     scroll: Scroll,
+    last_edit: Option<EditKind>,
 }
 
 impl Editor {
@@ -32,6 +44,7 @@ impl Editor {
             buffer,
             selections: Selections::default(),
             scroll: Scroll::default(),
+            last_edit: None,
         }
     }
 
@@ -54,6 +67,7 @@ impl Editor {
             .path()
             .and_then(|path| path.file_name())
             .map_or_else(|| "[no name]".into(), |name| name.to_string_lossy());
+
         match self.buffer.is_dirty() {
             true => format!("{name} [+]"),
             false => name.into_owned(),
@@ -63,12 +77,14 @@ impl Editor {
     /// Moves the cursor. With a selection, left and right collapse it to its
     /// start and end instead of moving.
     pub(crate) fn move_cursor(&mut self, motion: Motion) -> Result<(), BufferError> {
+        self.last_edit = None;
         let selection = *self.selections.primary();
         let collapse_to = match motion {
             Motion::Left if !selection.is_empty() => Some(selection.start()),
             Motion::Right if !selection.is_empty() => Some(selection.end()),
             _ => None,
         };
+
         let moved = match collapse_to {
             Some(position) => Selection::cursor(position),
             None => {
@@ -82,10 +98,12 @@ impl Editor {
 
     /// Moves the head of the selection, keeping the anchor.
     pub(crate) fn select(&mut self, motion: Motion) -> Result<(), BufferError> {
+        self.last_edit = None;
         let selection = *self.selections.primary();
         let target = self.target(&selection, motion)?;
         let extended = Selection::new(selection.anchor(), target.position)
             .with_desired_column(target.desired_column);
+
         self.selections = Selections::single(extended);
         Ok(())
     }
@@ -96,7 +114,10 @@ impl Editor {
         if range.is_empty() && text.is_empty() {
             return Ok(());
         }
-        self.replace(range, text)
+
+        let continues_typing = range.is_empty() && !text.contains(['\n', '\r']);
+        let kind = continues_typing.then_some(EditKind::Typing);
+        self.replace(range, text, kind)
     }
 
     /// Inserts a line break in the file's own style.
@@ -110,7 +131,7 @@ impl Editor {
     pub(crate) fn delete_backward(&mut self) -> Result<(), BufferError> {
         let selection = *self.selections.primary();
         if !selection.is_empty() {
-            return self.replace(self.selection_bytes()?, "");
+            return self.replace(self.selection_bytes()?, "", None);
         }
 
         let head = selection.head();
@@ -121,7 +142,7 @@ impl Editor {
         } else {
             return Ok(());
         };
-        self.replace_between(start, head, "")
+        self.replace_between(start, head, EditKind::Backspace)
     }
 
     /// Deletes the selection, or the grapheme after the cursor. At the end of
@@ -129,7 +150,7 @@ impl Editor {
     pub(crate) fn delete_forward(&mut self) -> Result<(), BufferError> {
         let selection = *self.selections.primary();
         if !selection.is_empty() {
-            return self.replace(self.selection_bytes()?, "");
+            return self.replace(self.selection_bytes()?, "", None);
         }
 
         let head = selection.head();
@@ -140,10 +161,11 @@ impl Editor {
         } else {
             return Ok(());
         };
-        self.replace_between(head, end, "")
+        self.replace_between(head, end, EditKind::Delete)
     }
 
     pub(crate) fn undo(&mut self) -> Result<(), BufferError> {
+        self.last_edit = None;
         if let Some(selections) = self.buffer.undo()? {
             self.selections = selections;
         }
@@ -151,6 +173,7 @@ impl Editor {
     }
 
     pub(crate) fn redo(&mut self) -> Result<(), BufferError> {
+        self.last_edit = None;
         if let Some(selections) = self.buffer.redo()? {
             self.selections = selections;
         }
@@ -190,18 +213,26 @@ impl Editor {
         Ok(start..end)
     }
 
+    /// Deletes the text between two positions as part of a run of `kind`.
     fn replace_between(
         &mut self,
         start: Position,
         end: Position,
-        text: &str,
+        kind: EditKind,
     ) -> Result<(), BufferError> {
         let range = self.buffer.position_to_byte(start)?..self.buffer.position_to_byte(end)?;
-        self.replace(range, text)
+        self.replace(range, "", Some(kind))
     }
 
-    /// One undoable edit that leaves the cursor just after `text`.
-    fn replace(&mut self, range: Range<usize>, text: &str) -> Result<(), BufferError> {
+    /// One undoable edit that leaves the cursor just after `text`. It joins
+    /// the previous undo step when both are the same `kind` of edit.
+    fn replace(
+        &mut self,
+        range: Range<usize>,
+        text: &str,
+        kind: Option<EditKind>,
+    ) -> Result<(), BufferError> {
+        let previous = self.last_edit.take();
         let mut transaction = self.buffer.begin_transaction(self.selections.clone());
         transaction.apply(&Edit::new(range.clone(), text))?;
         let cursor = transaction
@@ -211,6 +242,11 @@ impl Editor {
         let after = Selections::single(Selection::cursor(cursor));
         transaction.commit(after.clone());
         self.selections = after;
+
+        if kind.is_some() && previous == kind {
+            self.buffer.merge_last_two_steps();
+        }
+        self.last_edit = kind;
         Ok(())
     }
 }

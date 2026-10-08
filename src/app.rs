@@ -8,11 +8,11 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 
 use crate::action::Action;
+use crate::components;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
 use crate::keymap::{KeyChord, Keymap};
 use crate::state::AppState;
-use crate::ui;
 
 /// Upper bound on redraw rate (about 60 fps).
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -21,17 +21,67 @@ const EVENT_CHANNEL_CAPACITY: usize = 1024;
 
 pub(crate) type InputResult = io::Result<InputEvent>;
 
-/// Everything that can wake the app loop.
-pub(crate) struct Sources {
-    input: mpsc::Receiver<InputResult>,
-    events: mpsc::Receiver<Event>,
+/// Runs the app loop until the user quits or terminal input fails.
+pub(crate) async fn run<B>(
+    terminal: &mut Terminal<B>,
+    mut sources: Sources,
+    state: AppState,
+) -> IdeResult
+where
+    B: Backend,
+    B::Error: Into<IdeError>,
+{
+    let mut app = App::new(state);
+    let mut last_draw: Option<Instant> = None;
+
+    loop {
+        let draw_at = last_draw
+            .map(|at| at + FRAME_INTERVAL)
+            .unwrap_or(Instant::now());
+
+        if app.needs_redraw() && Instant::now() >= draw_at {
+            draw_frame(terminal, &mut app)?;
+            last_draw = Some(Instant::now());
+            continue;
+        }
+
+        // Biased: input is polled before bulk events so it is never starved.
+        // The sleep only wakes the loop when a pending redraw becomes due; the
+        // draw itself happens at the top of the loop, at most once per frame
+        // interval.
+        tokio::select! {
+            biased;
+            _ = sleep_until(draw_at),
+            if app.needs_redraw() => {}
+            input = sources.input.recv() => match input {
+                Some(Ok(input)) => app.handle_input(input),
+                Some(Err(err)) => return Err(err.into()),
+                None => return Ok(()),
+            },
+            Some(event) = sources.events.recv() => app.handle_event(event),
+        }
+
+        if app.should_quit() {
+            return Ok(());
+        }
+    }
 }
 
-impl Sources {
-    pub(crate) fn new(input: mpsc::Receiver<InputResult>, events: mpsc::Receiver<Event>) -> Self {
-        Self { input, events }
-    }
+/// The single owner of [`AppState`]. Everything else sends it events.
+#[derive(Debug)]
+pub(crate) struct App {
+    state: AppState,
+    keymap: Keymap,
+    flow: Flow,
+    needs_redraw: bool,
+}
 
+/// Everything that can wake the app loop.
+pub(crate) struct Sources {
+    pub(super) input: mpsc::Receiver<InputResult>,
+    pub(super) events: mpsc::Receiver<Event>,
+}
+impl Sources {
     /// Starts reading terminal input. The returned sender is how other tasks
     /// deliver [`Event`]s to the loop.
     pub(crate) fn spawn() -> (Self, mpsc::Sender<Event>) {
@@ -57,15 +107,6 @@ enum Flow {
     Quit,
 }
 
-/// The single owner of [`AppState`]. Everything else sends it events.
-#[derive(Debug)]
-pub(crate) struct App {
-    state: AppState,
-    keymap: Keymap,
-    flow: Flow,
-    needs_redraw: bool,
-}
-
 impl Default for App {
     fn default() -> Self {
         Self::new(AppState::default())
@@ -82,6 +123,7 @@ impl App {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn state(&self) -> &AppState {
         &self.state
     }
@@ -167,59 +209,13 @@ fn typed_text(chord: &KeyChord) -> Option<Action> {
     Some(Action::InsertText(typed.to_string().into()))
 }
 
-/// Runs the app loop until the user quits or terminal input fails.
-pub(crate) async fn run<B>(
-    terminal: &mut Terminal<B>,
-    mut sources: Sources,
-    state: AppState,
-) -> IdeResult
-where
-    B: Backend,
-    B::Error: Into<IdeError>,
-{
-    let mut app = App::new(state);
-    let mut last_draw: Option<Instant> = None;
-
-    loop {
-        let draw_at = last_draw
-            .map(|at| at + FRAME_INTERVAL)
-            .unwrap_or(Instant::now());
-
-        if app.needs_redraw() && Instant::now() >= draw_at {
-            draw_frame(terminal, &mut app)?;
-            last_draw = Some(Instant::now());
-            continue;
-        }
-
-        // Biased: input is polled before bulk events so it is never starved.
-        // The sleep only wakes the loop when a pending redraw becomes due; the
-        // draw itself happens at the top of the loop, at most once per frame
-        // interval.
-        tokio::select! {
-            biased;
-            _ = sleep_until(draw_at),
-            if app.needs_redraw() => {}
-            input = sources.input.recv() => match input {
-                Some(Ok(input)) => app.handle_input(input),
-                Some(Err(err)) => return Err(err.into()),
-                None => return Ok(()),
-            },
-            Some(event) = sources.events.recv() => app.handle_event(event),
-        }
-
-        if app.should_quit() {
-            return Ok(());
-        }
-    }
-}
-
 fn draw_frame<B>(terminal: &mut Terminal<B>, app: &mut App) -> IdeResult
 where
     B: Backend,
     B::Error: Into<IdeError>,
 {
     terminal
-        .draw(|frame| ui::render(frame, app.state_mut()))
+        .draw(|frame| components::prepare_and_render(frame, app.state_mut()))
         .map_err(Into::into)?;
 
     app.mark_drawn();

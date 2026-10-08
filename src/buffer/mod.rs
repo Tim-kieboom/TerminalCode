@@ -52,6 +52,7 @@ impl Buffer {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn version(&self) -> u64 {
         self.version
     }
@@ -75,6 +76,7 @@ impl Buffer {
         Ok(self.line_content(line)?.graphemes(true).count())
     }
 
+    #[cfg(test)]
     pub(crate) fn len_bytes(&self) -> usize {
         self.rope.len_bytes()
     }

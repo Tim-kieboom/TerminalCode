@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::editor::Motion;
+use crate::components::editor::Motion;
 
 /// Everything a key, menu or plugin can ask the editor to do. Keymaps bind
 /// keys to these, and the command palette lists them.

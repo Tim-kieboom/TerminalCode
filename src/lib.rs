@@ -4,15 +4,14 @@ use ratatui::{Terminal, backend::Backend};
 
 use crate::app::Sources;
 use crate::buffer::Buffer;
-use crate::editor::Editor;
+use crate::components::editor::Editor;
 use crate::error::{IdeError, IdeResult};
 use crate::state::AppState;
 
 mod action;
 mod app;
 mod buffer;
-mod component;
-mod editor;
+mod components;
 pub mod error;
 mod event;
 mod keymap;

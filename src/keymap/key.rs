@@ -62,10 +62,12 @@ impl KeyChord {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn code(&self) -> KeyCode {
         self.code
     }
 
+    #[cfg(test)]
     pub(crate) fn modifiers(&self) -> KeyModifiers {
         self.modifiers
     }

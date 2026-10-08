@@ -1,4 +1,4 @@
-use super::*;
+use super::super::text_layout::*;
 
 fn drawn(cells: &[Cell]) -> String {
     cells.iter().map(|cell| cell.text.as_str()).collect()

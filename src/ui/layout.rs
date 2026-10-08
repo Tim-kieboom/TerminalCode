@@ -2,7 +2,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::component::ComponentKind;
+use crate::components::ComponentKind;
 
 #[derive(Debug, Error)]
 pub enum LayoutError {
@@ -52,13 +52,8 @@ impl From<Axis> for Direction {
 /// A child of a split together with the space it asks for.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub(crate) struct Child {
-    size: Size,
-    node: LayoutNode,
-}
-impl Child {
-    pub(crate) fn new(size: Size, node: LayoutNode) -> Self {
-        Self { size, node }
-    }
+    pub(super) size: Size,
+    pub(super) node: LayoutNode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -68,18 +63,6 @@ pub(crate) enum LayoutNode {
         direction: Axis,
         children: Vec<Child>,
     },
-}
-impl LayoutNode {
-    pub(crate) fn leaf(component: ComponentKind) -> Self {
-        Self::Leaf(component)
-    }
-
-    pub(crate) fn split(direction: Axis, children: Vec<Child>) -> Self {
-        Self::Split {
-            direction,
-            children,
-        }
-    }
 }
 
 /// Where a component ended up on screen.

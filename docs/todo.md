@@ -16,7 +16,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] `Buffer` on `ropey`, `version`, line endings (LF/CRLF) detection
 - [x] `Edit` struct and `Buffer::apply`
 - [x] Transactions + linear undo/redo (stores inverse edits and selection state)
-- [ ] Typing-burst coalescing for normal-editor undo (editor layer decides when to continue the previous transaction)
+- [x] Typing-burst coalescing for normal-editor undo (runs of typing, backspace or delete form one step; moves, newline, selection edits and undo/redo break a run; no time-based break yet)
 - [x] Selections (list of ranges, one used), `desired_column`
 - [x] Property tests: apply + invert == identity, undo/redo, position round-trip
 - [ ] Property tests for grapheme movement over emoji/CJK/combining marks (when cursor movement exists)

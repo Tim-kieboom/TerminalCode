@@ -18,10 +18,12 @@ impl Edit {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn insert(at: usize, text: impl Into<Box<str>>) -> Self {
         Self::new(at..at, text)
     }
 
+    #[cfg(test)]
     pub(crate) fn delete(range: Range<usize>) -> Self {
         Self::new(range, "")
     }

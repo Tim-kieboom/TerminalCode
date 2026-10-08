@@ -169,10 +169,12 @@ src/
 - Who tests Windows regularly beyond CI.
 
 ## Editor view notes
-- `Editor` (buffer, selections, scroll) lives in `AppState`. Scroll offset is view state: the editor view
-  updates it during render so the cursor stays visible. This is the one place render takes `&mut AppState`.
+- `Editor` (buffer, selections, scroll) lives in `AppState`. Scroll offset is view state. Components implement
+  `ui::Render`: `prepare(&mut self, placement)` runs first for every placement and adjusts size-dependent view
+  state (the editor scrolls to keep the cursor visible); `render(&self, frame, &AppState, placement)` then
+  draws read-only. `components::render` runs both passes.
 - All unbound unmodified printable keys type text. Keymap actions are the only other way to change the buffer.
-- Known gap: each keystroke is its own undo step (typing-burst coalescing is a todo).
+- Undo grouping: runs of typing, backspace or delete merge into one step. Movement, newline, replacing a selection and undo/redo end a run. No time-based or word-boundary break yet.
 - Known gap: AltGr keys report Ctrl+Alt on some terminals (notably Windows) and are not typed yet.
 
 ## Theming later

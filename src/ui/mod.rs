@@ -1,70 +1,42 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, List, ListState, Paragraph};
+use ratatui::widgets::Block;
 
-use crate::component::ComponentKind;
 use crate::state::AppState;
 use crate::ui::layout::Placement;
-use crate::ui::view::ViewNode;
 
-mod editor_view;
 pub mod layout;
-mod status_view;
 #[cfg(test)]
 mod tests;
-mod text_layout;
 pub mod theme;
 pub mod view;
 
-pub(crate) fn render(frame: &mut Frame, state: &mut AppState) {
-    for placement in state.layout().resolve(frame.area()) {
-        match placement.kind {
-            ComponentKind::Editor => editor_view::render(frame, state, placement.area),
-            ComponentKind::StatusBar => status_view::render(frame, state, placement.area),
-            _ => render_component(frame, state, &placement),
-        }
-    }
+/// A pane drawn from application state.
+///
+/// Drawing is split in two so that `render` can be read-only: `prepare` runs
+/// first, with mutable access, and adjusts view state that depends on the
+/// size of the pane (such as scroll). `self` is the component's own state;
+/// `state` is the rest of the app (theme, status, ...).
+pub trait Render {
+    /// Adjusts view state for the area the component will be drawn into.
+    fn prepare(&mut self, _placement: &Placement) {}
+
+    /// Draws the component. Must not depend on anything `prepare` did not set
+    /// up, and cannot change state.
+    fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement);
 }
 
-fn render_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
+/// The area inside the frame that [`get_block`] draws around `area`.
+pub fn pane_inner(area: Rect) -> Rect {
+    Block::bordered().inner(area)
+}
+
+/// The bordered pane frame shared by all components, titled with `title`.
+pub fn get_block<'a>(state: &AppState, title: impl Into<Line<'a>>) -> Block<'a> {
     let theme = state.theme();
-    let block = Block::bordered()
-        .title(placement.kind.title())
+    Block::bordered()
+        .title(title)
         .title_style(theme.style("pane.title"))
-        .border_style(theme.style("pane.border"));
-
-    let inner = block.inner(placement.area);
-    frame.render_widget(block, placement.area);
-
-    let ComponentKind::Plugin(id) = &placement.kind else {
-        return;
-    };
-
-    let Some(view) = state.plugin_view(id) else {
-        return;
-    };
-
-    render_view(frame, state, view.content(), inner);
-}
-
-fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect) {
-    let theme = state.theme();
-    match node {
-        ViewNode::Lines(lines) => {
-            let lines: Vec<Line> = lines
-                .iter()
-                .map(|line| Line::styled(line.text.as_ref(), theme.style(&line.slot)))
-                .collect();
-
-            frame.render_widget(Paragraph::new(lines), area);
-        }
-        ViewNode::List { items, selected } => {
-            let list = List::new(items.iter().map(|item| item.as_ref()))
-                .highlight_style(theme.style("list.selected"));
-
-            let mut list_state = ListState::default().with_selected(*selected);
-            frame.render_stateful_widget(list, area, &mut list_state);
-        }
-    }
+        .border_style(theme.style("pane.border"))
 }

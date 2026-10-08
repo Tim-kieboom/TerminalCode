@@ -1,11 +1,26 @@
 use ratatui::layout::Rect;
 
-use crate::component::{ComponentKind, PluginViewId};
+use crate::components::{ComponentKind, PluginViewId};
 
 use super::super::layout::*;
 
 fn editor_only() -> LayoutNode {
-    LayoutNode::leaf(ComponentKind::Editor)
+    LayoutNode::Leaf(ComponentKind::Editor)
+}
+
+fn new_leaf(kind: ComponentKind) -> LayoutNode {
+    LayoutNode::Leaf(kind)
+}
+
+fn new_child(size: Size, node: LayoutNode) -> Child {
+    Child { size, node }
+}
+
+fn new_split(direction: Axis, children: Vec<Child>) -> LayoutNode {
+    LayoutNode::Split {
+        direction,
+        children,
+    }
 }
 
 #[test]
@@ -35,7 +50,7 @@ fn default_layout_places_every_builtin_component() {
 
 #[test]
 fn layout_without_editor_is_rejected() {
-    let root = LayoutNode::leaf(ComponentKind::Terminal);
+    let root = new_leaf(ComponentKind::Terminal);
 
     let result = LayoutTree::new(root);
 
@@ -44,7 +59,7 @@ fn layout_without_editor_is_rejected() {
 
 #[test]
 fn empty_split_is_rejected() {
-    let root = LayoutNode::split(Axis::Horizontal, Vec::new());
+    let root = new_split(Axis::Horizontal, Vec::new());
 
     let result = LayoutTree::new(root);
 
@@ -53,9 +68,9 @@ fn empty_split_is_rejected() {
 
 #[test]
 fn percentage_above_hundred_is_rejected() {
-    let root = LayoutNode::split(
+    let root = new_split(
         Axis::Horizontal,
-        vec![Child::new(Size::Percent(101), editor_only())],
+        vec![new_child(Size::Percent(101), editor_only())],
     );
 
     let result = LayoutTree::new(root);
@@ -65,11 +80,11 @@ fn percentage_above_hundred_is_rejected() {
 
 #[test]
 fn resolve_gives_fixed_sizes_and_fills_the_rest() {
-    let root = LayoutNode::split(
+    let root = new_split(
         Axis::Horizontal,
         vec![
-            Child::new(Size::Fixed(10), LayoutNode::leaf(ComponentKind::Explorer)),
-            Child::new(Size::Fill, editor_only()),
+            new_child(Size::Fixed(10), new_leaf(ComponentKind::Explorer)),
+            new_child(Size::Fill, editor_only()),
         ],
     );
     let tree = LayoutTree::new(root).unwrap();

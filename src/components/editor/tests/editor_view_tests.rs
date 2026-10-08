@@ -1,14 +1,23 @@
-use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Position as ScreenPosition;
+use ratatui::{Frame, Terminal};
 
 use crate::buffer::Buffer;
-use crate::editor::{Editor, Motion};
+use crate::components::ComponentKind;
+use crate::components::editor::{Editor, Motion};
 use crate::state::AppState;
-use crate::ui::editor_view;
+use crate::ui::Render;
+use crate::ui::layout::Placement;
 
 fn state_with(text: &str) -> AppState {
     AppState::new(Editor::new(Buffer::from_text(text)))
+}
+
+fn to_placement(frame: &Frame) -> Placement {
+    Placement {
+        kind: ComponentKind::Editor,
+        area: frame.area(),
+    }
 }
 
 /// Draws the editor into a terminal of `width` x `height` and returns the
@@ -16,7 +25,11 @@ fn state_with(text: &str) -> AppState {
 fn draw(state: &mut AppState, width: u16, height: u16) -> (String, ScreenPosition) {
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
     terminal
-        .draw(|frame| editor_view::render(frame, state, frame.area()))
+        .draw(|frame| {
+            let placement = to_placement(frame);
+            state.editor_mut().prepare(&placement);
+            state.editor().render(frame, state, &placement);
+        })
         .unwrap();
     let cursor = terminal.get_cursor_position().unwrap();
     (terminal.backend().to_string(), cursor)
@@ -106,4 +119,43 @@ fn drawing_into_a_tiny_area_does_not_panic() {
 
     draw(&mut state, 3, 2);
     draw(&mut state, 1, 1);
+}
+
+#[test]
+fn render_alone_never_scrolls() {
+    let text = (1..=50)
+        .map(|n| format!("line{n}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut state = state_with(&text);
+    state.editor_mut().move_cursor(Motion::DocumentEnd).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(30, 8)).unwrap();
+
+    terminal
+        .draw(|frame| {
+            let placement = to_placement(frame);
+            state.editor().render(frame, &state, &placement);
+        })
+        .unwrap();
+
+    assert_eq!(state.editor().scroll().top, 0);
+}
+
+#[test]
+fn full_layout_render_keeps_the_cursor_in_view() {
+    let text = (1..=50)
+        .map(|n| format!("line{n}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut state = state_with(&text);
+    state.editor_mut().move_cursor(Motion::DocumentEnd).unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
+
+    terminal
+        .draw(|frame| crate::components::prepare_and_render(frame, &mut state))
+        .unwrap();
+
+    let screen = terminal.backend().to_string();
+    assert!(screen.contains("line50"), "screen:\n{screen}");
+    assert!(state.editor().scroll().top > 0);
 }

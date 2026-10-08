@@ -1,4 +1,4 @@
-use crate::editor::{Editor, Scroll};
+use crate::components::editor::{Editor, Scroll};
 
 #[test]
 fn visible_target_does_not_scroll() {

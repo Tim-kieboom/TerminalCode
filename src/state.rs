@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use crate::component::PluginViewId;
-use crate::editor::Editor;
+use crate::components::{PluginViewId, editor::Editor};
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::Theme;
 use crate::ui::view::ViewNode;
@@ -25,9 +24,11 @@ pub(crate) struct PluginView {
 }
 
 impl PluginView {
+    #[cfg(test)]
     pub(crate) fn version(&self) -> u64 {
         self.version
     }
+
     pub(crate) fn content(&self) -> &ViewNode {
         &self.content
     }

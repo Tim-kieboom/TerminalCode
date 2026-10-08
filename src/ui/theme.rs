@@ -11,6 +11,15 @@ const DEFAULT_THEME_TOML: &str = include_str!(concat!(
     "/defaults/default_theme.toml"
 ));
 
+/// Named style slots such as `"pane.border"`. Components ask for a slot, never
+/// for a concrete color, so a theme file can restyle everything. Unknown slots
+/// fall back to the default style, which lets plugins use slots a theme does
+/// not know about yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Theme {
+    slots: HashMap<Box<str>, Style>,
+}
+
 #[derive(Debug, Error)]
 pub enum ThemeError {
     #[error("theme is not valid TOML: {0}")]
@@ -50,15 +59,6 @@ impl From<ModifierName> for Modifier {
             ModifierName::CrossedOut => Modifier::CROSSED_OUT,
         }
     }
-}
-
-/// Named style slots such as `"pane.border"`. Components ask for a slot, never
-/// for a concrete color, so a theme file can restyle everything. Unknown slots
-/// fall back to the default style, which lets plugins use slots a theme does
-/// not know about yet.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Theme {
-    slots: HashMap<Box<str>, Style>,
 }
 
 impl Theme {

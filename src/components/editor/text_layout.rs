@@ -68,7 +68,3 @@ pub(super) fn visible_cells(text: &str, left: usize, width: usize) -> Vec<Cell> 
     }
     cells
 }
-
-#[cfg(test)]
-#[path = "text_layout_tests.rs"]
-mod tests;

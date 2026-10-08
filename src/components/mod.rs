@@ -1,3 +1,7 @@
+pub mod editor;
+mod render;
+pub mod status_view;
+pub use render::prepare_and_render;
 use serde::Deserialize;
 
 /// Every kind of pane that can appear in a layout.
@@ -13,7 +17,6 @@ pub(crate) enum ComponentKind {
     StatusBar,
     Plugin(PluginViewId),
 }
-
 impl ComponentKind {
     pub(crate) fn title(&self) -> &str {
         match self {
@@ -30,8 +33,8 @@ impl ComponentKind {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 #[serde(transparent)]
 pub(crate) struct PluginViewId(Box<str>);
-
 impl PluginViewId {
+    #[cfg(test)]
     pub(crate) fn new(id: impl Into<Box<str>>) -> Self {
         Self(id.into())
     }

@@ -78,12 +78,9 @@ impl Selections {
         &self.items[self.primary]
     }
 
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.items.len()
-    }
-
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Selection> {
-        self.items.iter()
     }
 }
 

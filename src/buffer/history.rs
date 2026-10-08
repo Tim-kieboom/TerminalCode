@@ -85,6 +85,28 @@ impl Buffer {
         }
     }
 
+    /// Joins the two most recent steps into one, so a single undo reverts
+    /// both. Used to group a burst of typing. Does nothing with fewer than
+    /// two steps.
+    pub(crate) fn merge_last_two_steps(&mut self) {
+        if self.history.undo.len() < 2 {
+            return;
+        }
+        let (Some(newer), Some(older)) = (self.history.undo.pop(), self.history.undo.pop()) else {
+            return;
+        };
+        let mut edits = older.edits;
+        edits.extend(newer.edits);
+        let mut inverses = older.inverses;
+        inverses.extend(newer.inverses);
+        self.history.undo.push(Record {
+            edits,
+            inverses,
+            before: older.before,
+            after: newer.after,
+        });
+    }
+
     /// Reverts the latest step. Returns the selections from before it, or
     /// `None` when there is nothing to undo.
     pub(crate) fn undo(&mut self) -> Result<Option<Selections>, BufferError> {

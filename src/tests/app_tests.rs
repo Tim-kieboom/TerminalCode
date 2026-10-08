@@ -5,7 +5,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use tokio::sync::mpsc;
 
-use crate::component::PluginViewId;
+use crate::components::PluginViewId;
 use crate::error::IdeError;
 use crate::event::Event;
 use crate::state::AppState;
@@ -34,7 +34,7 @@ fn plugin_text(text: &str) -> Event {
 fn test_sources() -> (Sources, mpsc::Sender<InputResult>, mpsc::Sender<Event>) {
     let (input_tx, input) = mpsc::channel(8);
     let (events_tx, events) = mpsc::channel(8);
-    (Sources::new(input, events), input_tx, events_tx)
+    (Sources { input, events }, input_tx, events_tx)
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn ctrl_z_and_ctrl_y_undo_and_redo() {
     type_str(&mut app, "ab");
 
     press(&mut app, KeyCode::Char('z'), KeyModifiers::CONTROL);
-    assert_eq!(buffer_text(&app), "a");
+    assert_eq!(buffer_text(&app), "");
 
     press(&mut app, KeyCode::Char('y'), KeyModifiers::CONTROL);
     assert_eq!(buffer_text(&app), "ab");
@@ -237,7 +237,8 @@ fn handled_keys_request_a_redraw() {
 fn ctrl_s_saves_and_reports_it_in_the_status() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("note.txt");
-    let editor = crate::editor::Editor::new(crate::buffer::Buffer::open_or_new(&path).unwrap());
+    let editor =
+        crate::components::editor::Editor::new(crate::buffer::Buffer::open_or_new(&path).unwrap());
     let mut app = App::new(AppState::new(editor));
     type_str(&mut app, "saved text");
 

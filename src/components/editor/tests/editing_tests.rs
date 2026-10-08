@@ -1,5 +1,5 @@
 use crate::buffer::{Buffer, Position};
-use crate::editor::{Editor, Motion};
+use crate::components::editor::{Editor, Motion};
 
 fn editor(text: &str) -> Editor {
     Editor::new(Buffer::from_text(text))
@@ -171,4 +171,105 @@ fn editing_makes_the_buffer_dirty() {
     editor.insert_text("x").unwrap();
 
     assert!(editor.buffer().is_dirty());
+}
+
+fn type_str(editor: &mut Editor, text: &str) {
+    for c in text.chars() {
+        editor.insert_text(&c.to_string()).unwrap();
+    }
+}
+
+#[test]
+fn a_burst_of_typing_undoes_in_one_step() {
+    let mut editor = editor("");
+
+    type_str(&mut editor, "hello");
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "");
+    assert_eq!(head(&editor), Position::new(0, 0));
+}
+
+#[test]
+fn moving_the_cursor_ends_a_typing_burst() {
+    let mut editor = editor("");
+    type_str(&mut editor, "ab");
+    editor.move_cursor(Motion::Left).unwrap();
+    type_str(&mut editor, "xy");
+
+    editor.undo().unwrap();
+    assert_eq!(text(&editor), "ab");
+
+    editor.undo().unwrap();
+    assert_eq!(text(&editor), "");
+}
+
+#[test]
+fn newline_is_its_own_undo_step() {
+    let mut editor = editor("");
+    type_str(&mut editor, "ab");
+    editor.insert_newline().unwrap();
+    type_str(&mut editor, "cd");
+
+    editor.undo().unwrap();
+    assert_eq!(text(&editor), "ab\n");
+
+    editor.undo().unwrap();
+    assert_eq!(text(&editor), "ab");
+}
+
+#[test]
+fn a_burst_of_backspaces_undoes_in_one_step() {
+    let mut editor = editor("abcdef");
+    editor.move_cursor(Motion::LineEnd).unwrap();
+
+    for _ in 0..3 {
+        editor.delete_backward().unwrap();
+    }
+    assert_eq!(text(&editor), "abc");
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "abcdef");
+    assert_eq!(head(&editor), Position::new(0, 6));
+}
+
+#[test]
+fn typing_after_backspacing_starts_a_new_step() {
+    let mut editor = editor("abc");
+    editor.move_cursor(Motion::LineEnd).unwrap();
+    editor.delete_backward().unwrap();
+    type_str(&mut editor, "xy");
+
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "ab");
+}
+
+#[test]
+fn replacing_a_selection_is_not_merged_into_the_following_typing() {
+    let mut editor = editor("abcdef");
+    for _ in 0..3 {
+        editor.select(Motion::Right).unwrap();
+    }
+    editor.insert_text("X").unwrap();
+    type_str(&mut editor, "yz");
+    assert_eq!(text(&editor), "Xyzdef");
+
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "Xdef");
+}
+
+#[test]
+fn undo_then_typing_does_not_merge_with_older_steps() {
+    let mut editor = editor("");
+    type_str(&mut editor, "ab");
+    editor.undo().unwrap();
+    type_str(&mut editor, "cd");
+
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "");
+    editor.redo().unwrap();
+    assert_eq!(text(&editor), "cd");
 }

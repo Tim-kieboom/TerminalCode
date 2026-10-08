@@ -1,5 +1,5 @@
 use crate::buffer::{Buffer, Position, Selection};
-use crate::editor::{Editor, Motion};
+use crate::components::editor::{Editor, Motion};
 
 const FLAG: &str = "\u{1F1F3}\u{1F1F1}";
 
