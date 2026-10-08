@@ -6,7 +6,8 @@
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
-#   "indent", "outdent", "toggle_mouse",
+#   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
+#   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
 #   { select = motion }, { plugin = "name" }.
 # Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
@@ -271,3 +272,70 @@ action = { select = "page_down" }
 [[binding]]
 keys = "alt+m"
 action = "toggle_mouse"
+
+# Tabs and panes. Every pane has its own tab strip; splitting shows the same
+# document in a new pane (edits and undo are shared between views).
+[[binding]]
+keys = "ctrl+n"
+context = "editor"
+action = "new_file"
+
+[[binding]]
+keys = "ctrl+w"
+context = "editor"
+action = "close_tab"
+
+[[binding]]
+keys = "ctrl+pagedown"
+context = "editor"
+action = "next_tab"
+
+[[binding]]
+keys = "ctrl+pageup"
+context = "editor"
+action = "previous_tab"
+
+[[binding]]
+keys = "ctrl+tab"
+context = "editor"
+action = "next_tab"
+
+[[binding]]
+keys = "ctrl+shift+tab"
+context = "editor"
+action = "previous_tab"
+
+[[binding]]
+keys = "ctrl+k right"
+context = "editor"
+action = "split_right"
+
+[[binding]]
+keys = "ctrl+k down"
+context = "editor"
+action = "split_down"
+
+[[binding]]
+keys = "ctrl+k o"
+context = "editor"
+action = "focus_next_pane"
+
+[[binding]]
+keys = "alt+h"
+context = "editor"
+action = { focus_pane = "left" }
+
+[[binding]]
+keys = "alt+j"
+context = "editor"
+action = { focus_pane = "down" }
+
+[[binding]]
+keys = "alt+k"
+context = "editor"
+action = { focus_pane = "up" }
+
+[[binding]]
+keys = "alt+l"
+context = "editor"
+action = { focus_pane = "right" }

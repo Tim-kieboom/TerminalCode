@@ -108,12 +108,12 @@ impl Editor {
     /// otherwise it inserts one level at the cursor (to the next tab stop for
     /// spaces), replacing the selection.
     pub(crate) fn indent(&mut self) -> Result<(), BufferError> {
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         if selection.start().line != selection.end().line {
             return self.indent_lines(&selection);
         }
 
-        let text = match self.indent {
+        let text = match self.view.indent {
             IndentStyle::Tabs => "\t".to_owned(),
             IndentStyle::Spaces(width) => " ".repeat(width - selection.start().column % width),
         };
@@ -124,7 +124,7 @@ impl Editor {
     /// Shift+Tab. Removes one level of indentation from the current line, or
     /// from every selected line.
     pub(crate) fn outdent(&mut self) -> Result<(), BufferError> {
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         let mut edits = Vec::new();
         let mut removed_per_line = Vec::new();
 
@@ -134,7 +134,7 @@ impl Editor {
                 1
             } else {
                 let spaces = content.chars().take_while(|c| *c == ' ').count();
-                spaces.min(self.indent.outdent_spaces())
+                spaces.min(self.view.indent.outdent_spaces())
             };
             if removed == 0 {
                 continue;
@@ -161,7 +161,7 @@ impl Editor {
     /// Enter: a line break followed by the leading whitespace of the current
     /// line, as far as it lies left of the cursor.
     pub(crate) fn insert_newline_indented(&mut self) -> Result<(), BufferError> {
-        let start = self.selections.primary().start();
+        let start = self.view.selections.primary().start();
         let content = self.buffer.line_content(start.line)?;
         let indent: String = content
             .chars()
@@ -174,7 +174,7 @@ impl Editor {
     }
 
     fn indent_lines(&mut self, selection: &Selection) -> Result<(), BufferError> {
-        let unit = self.indent.unit();
+        let unit = self.view.indent.unit();
         let mut edits = Vec::new();
         let mut indented = Vec::new();
 
@@ -192,7 +192,7 @@ impl Editor {
 
         // A position at column 0 stays there, so the selection also covers
         // the indentation just added.
-        let columns = self.indent.columns();
+        let columns = self.view.indent.columns();
         let shift = |position: Position| {
             if position.column == 0 || !indented.contains(&position.line) {
                 return position;
@@ -206,13 +206,13 @@ impl Editor {
     /// Applies edits to separate lines as one undo step. `edits` must be in
     /// text order; they are applied last first so earlier offsets stay valid.
     fn edit_lines(&mut self, edits: Vec<Edit>, after: Selections) -> Result<(), BufferError> {
-        self.last_edit = None;
-        let mut transaction = self.buffer.begin_transaction(self.selections.clone());
+        self.view.last_edit = None;
+        let mut transaction = self.buffer.begin_transaction(self.view.selections.clone());
         for edit in edits.iter().rev() {
             transaction.apply(edit)?;
         }
         transaction.commit(after.clone());
-        self.selections = after;
+        self.view.selections = after;
         Ok(())
     }
 }

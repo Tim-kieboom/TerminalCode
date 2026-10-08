@@ -7,8 +7,9 @@ use unicode_segmentation::UnicodeSegmentation;
 pub use error::BufferError;
 pub use file::FileError;
 
+use edit::AppliedEdit;
 pub(crate) use edit::Edit;
-use edit::{AppliedEdit, EditInfo};
+pub(crate) use edit::EditInfo;
 use history::History;
 pub(crate) use line_ending::LineEnding;
 use position::Point;
@@ -38,6 +39,7 @@ pub(crate) struct Buffer {
     line_ending: LineEnding,
     path: Option<PathBuf>,
     history: History,
+    edit_log: Vec<EditInfo>,
 }
 
 impl Buffer {
@@ -49,6 +51,7 @@ impl Buffer {
             line_ending: LineEnding::detect(text),
             path: None,
             history: History::default(),
+            edit_log: Vec::new(),
         }
     }
 
@@ -117,17 +120,27 @@ impl Buffer {
         self.version += 1;
 
         let new_end_byte = range.start + edit.text().len();
+        let info = EditInfo {
+            start_byte: range.start,
+            old_end_byte: range.end,
+            new_end_byte,
+            start_point,
+            old_end_point,
+            new_end_point: self.point_at(new_end_byte),
+        };
+        self.edit_log.push(info);
         Ok(AppliedEdit {
             inverse: Edit::new(range.start..new_end_byte, removed),
-            info: EditInfo {
-                start_byte: range.start,
-                old_end_byte: range.end,
-                new_end_byte,
-                start_point,
-                old_end_point,
-                new_end_point: self.point_at(new_end_byte),
-            },
+            info,
         })
+    }
+
+    /// The changes applied since the last call, oldest first, each described
+    /// against the text left by the one before. Undo and redo are included.
+    /// Whoever keeps positions into this buffer (other views) replays them to
+    /// keep those positions pointing at the same text.
+    pub(crate) fn take_edit_log(&mut self) -> Vec<EditInfo> {
+        std::mem::take(&mut self.edit_log)
     }
 
     /// Byte offset of `position`. A column equal to the line's grapheme count

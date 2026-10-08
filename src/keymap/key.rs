@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -94,6 +95,43 @@ fn normalize_char(c: char, modifiers: KeyModifiers) -> (KeyCode, KeyModifiers) {
 fn single_case_mapping(mut mapping: impl Iterator<Item = char>) -> Option<char> {
     let first = mapping.next()?;
     mapping.next().is_none().then_some(first)
+}
+
+impl fmt::Display for KeyChord {
+    /// The text form [`FromStr`] reads back: `ctrl+shift+p`, `alt+left`, `f5`.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (flag, name) in [
+            (KeyModifiers::CONTROL, "ctrl"),
+            (KeyModifiers::ALT, "alt"),
+            (KeyModifiers::SHIFT, "shift"),
+            (KeyModifiers::SUPER, "super"),
+        ] {
+            if self.modifiers.contains(flag) {
+                write!(f, "{name}+")?;
+            }
+        }
+        match self.code {
+            KeyCode::Char(' ') => f.write_str("space"),
+            KeyCode::Char('+') => f.write_str("plus"),
+            KeyCode::Char(c) => write!(f, "{c}"),
+            KeyCode::F(n) => write!(f, "f{n}"),
+            KeyCode::Enter => f.write_str("enter"),
+            KeyCode::Esc => f.write_str("esc"),
+            KeyCode::Tab => f.write_str("tab"),
+            KeyCode::Backspace => f.write_str("backspace"),
+            KeyCode::Delete => f.write_str("delete"),
+            KeyCode::Insert => f.write_str("insert"),
+            KeyCode::Home => f.write_str("home"),
+            KeyCode::End => f.write_str("end"),
+            KeyCode::PageUp => f.write_str("pageup"),
+            KeyCode::PageDown => f.write_str("pagedown"),
+            KeyCode::Up => f.write_str("up"),
+            KeyCode::Down => f.write_str("down"),
+            KeyCode::Left => f.write_str("left"),
+            KeyCode::Right => f.write_str("right"),
+            other => write!(f, "{other:?}"),
+        }
+    }
 }
 
 impl FromStr for KeyChord {

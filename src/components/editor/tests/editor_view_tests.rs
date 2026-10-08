@@ -27,8 +27,8 @@ fn draw(state: &mut AppState, width: u16, height: u16) -> (String, ScreenPositio
     terminal
         .draw(|frame| {
             let placement = to_placement(frame);
-            state.editor_mut().prepare(&placement);
-            state.editor().render(frame, state, &placement);
+            state.workspace_mut().prepare(&placement);
+            state.workspace().render(frame, state, &placement);
         })
         .unwrap();
     let cursor = terminal.get_cursor_position().unwrap();
@@ -48,7 +48,7 @@ fn draws_line_numbers_and_text() {
 #[test]
 fn title_shows_the_name_and_modified_marker() {
     let mut state = state_with("x");
-    state.editor_mut().insert_text("y").unwrap();
+    state.edit(|e| e.insert_text("y")).unwrap();
 
     let (screen, _) = draw(&mut state, 30, 4);
 
@@ -61,19 +61,19 @@ fn cursor_sits_after_the_gutter_inside_the_border() {
 
     let (_, cursor) = draw(&mut state, 30, 6);
 
-    // 1 border + 4 gutter columns, 1 border row.
-    assert_eq!(cursor, ScreenPosition::new(5, 1));
+    // 1 border + 4 gutter columns; tab bar row + 1 border row.
+    assert_eq!(cursor, ScreenPosition::new(5, 2));
 }
 
 #[test]
 fn cursor_follows_typing_and_wide_characters() {
     let mut state = state_with("");
-    state.editor_mut().insert_text("\u{3053}a").unwrap();
+    state.edit(|e| e.insert_text("\u{3053}a")).unwrap();
 
     let (_, cursor) = draw(&mut state, 30, 6);
 
     // The wide character takes two cells, `a` one.
-    assert_eq!(cursor, ScreenPosition::new(5 + 3, 1));
+    assert_eq!(cursor, ScreenPosition::new(5 + 3, 2));
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn scrolls_down_to_keep_the_cursor_visible() {
         .collect::<Vec<_>>()
         .join("\n");
     let mut state = state_with(&text);
-    state.editor_mut().move_cursor(Motion::DocumentEnd).unwrap();
+    state.edit(|e| e.move_cursor(Motion::DocumentEnd)).unwrap();
 
     let (screen, cursor) = draw(&mut state, 30, 8);
 
@@ -105,7 +105,7 @@ fn scrolls_down_to_keep_the_cursor_visible() {
 #[test]
 fn scrolls_right_for_long_lines() {
     let mut state = state_with(&"x".repeat(100));
-    state.editor_mut().move_cursor(Motion::LineEnd).unwrap();
+    state.edit(|e| e.move_cursor(Motion::LineEnd)).unwrap();
 
     let (_, cursor) = draw(&mut state, 30, 4);
 
@@ -128,13 +128,21 @@ fn render_alone_never_scrolls() {
         .collect::<Vec<_>>()
         .join("\n");
     let mut state = state_with(&text);
-    state.editor_mut().move_cursor(Motion::DocumentEnd).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(30, 8)).unwrap();
-
     terminal
         .draw(|frame| {
             let placement = to_placement(frame);
-            state.editor().render(frame, &state, &placement);
+            state.workspace_mut().prepare(&placement);
+            state.workspace().render(frame, &state, &placement);
+        })
+        .unwrap();
+    state.edit(|e| e.move_cursor(Motion::DocumentEnd)).unwrap();
+
+    // Drawing again without a prepare step must not scroll to the new cursor.
+    terminal
+        .draw(|frame| {
+            let placement = to_placement(frame);
+            state.workspace().render(frame, &state, &placement);
         })
         .unwrap();
 
@@ -148,7 +156,7 @@ fn full_layout_render_keeps_the_cursor_in_view() {
         .collect::<Vec<_>>()
         .join("\n");
     let mut state = state_with(&text);
-    state.editor_mut().move_cursor(Motion::DocumentEnd).unwrap();
+    state.edit(|e| e.move_cursor(Motion::DocumentEnd)).unwrap();
     let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
 
     terminal

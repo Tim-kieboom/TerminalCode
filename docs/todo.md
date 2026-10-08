@@ -39,7 +39,9 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Mouse: click, drag, wheel (shift+wheel and horizontal wheel scroll sideways), shift+click extends, double click selects a word run, triple click the line; on by default, `alt+m` (`toggle_mouse`) switches it at runtime
 - [ ] Mouse follow-ups: auto-scroll while dragging past the edge (needs a repeating timer), middle-click paste, right-click menu, click in the gutter selects the line, wheel goes to the pane under the pointer once there are several panes, `mouse` setting in `settings.json`, Shift+click may be taken by the terminal itself (kitty uses shift for its own selection) so consider alt+click for extending
 - [x] Status bar (file, modified marker, line/column, messages)
-- [ ] Tabs and splits (multiple open documents)
+- [x] Tabs and splits: documents are shared by id, every pane has its own tab strip, splits (right/down) show the same document in a new pane with shared buffer, shared undo and cursors that follow the other pane's edits; ctrl+n new file, ctrl+w close tab (asks before discarding the last view of a modified document, pane closes with its last tab; closing the very last tab leaves an empty editor area and the app keeps running), ctrl+pageup/pagedown switch tabs, ctrl+k right/down split, alt+h/j/k/l and ctrl+k o move focus, click focuses a pane or switches a tab, middle-click on a tab closes it (same unsaved-changes confirmation, any tab, focus stays), the wheel scrolls the pane under the pointer, several files on the command line open as tabs
+- [ ] **Quit with unsaved changes** must ask first (today ctrl+q exits and drops every modified document)
+- [ ] Tabs/panes follow-ups: open a path that is already open by switching to it, overflow markers in a crowded tab bar, close other/all tabs, move a tab between panes, resize panes (drag the divider), close pane without closing its tabs one by one, reopen closed tab, save all, per-pane tab history
 - [x] Clipboard (arboard, OSC 52 write-only fallback, one-time notice when the system clipboard is unreadable)
 - [ ] Notifications overlay
 - [ ] Command palette over the Action registry

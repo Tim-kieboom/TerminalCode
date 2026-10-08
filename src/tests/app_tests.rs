@@ -790,3 +790,272 @@ fn with_the_mouse_off_clicks_do_nothing() {
     assert_eq!(head_of(&app), crate::buffer::Position::new(0, 0));
     assert!(!app.needs_redraw());
 }
+
+fn tab_names(app: &App) -> Vec<String> {
+    app.state().workspace().tab_names().0
+}
+
+#[test]
+fn ctrl_n_opens_an_empty_tab_and_ctrl_page_keys_switch_tabs() {
+    let mut app = App::default();
+    type_str(&mut app, "first");
+
+    ctrl(&mut app, 'n');
+    assert_eq!(tab_names(&app).len(), 2);
+    assert_eq!(buffer_text(&app), "");
+    type_str(&mut app, "second");
+
+    press(&mut app, KeyCode::PageUp, KeyModifiers::CONTROL);
+    assert_eq!(buffer_text(&app), "first");
+    press(&mut app, KeyCode::PageDown, KeyModifiers::CONTROL);
+    assert_eq!(buffer_text(&app), "second");
+}
+
+#[test]
+fn ctrl_w_closes_a_tab_and_warns_before_discarding_changes() {
+    let mut app = App::default();
+    type_str(&mut app, "one");
+    ctrl(&mut app, 'n');
+    type_str(&mut app, "two");
+
+    ctrl(&mut app, 'w');
+    let status = app.state().status().unwrap().to_owned();
+    assert!(status.contains("unsaved changes"), "{status}");
+    assert_eq!(tab_names(&app).len(), 2);
+
+    ctrl(&mut app, 'w');
+    assert_eq!(tab_names(&app).len(), 1);
+    assert_eq!(buffer_text(&app), "one");
+}
+
+#[test]
+fn ctrl_k_right_splits_the_pane_and_the_new_pane_shares_the_document() {
+    let mut app = App::default();
+    type_str(&mut app, "shared");
+
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+
+    assert_eq!(app.state().workspace().pane_count(), 2);
+    assert_eq!(app.state().workspace().document_count(), 1);
+    assert_eq!(buffer_text(&app), "shared");
+}
+
+#[test]
+fn ctrl_k_down_splits_below() {
+    let mut app = App::default();
+
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+
+    assert_eq!(app.state().workspace().pane_count(), 2);
+}
+
+#[test]
+fn typing_in_one_pane_shows_in_the_other_and_alt_hjkl_moves_focus() {
+    let mut app = App::default();
+    type_str(&mut app, "ab");
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+    draw(&mut app);
+    type_str(&mut app, "cd");
+
+    press(&mut app, KeyCode::Char('h'), KeyModifiers::ALT);
+
+    assert_eq!(buffer_text(&app), "abcd");
+    // The cursor of the pane we came from was at the end; the left pane's was
+    // at the end of "ab" and followed the insertion point rule.
+    let head = app.state().editor().selections().primary().head();
+    assert_eq!(head.column, 2);
+}
+
+#[test]
+fn ctrl_k_o_cycles_through_panes() {
+    let mut app = App::default();
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+    draw(&mut app);
+    let focused = app.state().workspace().focused_area();
+
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Char('o'), KeyModifiers::NONE);
+
+    assert_ne!(app.state().workspace().focused_area(), focused);
+}
+
+#[test]
+fn undo_after_typing_in_a_split_undoes_the_shared_history() {
+    let mut app = App::default();
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+    type_str(&mut app, "hello");
+
+    ctrl(&mut app, 'z');
+
+    assert_eq!(buffer_text(&app), "");
+}
+
+#[test]
+fn closing_the_split_pane_returns_to_one_pane() {
+    let mut app = App::default();
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+
+    ctrl(&mut app, 'w');
+
+    assert_eq!(app.state().workspace().pane_count(), 1);
+}
+
+#[test]
+fn middle_clicking_a_tab_closes_it() {
+    let mut app = App::default();
+    type_str(&mut app, "first");
+    ctrl(&mut app, 's');
+    ctrl(&mut app, 'n');
+    draw(&mut app);
+    let first_tab = app.state().workspace().tab_areas()[0];
+
+    app.handle_input(mouse(
+        MouseEventKind::Down(MouseButton::Middle),
+        first_tab.x + 1,
+        first_tab.y,
+        KeyModifiers::NONE,
+    ));
+
+    // "first" was modified (and saving a nameless buffer failed), so the
+    // first middle click only warns.
+    assert_eq!(tab_names(&app).len(), 2);
+    let status = app.state().status().unwrap().to_owned();
+    assert!(status.contains("unsaved changes"), "{status}");
+
+    app.handle_input(mouse(
+        MouseEventKind::Down(MouseButton::Middle),
+        first_tab.x + 1,
+        first_tab.y,
+        KeyModifiers::NONE,
+    ));
+    assert_eq!(tab_names(&app).len(), 1);
+}
+
+#[test]
+fn middle_clicking_a_clean_tab_closes_it_at_once() {
+    let mut app = App::default();
+    ctrl(&mut app, 'n');
+    draw(&mut app);
+    let first_tab = app.state().workspace().tab_areas()[0];
+
+    app.handle_input(mouse(
+        MouseEventKind::Down(MouseButton::Middle),
+        first_tab.x + 1,
+        first_tab.y,
+        KeyModifiers::NONE,
+    ));
+
+    assert_eq!(tab_names(&app).len(), 1);
+    assert!(app.needs_redraw());
+}
+
+#[test]
+fn middle_click_outside_the_tab_bar_does_nothing() {
+    let mut app = app_with_text("hello");
+    let area = draw(&mut app);
+    app.mark_drawn();
+
+    app.handle_input(mouse(
+        MouseEventKind::Down(MouseButton::Middle),
+        area.x + 2,
+        area.y,
+        KeyModifiers::NONE,
+    ));
+
+    assert_eq!(tab_names(&app).len(), 1);
+    assert_eq!(buffer_text(&app), "hello");
+}
+
+fn app_without_tabs() -> App {
+    let mut app = App::default();
+    ctrl(&mut app, 'w');
+    assert!(!app.state().workspace().has_tabs());
+    app
+}
+
+#[test]
+fn closing_the_last_tab_leaves_the_app_running_with_an_empty_editor() {
+    let app = app_without_tabs();
+
+    assert!(!app.should_quit());
+    assert_eq!(tab_names(&app).len(), 0);
+}
+
+#[test]
+fn typing_with_no_open_file_explains_what_to_do() {
+    let mut app = app_without_tabs();
+
+    type_str(&mut app, "x");
+
+    let status = app.state().status().unwrap().to_owned();
+    assert!(status.contains("no open file"), "{status}");
+    assert!(status.contains("ctrl+n"), "{status}");
+    assert!(!app.state().workspace().has_tabs());
+}
+
+#[test]
+fn editing_actions_do_nothing_without_a_tab_but_do_not_crash() {
+    let mut app = app_without_tabs();
+
+    ctrl(&mut app, 'z');
+    ctrl(&mut app, 's');
+    ctrl(&mut app, 'a');
+    ctrl(&mut app, 'v');
+    press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    press(&mut app, KeyCode::PageDown, KeyModifiers::NONE);
+
+    assert!(!app.should_quit());
+    assert!(!app.state().workspace().has_tabs());
+}
+
+#[test]
+fn bracketed_paste_with_no_open_file_explains_too() {
+    let mut app = app_without_tabs();
+
+    app.handle_input(InputEvent::Paste("text".to_owned()));
+
+    assert!(app.state().status().unwrap().contains("no open file"));
+}
+
+#[test]
+fn ctrl_n_brings_the_editor_back() {
+    let mut app = app_without_tabs();
+
+    ctrl(&mut app, 'n');
+    type_str(&mut app, "again");
+
+    assert_eq!(buffer_text(&app), "again");
+}
+
+#[test]
+fn quit_and_pane_commands_still_work_without_a_tab() {
+    let mut app = app_without_tabs();
+    press(&mut app, KeyCode::PageDown, KeyModifiers::CONTROL);
+    ctrl(&mut app, 'k');
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+    assert_eq!(app.state().workspace().pane_count(), 1);
+
+    ctrl(&mut app, 'q');
+
+    assert!(app.should_quit());
+}
+
+#[test]
+fn the_status_bar_and_editor_area_show_the_empty_state() {
+    let mut app = app_without_tabs();
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+
+    terminal
+        .draw(|frame| crate::components::prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+
+    let screen = terminal.backend().to_string();
+    assert!(screen.contains("No open files"), "{screen}");
+    assert!(screen.contains("no open files"), "{screen}");
+}

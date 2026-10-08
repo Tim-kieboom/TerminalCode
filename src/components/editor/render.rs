@@ -1,54 +1,67 @@
+//! Drawing one editor: a bordered frame with a line-number gutter and the
+//! text. Works from a document and a view of it, so several panes can show
+//! the same document.
+
 use std::ops::Range;
 
 use ratatui::Frame;
 use ratatui::layout::{Position as ScreenPosition, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, Paragraph};
 
-use crate::buffer::Selection;
-use crate::components::editor::{
-    Editor,
-    text_layout::{self, digits, display_column, visible_cells},
-};
-use crate::state::AppState;
-use crate::ui::layout::Placement;
+use crate::buffer::{Buffer, Selection};
+use crate::components::editor::ViewState;
+use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
+use crate::ui::pane_inner;
 use crate::ui::theme::Theme;
-use crate::ui::{Render, get_block, pane_inner};
 
 /// Smallest line-number column, in digits.
 const MIN_GUTTER_DIGITS: usize = 3;
 
-impl Render for Editor {
-    /// Records where the text will be drawn and, if the cursor or text moved,
-    /// scrolls so the cursor stays visible.
-    fn prepare(&mut self, placement: &Placement) {
-        let inner = pane_inner(placement.area);
-        let geometry = Geometry::new(inner, self.buffer().len_lines());
-        self.set_viewport(geometry.text);
-        if self.take_view_change() {
-            keep_cursor_visible(self, &geometry);
-        }
-    }
-
-    fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
-        let block = get_block(state, self.display_name());
-        let inner = block.inner(placement.area);
-        frame.render_widget(block, placement.area);
-
-        let geometry = Geometry::new(inner, self.buffer().len_lines());
-        draw_lines(frame, state.theme(), self, &geometry);
-        place_cursor(frame, self, &geometry);
+/// Records where the text will be drawn inside `area` and, if the cursor,
+/// the text or the area changed, scrolls so the cursor stays visible.
+pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect) {
+    let geometry = Geometry::new(pane_inner(area), buffer.len_lines());
+    view.set_viewport(geometry.text);
+    if view.take_view_change(buffer.version()) {
+        keep_cursor_visible(buffer, view, &geometry);
     }
 }
 
-fn keep_cursor_visible(editor: &mut Editor, geometry: &Geometry) {
-    let head = editor.selections().primary().head();
-    let Ok(text) = editor.buffer().line_content(head.line) else {
+/// Draws the editor into `area`. Only the focused editor gets the terminal
+/// cursor and the highlighted border.
+pub(crate) fn draw(
+    frame: &mut Frame,
+    theme: &Theme,
+    buffer: &Buffer,
+    view: &ViewState,
+    area: Rect,
+    focused: bool,
+) {
+    let border = if focused {
+        "pane.border.focused"
+    } else {
+        "pane.border"
+    };
+    let block = Block::bordered().border_style(theme.style(border));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let geometry = Geometry::new(inner, buffer.len_lines());
+    draw_lines(frame, theme, buffer, view, &geometry);
+    if focused {
+        place_cursor(frame, buffer, view, &geometry);
+    }
+}
+
+fn keep_cursor_visible(buffer: &Buffer, view: &mut ViewState, geometry: &Geometry) {
+    let head = view.selections().primary().head();
+    let Ok(text) = buffer.line_content(head.line) else {
         return;
     };
     let column = display_column(&text, head.column);
-    editor.scroll_to_show(
+    view.scroll_to_show(
         head.line,
         column,
         usize::from(geometry.text.height),
@@ -79,15 +92,21 @@ impl Geometry {
     }
 }
 
-fn draw_lines(frame: &mut Frame, theme: &Theme, editor: &Editor, geometry: &Geometry) {
-    let scroll = editor.scroll();
-    let head_line = editor.selections().primary().head().line;
-    let selection = editor.selections().primary();
+fn draw_lines(
+    frame: &mut Frame,
+    theme: &Theme,
+    buffer: &Buffer,
+    view: &ViewState,
+    geometry: &Geometry,
+) {
+    let scroll = view.scroll();
+    let selection = view.selections().primary();
+    let head_line = selection.head().line;
 
     let mut numbers = Vec::new();
     let mut texts = Vec::new();
     let visible = scroll.top..scroll.top + usize::from(geometry.text.height);
-    for line in visible.take_while(|line| *line < editor.buffer().len_lines()) {
+    for line in visible.take_while(|line| *line < buffer.len_lines()) {
         let number_slot = if line == head_line {
             "editor.line_number.current"
         } else {
@@ -99,12 +118,11 @@ fn draw_lines(frame: &mut Frame, theme: &Theme, editor: &Editor, geometry: &Geom
             theme.style(number_slot),
         ));
 
-        let Ok(content) = editor.buffer().line_content(line) else {
+        let Ok(content) = buffer.line_content(line) else {
             continue;
         };
         let cells = visible_cells(&content, scroll.left, usize::from(geometry.text.width));
-        let selected =
-            selected_columns(selection, line, editor.buffer().line_len(line).unwrap_or(0));
+        let selected = selected_columns(selection, line, buffer.line_len(line).unwrap_or(0));
 
         let selection_style = theme.style("editor.selection");
         let mut spans: Vec<Span> = cells
@@ -148,10 +166,10 @@ fn selected_columns(
     Some((from..to, line < end.line))
 }
 
-fn place_cursor(frame: &mut Frame, editor: &Editor, geometry: &Geometry) {
-    let head = editor.selections().primary().head();
-    let scroll = editor.scroll();
-    let Ok(content) = editor.buffer().line_content(head.line) else {
+fn place_cursor(frame: &mut Frame, buffer: &Buffer, view: &ViewState, geometry: &Geometry) {
+    let head = view.selections().primary().head();
+    let scroll = view.scroll();
+    let Ok(content) = buffer.line_content(head.line) else {
         return;
     };
     let column = text_layout::display_column(&content, head.column);

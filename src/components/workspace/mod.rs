@@ -1,0 +1,618 @@
+//! Documents, panes and tabs.
+//!
+//! Each file is a [`Document`] stored once, by id. A pane is a strip of tabs;
+//! each tab is a view (cursor, scroll, ...) of one document, so the same
+//! document can be open in several tabs and panes. Panes are arranged in a
+//! split tree.
+//!
+//! Editing goes through [`Workspace::with_editor`]: the document's buffer is
+//! lent to an [`Editor`] together with the tab's view, and afterwards the
+//! edits that were made are replayed onto the other views of the same
+//! document so their cursors keep pointing at the same text.
+
+use std::collections::HashMap;
+
+use ratatui::layout::Rect;
+use serde::Deserialize;
+
+use crate::buffer::{Buffer, EditInfo, Selection, Selections};
+use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, display_name};
+use crate::event::mouse::Clicks;
+use crate::ui::layout::Axis;
+
+use tree::Node;
+
+mod render;
+#[cfg(test)]
+mod tests;
+mod tree;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct DocumentId(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct ViewId(u32);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) struct PaneId(u32);
+
+/// A direction to move focus between panes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum FocusDirection {
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
+/// What closing a tab did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CloseResult {
+    Closed,
+    /// The tab holds the only view of a document with unsaved changes. Close
+    /// again to discard them.
+    Unsaved(String),
+}
+
+#[derive(Debug)]
+struct Document {
+    buffer: Buffer,
+    indent: IndentStyle,
+    /// The view that made the latest change, so a typing burst is not merged
+    /// with another view's edit.
+    last_editor: Option<ViewId>,
+}
+
+#[derive(Debug)]
+struct Tab {
+    id: ViewId,
+    document: DocumentId,
+    view: ViewState,
+}
+
+#[derive(Debug)]
+struct Pane {
+    id: PaneId,
+    tabs: Vec<Tab>,
+    active: usize,
+    /// Screen areas as of the last layout pass; used for mouse hits and
+    /// directional focus.
+    area: Rect,
+    tab_bar: Rect,
+    tab_rects: Vec<Rect>,
+    editor_area: Rect,
+}
+
+#[derive(Debug)]
+pub(crate) struct Workspace {
+    documents: HashMap<DocumentId, Document>,
+    /// In creation order; `tree` gives the on-screen order.
+    panes: Vec<Pane>,
+    tree: Node,
+    focused: PaneId,
+    next_id: u32,
+    confirm_close: Option<ViewId>,
+    /// Stands in for the active editor while the only pane has no tabs.
+    empty: (Buffer, ViewState),
+}
+
+impl Default for Workspace {
+    fn default() -> Self {
+        Self::new(Editor::default())
+    }
+}
+
+impl Workspace {
+    /// A workspace with one pane holding one tab for `editor`.
+    pub(crate) fn new(editor: Editor) -> Self {
+        let pane = PaneId(0);
+        let mut workspace = Self {
+            documents: HashMap::new(),
+            panes: Vec::new(),
+            tree: Node::Leaf(pane),
+            focused: pane,
+            next_id: 1,
+            confirm_close: None,
+            empty: (Buffer::default(), ViewState::default()),
+        };
+        let (view, buffer) = editor.into_parts();
+        let document = workspace.add_document(buffer);
+        let tab = workspace.new_tab(document, view);
+        workspace.panes.push(Pane::with_tab(pane, tab));
+        workspace
+    }
+
+    /// The focused pane's active tab, for reading.
+    pub(crate) fn active_editor(&self) -> EditorRef<'_> {
+        let Some(tab) = self.active_tab() else {
+            return EditorRef::new(&self.empty.0, &self.empty.1);
+        };
+        EditorRef::new(&self.documents[&tab.document].buffer, &tab.view)
+    }
+
+    /// Whether the focused pane has a tab. After the last tab is closed the
+    /// editor area is empty until a new file is opened.
+    pub(crate) fn has_tabs(&self) -> bool {
+        !self.focused_pane().tabs.is_empty()
+    }
+
+    /// Number of panes.
+    #[cfg(test)]
+    pub(crate) fn pane_count(&self) -> usize {
+        self.panes.len()
+    }
+
+    /// Screen areas of the panes (creation order) as of the last layout pass.
+    #[cfg(test)]
+    pub(crate) fn pane_areas(&self) -> Vec<Rect> {
+        self.panes.iter().map(|pane| pane.area).collect()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn focused_area(&self) -> Rect {
+        self.focused_pane().area
+    }
+
+    /// Screen areas of the focused pane's tabs as of the last layout pass.
+    #[cfg(test)]
+    pub(crate) fn tab_areas(&self) -> Vec<Rect> {
+        self.focused_pane().tab_rects.clone()
+    }
+
+    /// Number of open documents.
+    #[cfg(test)]
+    pub(crate) fn document_count(&self) -> usize {
+        self.documents.len()
+    }
+
+    /// Tab names of the focused pane, and which one is active.
+    #[cfg(test)]
+    pub(crate) fn tab_names(&self) -> (Vec<String>, usize) {
+        let pane = self.focused_pane();
+        let names = pane
+            .tabs
+            .iter()
+            .map(|tab| display_name(&self.documents[&tab.document].buffer))
+            .collect();
+        (names, pane.active)
+    }
+
+    /// Runs `f` on the focused pane's active editor. Edits it makes are
+    /// replayed onto the other views of the same document.
+    pub(crate) fn with_editor<R>(&mut self, f: impl FnOnce(&mut Editor) -> R) -> R {
+        let index = self.focused_index();
+        self.with_editor_in(index, f)
+    }
+
+    /// Opens `buffer` in a new tab of the focused pane and activates it.
+    pub(crate) fn open_buffer(&mut self, buffer: Buffer) {
+        self.confirm_close = None;
+        let document = self.add_document(buffer);
+        let tab = self.new_tab(document, ViewState::default());
+        let pane = self.focused_pane_mut();
+        pane.tabs.push(tab);
+        pane.active = pane.tabs.len() - 1;
+    }
+
+    /// An empty untitled document in a new tab.
+    pub(crate) fn new_file(&mut self) {
+        self.open_buffer(Buffer::default());
+    }
+
+    /// Closes the active tab. Closing the last tab of a pane closes the pane;
+    /// closing the last tab of the last pane leaves the editor area empty.
+    pub(crate) fn close_tab(&mut self) -> CloseResult {
+        let pane = self.focused_index();
+        if self.panes[pane].tabs.is_empty() {
+            return CloseResult::Closed;
+        }
+        let tab = self.panes[pane].active;
+        self.close_tab_at(pane, tab)
+    }
+
+    /// A middle button press: closes the tab under the pointer, if it is on a
+    /// tab. Like [`Workspace::close_tab`], but for any tab and without moving
+    /// focus.
+    pub(crate) fn middle_press(&mut self, column: u16, row: u16) -> Option<CloseResult> {
+        let pane = self.pane_at(column, row)?;
+        let tab = self.panes[pane]
+            .tab_rects
+            .iter()
+            .position(|rect| contains(*rect, column, row))?;
+        Some(self.close_tab_at(pane, tab))
+    }
+
+    /// Closes tab `tab` of pane `pane` (indices into `panes` and its tabs).
+    fn close_tab_at(&mut self, index: usize, tab_index: usize) -> CloseResult {
+        let tab = &self.panes[index].tabs[tab_index];
+        let (tab_id, document) = (tab.id, tab.document);
+
+        let shared = self.views_of(document) > 1;
+        let doc = &self.documents[&document];
+        if doc.buffer.is_dirty() && !shared && self.confirm_close != Some(tab_id) {
+            self.confirm_close = Some(tab_id);
+            return CloseResult::Unsaved(display_name(&doc.buffer));
+        }
+
+        self.confirm_close = None;
+        let pane = &mut self.panes[index];
+        pane.tabs.remove(tab_index);
+        pane.active = if tab_index < pane.active {
+            pane.active - 1
+        } else {
+            pane.active.min(pane.tabs.len().saturating_sub(1))
+        };
+        if !shared {
+            self.documents.remove(&document);
+        }
+        if self.panes[index].tabs.is_empty() {
+            self.remove_pane(index);
+        }
+        CloseResult::Closed
+    }
+
+    /// Activates tab `index` of the focused pane (the last one if out of range).
+    pub(crate) fn activate_tab(&mut self, index: usize) {
+        self.confirm_close = None;
+        let pane = self.focused_pane_mut();
+        pane.active = index.min(pane.tabs.len().saturating_sub(1));
+    }
+
+    pub(crate) fn next_tab(&mut self) {
+        self.step_tab(1);
+    }
+
+    pub(crate) fn previous_tab(&mut self) {
+        self.step_tab(-1);
+    }
+
+    /// Splits the focused pane. The new pane, which gets the focus, shows the
+    /// same document as the active tab.
+    pub(crate) fn split(&mut self, axis: Axis) {
+        self.confirm_close = None;
+        let Some(source) = self.active_tab() else {
+            return;
+        };
+        let (document, view) = (source.document, source.view.duplicate());
+
+        let tab = self.new_tab(document, view);
+        let id = PaneId(self.take_id());
+        self.tree.split(self.focused, axis, id);
+        self.panes.push(Pane::with_tab(id, tab));
+        self.focused = id;
+    }
+
+    /// Moves focus to the next pane in reading order, wrapping around.
+    pub(crate) fn focus_next_pane(&mut self) {
+        self.confirm_close = None;
+        let order = self.tree.leaves();
+        let Some(position) = order.iter().position(|id| *id == self.focused) else {
+            return;
+        };
+        self.focused = order[(position + 1) % order.len()];
+    }
+
+    /// Moves focus to the nearest pane in `direction`, if there is one. Uses
+    /// the screen areas of the last layout pass.
+    pub(crate) fn focus_direction(&mut self, direction: FocusDirection) {
+        self.confirm_close = None;
+        let from = self.focused_pane().area;
+        let best = self
+            .panes
+            .iter()
+            .filter(|pane| pane.id != self.focused)
+            .filter_map(|pane| Some((pane.id, neighbor_score(from, pane.area, direction)?)))
+            .min_by_key(|(_, score)| *score);
+        if let Some((id, _)) = best {
+            self.focused = id;
+        }
+    }
+
+    /// A left button press at a screen cell: focuses the pane, switches to a
+    /// clicked tab, or places the cursor in the pane's text.
+    pub(crate) fn mouse_press(
+        &mut self,
+        column: u16,
+        row: u16,
+        extend: bool,
+        clicks: Clicks,
+    ) -> Result<(), crate::buffer::BufferError> {
+        let Some(index) = self.pane_at(column, row) else {
+            return Ok(());
+        };
+        self.focused = self.panes[index].id;
+
+        let pane = &self.panes[index];
+        if let Some(tab) = pane
+            .tab_rects
+            .iter()
+            .position(|rect| contains(*rect, column, row))
+        {
+            self.confirm_close = None;
+            self.panes[index].active = tab;
+            return Ok(());
+        }
+        if !contains(pane.editor_area, column, row) {
+            return Ok(());
+        }
+        self.with_editor_in(index, |editor| {
+            editor.mouse_press(column, row, extend, clicks)
+        })
+    }
+
+    /// Runs `f` on the editor of the pane under a screen cell, if any,
+    /// without moving focus (the wheel scrolls what it is over).
+    pub(crate) fn with_editor_at<R>(
+        &mut self,
+        column: u16,
+        row: u16,
+        f: impl FnOnce(&mut Editor) -> R,
+    ) -> Option<R> {
+        let index = self.pane_at(column, row)?;
+        if self.panes[index].tabs.is_empty() {
+            return None;
+        }
+        Some(self.with_editor_in(index, f))
+    }
+
+    fn with_editor_in<R>(&mut self, pane: usize, f: impl FnOnce(&mut Editor) -> R) -> R {
+        self.confirm_close = None;
+        if self.panes[pane].tabs.is_empty() {
+            // Nothing to edit: the closure gets a throwaway editor.
+            return f(&mut Editor::default());
+        }
+        let tab_index = self.panes[pane].active;
+        let tab = &self.panes[pane].tabs[tab_index];
+        let (document, view_id) = (tab.document, tab.id);
+        let others = self.other_tabs(document, (pane, tab_index));
+
+        let doc = self.document_mut(document);
+        let buffer = std::mem::take(&mut doc.buffer);
+        let (indent, last_editor) = (doc.indent, doc.last_editor);
+        let mut view = std::mem::take(&mut self.panes[pane].tabs[tab_index].view);
+        view.set_indent(indent);
+        if last_editor != Some(view_id) {
+            view.end_edit_run();
+        }
+        let mut editor = Editor::from_parts(view, buffer);
+
+        let before = self.byte_selections(&editor, &others);
+        let result = f(&mut editor);
+        let log = editor.take_edit_log();
+        if !log.is_empty() {
+            self.replay_onto_others(&editor, before, &log);
+        }
+
+        let (view, buffer) = editor.into_parts();
+        self.panes[pane].tabs[tab_index].view = view;
+        let doc = self.document_mut(document);
+        doc.buffer = buffer;
+        if !log.is_empty() {
+            doc.last_editor = Some(view_id);
+        }
+        result
+    }
+
+    /// Positions of every other tab showing `document`, except `skip`.
+    fn other_tabs(&self, document: DocumentId, skip: (usize, usize)) -> Vec<(usize, usize)> {
+        let mut others = Vec::new();
+        for (p, pane) in self.panes.iter().enumerate() {
+            for (t, tab) in pane.tabs.iter().enumerate() {
+                if tab.document == document && (p, t) != skip {
+                    others.push((p, t));
+                }
+            }
+        }
+        others
+    }
+
+    /// The selection of each tab in `tabs` as byte offsets into the text
+    /// `editor` currently holds.
+    fn byte_selections(&self, editor: &Editor, tabs: &[(usize, usize)]) -> Vec<ByteSelection> {
+        let buffer = editor.buffer();
+        tabs.iter()
+            .filter_map(|&(pane, tab)| {
+                let selection = *self.panes[pane].tabs[tab].view.selections().primary();
+                Some(ByteSelection {
+                    pane,
+                    tab,
+                    anchor: buffer.position_to_byte(selection.anchor()).ok()?,
+                    head: buffer.position_to_byte(selection.head()).ok()?,
+                })
+            })
+            .collect()
+    }
+
+    fn replay_onto_others(
+        &mut self,
+        editor: &Editor,
+        before: Vec<ByteSelection>,
+        log: &[EditInfo],
+    ) {
+        let buffer = editor.buffer();
+        for selection in before {
+            let anchor = log
+                .iter()
+                .fold(selection.anchor, |byte, info| info.remap_byte(byte));
+            let head = log
+                .iter()
+                .fold(selection.head, |byte, info| info.remap_byte(byte));
+            let (Ok(anchor), Ok(head)) = (
+                buffer.byte_to_position(anchor),
+                buffer.byte_to_position(head),
+            ) else {
+                continue;
+            };
+            let selections = Selections::single(Selection::new(anchor, head));
+            self.panes[selection.pane].tabs[selection.tab]
+                .view
+                .follow_remote_edit(selections, buffer.version());
+        }
+    }
+
+    fn add_document(&mut self, buffer: Buffer) -> DocumentId {
+        let id = DocumentId(self.take_id());
+        let indent = IndentStyle::detect(&buffer).unwrap_or_default();
+        self.documents.insert(
+            id,
+            Document {
+                buffer,
+                indent,
+                last_editor: None,
+            },
+        );
+        id
+    }
+
+    fn new_tab(&mut self, document: DocumentId, view: ViewState) -> Tab {
+        Tab {
+            id: ViewId(self.take_id()),
+            document,
+            view,
+        }
+    }
+
+    fn take_id(&mut self) -> u32 {
+        let id = self.next_id;
+        self.next_id += 1;
+        id
+    }
+
+    fn views_of(&self, document: DocumentId) -> usize {
+        self.panes
+            .iter()
+            .flat_map(|pane| &pane.tabs)
+            .filter(|tab| tab.document == document)
+            .count()
+    }
+
+    fn step_tab(&mut self, delta: isize) {
+        self.confirm_close = None;
+        let pane = self.focused_pane_mut();
+        let count = pane.tabs.len() as isize;
+        if count == 0 {
+            return;
+        }
+        pane.active = (pane.active as isize + delta).rem_euclid(count) as usize;
+    }
+
+    /// Drops the pane at `index` after its last tab was closed. The only pane
+    /// is kept, empty.
+    fn remove_pane(&mut self, index: usize) {
+        if self.panes.len() == 1 {
+            self.panes[0].active = 0;
+            return;
+        }
+
+        let id = self.panes[index].id;
+        self.tree.remove(id);
+        self.panes.remove(index);
+        if self.focused == id {
+            let neighbor = index.saturating_sub(1).min(self.panes.len() - 1);
+            self.focused = self.panes[neighbor].id;
+        }
+    }
+
+    fn pane_at(&self, column: u16, row: u16) -> Option<usize> {
+        self.panes
+            .iter()
+            .position(|pane| contains(pane.area, column, row))
+    }
+
+    fn focused_index(&self) -> usize {
+        self.panes
+            .iter()
+            .position(|pane| pane.id == self.focused)
+            .unwrap_or(0)
+    }
+
+    fn focused_pane(&self) -> &Pane {
+        &self.panes[self.focused_index()]
+    }
+
+    fn focused_pane_mut(&mut self) -> &mut Pane {
+        let index = self.focused_index();
+        &mut self.panes[index]
+    }
+
+    fn active_tab(&self) -> Option<&Tab> {
+        let pane = self.focused_pane();
+        pane.tabs.get(pane.active)
+    }
+
+    fn document_mut(&mut self, id: DocumentId) -> &mut Document {
+        self.documents
+            .get_mut(&id)
+            .expect("every tab refers to an open document")
+    }
+}
+
+impl Pane {
+    fn with_tab(id: PaneId, tab: Tab) -> Self {
+        Self {
+            id,
+            tabs: vec![tab],
+            active: 0,
+            area: Rect::default(),
+            tab_bar: Rect::default(),
+            tab_rects: Vec::new(),
+            editor_area: Rect::default(),
+        }
+    }
+}
+
+/// One view's selection as byte offsets, while the text is being edited.
+#[derive(Debug, Clone, Copy)]
+struct ByteSelection {
+    pane: usize,
+    tab: usize,
+    anchor: usize,
+    head: usize,
+}
+
+fn contains(area: Rect, column: u16, row: u16) -> bool {
+    area.contains(ratatui::layout::Position::new(column, row))
+}
+
+/// How good a neighbor `other` is for moving from `from` in `direction`:
+/// smaller is nearer, and `None` if it is not in that direction or does not
+/// overlap `from` on the other axis.
+fn neighbor_score(from: Rect, other: Rect, direction: FocusDirection) -> Option<(u32, u32)> {
+    let (gap, overlap_start, overlap_end, center_gap) = match direction {
+        FocusDirection::Left => (
+            i32::from(from.x) - i32::from(other.x + other.width),
+            from.y.max(other.y),
+            (from.y + from.height).min(other.y + other.height),
+            center_distance(from.y, from.height, other.y, other.height),
+        ),
+        FocusDirection::Right => (
+            i32::from(other.x) - i32::from(from.x + from.width),
+            from.y.max(other.y),
+            (from.y + from.height).min(other.y + other.height),
+            center_distance(from.y, from.height, other.y, other.height),
+        ),
+        FocusDirection::Up => (
+            i32::from(from.y) - i32::from(other.y + other.height),
+            from.x.max(other.x),
+            (from.x + from.width).min(other.x + other.width),
+            center_distance(from.x, from.width, other.x, other.width),
+        ),
+        FocusDirection::Down => (
+            i32::from(other.y) - i32::from(from.y + from.height),
+            from.x.max(other.x),
+            (from.x + from.width).min(other.x + other.width),
+            center_distance(from.x, from.width, other.x, other.width),
+        ),
+    };
+    if gap < 0 || overlap_start >= overlap_end {
+        return None;
+    }
+    Some((gap as u32, center_gap))
+}
+
+fn center_distance(start_a: u16, len_a: u16, start_b: u16, len_b: u16) -> u32 {
+    let center_a = u32::from(start_a) * 2 + u32::from(len_a);
+    let center_b = u32::from(start_b) * 2 + u32::from(len_b);
+    center_a.abs_diff(center_b)
+}

@@ -22,3 +22,15 @@ bg = "blue"
 
 ["status.bar"]
 modifiers = ["reversed"]
+
+["pane.border.focused"]
+fg = "cyan"
+
+["tab.bar"]
+fg = "gray"
+
+["tab.active"]
+modifiers = ["bold", "reversed"]
+
+["tab.inactive"]
+fg = "gray"

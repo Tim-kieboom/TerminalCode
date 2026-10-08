@@ -12,11 +12,13 @@ use tokio::time::{Instant, sleep_until};
 
 use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components;
+use crate::components::workspace::CloseResult;
 use crate::error::{IdeError, IdeResult};
 use crate::event::{Event, action::Action, mouse::ClickTracker};
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
 use crate::state::AppState;
 use crate::terminal::{self, KeyboardSupport};
+use crate::ui::layout::Axis;
 
 /// Upper bound on redraw rate (about 60 fps).
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -25,6 +27,8 @@ const EVENT_CHANNEL_CAPACITY: usize = 1024;
 /// How long a half-typed key sequence waits for its next chord.
 const SEQUENCE_TIMEOUT: Duration = Duration::from_millis(1000);
 /// Contexts whose bindings apply to the focused editor, most specific first.
+/// Shown when an editing action arrives while every tab is closed.
+const NO_FILE_MESSAGE: &str = "no open file (ctrl+n opens a new one)";
 const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
 
 pub(crate) type InputResult = io::Result<InputEvent>;
@@ -256,26 +260,40 @@ impl App {
     }
 
     fn dispatch(&mut self, action: Action) -> IdeResult {
+        if action.needs_editor() && !self.state.workspace().has_tabs() {
+            self.state.set_status(NO_FILE_MESSAGE);
+            return Ok(());
+        }
         match action {
             Action::Quit => self.flow = Flow::Quit,
             Action::Save => self.save()?,
-            Action::Undo => self.state.editor_mut().undo()?,
-            Action::Redo => self.state.editor_mut().redo()?,
-            Action::InsertText(text) => self.state.editor_mut().insert_text(&text)?,
-            Action::InsertNewline => self.state.editor_mut().insert_newline()?,
-            Action::DeleteBackward => self.state.editor_mut().delete_backward()?,
-            Action::DeleteForward => self.state.editor_mut().delete_forward()?,
-            Action::DeleteWordBackward => self.state.editor_mut().delete_word_backward()?,
-            Action::DeleteWordForward => self.state.editor_mut().delete_word_forward()?,
-            Action::SelectAll => self.state.editor_mut().select_all()?,
-            Action::Indent => self.state.editor_mut().indent()?,
-            Action::Outdent => self.state.editor_mut().outdent()?,
+            Action::Undo => self.state.edit(|editor| editor.undo())?,
+            Action::Redo => self.state.edit(|editor| editor.redo())?,
+            Action::InsertText(text) => self.state.edit(|editor| editor.insert_text(&text))?,
+            Action::InsertNewline => self.state.edit(|editor| editor.insert_newline())?,
+            Action::DeleteBackward => self.state.edit(|editor| editor.delete_backward())?,
+            Action::DeleteForward => self.state.edit(|editor| editor.delete_forward())?,
+            Action::DeleteWordBackward => {
+                self.state.edit(|editor| editor.delete_word_backward())?
+            }
+            Action::DeleteWordForward => self.state.edit(|editor| editor.delete_word_forward())?,
+            Action::SelectAll => self.state.edit(|editor| editor.select_all())?,
+            Action::Indent => self.state.edit(|editor| editor.indent())?,
+            Action::Outdent => self.state.edit(|editor| editor.outdent())?,
             Action::Copy => self.copy()?,
             Action::Cut => self.cut()?,
             Action::Paste => self.paste()?,
             Action::ToggleMouse => self.toggle_mouse(),
-            Action::Move(motion) => self.state.editor_mut().move_cursor(motion)?,
-            Action::Select(motion) => self.state.editor_mut().select(motion)?,
+            Action::Move(motion) => self.state.edit(|editor| editor.move_cursor(motion))?,
+            Action::Select(motion) => self.state.edit(|editor| editor.select(motion))?,
+            Action::NewFile => self.state.workspace_mut().new_file(),
+            Action::CloseTab => self.close_tab(),
+            Action::NextTab => self.state.workspace_mut().next_tab(),
+            Action::PreviousTab => self.state.workspace_mut().previous_tab(),
+            Action::SplitRight => self.state.workspace_mut().split(Axis::Horizontal),
+            Action::SplitDown => self.state.workspace_mut().split(Axis::Vertical),
+            Action::FocusNextPane => self.state.workspace_mut().focus_next_pane(),
+            Action::FocusPane(direction) => self.state.workspace_mut().focus_direction(direction),
             // Plugin actions need the plugin runtime, which is post-0.1.0.
             Action::Plugin(_) => {}
         }
@@ -303,62 +321,86 @@ impl App {
         }
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
         let sideways = extend;
-        let editor = self.state.editor_mut();
+        let (column, row) = (event.column, event.row);
+        let workspace = self.state.workspace_mut();
+        let mut closed = None;
 
+        // The wheel scrolls the pane under the pointer; everything else acts
+        // on the focused pane (a press also moves focus).
         let result = match event.kind {
             MouseEventKind::Down(MouseButton::Left) => {
-                let clicks =
-                    self.clicks
-                        .register(std::time::Instant::now(), event.column, event.row);
-                editor.mouse_press(event.column, event.row, extend, clicks)
+                let clicks = self.clicks.register(std::time::Instant::now(), column, row);
+                workspace.mouse_press(column, row, extend, clicks)
             }
-            MouseEventKind::Drag(MouseButton::Left) => editor.mouse_drag(event.column, event.row),
-            MouseEventKind::Up(MouseButton::Left) => {
-                editor.mouse_release();
+            MouseEventKind::Drag(MouseButton::Left) => {
+                workspace.with_editor(|editor| editor.mouse_drag(column, row))
+            }
+            // Middle-clicking a tab closes it.
+            MouseEventKind::Down(MouseButton::Middle) => {
+                closed = workspace.middle_press(column, row);
                 Ok(())
             }
-            // One editor pane for now; with more panes the wheel goes to the one under the pointer.
+            MouseEventKind::Up(MouseButton::Left) => {
+                workspace.with_editor(|editor| editor.mouse_release());
+                Ok(())
+            }
             MouseEventKind::ScrollUp if sideways => {
-                editor.scroll_columns(-1);
+                workspace.with_editor_at(column, row, |editor| editor.scroll_columns(-1));
                 Ok(())
             }
             MouseEventKind::ScrollDown if sideways => {
-                editor.scroll_columns(1);
+                workspace.with_editor_at(column, row, |editor| editor.scroll_columns(1));
                 Ok(())
             }
             MouseEventKind::ScrollUp => {
-                editor.scroll_lines(-1);
+                workspace.with_editor_at(column, row, |editor| editor.scroll_lines(-1));
                 Ok(())
             }
             MouseEventKind::ScrollDown => {
-                editor.scroll_lines(1);
+                workspace.with_editor_at(column, row, |editor| editor.scroll_lines(1));
                 Ok(())
             }
             MouseEventKind::ScrollLeft => {
-                editor.scroll_columns(-1);
+                workspace.with_editor_at(column, row, |editor| editor.scroll_columns(-1));
                 Ok(())
             }
             MouseEventKind::ScrollRight => {
-                editor.scroll_columns(1);
+                workspace.with_editor_at(column, row, |editor| editor.scroll_columns(1));
                 Ok(())
             }
             _ => return,
         };
 
+        if let Some(result) = closed {
+            self.warn_if_unsaved(result);
+        }
         if let Err(error) = result {
             self.state.set_status(error.to_string());
         }
         self.needs_redraw = true;
     }
 
+    fn close_tab(&mut self) {
+        let result = self.state.workspace_mut().close_tab();
+        self.warn_if_unsaved(result);
+    }
+
+    fn warn_if_unsaved(&mut self, result: CloseResult) {
+        if let CloseResult::Unsaved(name) = result {
+            self.state.set_status(format!(
+                "{name} has unsaved changes; close again to discard them"
+            ));
+        }
+    }
+
     fn copy(&mut self) -> IdeResult {
-        let register = self.state.editor().copy()?;
+        let register = self.state.edit(|editor| editor.copy())?;
         self.clipboard.set(register);
         Ok(())
     }
 
     fn cut(&mut self) -> IdeResult {
-        let register = self.state.editor_mut().cut()?;
+        let register = self.state.edit(|editor| editor.cut())?;
         self.clipboard.set(register);
         Ok(())
     }
@@ -368,7 +410,7 @@ impl App {
             self.state.set_status("nothing to paste");
             return Ok(());
         };
-        self.state.editor_mut().paste(&fetched.register)?;
+        self.state.edit(|editor| editor.paste(&fetched.register))?;
         if fetched.notice == Some(Notice::SystemUnreadable) {
             self.state
                 .set_status("system clipboard is not readable here; pasted the editor's own copy");
@@ -381,14 +423,20 @@ impl App {
     /// clipboard.
     fn paste_from_terminal(&mut self, text: String) {
         self.state.clear_status();
-        if let Err(error) = self.state.editor_mut().paste(&Register::charwise(text)) {
+        if !self.state.workspace().has_tabs() {
+            self.state.set_status(NO_FILE_MESSAGE);
+            self.needs_redraw = true;
+            return;
+        }
+        let paste = Register::charwise(text);
+        if let Err(error) = self.state.edit(|editor| editor.paste(&paste)) {
             self.state.set_status(error.to_string());
         }
         self.needs_redraw = true;
     }
 
     fn save(&mut self) -> IdeResult {
-        self.state.editor_mut().save()?;
+        self.state.edit(|editor| editor.save())?;
         let name = self.state.editor().display_name();
         self.state.set_status(format!("saved {name}"));
         Ok(())

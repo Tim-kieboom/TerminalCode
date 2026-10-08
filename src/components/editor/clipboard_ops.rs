@@ -12,7 +12,7 @@ impl Editor {
     /// The selected text, or the current line (with its line break) when
     /// nothing is selected.
     pub(crate) fn copy(&self) -> Result<Register, BufferError> {
-        let selection = self.selections.primary();
+        let selection = self.view.selections.primary();
         if !selection.is_empty() {
             let text = self.buffer.text_in(self.selection_bytes()?)?;
             return Ok(Register::charwise(text));
@@ -28,8 +28,8 @@ impl Editor {
     /// selected.
     pub(crate) fn cut(&mut self) -> Result<Register, BufferError> {
         let register = self.copy()?;
-        let range = if self.selections.primary().is_empty() {
-            self.line_range(self.selections.primary().head().line)?
+        let range = if self.view.selections.primary().is_empty() {
+            self.line_range(self.view.selections.primary().head().line)?
         } else {
             self.selection_bytes()?
         };
@@ -43,7 +43,7 @@ impl Editor {
     /// cursor on the same character of the line it was on.
     pub(crate) fn paste(&mut self, register: &Register) -> Result<(), BufferError> {
         let ending = self.buffer.line_ending();
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         let text = normalize_line_endings(register.text(), ending);
 
         match register.kind() {
@@ -57,7 +57,7 @@ impl Editor {
     }
 
     fn paste_lines_above(&mut self, text: &str, ending: LineEnding) -> Result<(), BufferError> {
-        let head = self.selections.primary().head();
+        let head = self.view.selections.primary().head();
         let start = self.buffer.position_to_byte(Position::new(head.line, 0))?;
         let mut lines = text.to_owned();
         if !lines.ends_with(ending.as_str()) {

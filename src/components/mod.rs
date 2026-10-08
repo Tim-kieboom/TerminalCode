@@ -1,6 +1,7 @@
 pub mod editor;
 mod render;
 pub mod status_view;
+pub mod workspace;
 pub use render::prepare_and_render;
 use serde::Deserialize;
 

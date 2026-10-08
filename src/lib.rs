@@ -1,4 +1,5 @@
-use std::path::Path;
+use std::ffi::OsString;
+use std::path::PathBuf;
 
 use ratatui::{Terminal, backend::Backend};
 
@@ -24,33 +25,49 @@ pub mod terminal;
 mod tests;
 mod ui;
 
-/// State at startup: the file named on the command line, if any. A path that does
-/// not exist yet opens an empty buffer and says so in the status bar, so a
-/// mistyped path is noticed.
-fn initial_state(path: Option<&Path>) -> IdeResult<AppState> {
-    let Some(path) = path else {
+/// The files to open: every argument after the program name. A leading `--`
+/// marks the end of options and is skipped.
+pub fn paths_from_args(args: impl Iterator<Item = OsString>) -> Vec<PathBuf> {
+    let mut args = args.skip(1).peekable();
+    if args.peek().is_some_and(|first| first == "--") {
+        args.next();
+    }
+    args.map(PathBuf::from).collect()
+}
+
+/// State at startup: one tab per file named on the command line, the first
+/// one active. A path that does not exist yet opens an empty buffer and says
+/// so in the status bar, so a mistyped path is noticed.
+fn initial_state(paths: &[PathBuf]) -> IdeResult<AppState> {
+    let Some((first, rest)) = paths.split_first() else {
         return Ok(AppState::default());
     };
 
-    let is_new = !path.exists();
-    let mut state = AppState::new(Editor::new(Buffer::open_or_new(path)?));
-    if is_new {
-        state.set_status(format!("new file: {}", path.display()));
+    let mut state = AppState::new(Editor::new(Buffer::open_or_new(first)?));
+    for path in rest {
+        state
+            .workspace_mut()
+            .open_buffer(Buffer::open_or_new(path)?);
     }
+    state.workspace_mut().activate_tab(0);
 
+    let new_files: Vec<_> = paths
+        .iter()
+        .filter(|path| !path.exists())
+        .map(|path| path.display().to_string())
+        .collect();
+    if !new_files.is_empty() {
+        state.set_status(format!("new file: {}", new_files.join(", ")));
+    }
     Ok(state)
 }
 
-pub fn run<B>(
-    mut terminal: Terminal<B>,
-    path: Option<&Path>,
-    capabilities: Capabilities,
-) -> IdeResult
+pub fn run<B>(mut terminal: Terminal<B>, paths: &[PathBuf], capabilities: Capabilities) -> IdeResult
 where
     B: Backend,
     B::Error: Into<IdeError>,
 {
-    let mut state = initial_state(path)?;
+    let mut state = initial_state(paths)?;
     let loaded = config::load_keymap(config::user_keymap_path().as_deref(), capabilities.keyboard);
     if let Some(warning) = loaded.warning {
         state.set_status(warning);

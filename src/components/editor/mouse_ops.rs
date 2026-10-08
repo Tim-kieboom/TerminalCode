@@ -1,6 +1,8 @@
 //! Mouse handling on the editor: click, drag, multi-click and the wheel.
 
-use ratatui::layout::{Position as ScreenPosition, Rect};
+use ratatui::layout::Position as ScreenPosition;
+#[cfg(test)]
+use ratatui::layout::Rect;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::buffer::{BufferError, Position, Selection, Selections};
@@ -29,29 +31,20 @@ impl Editor {
     /// Where the text was last drawn.
     #[cfg(test)]
     pub(crate) fn text_area(&self) -> Option<Rect> {
-        self.text_area
+        self.view.text_area
     }
 
+    #[cfg(test)]
     pub(crate) fn set_viewport(&mut self, text_area: Rect) {
-        self.text_area = Some(text_area);
-        self.viewport_height = usize::from(text_area.height);
+        self.view.set_viewport(text_area);
     }
 
     /// Whether the cursor, the text or the viewport changed since the last
     /// call. The editor only scrolls to the cursor then, so that scrolling
     /// with the wheel is not undone by the next frame.
+    #[cfg(test)]
     pub(crate) fn take_view_change(&mut self) -> bool {
-        let Some(area) = self.text_area else {
-            return true;
-        };
-        let now = (
-            self.selections.primary().head(),
-            self.buffer.version(),
-            area,
-        );
-        let changed = self.seen_view != Some(now);
-        self.seen_view = Some(now);
-        changed
+        self.view.take_view_change(self.buffer.version())
     }
 
     /// A left button press at a screen cell. `extend` (Shift) moves the head
@@ -63,63 +56,63 @@ impl Editor {
         extend: bool,
         clicks: Clicks,
     ) -> Result<(), BufferError> {
-        self.drag_anchor = None;
+        self.view.drag_anchor = None;
         let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
             return Ok(());
         };
 
-        self.last_edit = None;
+        self.view.last_edit = None;
         let selection = match clicks {
             Clicks::Single if extend => {
-                Selection::new(self.selections.primary().anchor(), position)
+                Selection::new(self.view.selections.primary().anchor(), position)
             }
             Clicks::Single => Selection::cursor(position),
             Clicks::Double => self.word_at(position)?,
             Clicks::Triple => self.line_at(position.line)?,
         };
-        self.drag_anchor = Some(selection.anchor());
-        self.selections = Selections::single(selection);
+        self.view.drag_anchor = Some(selection.anchor());
+        self.view.selections = Selections::single(selection);
         Ok(())
     }
 
     /// The mouse moved with the button held: extends the selection from where
     /// the press started. Dragging outside the text selects up to its edge.
     pub(crate) fn mouse_drag(&mut self, column: u16, row: u16) -> Result<(), BufferError> {
-        let Some(anchor) = self.drag_anchor else {
+        let Some(anchor) = self.view.drag_anchor else {
             return Ok(());
         };
         let Some(position) = self.position_at(column, row, Outside::Clamp)? else {
             return Ok(());
         };
-        self.selections = Selections::single(Selection::new(anchor, position));
+        self.view.selections = Selections::single(Selection::new(anchor, position));
         Ok(())
     }
 
     pub(crate) fn mouse_release(&mut self) {
-        self.drag_anchor = None;
+        self.view.drag_anchor = None;
     }
 
     /// Scrolls by wheel notches (positive is down). The cursor stays where it
     /// is, even if it leaves the screen.
     pub(crate) fn scroll_lines(&mut self, notches: isize) {
         let last_line = (self.buffer.len_lines() - 1) as isize;
-        let top = self.scroll.top as isize + notches * WHEEL_LINES;
-        self.scroll.top = top.clamp(0, last_line) as usize;
+        let top = self.view.scroll.top as isize + notches * WHEEL_LINES;
+        self.view.scroll.top = top.clamp(0, last_line) as usize;
     }
 
     /// Scrolls sideways by wheel notches (positive is right), never past the
     /// end of the longest visible line.
     pub(crate) fn scroll_columns(&mut self, notches: isize) {
-        let visible =
-            self.scroll.top..(self.scroll.top + self.viewport_height).min(self.buffer.len_lines());
+        let visible = self.view.scroll.top
+            ..(self.view.scroll.top + self.view.viewport_height).min(self.buffer.len_lines());
         let widest = visible
             .filter_map(|line| self.buffer.line_content(line).ok())
             .map(|content| display_column(&content, usize::MAX))
             .max()
             .unwrap_or(0);
 
-        let left = self.scroll.left as isize + notches * WHEEL_COLUMNS;
-        self.scroll.left = left.clamp(0, widest.saturating_sub(1) as isize) as usize;
+        let left = self.view.scroll.left as isize + notches * WHEEL_COLUMNS;
+        self.view.scroll.left = left.clamp(0, widest.saturating_sub(1) as isize) as usize;
     }
 
     /// The buffer position under a screen cell. Below the last line it is the
@@ -130,7 +123,7 @@ impl Editor {
         row: u16,
         outside: Outside,
     ) -> Result<Option<Position>, BufferError> {
-        let Some(area) = self.text_area else {
+        let Some(area) = self.view.text_area else {
             return Ok(None);
         };
         if area.width == 0 || area.height == 0 {
@@ -142,7 +135,7 @@ impl Editor {
 
         let row = row.clamp(area.y, area.y + area.height - 1);
         let column = column.max(area.x);
-        let line = self.scroll.top + usize::from(row - area.y);
+        let line = self.view.scroll.top + usize::from(row - area.y);
 
         let last_line = self.buffer.len_lines() - 1;
         if line > last_line {
@@ -150,7 +143,7 @@ impl Editor {
             return Ok(Some(Position::new(last_line, end)));
         }
         let content = self.buffer.line_content(line)?;
-        let display = self.scroll.left + usize::from(column - area.x);
+        let display = self.view.scroll.left + usize::from(column - area.x);
         Ok(Some(Position::new(
             line,
             column_at_display(&content, display),

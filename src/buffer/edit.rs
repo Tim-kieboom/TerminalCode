@@ -48,6 +48,22 @@ pub(crate) struct EditInfo {
     pub(crate) new_end_point: Point,
 }
 
+impl EditInfo {
+    /// Where a byte offset of the old text ends up after this edit. Offsets at or
+    /// before the start stay put (so a cursor at an insertion point stays before
+    /// the new text), offsets after the replaced range shift by the size change,
+    /// and offsets inside it collapse to the start.
+    pub(crate) fn remap_byte(&self, byte: usize) -> usize {
+        if byte <= self.start_byte {
+            return byte;
+        }
+        if byte >= self.old_end_byte {
+            return byte - self.old_end_byte + self.new_end_byte;
+        }
+        self.start_byte
+    }
+}
+
 /// What [`Buffer::apply`](super::Buffer::apply) hands back: the edit that
 /// undoes the change, and the positions for incremental consumers.
 #[derive(Debug, Clone, PartialEq, Eq)]

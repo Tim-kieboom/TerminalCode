@@ -350,7 +350,7 @@ fn a_frame_after_wheel_scrolling_does_not_snap_back_to_the_cursor() {
         .draw(|frame| crate::components::prepare_and_render(frame, &mut state))
         .unwrap();
 
-    state.editor_mut().scroll_lines(10);
+    state.edit(|e| e.scroll_lines(10));
     terminal
         .draw(|frame| crate::components::prepare_and_render(frame, &mut state))
         .unwrap();

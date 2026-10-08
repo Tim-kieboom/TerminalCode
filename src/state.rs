@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use crate::components::PluginViewId;
+use crate::components::editor::{Editor, EditorRef};
 use crate::components::status_view::StatusBar;
-use crate::components::{PluginViewId, editor::Editor};
+use crate::components::workspace::Workspace;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::Theme;
 use crate::ui::view::ViewNode;
@@ -13,11 +15,12 @@ pub(crate) struct AppState {
     theme: Theme,
     layout: LayoutTree,
     status: Option<Box<str>>,
+    pending_keys: Option<Box<str>>,
 }
 
 #[derive(Debug, Default)]
 struct AppComponents {
-    editor: Editor,
+    workspace: Workspace,
     status_bar: StatusBar,
     plugin_views: HashMap<PluginViewId, PluginView>,
 }
@@ -45,7 +48,7 @@ impl AppState {
     pub(crate) fn new(editor: Editor) -> Self {
         Self {
             components: AppComponents {
-                editor,
+                workspace: Workspace::new(editor),
                 ..Default::default()
             },
             ..Self::default()
@@ -60,12 +63,22 @@ impl AppState {
         &mut self.components.status_bar
     }
 
-    pub(crate) fn editor(&self) -> &Editor {
-        &self.components.editor
+    pub(crate) fn workspace(&self) -> &Workspace {
+        &self.components.workspace
     }
 
-    pub(crate) fn editor_mut(&mut self) -> &mut Editor {
-        &mut self.components.editor
+    pub(crate) fn workspace_mut(&mut self) -> &mut Workspace {
+        &mut self.components.workspace
+    }
+
+    /// The focused editor, for reading.
+    pub(crate) fn editor(&self) -> EditorRef<'_> {
+        self.components.workspace.active_editor()
+    }
+
+    /// Runs `f` on the focused editor; see [`Workspace::with_editor`].
+    pub(crate) fn edit<R>(&mut self, f: impl FnOnce(&mut Editor) -> R) -> R {
+        self.components.workspace.with_editor(f)
     }
 
     /// One-line message for the status bar, such as an error or "saved".
@@ -79,6 +92,16 @@ impl AppState {
 
     pub(crate) fn clear_status(&mut self) {
         self.status = None;
+    }
+
+    /// The first chords of a key sequence that is waiting for more, shown in
+    /// the status bar so it is clear the editor is waiting.
+    pub(crate) fn pending_keys(&self) -> Option<&str> {
+        self.pending_keys.as_deref()
+    }
+
+    pub(crate) fn set_pending_keys(&mut self, keys: Option<String>) {
+        self.pending_keys = keys.map(String::into_boxed_str);
     }
 
     pub(crate) fn layout(&self) -> &LayoutTree {

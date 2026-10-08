@@ -44,6 +44,15 @@ impl Resolver {
         !self.pending.is_empty()
     }
 
+    /// The chords typed so far toward a longer binding, e.g. `ctrl+k`.
+    pub(crate) fn pending_text(&self) -> Option<String> {
+        if self.pending.is_empty() {
+            return None;
+        }
+        let chords: Vec<String> = self.pending.iter().map(ToString::to_string).collect();
+        Some(chords.join(" "))
+    }
+
     pub(crate) fn feed(
         &mut self,
         keymap: &Keymap,

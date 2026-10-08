@@ -89,10 +89,10 @@ fn blank_lines_do_not_count() {
 
 #[test]
 fn the_editor_uses_the_detected_style_or_four_spaces() {
-    assert_eq!(editor("a\n  b\n").indent, IndentStyle::Spaces(2));
-    assert_eq!(editor("a\n\tb\n").indent, IndentStyle::Tabs);
-    assert_eq!(editor("plain").indent, IndentStyle::Spaces(4));
-    assert_eq!(Editor::default().indent, IndentStyle::Spaces(4));
+    assert_eq!(editor("a\n  b\n").view().indent(), IndentStyle::Spaces(2));
+    assert_eq!(editor("a\n\tb\n").view().indent(), IndentStyle::Tabs);
+    assert_eq!(editor("plain").view().indent(), IndentStyle::Spaces(4));
+    assert_eq!(Editor::default().view().indent(), IndentStyle::Spaces(4));
 }
 
 // ---- Enter

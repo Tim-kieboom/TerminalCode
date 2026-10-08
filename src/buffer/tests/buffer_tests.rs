@@ -186,3 +186,84 @@ fn byte_inside_crlf_maps_to_line_end() {
 
     assert_eq!(buffer.byte_to_position(3), Ok(Position::new(0, 2)));
 }
+
+#[test]
+fn applied_edits_are_logged_in_order_and_drained_once() {
+    let mut buffer = Buffer::from_text("abc");
+    buffer.apply(&Edit::insert(1, "XY")).unwrap();
+    buffer.apply(&Edit::delete(0..1)).unwrap();
+
+    let log = buffer.take_edit_log();
+
+    assert_eq!(log.len(), 2);
+    assert_eq!(
+        (log[0].start_byte, log[0].old_end_byte, log[0].new_end_byte),
+        (1, 1, 3)
+    );
+    assert_eq!(
+        (log[1].start_byte, log[1].old_end_byte, log[1].new_end_byte),
+        (0, 1, 0)
+    );
+    assert!(buffer.take_edit_log().is_empty());
+}
+
+#[test]
+fn failed_edits_are_not_logged() {
+    let mut buffer = Buffer::from_text("abc");
+
+    assert!(buffer.apply(&Edit::delete(1..9)).is_err());
+
+    assert!(buffer.take_edit_log().is_empty());
+}
+
+#[test]
+fn undo_and_redo_are_logged_too() {
+    use crate::buffer::selection::Selections;
+    let mut buffer = Buffer::from_text("abc");
+    let mut transaction = buffer.begin_transaction(Selections::default());
+    transaction.apply(&Edit::insert(3, "d")).unwrap();
+    transaction.commit(Selections::default());
+    buffer.take_edit_log();
+
+    buffer.undo().unwrap();
+    buffer.redo().unwrap();
+
+    assert_eq!(buffer.take_edit_log().len(), 2);
+}
+
+#[test]
+fn offsets_before_an_edit_do_not_move() {
+    let mut buffer = Buffer::from_text("hello world");
+    let info = buffer.apply(&Edit::new(6..11, "there")).unwrap().info;
+
+    assert_eq!(info.remap_byte(0), 0);
+    assert_eq!(info.remap_byte(6), 6);
+}
+
+#[test]
+fn offsets_after_an_edit_shift_by_its_size_change() {
+    let mut buffer = Buffer::from_text("abcdef");
+    let grow = buffer.apply(&Edit::insert(2, "XXX")).unwrap().info;
+    let shrink = buffer.apply(&Edit::delete(0..2)).unwrap().info;
+
+    assert_eq!(grow.remap_byte(4), 7);
+    assert_eq!(shrink.remap_byte(7), 5);
+}
+
+#[test]
+fn an_offset_at_an_insertion_point_stays_before_the_new_text() {
+    let mut buffer = Buffer::from_text("ab");
+    let info = buffer.apply(&Edit::insert(1, "XYZ")).unwrap().info;
+
+    assert_eq!(info.remap_byte(1), 1);
+    assert_eq!(info.remap_byte(2), 5);
+}
+
+#[test]
+fn offsets_inside_a_replaced_range_collapse_to_its_start() {
+    let mut buffer = Buffer::from_text("abcdef");
+    let info = buffer.apply(&Edit::new(1..5, "Z")).unwrap().info;
+
+    assert_eq!(info.remap_byte(3), 1);
+    assert_eq!(info.remap_byte(5), 2);
+}

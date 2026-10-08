@@ -230,3 +230,31 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   scrolls to the cursor when the cursor, the text or the viewport changed (`take_view_change`).
 - Deferred: auto-scroll while dragging beyond the edge (mouse events stop while the pointer is still, so it needs a
   repeating timer in the app loop).
+
+## Workspace: documents, panes, tabs
+- `components::workspace::Workspace` stores each file once as a `Document` (buffer + undo history + indent style) in a
+  map by id. A pane is a strip of tabs; a tab is a `ViewState` (selections, scroll, mouse state) of one document.
+  Panes sit in a binary split tree (`Axis::Horizontal` = side by side, `Vertical` = stacked); splitting halves the
+  focused pane and the new pane starts with a copy of the active view.
+- **Shared buffer, shared undo.** `Editor` (buffer + view) is unchanged for all editing logic. To run an action,
+  `Workspace::with_editor` lends the document's buffer to an `Editor` together with the tab's `ViewState`, runs the
+  closure, and puts both back. Reading goes through `EditorRef` (`&Buffer` + `&ViewState`), and rendering works from
+  the same two references, so two panes can draw one document at once.
+- **Cursors follow edits.** `Buffer` logs an `EditInfo` (start, old end, new end byte) for every applied edit,
+  including undo/redo. Before running an action the workspace converts the other views' selections of the same
+  document to byte offsets; afterwards it replays the log over them (`EditInfo::remap_byte`) and converts back.
+  Rule: offsets at or before the edit start stay put (a cursor at an insertion point stays before the new text),
+  offsets after the replaced range shift by the size change, offsets inside it collapse to the start. A view that
+  did not make the edit does not scroll to its cursor because of it.
+- **Typing bursts** never merge across views: the document remembers the last editing view and the next view to
+  edit starts a new undo step.
+- **Closing:** closing a tab whose document has no other view and unsaved changes needs a second close to discard;
+  anything else in between cancels that. The last tab of a pane closes the pane; the last tab of the last pane
+  leaves the editor area empty: a hint is shown, the app keeps running, editing actions answer "no open file
+  (ctrl+n opens a new one)", and `ctrl+n` opens a tab again. Documents with no views are dropped.
+- **Layout and mouse:** `Workspace::prepare` lays the pane tree out in the placement (each pane: one tab-bar row, the
+  rest is the bordered editor), records pane, tab and text areas for hit-testing and directional focus, and lets each
+  pane's active view scroll to its cursor. A press focuses the pane under it (and switches tab or places the cursor);
+  drags and releases go to the focused pane; the wheel scrolls the pane under the pointer without moving focus;
+  a middle press on a tab closes that tab (`close_tab_at`), whether or not it is active or its pane is focused.
+- Command line: every path argument opens a tab (first one active).

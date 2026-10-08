@@ -1,20 +1,78 @@
 use std::ops::Range;
 
+#[cfg(test)]
 use ratatui::layout::Rect;
 
 use crate::buffer::{Buffer, BufferError, Edit, FileError, Position, Selection, Selections};
 
 pub(crate) use indent::IndentStyle;
 pub(crate) use motion::Motion;
+pub(crate) use view_state::ViewState;
 
 mod clipboard_ops;
 mod indent;
 mod motion;
 mod mouse_ops;
-mod render;
+pub(crate) mod render;
 #[cfg(test)]
 mod tests;
 mod text_layout;
+mod view_state;
+
+/// File name for titles and the status bar, with `[+]` when modified.
+pub(crate) fn display_name(buffer: &Buffer) -> String {
+    let name = buffer
+        .path()
+        .and_then(|path| path.file_name())
+        .map_or_else(|| "[no name]".into(), |name| name.to_string_lossy());
+
+    match buffer.is_dirty() {
+        true => format!("{name} [+]"),
+        false => name.into_owned(),
+    }
+}
+
+/// Read-only access to one editor: a document and a view of it. What anything
+/// that only looks at the active editor gets.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct EditorRef<'a> {
+    buffer: &'a Buffer,
+    view: &'a ViewState,
+}
+
+impl<'a> EditorRef<'a> {
+    pub(crate) fn new(buffer: &'a Buffer, view: &'a ViewState) -> Self {
+        Self { buffer, view }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn buffer(&self) -> &'a Buffer {
+        self.buffer
+    }
+
+    #[cfg(test)]
+    pub(crate) fn view(&self) -> &'a ViewState {
+        self.view
+    }
+
+    pub(crate) fn selections(&self) -> &'a Selections {
+        self.view.selections()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scroll(&self) -> Scroll {
+        self.view.scroll()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn text_area(&self) -> Option<Rect> {
+        self.view.text_area()
+    }
+
+    pub(crate) fn display_name(&self) -> String {
+        display_name(self.buffer)
+    }
+}
 
 /// First visible line and display column of the editor viewport.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -39,14 +97,7 @@ enum EditKind {
 #[derive(Debug, Default)]
 pub(crate) struct Editor {
     buffer: Buffer,
-    selections: Selections,
-    scroll: Scroll,
-    viewport_height: usize,
-    text_area: Option<Rect>,
-    drag_anchor: Option<Position>,
-    seen_view: Option<(Position, u64, Rect)>,
-    indent: IndentStyle,
-    last_edit: Option<EditKind>,
+    view: ViewState,
 }
 
 impl Editor {
@@ -54,48 +105,55 @@ impl Editor {
         let indent = IndentStyle::detect(&buffer).unwrap_or_default();
         Self {
             buffer,
-            selections: Selections::default(),
-            scroll: Scroll::default(),
-            viewport_height: 0,
-            text_area: None,
-            drag_anchor: None,
-            seen_view: None,
-            indent,
-            last_edit: None,
+            view: ViewState::with_indent(indent),
         }
+    }
+
+    /// Joins a view with the document text it shows.
+    pub(crate) fn from_parts(view: ViewState, buffer: Buffer) -> Self {
+        Self { buffer, view }
+    }
+
+    pub(crate) fn into_parts(self) -> (ViewState, Buffer) {
+        (self.view, self.buffer)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn view(&self) -> &ViewState {
+        &self.view
     }
 
     pub(crate) fn buffer(&self) -> &Buffer {
         &self.buffer
     }
 
+    #[cfg(test)]
     pub(crate) fn selections(&self) -> &Selections {
-        &self.selections
+        &self.view.selections
     }
 
+    #[cfg(test)]
     pub(crate) fn scroll(&self) -> Scroll {
-        self.scroll
+        self.view.scroll
     }
 
     /// File name for titles and the status bar, with `[+]` when modified.
+    #[cfg(test)]
     pub(crate) fn display_name(&self) -> String {
-        let name = self
-            .buffer
-            .path()
-            .and_then(|path| path.file_name())
-            .map_or_else(|| "[no name]".into(), |name| name.to_string_lossy());
+        display_name(&self.buffer)
+    }
 
-        match self.buffer.is_dirty() {
-            true => format!("{name} [+]"),
-            false => name.into_owned(),
-        }
+    /// The edits applied to the buffer since the last call; see
+    /// [`Buffer::take_edit_log`].
+    pub(crate) fn take_edit_log(&mut self) -> Vec<crate::buffer::EditInfo> {
+        self.buffer.take_edit_log()
     }
 
     /// Moves the cursor. With a selection, left and right collapse it to its
     /// start and end instead of moving.
     pub(crate) fn move_cursor(&mut self, motion: Motion) -> Result<(), BufferError> {
-        self.last_edit = None;
-        let selection = *self.selections.primary();
+        self.view.last_edit = None;
+        let selection = *self.view.selections.primary();
         let collapse_to = match motion {
             Motion::Left if !selection.is_empty() => Some(selection.start()),
             Motion::Right if !selection.is_empty() => Some(selection.end()),
@@ -110,30 +168,30 @@ impl Editor {
                 Selection::cursor(target.position).with_desired_column(target.desired_column)
             }
         };
-        self.selections = Selections::single(moved);
+        self.view.selections = Selections::single(moved);
         Ok(())
     }
 
     /// Moves the head of the selection, keeping the anchor.
     pub(crate) fn select(&mut self, motion: Motion) -> Result<(), BufferError> {
-        self.last_edit = None;
-        let selection = *self.selections.primary();
+        self.view.last_edit = None;
+        let selection = *self.view.selections.primary();
         let target = self.target(&selection, motion)?;
         self.follow_page_motion(motion, selection.head().line, target.position.line);
         let extended = Selection::new(selection.anchor(), target.position)
             .with_desired_column(target.desired_column);
 
-        self.selections = Selections::single(extended);
+        self.view.selections = Selections::single(extended);
         Ok(())
     }
 
     /// Selects the whole document.
     pub(crate) fn select_all(&mut self) -> Result<(), BufferError> {
-        self.last_edit = None;
+        self.view.last_edit = None;
         let last_line = self.buffer.len_lines() - 1;
         let end = Position::new(last_line, self.buffer.line_len(last_line)?);
 
-        self.selections = Selections::single(Selection::new(Position::default(), end));
+        self.view.selections = Selections::single(Selection::new(Position::default(), end));
         Ok(())
     }
 
@@ -157,7 +215,7 @@ impl Editor {
     /// Deletes the selection, or the grapheme before the cursor. At the start
     /// of a line it joins the line with the previous one.
     pub(crate) fn delete_backward(&mut self) -> Result<(), BufferError> {
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
         }
@@ -176,7 +234,7 @@ impl Editor {
     /// Deletes the selection, or the grapheme after the cursor. At the end of
     /// a line it joins the next line onto it.
     pub(crate) fn delete_forward(&mut self) -> Result<(), BufferError> {
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
         }
@@ -194,7 +252,7 @@ impl Editor {
 
     /// Deletes the selection, or back to the start of the previous word.
     pub(crate) fn delete_word_backward(&mut self) -> Result<(), BufferError> {
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
         }
@@ -209,7 +267,7 @@ impl Editor {
 
     /// Deletes the selection, or forward to the end of the next word.
     pub(crate) fn delete_word_forward(&mut self) -> Result<(), BufferError> {
-        let selection = *self.selections.primary();
+        let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
         }
@@ -223,17 +281,17 @@ impl Editor {
     }
 
     pub(crate) fn undo(&mut self) -> Result<(), BufferError> {
-        self.last_edit = None;
+        self.view.last_edit = None;
         if let Some(selections) = self.buffer.undo()? {
-            self.selections = selections;
+            self.view.selections = selections;
         }
         Ok(())
     }
 
     pub(crate) fn redo(&mut self) -> Result<(), BufferError> {
-        self.last_edit = None;
+        self.view.last_edit = None;
         if let Some(selections) = self.buffer.redo()? {
-            self.selections = selections;
+            self.view.selections = selections;
         }
         Ok(())
     }
@@ -244,6 +302,7 @@ impl Editor {
 
     /// Scrolls the minimum needed to bring `line` and `display_column` into a
     /// viewport of `height` by `width` cells.
+    #[cfg(test)]
     pub(crate) fn scroll_to_show(
         &mut self,
         line: usize,
@@ -251,9 +310,8 @@ impl Editor {
         height: usize,
         width: usize,
     ) {
-        self.viewport_height = height;
-        self.scroll.top = scroll_axis(self.scroll.top, line, height);
-        self.scroll.left = scroll_axis(self.scroll.left, display_column, width);
+        self.view
+            .scroll_to_show(line, display_column, height, width);
     }
 
     fn target(&self, selection: &Selection, motion: Motion) -> Result<motion::Target, BufferError> {
@@ -268,7 +326,7 @@ impl Editor {
 
     /// Lines a page motion travels: a screenful minus one for context.
     fn page_lines(&self) -> usize {
-        self.viewport_height.saturating_sub(1).max(1)
+        self.view.viewport_height.saturating_sub(1).max(1)
     }
 
     /// After a page motion the viewport moves by as many lines as the cursor
@@ -278,12 +336,12 @@ impl Editor {
             return;
         }
         let last_line = self.buffer.len_lines() - 1;
-        let top = (self.scroll.top + to).saturating_sub(from);
-        self.scroll.top = top.min(last_line);
+        let top = (self.view.scroll.top + to).saturating_sub(from);
+        self.view.scroll.top = top.min(last_line);
     }
 
     fn selection_bytes(&self) -> Result<Range<usize>, BufferError> {
-        let selection = self.selections.primary();
+        let selection = self.view.selections.primary();
         let start = self.buffer.position_to_byte(selection.start())?;
         let end = self.buffer.position_to_byte(selection.end())?;
         Ok(start..end)
@@ -322,19 +380,19 @@ impl Editor {
         kind: Option<EditKind>,
         cursor: impl FnOnce(&Buffer, usize) -> Result<Position, BufferError>,
     ) -> Result<(), BufferError> {
-        let previous = self.last_edit.take();
-        let mut transaction = self.buffer.begin_transaction(self.selections.clone());
+        let previous = self.view.last_edit.take();
+        let mut transaction = self.buffer.begin_transaction(self.view.selections.clone());
         transaction.apply(&Edit::new(range.clone(), text))?;
         let cursor = cursor(transaction.buffer(), range.start + text.len())?;
 
         let after = Selections::single(Selection::cursor(cursor));
         transaction.commit(after.clone());
-        self.selections = after;
+        self.view.selections = after;
 
         if kind.is_some() && previous == kind {
             self.buffer.merge_last_two_steps();
         }
-        self.last_edit = kind;
+        self.view.last_edit = kind;
         Ok(())
     }
 }
