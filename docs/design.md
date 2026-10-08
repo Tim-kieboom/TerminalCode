@@ -145,6 +145,17 @@ used `anyhow` everywhere instead of typed errors.
 ### Explorer
 - Tree view over the project root, lazy-loaded, file watcher driven refresh, create/rename/delete/move,
   gitignore-aware.
+- Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
+  directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
+  (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first
+  then case-insensitive names. The project root is the first directory on the command line, else the working
+  directory.
+- Keyboard focus is `AppState::focus` (`Editor` or `Explorer`) and picks the keymap contexts: `[Editor, Global]` or
+  `[Explorer, Global]`. Printable keys are only typed into the editor when it has focus. `ctrl+b` toggles focus,
+  `esc` returns to the editor, clicking either component focuses it. Opening a file from the explorer keeps focus
+  in the tree; actions that open or switch tabs and panes (`Action::focuses_editor`) move it to the editor.
+- `Workspace::open_path` never reads an open file twice: it switches to a tab that shows it (focused pane first,
+  then others) or adds a view to the existing document.
 
 ### Search
 - Fuzzy file finder (project files) and project-wide text search (ripgrep-style via `ignore` +
@@ -297,7 +308,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   at startup (OSC 11, via `terminal-colorsaurus`, 500 ms timeout) and only when the theme needs it. If the terminal does
   not answer, the tint color is used as is. A blend needs a hex color, since a named ANSI color has no known RGB.
 - Painting is one `Block` over the whole frame at the start of every draw (`components::paint_background`); slots with
-  their own `bg` (selection, tabs, status bar) draw over it.
+  their own `background` (selection, tabs, status bar) draw over it.
 - `blend = "terminal"` (the default) paints a solid blended color, so the terminal's translucency and blur do not show
   in those cells: terminals only make their *default* background translucent. `blend = "none"` paints the exact
   color instead, for terminals that can make one exact color translucent (kitty 0.39+:

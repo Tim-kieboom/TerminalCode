@@ -49,6 +49,7 @@ fn paint_background(frame: &mut Frame, state: &AppState) {
 fn prepare_component(state: &mut AppState, placement: &Placement) {
     match placement.kind {
         ComponentKind::Editor => state.workspace_mut().prepare(placement),
+        ComponentKind::Explorer => state.explorer_mut().prepare(placement),
         ComponentKind::StatusBar => state.status_bar_mut().prepare(placement),
         _ => (),
     }
@@ -57,6 +58,7 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
 fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
     match placement.kind {
         ComponentKind::Editor => state.workspace().render(frame, state, placement),
+        ComponentKind::Explorer => state.explorer().render(frame, state, placement),
         ComponentKind::StatusBar => state.status_bar().render(frame, state, placement),
         _ => render_plain(frame, state, placement),
     }

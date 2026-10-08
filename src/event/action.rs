@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::components::editor::Motion;
+use crate::components::explorer::ExplorerCommand;
 use crate::components::workspace::FocusDirection;
 
 /// Everything a key, menu or plugin can ask the editor to do. Keymaps bind
@@ -13,6 +14,9 @@ use crate::components::workspace::FocusDirection;
 pub(crate) enum Action {
     Quit,
     CommandPalette,
+    /// Moves the keyboard to the explorer, or back to the editor if it is there.
+    FocusExplorer,
+    Explorer(ExplorerCommand),
     Save,
     Undo,
     Redo,
@@ -43,6 +47,22 @@ pub(crate) enum Action {
 }
 
 impl Action {
+    /// Whether running the action puts the keyboard back in the editor: the
+    /// ones that open, close or switch tabs and panes.
+    pub(crate) fn focuses_editor(&self) -> bool {
+        matches!(
+            self,
+            Self::NewFile
+                | Self::CloseTab
+                | Self::NextTab
+                | Self::PreviousTab
+                | Self::SplitRight
+                | Self::SplitDown
+                | Self::FocusNextPane
+                | Self::FocusPane(_)
+        )
+    }
+
     /// Whether the action works on an open file, and so has nothing to do
     /// when every tab is closed.
     pub(crate) fn needs_editor(&self) -> bool {
@@ -50,6 +70,8 @@ impl Action {
             self,
             Self::Quit
                 | Self::CommandPalette
+                | Self::FocusExplorer
+                | Self::Explorer(_)
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseTab
@@ -73,6 +95,8 @@ impl Action {
         Some(match self {
             Self::Quit => "Application: Quit",
             Self::CommandPalette => "Application: Command Palette",
+            Self::FocusExplorer => "Explorer: Focus",
+            Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::NewFile => "File: New",
@@ -98,6 +122,7 @@ impl Action {
             Self::SelectAll => "Selection: Select All",
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
+            Self::Explorer(_) => return None,
             Self::Move(_)
             | Self::Select(_)
             | Self::InsertText(_)
@@ -114,6 +139,8 @@ impl Action {
         use FocusDirection::*;
         vec![
             Self::CommandPalette,
+            Self::FocusExplorer,
+            Self::Explorer(ExplorerCommand::Refresh),
             Self::Save,
             Self::NewFile,
             Self::CloseTab,

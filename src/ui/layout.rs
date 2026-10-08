@@ -73,6 +73,15 @@ pub(crate) enum LayoutNode {
     },
 }
 
+impl LayoutNode {
+    fn contains(&self, kind: &ComponentKind) -> bool {
+        match self {
+            Self::Leaf(component) | Self::Framed { component, .. } => component == kind,
+            Self::Split { children, .. } => children.iter().any(|child| child.node.contains(kind)),
+        }
+    }
+}
+
 /// Where a component ended up on screen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Placement {
@@ -118,6 +127,11 @@ impl LayoutTree {
             return Err(LayoutError::MissingEditor);
         }
         Ok(Self { root })
+    }
+
+    /// Whether the layout has a component of this kind.
+    pub(crate) fn contains(&self, kind: &ComponentKind) -> bool {
+        self.root.contains(kind)
     }
 
     pub(crate) fn resolve(&self, area: Rect) -> Vec<Placement> {

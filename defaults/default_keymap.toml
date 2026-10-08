@@ -2,14 +2,15 @@
 # keys:    modifiers (ctrl, alt, shift, super) joined with "+", then a key: a single
 #          character, or a name such as enter, esc, tab, space, up, f5.
 #          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
-# context: "global" (default) or "editor". Editor bindings win over global ones.
+# context: "global" (default), "editor" or "explorer". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "command_palette", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
-#   { select = motion }, { plugin = "name" }.
+#   { select = motion }, "focus_explorer", { explorer = command }, { plugin = "name" }.
+# Explorer commands: up, down, page_up, page_down, first, last, expand, collapse, open, refresh.
 # Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
 #   document_end.
 # Plain printable keys with no binding are typed into the editor.
@@ -277,32 +278,26 @@ action = "toggle_mouse"
 # document in a new pane (edits and undo are shared between views).
 [[binding]]
 keys = "ctrl+n"
-context = "editor"
 action = "new_file"
 
 [[binding]]
 keys = "ctrl+w"
-context = "editor"
 action = "close_tab"
 
 [[binding]]
 keys = "ctrl+pagedown"
-context = "editor"
 action = "next_tab"
 
 [[binding]]
 keys = "ctrl+pageup"
-context = "editor"
 action = "previous_tab"
 
 [[binding]]
 keys = "ctrl+tab"
-context = "editor"
 action = "next_tab"
 
 [[binding]]
 keys = "ctrl+shift+tab"
-context = "editor"
 action = "previous_tab"
 
 [[binding]]
@@ -349,3 +344,63 @@ action = "command_palette"
 [[binding]]
 keys = "alt+p"
 action = "command_palette"
+
+# Explorer. ctrl+b moves the keyboard to the explorer and, from there, back to the editor.
+[[binding]]
+keys = "ctrl+b"
+action = "focus_explorer"
+
+[[binding]]
+keys = "esc"
+context = "explorer"
+action = "focus_explorer"
+
+[[binding]]
+keys = "up"
+context = "explorer"
+action = { explorer = "up" }
+
+[[binding]]
+keys = "down"
+context = "explorer"
+action = { explorer = "down" }
+
+[[binding]]
+keys = "left"
+context = "explorer"
+action = { explorer = "collapse" }
+
+[[binding]]
+keys = "right"
+context = "explorer"
+action = { explorer = "expand" }
+
+[[binding]]
+keys = "enter"
+context = "explorer"
+action = { explorer = "open" }
+
+[[binding]]
+keys = "pageup"
+context = "explorer"
+action = { explorer = "page_up" }
+
+[[binding]]
+keys = "pagedown"
+context = "explorer"
+action = { explorer = "page_down" }
+
+[[binding]]
+keys = "home"
+context = "explorer"
+action = { explorer = "first" }
+
+[[binding]]
+keys = "end"
+context = "explorer"
+action = { explorer = "last" }
+
+[[binding]]
+keys = "f5"
+context = "explorer"
+action = { explorer = "refresh" }

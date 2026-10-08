@@ -51,7 +51,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Palette follow-ups: argument prompts (open file path, go to line), save as for untitled files, recently used first, mouse selection, paste into the query
 
 ## M4 — Explorer + search
-- [ ] Project tree, lazy load, gitignore-aware
+- [x] Project tree, lazy load, gitignore-aware: root = first directory argument or the working directory; `ctrl+b` gives it the keyboard (`esc` or a click in the editor takes it back); up/down/home/end/pageup/pagedown move, right/left expand, collapse and step in/out, enter opens a file (focus stays in the tree) or toggles a directory, `f5` refreshes, click and wheel work; indent guides (a line under each directory's chevron down its children, theme slot `explorer.guide`); opening an already open file switches to its tab; `Explorer` keymap context
+- [ ] Explorer follow-ups: highlight the file of the active tab, reveal the active file, dim ignored files instead of hiding them (setting), hidden-file toggle, `alt+h` from the leftmost pane into the explorer, read directories off the UI thread, symlink loops
 - [ ] File watcher events -> tree refresh and external-change prompts for open buffers
 - [ ] Create / rename / delete / move
 - [ ] Fuzzy file finder

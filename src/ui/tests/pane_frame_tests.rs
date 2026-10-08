@@ -212,10 +212,10 @@ fn title_and_border_use_the_slots_the_frame_names() {
     let theme = Theme::from_toml(
         r#"
         ["files.title"]
-        fg = "red"
+        text = "red"
 
         ["files.border"]
-        fg = "green"
+        text = "green"
         "#,
     )
     .unwrap();
@@ -254,10 +254,10 @@ fn a_focused_frame_uses_the_focused_variant_of_its_border_slot() {
     let theme = Theme::from_toml(
         r#"
         ["pane.border"]
-        fg = "red"
+        text = "red"
 
         ["pane.border.focused"]
-        fg = "green"
+        text = "green"
         "#,
     )
     .unwrap();
@@ -275,7 +275,7 @@ fn a_focused_frame_falls_back_to_the_plain_slot_without_a_focused_variant() {
     let theme = Theme::from_toml(
         r#"
         ["pane.border"]
-        fg = "red"
+        text = "red"
         "#,
     )
     .unwrap();

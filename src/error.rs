@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 use crate::buffer::{BufferError, FileError};
+use crate::components::explorer::ExplorerError;
 use crate::keymap::KeymapError;
 use crate::ui::layout::LayoutError;
 use crate::ui::theme::ThemeError;
@@ -23,6 +24,8 @@ pub enum IdeError {
     File(#[from] FileError),
     #[error("invalid keymap: {0}")]
     Keymap(#[from] KeymapError),
+    #[error("{0}")]
+    Explorer(#[from] ExplorerError),
 }
 
 impl From<std::convert::Infallible> for IdeError {

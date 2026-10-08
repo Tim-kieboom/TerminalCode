@@ -35,15 +35,15 @@ fn unknown_slot_falls_back_to_default_style() {
 
 #[test]
 fn from_toml_reads_hex_colors_and_backgrounds() {
-    let source = r##"["editor.bg"]
-fg = "#102030"
-bg = "red"
+    let source = r##"["editor.sample"]
+text = "#102030"
+background = "red"
 "##;
 
     let theme = Theme::from_toml(source).unwrap();
 
     assert_eq!(
-        theme.style("editor.bg"),
+        theme.style("editor.sample"),
         Style::default()
             .fg(Color::Rgb(0x10, 0x20, 0x30))
             .bg(Color::Red)
@@ -53,7 +53,7 @@ bg = "red"
 #[test]
 fn from_toml_rejects_unknown_color() {
     let source = r#"["pane.border"]
-fg = "not_a_color"
+text = "not_a_color"
 "#;
 
     let result = Theme::from_toml(source);
@@ -305,4 +305,46 @@ fn an_unknown_blend_mode_is_an_error() {
     let result = background("[background]\ncolor = \"#102030\"\nblend = \"frosted\"\n");
 
     assert!(matches!(result, Err(ThemeError::Parse(_))));
+}
+
+#[test]
+fn the_old_fg_and_bg_names_still_work() {
+    let source = r##"["editor.sample"]
+fg = "#102030"
+bg = "red"
+"##;
+
+    let theme = Theme::from_toml(source).unwrap();
+
+    assert_eq!(
+        theme.style("editor.sample"),
+        Style::default()
+            .fg(Color::Rgb(0x10, 0x20, 0x30))
+            .bg(Color::Red)
+    );
+}
+
+#[test]
+fn a_misspelled_slot_key_is_an_error_not_silently_ignored() {
+    let source = r#"["pane.border"]
+txet = "red"
+"#;
+
+    assert!(Theme::from_toml(source).is_err());
+}
+
+#[test]
+fn highlighted_slots_set_their_own_colors_instead_of_reversing_the_ones_below() {
+    let theme = Theme::default();
+
+    for slot in ["tab.active", "status.bar", "explorer.selected"] {
+        let style = theme.style(slot);
+        assert!(style.bg.is_some(), "{slot} has a background");
+        assert!(
+            !style
+                .add_modifier
+                .contains(ratatui::style::Modifier::REVERSED),
+            "{slot} must not be reversed"
+        );
+    }
 }

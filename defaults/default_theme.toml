@@ -18,14 +18,23 @@
 # default background translucent, never a color the program paints. A text program
 # cannot blur anything itself; it can only choose cell colors.
 #
+# Slots: each table is a style with these keys, all optional:
+#   text       = "red"          color of the characters
+#   background = "#1e1e2e"      color behind the characters
+#   modifiers  = ["bold"]
+# (`fg` and `bg` are still accepted for `text` and `background`.) The reserved
+# [background] table above is the screen's background, not a slot.
+#
 # Colors: names such as "red" or "dark_gray", or hex such as "#1e1e2e".
 # Modifiers: bold, dim, italic, underlined, reversed, crossed_out.
+# Prefer explicit `text` and `background` over `reversed`: reversed swaps the colors
+# of whatever is underneath, so `text` would end up as the block color.
 
 [background]
 color = "transparent"
 
 ["pane.border"]
-fg = "dark_gray"
+text = "dark_gray"
 
 ["pane.title"]
 modifiers = ["bold"]
@@ -34,32 +43,54 @@ modifiers = ["bold"]
 modifiers = ["reversed"]
 
 ["editor.line_number"]
-fg = "dark_gray"
+text = "#2f2c37"
 
 ["editor.line_number.current"]
-fg = "white"
+text = "#e0abdc"
 
 ["editor.selection"]
-bg = "blue"
+background = "#45162e"
 
 ["status.bar"]
-modifiers = ["reversed"]
+text = "#b9b9bd"
+background = "#171725"
 
 ["pane.border.focused"]
-fg = "cyan"
+text = "cyan"
 
 ["tab.bar"]
-fg = "gray"
 
 ["tab.active"]
-modifiers = ["bold", "reversed"]
+text = "#cbb7c1"
+background = "#560e31"
+modifiers = ["bold"]
 
 ["tab.inactive"]
-fg = "gray"
+text = "#8a8fa7"
 
 ["notification.info"]
-fg = "cyan"
+text = "cyan"
 
 ["notification.error"]
-fg = "red"
+text = "red"
 modifiers = ["bold"]
+
+["explorer.dir"]
+text = "dark_gray"
+modifiers = ["bold"]
+
+["explorer.file"]
+text = "#b9b9bd"
+
+["explorer.selected"]
+background = "#560e31"
+
+["explorer.selected.inactive"]
+background = "#560e31"
+modifiers = ["bold", "underlined"]
+
+["explorer.hint"]
+text = "dark_gray"
+
+["explorer.guide"]
+text = "#2f2c37"

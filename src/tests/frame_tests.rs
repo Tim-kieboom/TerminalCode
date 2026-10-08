@@ -86,9 +86,10 @@ fn borders_can_be_rounded_double_thick_or_gone() {
 fn a_borderless_explorer_has_no_border_lines() {
     let rows = screen_with("(border: Off, title: Hidden)", defaults(), defaults());
 
-    // The explorer is the top 6 rows.
+    // The explorer is the top 6 rows; with no project it only says so.
     for row in &rows[..6] {
-        assert!(row.trim().is_empty(), "{rows:#?}");
+        let border = row.chars().any(|c| "┌┐└┘─│".contains(c));
+        assert!(!border, "{rows:#?}");
     }
 }
 

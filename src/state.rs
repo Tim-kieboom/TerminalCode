@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
+use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::notifications::{Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
@@ -12,6 +13,14 @@ use crate::ui::layout::LayoutTree;
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
 
+/// Which component the keyboard goes to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum Focus {
+    #[default]
+    Editor,
+    Explorer,
+}
+
 /// Everything the UI renders from. Owned by the app loop alone.
 #[derive(Debug, Default)]
 pub(crate) struct AppState {
@@ -19,6 +28,7 @@ pub(crate) struct AppState {
     theme: Theme,
     layout: LayoutTree,
     notifications: Notifications,
+    focus: Focus,
     pending_keys: Option<Box<str>>,
     quit_prompt: Option<QuitPrompt>,
     palette: Option<Palette>,
@@ -27,6 +37,7 @@ pub(crate) struct AppState {
 #[derive(Debug, Default)]
 struct AppComponents {
     workspace: Workspace,
+    explorer: Explorer,
     status_bar: StatusBar,
     plugin_views: HashMap<PluginViewId, PluginView>,
 }
@@ -67,6 +78,28 @@ impl AppState {
 
     pub(crate) fn status_bar_mut(&mut self) -> &mut StatusBar {
         &mut self.components.status_bar
+    }
+
+    pub(crate) fn explorer(&self) -> &Explorer {
+        &self.components.explorer
+    }
+
+    pub(crate) fn explorer_mut(&mut self) -> &mut Explorer {
+        &mut self.components.explorer
+    }
+
+    /// Shows the project in `root` in the explorer.
+    pub(crate) fn open_project(&mut self, root: &std::path::Path) -> Result<(), ExplorerError> {
+        self.components.explorer = Explorer::open(root)?;
+        Ok(())
+    }
+
+    pub(crate) fn focus(&self) -> Focus {
+        self.focus
+    }
+
+    pub(crate) fn set_focus(&mut self, focus: Focus) {
+        self.focus = focus;
     }
 
     pub(crate) fn workspace(&self) -> &Workspace {

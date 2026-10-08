@@ -35,6 +35,13 @@ pub fn paths_from_args(args: impl Iterator<Item = OsString>) -> Vec<PathBuf> {
     args.map(PathBuf::from).collect()
 }
 
+/// Splits the command line into the project directory, if one is named (the
+/// first directory), and the files to open.
+fn project_and_files(paths: &[PathBuf]) -> (Option<PathBuf>, Vec<PathBuf>) {
+    let (dirs, files): (Vec<_>, Vec<_>) = paths.iter().cloned().partition(|path| path.is_dir());
+    (dirs.into_iter().next(), files)
+}
+
 /// State at startup: one tab per file named on the command line, the first
 /// one active. A path that does not exist yet opens an empty buffer and says
 /// so in the status bar, so a mistyped path is noticed.
@@ -69,7 +76,13 @@ where
     B: Backend,
     B::Error: Into<IdeError>,
 {
-    let mut state = initial_state(paths)?;
+    let (project, files) = project_and_files(paths);
+    let mut state = initial_state(&files)?;
+    let root = project.or_else(|| std::env::current_dir().ok());
+    if let Some(error) = root.and_then(|root| state.open_project(&root).err()) {
+        state.notify_error(error.to_string());
+    }
+
     state.learn_terminal_background(terminal::query_background);
     if let Some(hint) = state.theme().terminal_hint() {
         state.notify(hint);

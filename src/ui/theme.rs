@@ -137,9 +137,14 @@ impl Number {
 
 /// Style of one slot as written in a theme file.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct StyleSpec {
-    fg: Option<Box<str>>,
-    bg: Option<Box<str>>,
+    /// Color of the characters. `fg` is the old name and still works.
+    #[serde(alias = "fg")]
+    text: Option<Box<str>>,
+    /// Color behind the characters. `bg` is the old name and still works.
+    #[serde(alias = "bg")]
+    background: Option<Box<str>>,
     #[serde(default)]
     modifiers: Vec<ModifierName>,
 }
@@ -279,12 +284,12 @@ fn build_background(spec: Option<BackgroundSpec>) -> Result<Background, ThemeErr
 
 fn build_style(slot: &str, spec: &StyleSpec) -> Result<Style, ThemeError> {
     let mut style = Style::default();
-    if let Some(fg) = &spec.fg {
-        style = style.fg(parse_color(slot, fg)?);
+    if let Some(text) = &spec.text {
+        style = style.fg(parse_color(slot, text)?);
     }
 
-    if let Some(bg) = &spec.bg {
-        style = style.bg(parse_color(slot, bg)?);
+    if let Some(background) = &spec.background {
+        style = style.bg(parse_color(slot, background)?);
     }
 
     for modifier in &spec.modifiers {

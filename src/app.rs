@@ -11,14 +11,15 @@ use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 
 use crate::clipboard::{Clipboard, Notice, Register};
-use crate::components;
+use crate::components::explorer::ExplorerCommand;
 use crate::components::palette::{self, Entry, Palette};
 use crate::components::quit_prompt::{self, QuitPrompt};
 use crate::components::workspace::{CloseResult, DocumentId};
+use crate::components::{self, ComponentKind};
 use crate::error::{IdeError, IdeResult};
 use crate::event::{Event, action::Action, mouse::ClickTracker};
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
-use crate::state::AppState;
+use crate::state::{AppState, Focus};
 use crate::terminal::{self, KeyboardSupport};
 use crate::ui::layout::Axis;
 
@@ -32,6 +33,9 @@ const SEQUENCE_TIMEOUT: Duration = Duration::from_millis(1000);
 /// Shown when an editing action arrives while every tab is closed.
 const NO_FILE_MESSAGE: &str = "no open file (ctrl+n opens a new one)";
 const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
+const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
+/// Where the palette looks for the keys shown beside an action.
+const PALETTE_CONTEXTS: [Context; 3] = [Context::Explorer, Context::Editor, Context::Global];
 
 pub(crate) type InputResult = io::Result<InputEvent>;
 
@@ -249,7 +253,8 @@ impl App {
         let Some(chord) = KeyChord::from_event(key) else {
             return;
         };
-        let resolution = self.resolver.feed(&self.keymap, &EDITOR_CONTEXTS, chord);
+        let contexts = self.contexts();
+        let resolution = self.resolver.feed(&self.keymap, contexts, chord);
 
         for discarded in resolution.discarded {
             self.type_chord(discarded);
@@ -268,15 +273,28 @@ impl App {
     /// itself, otherwise types what can be typed.
     pub(crate) fn expire_pending(&mut self) {
         self.pending_deadline = None;
-        match self.resolver.expire(&self.keymap, &EDITOR_CONTEXTS) {
+        let contexts = self.contexts();
+        match self.resolver.expire(&self.keymap, contexts) {
             Expiry::Nothing => {}
             Expiry::Fire(action) => self.run_action(action),
             Expiry::Discard(chords) => chords.into_iter().for_each(|chord| self.type_chord(chord)),
         }
     }
 
-    /// Types the chord if it is a printable key; other keys do nothing.
+    /// The contexts whose bindings apply to the component with the keyboard.
+    fn contexts(&self) -> &'static [Context] {
+        match self.state.focus() {
+            Focus::Editor => &EDITOR_CONTEXTS,
+            Focus::Explorer => &EXPLORER_CONTEXTS,
+        }
+    }
+
+    /// Types the chord if it is a printable key and the editor has the
+    /// keyboard; other keys do nothing.
     fn type_chord(&mut self, chord: KeyChord) {
+        if self.state.focus() != Focus::Editor {
+            return;
+        }
         if let Some(action) = typed_text(&chord) {
             self.run_action(action);
         }
@@ -294,9 +312,14 @@ impl App {
             self.state.notify(NO_FILE_MESSAGE);
             return Ok(());
         }
+        if action.focuses_editor() {
+            self.state.set_focus(Focus::Editor);
+        }
         match action {
             Action::Quit => self.quit(),
             Action::CommandPalette => self.open_palette(),
+            Action::FocusExplorer => self.toggle_explorer_focus(),
+            Action::Explorer(command) => self.explorer_command(command)?,
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,
@@ -336,6 +359,71 @@ impl App {
         self.mouse_change.take()
     }
 
+    /// Moves the keyboard to the explorer, or back to the editor.
+    fn toggle_explorer_focus(&mut self) {
+        if self.state.focus() == Focus::Explorer {
+            self.state.set_focus(Focus::Editor);
+        } else if self.state.layout().contains(&ComponentKind::Explorer) {
+            self.state.set_focus(Focus::Explorer);
+        } else {
+            self.state.notify("the layout has no explorer");
+        }
+    }
+
+    fn explorer_command(&mut self, command: ExplorerCommand) -> IdeResult {
+        let chosen = self.state.explorer_mut().apply(command)?;
+        self.open_from_explorer(chosen)
+    }
+
+    /// Opens a file the user chose in the explorer. The keyboard stays where it
+    /// is, so the next file can be picked.
+    fn open_from_explorer(&mut self, chosen: Option<std::path::PathBuf>) -> IdeResult {
+        let Some(path) = chosen else {
+            return Ok(());
+        };
+        self.state.workspace_mut().open_path(&path)?;
+        Ok(())
+    }
+
+    /// Mouse input for the explorer. Returns whether it was used up.
+    fn handle_explorer_mouse(&mut self, event: MouseEvent) -> bool {
+        let (column, row) = (event.column, event.row);
+        let over = self.state.explorer().contains(column, row);
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) if over => {
+                self.state.set_focus(Focus::Explorer);
+                let chosen = self.state.explorer_mut().click(column, row);
+                let result = match chosen {
+                    Ok(chosen) => self.open_from_explorer(chosen),
+                    Err(error) => Err(error.into()),
+                };
+                if let Err(error) = result {
+                    self.state.notify_error(error.to_string());
+                }
+                true
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.state.set_focus(Focus::Editor);
+                false
+            }
+            // A drag that started in the explorer has nothing to select.
+            MouseEventKind::Drag(MouseButton::Left) | MouseEventKind::Up(MouseButton::Left)
+                if self.state.focus() == Focus::Explorer =>
+            {
+                true
+            }
+            MouseEventKind::ScrollUp if over => {
+                self.state.explorer_mut().scroll_by(-1);
+                true
+            }
+            MouseEventKind::ScrollDown if over => {
+                self.state.explorer_mut().scroll_by(1);
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn toggle_mouse(&mut self) {
         self.mouse_enabled = !self.mouse_enabled;
         self.mouse_change = Some(self.mouse_enabled);
@@ -351,6 +439,10 @@ impl App {
             self.needs_redraw = true;
         }
         if !self.mouse_enabled || self.modal_open() {
+            return;
+        }
+        if self.handle_explorer_mouse(event) {
+            self.needs_redraw = true;
             return;
         }
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
@@ -424,7 +516,10 @@ impl App {
             .into_iter()
             .filter_map(|action| {
                 let title = action.title()?;
-                let keys = self.keymap.keys_for(&action, &EDITOR_CONTEXTS);
+                let keys = self
+                    .keymap
+                    .keys_for(&action, self.contexts())
+                    .or_else(|| self.keymap.keys_for(&action, &PALETTE_CONTEXTS));
                 Some(Entry {
                     title,
                     action,

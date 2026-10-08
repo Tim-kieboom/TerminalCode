@@ -120,3 +120,24 @@ fn a_leading_double_dash_is_skipped_but_later_ones_are_files() {
         [PathBuf::from("--odd"), PathBuf::from("--")]
     );
 }
+
+#[test]
+fn a_directory_argument_is_the_project_and_the_rest_are_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("a.txt");
+    fs::write(&file, "").unwrap();
+
+    let (project, files) =
+        crate::project_and_files(&[file.clone(), dir.path().to_path_buf(), dir.path().join("b")]);
+
+    assert_eq!(project.as_deref(), Some(dir.path()));
+    assert_eq!(files, [file, dir.path().join("b")]);
+}
+
+#[test]
+fn without_a_directory_argument_there_is_no_named_project() {
+    let (project, files) = crate::project_and_files(&["a.txt".into()]);
+
+    assert_eq!(project, None);
+    assert_eq!(files.len(), 1);
+}

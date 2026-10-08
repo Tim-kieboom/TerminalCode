@@ -52,6 +52,7 @@ pub(crate) enum Context {
     #[default]
     Global,
     Editor,
+    Explorer,
 }
 
 #[derive(Debug, Deserialize)]

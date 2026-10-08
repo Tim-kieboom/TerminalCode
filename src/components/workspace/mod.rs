@@ -11,6 +11,7 @@
 //! document so their cursors keep pointing at the same text.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use ratatui::layout::Rect;
 use serde::Deserialize;
@@ -214,6 +215,49 @@ impl Workspace {
     pub(crate) fn open_buffer(&mut self, buffer: Buffer) {
         self.confirm_close = None;
         let document = self.add_document(buffer);
+        let tab = self.new_tab(document, ViewState::default());
+        let pane = self.focused_pane_mut();
+        pane.tabs.push(tab);
+        pane.active = pane.tabs.len() - 1;
+    }
+
+    /// Shows the file at `path`: switches to a tab that already shows it (in
+    /// this pane first, then any other), or opens it in a new tab of the
+    /// focused pane. A file that is open is never read a second time, so two
+    /// tabs can not disagree about its contents.
+    pub(crate) fn open_path(&mut self, path: &Path) -> Result<(), FileError> {
+        let wanted = canonical(path);
+        let open = self.documents.iter().find_map(|(id, doc)| {
+            let own = doc.buffer.path()?;
+            (canonical(own) == wanted).then_some(*id)
+        });
+        let Some(document) = open else {
+            self.open_buffer(Buffer::open(path)?);
+            return Ok(());
+        };
+        self.show_document(document);
+        Ok(())
+    }
+
+    /// Activates a tab of `document`, preferring the focused pane; opens a new
+    /// tab for it in the focused pane if no pane shows it.
+    fn show_document(&mut self, document: DocumentId) {
+        self.confirm_close = None;
+        let focused = self.focused_index();
+        let order =
+            std::iter::once(focused).chain((0..self.panes.len()).filter(|&index| index != focused));
+        for index in order {
+            let Some(tab) = self.panes[index]
+                .tabs
+                .iter()
+                .position(|tab| tab.document == document)
+            else {
+                continue;
+            };
+            self.focused = self.panes[index].id;
+            self.panes[index].active = tab;
+            return;
+        }
         let tab = self.new_tab(document, ViewState::default());
         let pane = self.focused_pane_mut();
         pane.tabs.push(tab);
@@ -594,6 +638,12 @@ struct ByteSelection {
     tab: usize,
     anchor: usize,
     head: usize,
+}
+
+/// `path` with symlinks and `..` resolved, so two spellings of one file compare
+/// equal. A path that cannot be resolved (a file not saved yet) stays as it is.
+fn canonical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
 fn contains(area: Rect, column: u16, row: u16) -> bool {
