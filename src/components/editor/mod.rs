@@ -2,9 +2,11 @@ use std::ops::Range;
 
 use crate::buffer::{Buffer, BufferError, Edit, FileError, Position, Selection, Selections};
 
+pub(crate) use indent::IndentStyle;
 pub(crate) use motion::Motion;
 
 mod clipboard_ops;
+mod indent;
 mod motion;
 mod render;
 #[cfg(test)]
@@ -36,15 +38,20 @@ pub(crate) struct Editor {
     buffer: Buffer,
     selections: Selections,
     scroll: Scroll,
+    viewport_height: usize,
+    indent: IndentStyle,
     last_edit: Option<EditKind>,
 }
 
 impl Editor {
     pub(crate) fn new(buffer: Buffer) -> Self {
+        let indent = IndentStyle::detect(&buffer).unwrap_or_default();
         Self {
             buffer,
             selections: Selections::default(),
             scroll: Scroll::default(),
+            viewport_height: 0,
+            indent,
             last_edit: None,
         }
     }
@@ -90,6 +97,7 @@ impl Editor {
             Some(position) => Selection::cursor(position),
             None => {
                 let target = self.target(&selection, motion)?;
+                self.follow_page_motion(motion, selection.head().line, target.position.line);
                 Selection::cursor(target.position).with_desired_column(target.desired_column)
             }
         };
@@ -102,6 +110,7 @@ impl Editor {
         self.last_edit = None;
         let selection = *self.selections.primary();
         let target = self.target(&selection, motion)?;
+        self.follow_page_motion(motion, selection.head().line, target.position.line);
         let extended = Selection::new(selection.anchor(), target.position)
             .with_desired_column(target.desired_column);
 
@@ -133,8 +142,7 @@ impl Editor {
 
     /// Inserts a line break in the file's own style.
     pub(crate) fn insert_newline(&mut self) -> Result<(), BufferError> {
-        let line_break = self.buffer.line_ending().as_str();
-        self.insert_text(line_break)
+        self.insert_newline_indented()
     }
 
     /// Deletes the selection, or the grapheme before the cursor. At the start
@@ -234,6 +242,7 @@ impl Editor {
         height: usize,
         width: usize,
     ) {
+        self.viewport_height = height;
         self.scroll.top = scroll_axis(self.scroll.top, line, height);
         self.scroll.left = scroll_axis(self.scroll.left, display_column, width);
     }
@@ -244,7 +253,24 @@ impl Editor {
             selection.head(),
             selection.desired_column(),
             motion,
+            self.page_lines(),
         )
+    }
+
+    /// Lines a page motion travels: a screenful minus one for context.
+    fn page_lines(&self) -> usize {
+        self.viewport_height.saturating_sub(1).max(1)
+    }
+
+    /// After a page motion the viewport moves by as many lines as the cursor
+    /// did, so the cursor keeps its row on screen.
+    fn follow_page_motion(&mut self, motion: Motion, from: usize, to: usize) {
+        if !matches!(motion, Motion::PageUp | Motion::PageDown) {
+            return;
+        }
+        let last_line = self.buffer.len_lines() - 1;
+        let top = (self.scroll.top + to).saturating_sub(from);
+        self.scroll.top = top.min(last_line);
     }
 
     fn selection_bytes(&self) -> Result<Range<usize>, BufferError> {

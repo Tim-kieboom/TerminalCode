@@ -522,3 +522,43 @@ fn one_large_bracketed_paste_is_a_single_undo_step() {
 
     assert_eq!(buffer_text(&app), "");
 }
+
+#[test]
+fn tab_indents_and_shift_tab_outdents() {
+    let mut app = App::default();
+    type_str(&mut app, "x");
+
+    press(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+    assert_eq!(buffer_text(&app), "x   ");
+
+    press(&mut app, KeyCode::BackTab, KeyModifiers::SHIFT);
+    assert_eq!(buffer_text(&app), "x   ");
+}
+
+#[test]
+fn enter_keeps_the_indentation_while_typing_code() {
+    let mut app = App::default();
+
+    type_str(&mut app, "if x:");
+    press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    press(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+    type_str(&mut app, "a");
+    press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    type_str(&mut app, "b");
+
+    assert_eq!(buffer_text(&app), "if x:\n    a\n    b");
+}
+
+#[test]
+fn page_keys_move_the_cursor() {
+    let mut app = App::default();
+    type_str(&mut app, "a");
+    for _ in 0..30 {
+        press(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+    }
+
+    press(&mut app, KeyCode::PageUp, KeyModifiers::NONE);
+
+    let head = app.state().editor().selections().primary().head();
+    assert!(head.line < 30, "cursor did not move: {head:?}");
+}

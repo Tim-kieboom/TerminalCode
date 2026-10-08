@@ -255,6 +255,8 @@ impl App {
             Action::DeleteWordBackward => self.state.editor_mut().delete_word_backward()?,
             Action::DeleteWordForward => self.state.editor_mut().delete_word_forward()?,
             Action::SelectAll => self.state.editor_mut().select_all()?,
+            Action::Indent => self.state.editor_mut().indent()?,
+            Action::Outdent => self.state.editor_mut().outdent()?,
             Action::Copy => self.copy()?,
             Action::Cut => self.cut()?,
             Action::Paste => self.paste()?,

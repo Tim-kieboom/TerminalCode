@@ -35,7 +35,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Normal-IDE editing: typing, delete, line/document motion, shift-select, undo/redo, save
 - [x] Word motion (ctrl/alt+arrows), delete word, select all
 - [x] Copy/cut/paste: internal register (charwise or linewise) mirrored to the system clipboard; whole-line copy/cut with no selection; linewise paste goes above the cursor line; bracketed paste is a separate path
-- [ ] Auto-indent, page up/down
+- [x] Auto-indent on Enter (copies the leading whitespace left of the cursor, verbatim), Tab/Shift+Tab with the indent style detected from the file (tabs, or 2-4 spaces; fallback 4 spaces), block indent/outdent of selected lines, page up/down (+ shift to select)
 - [ ] Mouse: click to place cursor, drag to select, scroll wheel
 - [x] Status bar (file, modified marker, line/column, messages)
 - [ ] Tabs and splits (multiple open documents)
@@ -54,6 +54,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] tree-sitter integration, grammar bundle (starter languages)
 - [ ] Parse worker with `version` stale-result discard
 - [ ] Incremental reparse from `Edit`
+- [ ] Smart indent: add a level after an opening token (`{`, `(`, `[`, `:`) and dedent on a closing one, using the syntax tree to skip strings and comments (Enter copies indentation verbatim until then)
 - [ ] Highlight theme as data; default dark + light themes
 
 ## M6 — Integrated terminal
@@ -73,7 +74,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Vim parser tests (table-driven: keys in, edits out)
 
 ## M8 — Config + polish
-- [ ] `config.toml` (theme, shell, vim on/off, tab width, etc.)
+- [ ] `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings: theme, shell, vim on/off, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
 - [ ] Mouse: click to place cursor, scroll, pane focus
 - [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll

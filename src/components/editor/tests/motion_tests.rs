@@ -271,3 +271,112 @@ fn select_all_in_an_empty_buffer_is_an_empty_selection() {
 
     assert!(editor.selections().primary().is_empty());
 }
+
+fn numbered(lines: usize) -> Editor {
+    let text = (0..lines)
+        .map(|n| format!("line {n}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    editor(&text)
+}
+
+/// Pretends a viewport of `height` rows was drawn.
+fn viewport(editor: &mut Editor, height: usize) {
+    editor.scroll_to_show(0, 0, height, 80);
+}
+
+#[test]
+fn page_down_moves_a_screenful_minus_one() {
+    let mut editor = numbered(100);
+    viewport(&mut editor, 21);
+
+    editor.move_cursor(Motion::PageDown).unwrap();
+
+    assert_eq!(head(&editor).line, 20);
+}
+
+#[test]
+fn page_up_goes_back_up_and_stops_at_the_top() {
+    let mut editor = numbered(100);
+    viewport(&mut editor, 21);
+    editor.move_cursor(Motion::PageDown).unwrap();
+    editor.move_cursor(Motion::PageDown).unwrap();
+
+    editor.move_cursor(Motion::PageUp).unwrap();
+    assert_eq!(head(&editor).line, 20);
+
+    editor.move_cursor(Motion::PageUp).unwrap();
+    assert_eq!(head(&editor).line, 0);
+
+    editor.move_cursor(Motion::PageUp).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 0));
+}
+
+#[test]
+fn page_down_stops_at_the_last_line_then_the_document_end() {
+    let mut editor = numbered(30);
+    viewport(&mut editor, 21);
+
+    editor.move_cursor(Motion::PageDown).unwrap();
+    editor.move_cursor(Motion::PageDown).unwrap();
+    assert_eq!(head(&editor).line, 29);
+
+    editor.move_cursor(Motion::PageDown).unwrap();
+    assert_eq!(head(&editor), Position::new(29, "line 29".len()));
+}
+
+#[test]
+fn page_motion_keeps_the_desired_column() {
+    let text = format!("{}\nab\n{}", "x".repeat(10), "y".repeat(10));
+    let mut editor = editor(&text);
+    viewport(&mut editor, 3);
+    goto(&mut editor, 0, 8);
+
+    editor.move_cursor(Motion::PageDown).unwrap();
+
+    assert_eq!(head(&editor), Position::new(2, 8));
+}
+
+#[test]
+fn page_motion_scrolls_the_viewport_with_the_cursor() {
+    let mut editor = numbered(100);
+    viewport(&mut editor, 21);
+
+    editor.move_cursor(Motion::PageDown).unwrap();
+
+    assert_eq!(editor.scroll().top, 20);
+}
+
+#[test]
+fn page_up_scrolls_back_the_same_amount() {
+    let mut editor = numbered(100);
+    viewport(&mut editor, 21);
+    editor.move_cursor(Motion::PageDown).unwrap();
+    editor.move_cursor(Motion::PageDown).unwrap();
+    assert_eq!(editor.scroll().top, 40);
+
+    editor.move_cursor(Motion::PageUp).unwrap();
+
+    assert_eq!(editor.scroll().top, 20);
+}
+
+#[test]
+fn shift_page_down_selects_a_page() {
+    let mut editor = numbered(100);
+    viewport(&mut editor, 11);
+
+    editor.select(Motion::PageDown).unwrap();
+
+    let selection = *editor.selections().primary();
+    assert_eq!(selection.start(), Position::new(0, 0));
+    assert_eq!(selection.end().line, 10);
+}
+
+#[test]
+fn page_motion_before_anything_was_drawn_still_moves() {
+    let mut editor = numbered(10);
+
+    editor.move_cursor(Motion::PageDown).unwrap();
+
+    assert_eq!(head(&editor).line, 1);
+}

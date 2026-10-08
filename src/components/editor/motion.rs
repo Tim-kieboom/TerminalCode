@@ -13,6 +13,8 @@ pub(crate) enum Motion {
     Down,
     WordLeft,
     WordRight,
+    PageUp,
+    PageDown,
     LineStart,
     LineEnd,
     DocumentStart,
@@ -39,6 +41,7 @@ pub(super) fn target(
     from: Position,
     desired_column: Option<usize>,
     motion: Motion,
+    page: usize,
 ) -> Result<Target, BufferError> {
     let last_line = buffer.len_lines() - 1;
     match motion {
@@ -46,6 +49,8 @@ pub(super) fn target(
         Motion::Right => right(buffer, from, last_line),
         Motion::Up => up(buffer, from, desired_column),
         Motion::Down => down(buffer, from, desired_column, last_line),
+        Motion::PageUp => page_up(buffer, from, desired_column, page),
+        Motion::PageDown => page_down(buffer, from, desired_column, page, last_line),
         Motion::WordLeft => word_left(buffer, from),
         Motion::WordRight => word_right(buffer, from, last_line),
         Motion::LineStart => Ok(Target::at(from.line, 0)),
@@ -97,6 +102,38 @@ fn down(
         return Ok(Target::at(last_line, buffer.line_len(last_line)?));
     }
     vertical(buffer, from, desired_column, from.line + 1)
+}
+
+/// `page` lines up, or the document start when already on the first line.
+fn page_up(
+    buffer: &Buffer,
+    from: Position,
+    desired_column: Option<usize>,
+    page: usize,
+) -> Result<Target, BufferError> {
+    if from.line == 0 {
+        return Ok(Target::at(0, 0));
+    }
+    vertical(buffer, from, desired_column, from.line.saturating_sub(page))
+}
+
+/// `page` lines down, or the document end when already on the last line.
+fn page_down(
+    buffer: &Buffer,
+    from: Position,
+    desired_column: Option<usize>,
+    page: usize,
+    last_line: usize,
+) -> Result<Target, BufferError> {
+    if from.line >= last_line {
+        return Ok(Target::at(last_line, buffer.line_len(last_line)?));
+    }
+    vertical(
+        buffer,
+        from,
+        desired_column,
+        (from.line + page).min(last_line),
+    )
 }
 
 /// What a grapheme counts as for word motion.

@@ -137,8 +137,12 @@ used `anyhow` everywhere instead of typed errors.
   `grep-searcher` or similar). Both are in 0.1.0.
 
 ### Config
-- TOML config (`config.toml`) and keymap file; layered: defaults → user → project (project layer
-  optional in 0.1.0).
+- Settings go in a Zed-style `settings.json` (JSON with comments) layered defaults → user → project (project layer
+  optional in 0.1.0); the keymap is its own TOML file (`keymap.toml`, already implemented). Indentation: the editor
+  detects tabs vs 2-4 spaces from the file and falls back to 4 spaces; the fallback and the detection switch become
+  settings later.
+- Auto-indent: Enter copies the leading whitespace left of the cursor verbatim. Adding a level after an opening
+  token waits for tree-sitter (M5). Paste, from either path, is always inserted verbatim.
 
 ### Errors
 - Per-module `thiserror` enums wrapping sources. User-facing errors become notifications. No panics for

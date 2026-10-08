@@ -6,9 +6,10 @@
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
+#   "indent", "outdent",
 #   "delete_forward", { insert_text = "..." }, { move = motion },
 #   { select = motion }, { plugin = "name" }.
-# Motions: left, right, up, down, word_left, word_right, line_start, line_end, document_start,
+# Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
 #   document_end.
 # Plain printable keys with no binding are typed into the editor.
 
@@ -47,7 +48,12 @@ action = "insert_newline"
 [[binding]]
 keys = "tab"
 context = "editor"
-action = { insert_text = "    " }
+action = "indent"
+
+[[binding]]
+keys = "shift+tab"
+context = "editor"
+action = "outdent"
 
 [[binding]]
 keys = "backspace"
@@ -238,3 +244,24 @@ action = "cut"
 keys = "shift+insert"
 context = "editor"
 action = "paste"
+
+# Pages
+[[binding]]
+keys = "pageup"
+context = "editor"
+action = { move = "page_up" }
+
+[[binding]]
+keys = "pagedown"
+context = "editor"
+action = { move = "page_down" }
+
+[[binding]]
+keys = "shift+pageup"
+context = "editor"
+action = { select = "page_up" }
+
+[[binding]]
+keys = "shift+pagedown"
+context = "editor"
+action = { select = "page_down" }

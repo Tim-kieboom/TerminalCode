@@ -21,6 +21,8 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    Indent,
+    Outdent,
     Copy,
     Cut,
     Paste,
