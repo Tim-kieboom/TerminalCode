@@ -42,7 +42,6 @@ impl ComponentKind {
 #[serde(transparent)]
 pub(crate) struct PluginViewId(Box<str>);
 impl PluginViewId {
-    #[cfg(test)]
     pub(crate) fn new(id: impl Into<Box<str>>) -> Self {
         Self(id.into())
     }

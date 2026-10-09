@@ -245,3 +245,104 @@ fn a_framed_editor_satisfies_the_editor_requirement() {
         Err(LayoutError::MissingEditor)
     ));
 }
+
+fn placed(tree: &LayoutTree, hidden: &[ComponentKind]) -> Vec<Placement> {
+    tree.resolve_visible(Rect::new(0, 0, 100, 40), &|kind| !hidden.contains(kind))
+}
+
+fn area_of(placements: &[Placement], kind: &ComponentKind) -> Rect {
+    placements.iter().find(|p| &p.kind == kind).unwrap().area
+}
+
+#[test]
+fn resolving_with_everything_visible_is_the_same_as_resolve() {
+    let tree = LayoutTree::default();
+
+    assert_eq!(placed(&tree, &[]), tree.resolve(Rect::new(0, 0, 100, 40)));
+}
+
+#[test]
+fn a_hidden_component_is_not_placed_and_its_space_goes_to_its_neighbors() {
+    let tree = LayoutTree::default();
+    let before = placed(&tree, &[]);
+
+    let after = placed(&tree, &[ComponentKind::Explorer]);
+
+    assert!(after.iter().all(|p| p.kind != ComponentKind::Explorer));
+    let editor = |placements: &[Placement]| area_of(placements, &ComponentKind::Editor);
+    assert_eq!(editor(&after).width, editor(&before).width + 30);
+    assert_eq!(editor(&after).x, 0);
+}
+
+#[test]
+fn hiding_the_status_bar_gives_its_row_to_the_editor_column() {
+    let tree = LayoutTree::default();
+    let before = placed(&tree, &[]);
+
+    let after = placed(&tree, &[ComponentKind::StatusBar]);
+
+    let terminal = |placements: &[Placement]| area_of(placements, &ComponentKind::Terminal);
+    assert_eq!(terminal(&after).bottom(), 40);
+    assert_eq!(terminal(&before).bottom(), 39);
+}
+
+#[test]
+fn a_split_whose_components_are_all_hidden_takes_no_space() {
+    let tree = LayoutTree::new(new_split(
+        Axis::Horizontal,
+        vec![
+            new_child(Size::Fixed(10), new_leaf(ComponentKind::Explorer)),
+            new_child(
+                Size::Fixed(20),
+                new_split(
+                    Axis::Vertical,
+                    vec![
+                        new_child(Size::Fill, new_leaf(ComponentKind::Terminal)),
+                        new_child(Size::Fixed(1), new_leaf(ComponentKind::StatusBar)),
+                    ],
+                ),
+            ),
+            new_child(Size::Fill, editor_only()),
+        ],
+    ))
+    .unwrap();
+
+    let after = placed(&tree, &[ComponentKind::Terminal, ComponentKind::StatusBar]);
+
+    assert_eq!(area_of(&after, &ComponentKind::Explorer).width, 10);
+    assert_eq!(area_of(&after, &ComponentKind::Editor).width, 90);
+}
+
+#[test]
+fn a_hidden_framed_component_is_not_placed_either() {
+    let tree = LayoutTree::from_ron(
+        "Split(direction: Horizontal, children: [
+            (size: Fixed(10), node: Framed(component: Explorer, frame: (border: Rounded))),
+            (size: Fill, node: Leaf(Editor)),
+        ])",
+    )
+    .unwrap();
+
+    let after = placed(&tree, &[ComponentKind::Explorer]);
+
+    assert_eq!(after.len(), 1);
+    assert_eq!(after[0].area, Rect::new(0, 0, 100, 40));
+}
+
+#[test]
+fn hidden_plugin_views_are_left_out_by_their_id() {
+    let id = PluginViewId::new("test.view");
+    let kind = ComponentKind::Plugin(id.clone());
+    let tree = LayoutTree::new(new_split(
+        Axis::Horizontal,
+        vec![
+            new_child(Size::Fill, editor_only()),
+            new_child(Size::Fixed(20), new_leaf(kind.clone())),
+        ],
+    ))
+    .unwrap();
+
+    assert_eq!(placed(&tree, &[]).len(), 2);
+    assert_eq!(placed(&tree, &[kind]).len(), 1);
+    assert_eq!(placed(&tree, &[ComponentKind::Explorer]).len(), 2);
+}

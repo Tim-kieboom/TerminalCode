@@ -27,6 +27,48 @@ mod tests;
 mod ui;
 mod watcher;
 
+pub fn run<B>(mut terminal: Terminal<B>, paths: &[PathBuf], capabilities: Capabilities) -> IdeResult
+where
+    B: Backend,
+    B::Error: Into<IdeError>,
+{
+    let (project, files) = project_and_files(paths);
+    let mut state = initial_state(&files)?;
+    let root = project.or_else(|| std::env::current_dir().ok());
+    if let Some(error) = root.and_then(|root| state.open_project(&root).err()) {
+        state.notify_error(error.to_string());
+    }
+
+    state.learn_terminal_background(terminal::query_background);
+    if let Some(hint) = state.theme().terminal_hint() {
+        state.notify(hint);
+    }
+
+    let keymap_path = config::user_keymap_path();
+    let loaded = config::load_keymap(keymap_path.as_deref(), capabilities.keyboard);
+    if let Some(warning) = loaded.warning {
+        state.notify_error(warning);
+    }
+
+    let clipboard = Clipboard::new(System::detect());
+    let mut app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+
+    runtime.block_on(async {
+        let (sources, events) = Sources::spawn();
+        app = app.with_events(events.clone());
+        match FsWatcher::new(events) {
+            Ok(watcher) => app = app.with_watcher(watcher),
+            Err(error) => app.state_mut().notify_error(error.to_string()),
+        }
+
+        app.run(&mut terminal, sources).await
+    })
+}
+
 /// The files to open: every argument after the program name. A leading `--`
 /// marks the end of options and is skipped.
 pub fn paths_from_args(args: impl Iterator<Item = OsString>) -> Vec<PathBuf> {
@@ -59,8 +101,8 @@ fn initial_state(paths: &[PathBuf]) -> IdeResult<AppState> {
             .workspace_mut()
             .open_buffer(Buffer::open_or_new(path)?);
     }
-    state.workspace_mut().activate_tab(0);
 
+    state.workspace_mut().activate_tab(0);
     let new_files: Vec<_> = paths
         .iter()
         .filter(|path| !path.exists())
@@ -71,43 +113,4 @@ fn initial_state(paths: &[PathBuf]) -> IdeResult<AppState> {
         state.notify(format!("new file: {}", new_files.join(", ")));
     }
     Ok(state)
-}
-
-pub fn run<B>(mut terminal: Terminal<B>, paths: &[PathBuf], capabilities: Capabilities) -> IdeResult
-where
-    B: Backend,
-    B::Error: Into<IdeError>,
-{
-    let (project, files) = project_and_files(paths);
-    let mut state = initial_state(&files)?;
-    let root = project.or_else(|| std::env::current_dir().ok());
-    if let Some(error) = root.and_then(|root| state.open_project(&root).err()) {
-        state.notify_error(error.to_string());
-    }
-
-    state.learn_terminal_background(terminal::query_background);
-    if let Some(hint) = state.theme().terminal_hint() {
-        state.notify(hint);
-    }
-    let loaded = config::load_keymap(config::user_keymap_path().as_deref(), capabilities.keyboard);
-    if let Some(warning) = loaded.warning {
-        state.notify_error(warning);
-    }
-
-    let clipboard = Clipboard::new(System::detect());
-    let mut app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
-
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-
-    runtime.block_on(async {
-        let (sources, events) = Sources::spawn();
-        app = app.with_events(events.clone());
-        match FsWatcher::new(events) {
-            Ok(watcher) => app = app.with_watcher(watcher),
-            Err(error) => app.state_mut().notify_error(error.to_string()),
-        }
-        app::run(&mut terminal, sources, app).await
-    })
 }

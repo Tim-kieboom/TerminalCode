@@ -102,7 +102,7 @@ async fn loop_draws_first_frame_then_quits_on_ctrl_q() {
     let (sources, input_tx, _events_tx) = test_sources();
     input_tx.send(Ok(ctrl_q())).await.unwrap();
 
-    let result = run(&mut terminal, sources, App::default()).await;
+    let result = App::default().run(&mut terminal, sources).await;
 
     assert!(result.is_ok());
     let screen = terminal.backend().to_string();
@@ -119,7 +119,7 @@ async fn loop_accepts_events_before_quit() {
     events_tx.send(plugin_text("hi")).await.unwrap();
     input_tx.send(Ok(ctrl_q())).await.unwrap();
 
-    let result = run(&mut terminal, sources, App::default()).await;
+    let result = App::default().run(&mut terminal, sources).await;
 
     assert!(result.is_ok());
 }
@@ -131,7 +131,7 @@ async fn loop_returns_input_errors() {
     let err = io::Error::other("boom");
     input_tx.send(Err(err)).await.unwrap();
 
-    let result = run(&mut terminal, sources, App::default()).await;
+    let result = App::default().run(&mut terminal, sources).await;
 
     assert!(matches!(result, Err(IdeError::Io(_))));
 }
@@ -142,7 +142,7 @@ async fn loop_ends_when_input_closes() {
     let (sources, input_tx, _events_tx) = test_sources();
     drop(input_tx);
 
-    let result = run(&mut terminal, sources, App::default()).await;
+    let result = App::default().run(&mut terminal, sources).await;
 
     assert!(result.is_ok());
 }
@@ -401,7 +401,7 @@ async fn the_loop_fires_a_pending_sequence_when_its_timeout_passes() {
         input_tx.send(Ok(ctrl_q())).await.unwrap();
     });
 
-    let result = run(&mut terminal, sources, app).await;
+    let result = app.run(&mut terminal, sources).await;
 
     assert!(result.is_ok());
     let screen = terminal.backend().to_string();

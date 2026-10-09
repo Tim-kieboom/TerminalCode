@@ -35,6 +35,7 @@ impl Render for Workspace {
                 if rect.width == 0 {
                     continue;
                 }
+
                 let name = display_name(&self.documents[&tab.document].buffer);
                 let label = truncate(&format!(" {name} "), usize::from(rect.width));
                 let slot = if index == pane.active {
@@ -42,6 +43,7 @@ impl Render for Workspace {
                 } else {
                     "tab.inactive"
                 };
+
                 frame.render_widget(Paragraph::new(label).style(theme.style(slot)), *rect);
             }
 
@@ -50,6 +52,7 @@ impl Render for Workspace {
                 draw_empty(frame, theme, pane.editor_area, &placement.frame, focused);
                 continue;
             };
+
             let editor = EditorRef::new(&self.documents[&tab.document].buffer, &tab.view);
             editor_render::draw(
                 frame,
@@ -60,6 +63,7 @@ impl Render for Workspace {
                 focused,
                 state.find().filter(|_| focused),
             );
+
             if let Some(find) = state.find().filter(|_| focused) {
                 find.render(frame, theme, pane.find_bar);
             }
@@ -112,7 +116,13 @@ impl Workspace {
 }
 
 /// What an editor area with no open file shows.
-fn draw_empty(frame: &mut Frame, theme: &Theme, area: Rect, pane_frame: &PaneFrame, focused: bool) {
+pub(super) fn draw_empty(
+    frame: &mut Frame,
+    theme: &Theme,
+    area: Rect,
+    pane_frame: &PaneFrame,
+    focused: bool,
+) {
     let block = pane_frame.block(theme, pane_frame.title_text("Editor"), focused);
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -125,7 +135,7 @@ fn draw_empty(frame: &mut Frame, theme: &Theme, area: Rect, pane_frame: &PaneFra
 
 /// Where each tab goes in the tab bar. Tabs scroll off the left so that the
 /// active one is visible; tabs that do not fit get an empty rect.
-fn tab_rects(labels: &[String], active: usize, bar: Rect) -> Vec<Rect> {
+pub(super) fn tab_rects(labels: &[String], active: usize, bar: Rect) -> Vec<Rect> {
     let widths: Vec<u16> = labels
         .iter()
         .map(|label| u16::try_from(label.width()).unwrap_or(u16::MAX))
@@ -158,7 +168,7 @@ fn tab_rects(labels: &[String], active: usize, bar: Rect) -> Vec<Rect> {
 }
 
 /// `text` cut to at most `width` display columns.
-fn truncate(text: &str, width: usize) -> String {
+pub(super) fn truncate(text: &str, width: usize) -> String {
     let mut used = 0;
     let mut out = String::new();
     for c in text.chars() {
@@ -171,7 +181,3 @@ fn truncate(text: &str, width: usize) -> String {
     }
     out
 }
-
-#[cfg(test)]
-#[path = "render_tests.rs"]
-mod tests;

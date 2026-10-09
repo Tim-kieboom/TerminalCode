@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::time::Instant;
 
+use crate::components::ComponentKind;
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
@@ -15,6 +16,7 @@ use crate::components::workspace::Workspace;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
+use crate::ui::{Hideable, HideableKind};
 
 /// Which component the keyboard goes to.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -27,30 +29,52 @@ pub(crate) enum Focus {
 /// Everything the UI renders from. Owned by the app loop alone.
 #[derive(Debug, Default)]
 pub(crate) struct AppState {
-    components: AppComponents,
     theme: Theme,
-    layout: LayoutTree,
-    notifications: Notifications,
     focus: Focus,
-    pending_keys: Option<Box<str>>,
-    quit_prompt: Option<QuitPrompt>,
-    palette: Option<Palette>,
-    finder: Option<Finder>,
-    search: Option<Search>,
-    find: Option<Find>,
+    popup: Popup,
+    layout: LayoutTree,
+    components: AppComponents,
+    notifications: Notifications,
 }
 
+/// The overlay that has the keyboard, if any. There is only ever one: opening
+/// a popup closes the one that was open.
 #[derive(Debug, Default)]
+pub(crate) enum Popup {
+    #[default]
+    None,
+    QuitPrompt(QuitPrompt),
+    Palette(Palette),
+    Finder(Finder),
+    Search(Search),
+    Find(Find),
+}
+
+/// The parts of the screen the layout places. The explorer, the status bar and
+/// plugin views can be hidden; the editor cannot.
+#[derive(Debug)]
 struct AppComponents {
     workspace: Workspace,
-    explorer: Explorer,
-    status_bar: StatusBar,
-    plugin_views: HashMap<PluginViewId, PluginView>,
+    explorer: Hideable<Explorer>,
+    status_bar: Hideable<StatusBar>,
+    plugin_views: HashMap<PluginViewId, Hideable<PluginView>>,
+}
+
+impl Default for AppComponents {
+    // Not derived: a `Hideable` starts hidden, and these start shown.
+    fn default() -> Self {
+        Self {
+            workspace: Workspace::default(),
+            explorer: Hideable::new_show(Explorer::default()),
+            status_bar: Hideable::new_show(StatusBar),
+            plugin_views: HashMap::new(),
+        }
+    }
 }
 
 /// Content owned by a plugin. `version` increases on every update so stale
 /// writes from a plugin can be detected.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct PluginView {
     version: u64,
     content: ViewNode,
@@ -78,25 +102,57 @@ impl AppState {
         }
     }
 
+    /// Whether the component takes part in the layout. Hidden ones take no
+    /// space. The editor and anything this does not know are always shown.
+    pub(crate) fn is_visible(&self, kind: &ComponentKind) -> bool {
+        match kind {
+            ComponentKind::Explorer => self.components.explorer.is_shown(),
+            ComponentKind::StatusBar => self.components.status_bar.is_shown(),
+            ComponentKind::Plugin(id) => self
+                .components
+                .plugin_views
+                .get(id)
+                .is_none_or(Hideable::is_shown),
+            ComponentKind::Editor | ComponentKind::Terminal => true,
+        }
+    }
+
+    pub(crate) fn set_explorer_visible(&mut self, visible: bool) {
+        self.components.explorer.set_kind(kind_of(visible));
+    }
+
+    pub(crate) fn toggle_status_bar(&mut self) {
+        self.components.status_bar.toggle();
+    }
+
+    /// Shows or hides a plugin's view. Returns whether the plugin has one.
+    pub(crate) fn toggle_plugin_view(&mut self, id: &PluginViewId) -> bool {
+        let Some(view) = self.components.plugin_views.get_mut(id) else {
+            return false;
+        };
+        view.toggle();
+        true
+    }
+
     pub(crate) fn status_bar(&self) -> &StatusBar {
-        &self.components.status_bar
+        &self.components.status_bar.node
     }
 
     pub(crate) fn status_bar_mut(&mut self) -> &mut StatusBar {
-        &mut self.components.status_bar
+        &mut self.components.status_bar.node
     }
 
     pub(crate) fn explorer(&self) -> &Explorer {
-        &self.components.explorer
+        &self.components.explorer.node
     }
 
     pub(crate) fn explorer_mut(&mut self) -> &mut Explorer {
-        &mut self.components.explorer
+        &mut self.components.explorer.node
     }
 
     /// Shows the project in `root` in the explorer.
     pub(crate) fn open_project(&mut self, root: &std::path::Path) -> Result<(), ExplorerError> {
-        self.components.explorer = Explorer::open(root)?;
+        self.components.explorer.node = Explorer::open(root)?;
         Ok(())
     }
 
@@ -159,87 +215,143 @@ impl AppState {
         self.notifications.expire(now)
     }
 
-    /// The first chords of a key sequence that is waiting for more, shown in
-    /// the status bar so it is clear the editor is waiting.
-    pub(crate) fn pending_keys(&self) -> Option<&str> {
-        self.pending_keys.as_deref()
+    /// The popup that is open, which has all the keys.
+    pub(crate) fn popup(&self) -> &Popup {
+        &self.popup
     }
 
-    pub(crate) fn set_pending_keys(&mut self, keys: Option<String>) {
-        self.pending_keys = keys.map(String::into_boxed_str);
-    }
-
-    /// The unsaved-changes prompt, while it is open. It takes all keys.
+    /// The unsaved-changes prompt, while it is open.
+    #[cfg(test)]
     pub(crate) fn quit_prompt(&self) -> Option<&QuitPrompt> {
-        self.quit_prompt.as_ref()
+        match &self.popup {
+            Popup::QuitPrompt(prompt) => Some(prompt),
+            _ => None,
+        }
     }
 
+    /// Opens the prompt, closing any other popup.
     pub(crate) fn open_quit_prompt(&mut self, prompt: QuitPrompt) {
-        self.quit_prompt = Some(prompt);
+        self.popup = Popup::QuitPrompt(prompt);
     }
 
+    /// Closes the quit_prompt and hands it back; any other popup stays open.
     pub(crate) fn take_quit_prompt(&mut self) -> Option<QuitPrompt> {
-        self.quit_prompt.take()
+        if !matches!(self.popup, Popup::QuitPrompt(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::QuitPrompt(prompt) => Some(prompt),
+            _ => None,
+        }
     }
 
-    /// Find in the open file, while its bar is open. It takes all keys.
+    /// Find in the open file, while its bar is open.
     pub(crate) fn find(&self) -> Option<&Find> {
-        self.find.as_ref()
+        match &self.popup {
+            Popup::Find(find) => Some(find),
+            _ => None,
+        }
     }
 
     pub(crate) fn open_find(&mut self, find: Find) {
-        self.find = Some(find);
+        self.popup = Popup::Find(find);
     }
 
+    /// Closes the find and hands it back; any other popup stays open.
     pub(crate) fn take_find(&mut self) -> Option<Find> {
-        self.find.take()
+        if !matches!(self.popup, Popup::Find(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Find(find) => Some(find),
+            _ => None,
+        }
     }
 
-    /// The project search, while it is open. It takes all keys.
+    /// The project search, while it is open.
+    #[cfg(test)]
     pub(crate) fn search(&self) -> Option<&Search> {
-        self.search.as_ref()
+        match &self.popup {
+            Popup::Search(search) => Some(search),
+            _ => None,
+        }
     }
 
     pub(crate) fn search_mut(&mut self) -> Option<&mut Search> {
-        self.search.as_mut()
+        match &mut self.popup {
+            Popup::Search(search) => Some(search),
+            _ => None,
+        }
     }
 
     pub(crate) fn open_search(&mut self, search: Search) {
-        self.search = Some(search);
+        self.popup = Popup::Search(search);
     }
 
+    /// Closes the search and hands it back; any other popup stays open.
     pub(crate) fn take_search(&mut self) -> Option<Search> {
-        self.search.take()
+        if !matches!(self.popup, Popup::Search(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Search(search) => Some(search),
+            _ => None,
+        }
     }
 
-    /// The file finder, while it is open. It takes all keys.
+    /// The file finder, while it is open.
+    #[cfg(test)]
     pub(crate) fn finder(&self) -> Option<&Finder> {
-        self.finder.as_ref()
+        match &self.popup {
+            Popup::Finder(finder) => Some(finder),
+            _ => None,
+        }
     }
 
     pub(crate) fn finder_mut(&mut self) -> Option<&mut Finder> {
-        self.finder.as_mut()
+        match &mut self.popup {
+            Popup::Finder(finder) => Some(finder),
+            _ => None,
+        }
     }
 
     pub(crate) fn open_finder(&mut self, finder: Finder) {
-        self.finder = Some(finder);
+        self.popup = Popup::Finder(finder);
     }
 
+    /// Closes the finder and hands it back; any other popup stays open.
     pub(crate) fn take_finder(&mut self) -> Option<Finder> {
-        self.finder.take()
+        if !matches!(self.popup, Popup::Finder(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Finder(finder) => Some(finder),
+            _ => None,
+        }
     }
 
-    /// The command palette, while it is open. It takes all keys.
+    /// The command palette, while it is open.
+    #[cfg(test)]
     pub(crate) fn palette(&self) -> Option<&Palette> {
-        self.palette.as_ref()
+        match &self.popup {
+            Popup::Palette(palette) => Some(palette),
+            _ => None,
+        }
     }
 
     pub(crate) fn open_palette(&mut self, palette: Palette) {
-        self.palette = Some(palette);
+        self.popup = Popup::Palette(palette);
     }
 
+    /// Closes the palette and hands it back; any other popup stays open.
     pub(crate) fn take_palette(&mut self) -> Option<Palette> {
-        self.palette.take()
+        if !matches!(self.popup, Popup::Palette(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Palette(palette) => Some(palette),
+            _ => None,
+        }
     }
 
     #[cfg(test)]
@@ -270,7 +382,7 @@ impl AppState {
     }
 
     pub(crate) fn plugin_view(&self, id: &PluginViewId) -> Option<&PluginView> {
-        self.components.plugin_views.get(id)
+        self.components.plugin_views.get(id).map(|view| &view.node)
     }
 
     pub(crate) fn set_plugin_view(&mut self, id: PluginViewId, content: ViewNode) {
@@ -278,10 +390,24 @@ impl AppState {
             .components
             .plugin_views
             .get(&id)
-            .map_or(0, |existing| existing.version + 1);
+            .map_or(0, |existing| existing.node.version + 1);
+        let view = PluginView { version, content };
 
-        self.components
-            .plugin_views
-            .insert(id, PluginView { version, content });
+        // An update does not show a view the user hid.
+        match self.components.plugin_views.get_mut(&id) {
+            Some(existing) => existing.node = view,
+            None => {
+                self.components
+                    .plugin_views
+                    .insert(id, Hideable::new_show(view));
+            }
+        }
+    }
+}
+
+fn kind_of(visible: bool) -> HideableKind {
+    match visible {
+        true => HideableKind::Show,
+        false => HideableKind::Hide,
     }
 }

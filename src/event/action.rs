@@ -16,6 +16,11 @@ pub(crate) enum Action {
     CommandPalette,
     /// Moves the keyboard to the explorer, or back to the editor if it is there.
     FocusExplorer,
+    /// Shows the explorer if it is hidden, hides it if it is shown.
+    ToggleExplorer,
+    ToggleStatusBar,
+    /// Shows or hides the view of the plugin with this id.
+    TogglePluginView(Box<str>),
     /// Opens the file finder.
     FindFile,
     /// Opens the project search.
@@ -77,6 +82,9 @@ impl Action {
             Self::Quit
                 | Self::CommandPalette
                 | Self::FocusExplorer
+                | Self::ToggleExplorer
+                | Self::ToggleStatusBar
+                | Self::TogglePluginView(_)
                 | Self::FindFile
                 | Self::FindInProject
                 | Self::Explorer(_)
@@ -104,6 +112,8 @@ impl Action {
             Self::Quit => "Application: Quit",
             Self::CommandPalette => "Application: Command Palette",
             Self::FocusExplorer => "Explorer: Focus",
+            Self::ToggleExplorer => "View: Toggle Explorer",
+            Self::ToggleStatusBar => "View: Toggle Status Bar",
             Self::FindFile => "File: Go to File",
             Self::FindInProject => "Search: Find in Project",
             Self::FindInFile => "Search: Find in File",
@@ -134,6 +144,7 @@ impl Action {
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) => return None,
+            Self::TogglePluginView(_) => return None,
             Self::Move(_)
             | Self::Select(_)
             | Self::InsertText(_)
@@ -154,6 +165,8 @@ impl Action {
             Self::FindInProject,
             Self::FindInFile,
             Self::FocusExplorer,
+            Self::ToggleExplorer,
+            Self::ToggleStatusBar,
             Self::Explorer(ExplorerCommand::Refresh),
             Self::Save,
             Self::NewFile,

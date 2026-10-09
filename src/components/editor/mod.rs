@@ -3,7 +3,7 @@ use std::ops::Range;
 #[cfg(test)]
 use ratatui::layout::Rect;
 
-use crate::buffer::{Buffer, BufferError, Edit, FileError, Position, Selection, Selections};
+use crate::buffer::{Buffer, BufferError, Edit, Position, Selection, Selections};
 
 pub(crate) use indent::IndentStyle;
 pub(crate) use motion::Motion;
@@ -301,10 +301,6 @@ impl Editor {
             self.view.selections = selections;
         }
         Ok(())
-    }
-
-    pub(crate) fn save(&mut self) -> Result<(), FileError> {
-        self.buffer.save()
     }
 
     /// Scrolls the minimum needed to bring `line` and `display_column` into a

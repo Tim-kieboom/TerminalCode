@@ -18,11 +18,11 @@ use crate::components::palette::{self, Entry, Palette};
 use crate::components::quit_prompt::{self, QuitPrompt};
 use crate::components::search::{self, Options as SearchOptions, Search};
 use crate::components::workspace::{CloseResult, DiskEvent, DocumentId, SaveOutcome, canonical};
-use crate::components::{self, ComponentKind};
+use crate::components::{self, ComponentKind, PluginViewId};
 use crate::error::{IdeError, IdeResult};
 use crate::event::{Event, action::Action, mouse::ClickTracker};
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
-use crate::state::{AppState, Focus};
+use crate::state::{AppState, Focus, Popup};
 use crate::terminal::{self, KeyboardSupport};
 use crate::ui::layout::Axis;
 use crate::watcher::FsWatcher;
@@ -42,63 +42,6 @@ const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
 const PALETTE_CONTEXTS: [Context; 3] = [Context::Explorer, Context::Editor, Context::Global];
 
 pub(crate) type InputResult = io::Result<InputEvent>;
-
-/// Runs the app loop until the user quits or terminal input fails.
-pub(crate) async fn run<B>(
-    terminal: &mut Terminal<B>,
-    mut sources: Sources,
-    mut app: App,
-) -> IdeResult
-where
-    B: Backend,
-    B::Error: Into<IdeError>,
-{
-    let mut last_draw: Option<Instant> = None;
-
-    loop {
-        let draw_at = last_draw
-            .map(|at| at + FRAME_INTERVAL)
-            .unwrap_or(Instant::now());
-
-        if app.needs_redraw() && Instant::now() >= draw_at {
-            draw_frame(terminal, &mut app)?;
-            last_draw = Some(Instant::now());
-            continue;
-        }
-
-        // Biased: input is polled before bulk events so it is never starved.
-        // The sleep only wakes the loop when a pending redraw becomes due; the
-        // draw itself happens at the top of the loop, at most once per frame
-        // interval.
-        let sequence_deadline = app.pending_deadline().map(Instant::from_std);
-        let notification_deadline = app.notification_deadline().map(Instant::from_std);
-
-        tokio::select! {
-            biased;
-            _ = sleep_until(draw_at),
-            if app.needs_redraw() => {}
-            input = sources.input.recv() => match input {
-                Some(Ok(input)) => app.handle_input(input),
-                Some(Err(err)) => return Err(err.into()),
-                None => return Ok(()),
-            },
-            Some(event) = sources.events.recv() => app.handle_event(event),
-            _ = sleep_until(sequence_deadline.unwrap_or_else(Instant::now)),
-            if sequence_deadline.is_some() => app.expire_pending(),
-            _ = sleep_until(notification_deadline.unwrap_or_else(Instant::now)),
-            if notification_deadline.is_some() => app.expire_notifications(std::time::Instant::now()),
-        }
-
-        app.sync_watches();
-        if let Some(enabled) = app.take_mouse_change() {
-            terminal::set_mouse_capture(enabled);
-        }
-
-        if app.should_quit() {
-            return Ok(());
-        }
-    }
-}
 
 /// The single owner of [`AppState`]. Everything else sends it events.
 #[derive(Debug)]
@@ -171,6 +114,63 @@ impl Default for App {
 impl App {
     pub(crate) fn new(state: AppState) -> Self {
         Self::with_keymap(state, Keymap::defaults(KeyboardSupport::Enhanced))
+    }
+
+    /// Runs the app loop until the user quits or terminal input fails.
+    pub(crate) async fn run<B>(
+        mut self,
+        terminal: &mut Terminal<B>,
+        mut sources: Sources,
+    ) -> IdeResult
+    where
+        B: Backend,
+        B::Error: Into<IdeError>,
+    {
+        let mut last_draw: Option<Instant> = None;
+
+        loop {
+            let draw_at = last_draw
+                .map(|at| at + FRAME_INTERVAL)
+                .unwrap_or(Instant::now());
+
+            if self.needs_redraw() && Instant::now() >= draw_at {
+                draw_frame(terminal, &mut self)?;
+                last_draw = Some(Instant::now());
+                continue;
+            }
+
+            // Biased: input is polled before bulk events so it is never starved.
+            // The sleep only wakes the loop when a pending redraw becomes due; the
+            // draw itself happens at the top of the loop, at most once per frame
+            // interval.
+            let sequence_deadline = self.pending_deadline().map(Instant::from_std);
+            let notification_deadline = self.notification_deadline().map(Instant::from_std);
+
+            tokio::select! {
+                biased;
+                _ = sleep_until(draw_at),
+                if self.needs_redraw() => {}
+                input = sources.input.recv() => match input {
+                    Some(Ok(input)) => self.handle_input(input),
+                    Some(Err(err)) => return Err(err.into()),
+                    None => return Ok(()),
+                },
+                Some(event) = sources.events.recv() => self.handle_event(event),
+                _ = sleep_until(sequence_deadline.unwrap_or_else(Instant::now)),
+                if sequence_deadline.is_some() => self.expire_pending(),
+                _ = sleep_until(notification_deadline.unwrap_or_else(Instant::now)),
+                if notification_deadline.is_some() => self.expire_notifications(std::time::Instant::now()),
+            }
+
+            self.sync_watches();
+            if let Some(enabled) = self.take_mouse_change() {
+                terminal::set_mouse_capture(enabled);
+            }
+
+            if self.should_quit() {
+                return Ok(());
+            }
+        }
     }
 
     pub(crate) fn with_keymap(state: AppState, keymap: Keymap) -> Self {
@@ -397,29 +397,21 @@ impl App {
         if key.kind == KeyEventKind::Press && self.state.dismiss_errors() {
             self.needs_redraw = true;
         }
-        if self.state.palette().is_some() {
-            self.handle_palette_key(key);
-            return;
+
+        // An open popup has all the keys.
+        match self.state.popup() {
+            Popup::None => {}
+            Popup::QuitPrompt(_) => return self.handle_prompt_key(key),
+            Popup::Palette(_) => return self.handle_palette_key(key),
+            Popup::Finder(_) => return self.handle_finder_key(key),
+            Popup::Search(_) => return self.handle_search_key(key),
+            Popup::Find(_) => return self.handle_find_key(key),
         }
-        if self.state.finder().is_some() {
-            self.handle_finder_key(key);
-            return;
-        }
-        if self.state.search().is_some() {
-            self.handle_search_key(key);
-            return;
-        }
-        if self.state.find().is_some() {
-            self.handle_find_key(key);
-            return;
-        }
-        if self.state.quit_prompt().is_some() {
-            self.handle_prompt_key(key);
-            return;
-        }
+
         let Some(chord) = KeyChord::from_event(key) else {
             return;
         };
+
         let contexts = self.contexts();
         let resolution = self.resolver.feed(&self.keymap, contexts, chord);
 
@@ -489,6 +481,9 @@ impl App {
             Action::FindInProject => self.open_search(),
             Action::FindInFile => self.open_find(),
             Action::FocusExplorer => self.toggle_explorer_focus(),
+            Action::ToggleExplorer => self.toggle_explorer(),
+            Action::ToggleStatusBar => self.state.toggle_status_bar(),
+            Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
@@ -529,14 +524,43 @@ impl App {
         self.mouse_change.take()
     }
 
-    /// Moves the keyboard to the explorer, or back to the editor.
+    /// Moves the keyboard to the explorer (showing it if it was hidden), or
+    /// back to the editor.
     fn toggle_explorer_focus(&mut self) {
         if self.state.focus() == Focus::Explorer {
             self.state.set_focus(Focus::Editor);
         } else if self.state.layout().contains(&ComponentKind::Explorer) {
+            self.state.set_explorer_visible(true);
             self.state.set_focus(Focus::Explorer);
         } else {
             self.state.notify("the layout has no explorer");
+        }
+    }
+
+    /// Hides the explorer, or shows it and gives it the keyboard. A hidden
+    /// explorer cannot have the keyboard.
+    fn toggle_explorer(&mut self) {
+        if !self.state.layout().contains(&ComponentKind::Explorer) {
+            self.state.notify("the layout has no explorer");
+            return;
+        }
+        match self.state.is_visible(&ComponentKind::Explorer) {
+            true => {
+                self.state.set_explorer_visible(false);
+                if self.state.focus() == Focus::Explorer {
+                    self.state.set_focus(Focus::Editor);
+                }
+            }
+            false => {
+                self.state.set_explorer_visible(true);
+                self.state.set_focus(Focus::Explorer);
+            }
+        }
+    }
+
+    fn toggle_plugin_view(&mut self, id: &str) {
+        if !self.state.toggle_plugin_view(&PluginViewId::new(id)) {
+            self.state.notify(format!("no plugin view named {id}"));
         }
     }
 
@@ -558,7 +582,8 @@ impl App {
     /// Mouse input for the explorer. Returns whether it was used up.
     fn handle_explorer_mouse(&mut self, event: MouseEvent) -> bool {
         let (column, row) = (event.column, event.row);
-        let over = self.state.explorer().contains(column, row);
+        let over = self.state.is_visible(&ComponentKind::Explorer)
+            && self.state.explorer().contains(column, row);
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) if over => {
                 self.state.set_focus(Focus::Explorer);
@@ -678,11 +703,7 @@ impl App {
 
     /// Whether an overlay is open and taking all input.
     fn modal_open(&self) -> bool {
-        self.state.quit_prompt().is_some()
-            || self.state.palette().is_some()
-            || self.state.finder().is_some()
-            || self.state.search().is_some()
-            || self.state.find().is_some()
+        !matches!(self.state.popup(), Popup::None)
     }
 
     /// Opens the find bar for the open file. A selected word becomes the query;

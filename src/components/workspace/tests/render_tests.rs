@@ -2,11 +2,13 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
-use super::*;
 use crate::buffer::Buffer;
 use crate::components::ComponentKind;
 use crate::components::editor::Editor;
-use crate::ui::layout::Axis;
+use crate::components::workspace::{Workspace, render::*};
+use crate::state::AppState;
+use crate::ui::Render;
+use crate::ui::layout::{Axis, Placement};
 
 fn labels(names: &[&str]) -> Vec<String> {
     names.iter().map(|name| format!(" {name} ")).collect()

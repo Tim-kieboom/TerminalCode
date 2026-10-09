@@ -121,6 +121,13 @@ used `anyhow` everywhere instead of typed errors.
 ### UI layout
 - Ratatui. Regions: sidebar (explorer), editor area (tabs, splits), bottom panel (terminal), status
   bar, notifications overlay, command palette / fuzzy finder overlay.
+- `ui::Hideable<T>` wraps a component or popup that can be hidden: it keeps the value while hidden. `AppState` holds
+  the explorer, the status bar and every plugin view as `Hideable`s (shown by default, so `AppComponents` has a
+  hand-written `Default`), and the popups are one `Popup` enum (`None`, or the one popup that is open: opening one closes the other, so two
+  can never be open; key routing and drawing are a `match` on it). `LayoutTree::resolve_visible`
+  asks `AppState::is_visible` per component: a hidden one is left out and the space goes to its siblings, a split
+  with nothing visible disappears. A hidden explorer is skipped by mouse hit-testing, and hiding it moves the
+  keyboard to the editor.
 - Modal prompts (the unsaved-changes prompt on quit) live in `AppState` as `Option<...>` and are drawn last,
   over every component. While one is open it takes all keys; mouse and paste are ignored. Quitting with
   modified documents opens it; it lists them, lets each be saved or discarded alone or all at once, and

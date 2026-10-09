@@ -9,6 +9,12 @@ pub(crate) enum ViewNode {
     },
 }
 
+impl Default for ViewNode {
+    fn default() -> Self {
+        Self::Lines(Vec::new())
+    }
+}
+
 /// One line of text and the theme slot that styles it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ViewLine {

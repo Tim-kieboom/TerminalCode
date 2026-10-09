@@ -51,20 +51,25 @@ impl fmt::Debug for FsWatcher {
 impl FsWatcher {
     pub(crate) fn new(events: mpsc::Sender<Event>) -> Result<Self, WatchError> {
         let debouncer = new_debouncer(DEBOUNCE, move |result: DebounceEventResult| {
-            let event = match result {
-                Ok(changes) => {
-                    let paths: Vec<PathBuf> =
-                        changes.into_iter().map(|change| change.path).collect();
-                    if paths.is_empty() {
-                        return;
-                    }
-                    Event::FilesChanged(paths)
+            let changes = match result {
+                Ok(changes) => changes,
+                Err(error) => {
+                    let event = Event::WatchFailed(error.to_string());
+                    _ = events.blocking_send(event);
+                    return;
                 }
-                Err(error) => Event::WatchFailed(error.to_string()),
             };
+
+            let paths: Vec<PathBuf> = changes.into_iter().map(|change| change.path).collect();
+            if paths.is_empty() {
+                return;
+            }
+
+            let event = Event::FilesChanged(paths);
+
             // This runs on the watcher's own thread, so blocking is fine. A
             // closed channel means the app is shutting down.
-            let _ = events.blocking_send(event);
+            _ = events.blocking_send(event);
         })
         .map_err(WatchError::Start)?;
 
@@ -84,7 +89,7 @@ impl FsWatcher {
         let dropped: Vec<PathBuf> = self.watched.difference(wanted).cloned().collect();
         for path in dropped {
             // Best effort: the directory may be gone already.
-            let _ = watcher.unwatch(&path);
+            _ = watcher.unwatch(&path);
             self.watched.remove(&path);
         }
 
@@ -93,17 +98,16 @@ impl FsWatcher {
             if self.watched.contains(path) {
                 continue;
             }
-            match watcher.watch(path, RecursiveMode::NonRecursive) {
-                Ok(()) => {
-                    self.watched.insert(path.clone());
-                }
-                Err(source) => {
-                    first_error.get_or_insert(WatchError::Watch {
-                        path: path.clone(),
-                        source,
-                    });
-                }
-            }
+
+            let Err(source) = watcher.watch(path, RecursiveMode::NonRecursive) else {
+                self.watched.insert(path.clone());
+                continue;
+            };
+
+            first_error.get_or_insert(WatchError::Watch {
+                path: path.clone(),
+                source,
+            });
         }
         first_error.map_or(Ok(()), Err)
     }

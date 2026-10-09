@@ -20,7 +20,9 @@ impl Render for Explorer {
         if !self.follow_selection {
             return;
         }
+
         let height = usize::from(self.body.height);
+
         if self.selected < self.scroll {
             self.scroll = self.selected;
         } else if height > 0 && self.selected >= self.scroll + height {
@@ -41,6 +43,7 @@ impl Render for Explorer {
             frame.render_widget(Paragraph::new(EMPTY_MESSAGE).style(style), inner);
             return;
         }
+
         let lines: Vec<Line> = self
             .rows()
             .iter()
@@ -49,6 +52,7 @@ impl Render for Explorer {
             .take(usize::from(inner.height))
             .map(|(index, row)| line(row, index == self.selected, focused, theme))
             .collect();
+
         frame.render_widget(Paragraph::new(lines), inner);
     }
 }

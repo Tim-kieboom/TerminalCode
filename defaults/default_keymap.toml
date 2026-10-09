@@ -9,7 +9,8 @@
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
-#   { select = motion }, "focus_explorer", { explorer = command }, { plugin = "name" }.
+#   { select = motion }, "focus_explorer", "toggle_explorer", "toggle_status_bar",
+#   { toggle_plugin_view = "view.id" }, { explorer = command }, { plugin = "name" }.
 # Explorer commands: up, down, page_up, page_down, first, last, expand, collapse, open, refresh.
 # Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
 #   document_end.
@@ -420,3 +421,12 @@ action = "find_in_project"
 keys = "ctrl+f"
 context = "editor"
 action = "find_in_file"
+
+# Hide and show parts of the screen. A hidden part takes no space.
+[[binding]]
+keys = "ctrl+k b"
+action = "toggle_explorer"
+
+[[binding]]
+keys = "ctrl+k s"
+action = "toggle_status_bar"

@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use serde::Deserialize;
 use thiserror::Error;
@@ -76,6 +74,16 @@ pub(crate) enum LayoutNode {
 }
 
 impl LayoutNode {
+    /// Whether this node has a component that is shown.
+    fn has_visible(&self, visible: &dyn Fn(&ComponentKind) -> bool) -> bool {
+        match self {
+            Self::Leaf(component) | Self::Framed { component, .. } => visible(component),
+            Self::Split { children, .. } => {
+                children.iter().any(|child| child.node.has_visible(visible))
+            }
+        }
+    }
+
     fn contains(&self, kind: &ComponentKind) -> bool {
         match self {
             Self::Leaf(component) | Self::Framed { component, .. } => component == kind,
@@ -136,9 +144,22 @@ impl LayoutTree {
         self.root.contains(kind)
     }
 
+    /// Where every component goes.
+    #[cfg(test)]
     pub(crate) fn resolve(&self, area: Rect) -> Vec<Placement> {
+        self.resolve_visible(area, &|_| true)
+    }
+
+    /// Where the components for which `visible` says yes go. A hidden
+    /// component takes no space: the others in its split share it, and a split
+    /// whose components are all hidden takes none either.
+    pub(crate) fn resolve_visible(
+        &self,
+        area: Rect,
+        visible: &dyn Fn(&ComponentKind) -> bool,
+    ) -> Vec<Placement> {
         let mut placements = Vec::new();
-        place(&self.root, area, &mut placements);
+        place(&self.root, area, visible, &mut placements);
         placements
     }
 }
@@ -174,8 +195,16 @@ fn validate(node: &LayoutNode, has_editor: &mut bool) -> Result<(), LayoutError>
     }
 }
 
-fn place(node: &LayoutNode, area: Rect, out: &mut Vec<Placement>) {
+fn place(
+    node: &LayoutNode,
+    area: Rect,
+    visible: &dyn Fn(&ComponentKind) -> bool,
+    out: &mut Vec<Placement>,
+) {
     match node {
+        LayoutNode::Leaf(component) | LayoutNode::Framed { component, .. }
+            if !visible(component) => {}
+
         LayoutNode::Leaf(component) => out.push(Placement::new(component.clone(), area)),
         LayoutNode::Framed { component, frame } => out.push(Placement {
             kind: component.clone(),
@@ -186,13 +215,19 @@ fn place(node: &LayoutNode, area: Rect, out: &mut Vec<Placement>) {
             direction,
             children,
         } => {
-            let constraints = children.iter().map(|child| Constraint::from(child.size));
+            let shown: Vec<&Child> = children
+                .iter()
+                .filter(|child| child.node.has_visible(visible))
+                .collect();
+
+            let constraints = shown.iter().map(|child| Constraint::from(child.size));
             let areas = Layout::default()
                 .direction(Direction::from(*direction))
                 .constraints(constraints)
                 .split(area);
-            for (child, child_area) in children.iter().zip(areas.iter()) {
-                place(&child.node, *child_area, out);
+
+            for (child, child_area) in shown.iter().zip(areas.iter()) {
+                place(&child.node, *child_area, visible, out);
             }
         }
     }

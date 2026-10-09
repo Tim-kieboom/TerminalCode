@@ -8,7 +8,7 @@ use ratatui::{
 
 use crate::{
     components::ComponentKind,
-    state::AppState,
+    state::{AppState, PluginView, Popup},
     ui::{Render, layout::Placement, view::ViewNode},
 };
 
@@ -16,7 +16,10 @@ use crate::{
 /// read-only draws.
 pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     paint_background(frame, state);
-    let placements = state.layout().resolve(frame.area());
+    let placements = state
+        .layout()
+        .resolve_visible(frame.area(), &|kind| state.is_visible(kind));
+
     for placement in &placements {
         prepare_component(state, placement);
     }
@@ -32,20 +35,15 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
 
     state.notifications().render(frame, state.theme(), bottom);
 
-    if let Some(search) = state.search() {
-        search.render(frame, state.theme());
-    }
-
-    if let Some(finder) = state.finder() {
-        finder.render(frame, state.theme());
-    }
-
-    if let Some(palette) = state.palette() {
-        palette.render(frame, state.theme());
-    }
-
-    if let Some(prompt) = state.quit_prompt() {
-        prompt.render(frame, state.theme());
+    let theme = state.theme();
+    match state.popup() {
+        Popup::None => {}
+        Popup::Search(search) => search.render(frame, theme),
+        Popup::Finder(finder) => finder.render(frame, theme),
+        Popup::Palette(palette) => palette.render(frame, theme),
+        Popup::QuitPrompt(prompt) => prompt.render(frame, theme),
+        // The find bar is drawn with its pane, which knows where its row is.
+        Popup::Find(_) => {}
     }
 }
 
@@ -81,7 +79,6 @@ fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
     let title = placement.frame.title_text(placement.kind.title());
     let block = placement.frame.block(state.theme(), title, false);
 
-    let inner = block.inner(placement.area);
     frame.render_widget(block, placement.area);
 
     let ComponentKind::Plugin(id) = &placement.kind else {
@@ -92,7 +89,15 @@ fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
         return;
     };
 
-    render_view(frame, state, view.content(), inner);
+    view.render(frame, state, placement);
+}
+
+/// A plugin's content, inside the frame the layout gives its pane.
+impl Render for PluginView {
+    fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
+        let inner = placement.frame.inner(placement.area);
+        render_view(frame, state, self.content(), inner);
+    }
 }
 
 fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect) {

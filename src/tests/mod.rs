@@ -5,6 +5,7 @@ mod explorer_tests;
 mod find_tests;
 mod finder_tests;
 mod frame_tests;
+mod hide_tests;
 mod mouse_tests;
 mod notification_tests;
 mod palette_tests;

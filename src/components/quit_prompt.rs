@@ -10,6 +10,9 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph};
 
 use crate::components::workspace::DocumentId;
+use crate::state::AppState;
+use crate::ui::Render;
+use crate::ui::layout::Placement;
 use crate::ui::theme::Theme;
 
 const HELP: [&str; 3] = [
@@ -61,12 +64,16 @@ impl Command {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct QuitPrompt {
     items: Vec<Item>,
     selected: usize,
 }
-
+impl Render for QuitPrompt {
+    fn render(&self, frame: &mut Frame, state: &AppState, _: &Placement) {
+        self.render(frame, state.theme());
+    }
+}
 impl QuitPrompt {
     pub(crate) fn new(items: Vec<Item>) -> Self {
         Self { items, selected: 0 }
