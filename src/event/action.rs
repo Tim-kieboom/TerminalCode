@@ -37,6 +37,8 @@ pub(crate) enum Action {
     Rename,
     /// Asks where to move the explorer's selected file or folder to.
     MoveEntry,
+    /// Opens the context menu on the explorer's selected row.
+    ContextMenu,
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -74,6 +76,7 @@ impl Action {
         matches!(
             self,
             Self::NewFile
+                | Self::ContextMenu
                 | Self::CloseTab
                 | Self::NextTab
                 | Self::PreviousTab
@@ -138,6 +141,7 @@ impl Action {
             Self::CreateFolder => "Explorer: New Folder",
             Self::Rename => "Explorer: Rename",
             Self::MoveEntry => "Explorer: Move",
+            Self::ContextMenu => "Explorer: Context Menu",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::NewFile => "File: New",
@@ -193,6 +197,7 @@ impl Action {
             Self::CreateFolder,
             Self::Rename,
             Self::MoveEntry,
+            Self::ContextMenu,
             Self::Save,
             Self::NewFile,
             Self::CloseTab,

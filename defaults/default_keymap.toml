@@ -9,7 +9,7 @@
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
-#   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "toggle_explorer", "toggle_status_bar",
+#   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "context_menu", "toggle_explorer", "toggle_status_bar",
 #   { toggle_plugin_view = "view.id" }, { explorer = command }, { plugin = "name" }.
 # Explorer commands: up, down, page_up, page_down, first, last, expand, collapse, open, refresh.
 # Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
@@ -435,6 +435,11 @@ action = "rename"
 keys = "m"
 context = "explorer"
 action = "move_entry"
+
+[[binding]]
+keys = "shift+f10"
+context = "explorer"
+action = "context_menu"
 
 # File finder
 [[binding]]

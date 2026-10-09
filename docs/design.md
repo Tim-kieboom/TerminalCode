@@ -170,6 +170,12 @@ used `anyhow` everywhere instead of typed errors.
 - Moving (`m`, `Purpose::Move`): the same path as rename with the prompt holding the path from the project root
   (`entries::move_to`); an existing folder as destination means "into it". A folder into itself is refused before
   any folder is made.
+- Context menu (`shift+f10`, `Popup::Menu`, `components/menu.rs`): a generic list of (label, action) entries with
+  separators, opened just below the selected row (above it near the bottom of the screen). It keeps the path it was
+  opened on; picking an item checks that the path still exists, reveals it so it is the explorer's selection, checks
+  the selection really is that path, and only then runs the ordinary action. A vanished path gives an error and
+  nothing runs, so a watcher reload while the menu is open cannot retarget it. The project folder only gets New File
+  and New Folder. Right-click opening and key hints come next.
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
   directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
   (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first

@@ -5,7 +5,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use ratatui::layout::Rect;
+use ratatui::layout::{Position, Rect};
 use serde::Deserialize;
 
 pub(crate) use tree::{ExplorerError, NodeKind, Row};
@@ -76,6 +76,17 @@ impl Explorer {
 
     pub(crate) fn selected_row(&self) -> Option<&Row> {
         self.rows.get(self.selected)
+    }
+
+    /// The screen cell of the selected row's first column, as of the last
+    /// layout pass; the top of the tree when the row is scrolled out of view.
+    pub(crate) fn selected_cell(&self) -> Position {
+        let offset = self
+            .selected
+            .checked_sub(self.scroll)
+            .filter(|&offset| offset < usize::from(self.body.height))
+            .unwrap_or(0);
+        Position::new(self.body.x, self.body.y + offset as u16)
     }
 
     /// The directory the tree starts at.

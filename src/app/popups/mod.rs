@@ -10,6 +10,7 @@ pub(super) use delete::Removal;
 mod delete;
 mod find;
 mod finder;
+mod menu;
 mod new_entry;
 mod palette;
 mod quit;

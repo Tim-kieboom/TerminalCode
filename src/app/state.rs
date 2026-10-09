@@ -8,6 +8,7 @@ use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::find::Find;
 use crate::components::finder::Finder;
+use crate::components::menu::Menu;
 use crate::components::name_prompt::NamePrompt;
 use crate::components::notifications::{Level, Notifications};
 use crate::components::palette::Palette;
@@ -48,6 +49,7 @@ pub(crate) enum Popup {
     QuitPrompt(QuitPrompt),
     Confirm(Confirm),
     NewEntry(NamePrompt),
+    Menu(Menu),
     Palette(Palette),
     Finder(Finder),
     Search(Search),
@@ -273,6 +275,29 @@ impl AppState {
         }
         match std::mem::take(&mut self.popup) {
             Popup::Confirm(confirm) => Some(confirm),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn menu(&self) -> Option<&Menu> {
+        match &self.popup {
+            Popup::Menu(menu) => Some(menu),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn open_menu(&mut self, menu: Menu) {
+        self.popup = Popup::Menu(menu);
+    }
+
+    /// Closes the menu and hands it back; any other popup stays open.
+    pub(crate) fn take_menu(&mut self) -> Option<Menu> {
+        if !matches!(self.popup, Popup::Menu(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Menu(menu) => Some(menu),
             _ => None,
         }
     }
