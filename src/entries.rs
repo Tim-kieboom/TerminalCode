@@ -76,3 +76,34 @@ fn inside(name: &str) -> Result<PathBuf, EntryError> {
         false => Ok(relative),
     }
 }
+
+/// Renames `from` to `name`, which is relative to the folder `from` is in and
+/// may have several parts (the folders are made as needed). An entry that is
+/// already there is never replaced.
+pub(crate) fn rename(from: &Path, name: &str) -> Result<PathBuf, EntryError> {
+    let name = name.trim();
+    let relative = inside(name)?;
+    let dir = from
+        .parent()
+        .ok_or_else(|| EntryError::Outside(name.to_owned()))?;
+    let to = dir.join(relative);
+    if to == from {
+        return Ok(to);
+    }
+    let io_error = |source| EntryError::Io {
+        name: name.to_owned(),
+        source,
+    };
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(io_error)?;
+    }
+    // Where the filesystem cannot refuse atomically this checks first and
+    // renames after, which a file made in between can slip through.
+    match renamore::rename_exclusive_fallback(from, &to) {
+        Ok(_) => Ok(to),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            Err(EntryError::Exists(name.to_owned()))
+        }
+        Err(error) => Err(io_error(error)),
+    }
+}

@@ -26,6 +26,7 @@ grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
 regex = "1.13.1"
 trash = "5.2.9"
+renamore = "0.3.2"
 
 [dev-dependencies]
 proptest = "1.11.0"

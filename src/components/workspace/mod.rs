@@ -11,7 +11,7 @@
 //! document so their cursors keep pointing at the same text.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ratatui::layout::Rect;
 use serde::Deserialize;
@@ -228,19 +228,37 @@ impl Workspace {
 
     /// The open documents whose file is `path` or inside it.
     pub(crate) fn documents_under(&self, path: &Path) -> Vec<DocumentId> {
+        self.documents_with_suffix(path)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
+    }
+
+    /// The open documents whose file is `path` or inside it, each with where it
+    /// is below `path` (empty for `path` itself).
+    pub(crate) fn documents_with_suffix(&self, path: &Path) -> Vec<(DocumentId, PathBuf)> {
         let root = canonical(path);
         let mut found: Vec<_> = self
             .documents
             .iter()
-            .filter(|(_, doc)| {
-                doc.buffer
-                    .path()
-                    .is_some_and(|own| canonical(own).starts_with(&root))
+            .filter_map(|(id, doc)| {
+                let own = canonical(doc.buffer.path()?);
+                let suffix = own.strip_prefix(&root).ok()?;
+                Some((*id, suffix.to_path_buf()))
             })
-            .map(|(id, _)| *id)
             .collect();
         found.sort();
         found
+    }
+
+    /// Points documents at the new place of their files after a move.
+    pub(crate) fn set_document_paths(&mut self, moves: Vec<(DocumentId, PathBuf)>) {
+        for (id, path) in moves {
+            if let Some(doc) = self.documents.get_mut(&id) {
+                doc.buffer.set_path(path);
+            }
+        }
+        self.docs_version += 1;
     }
 
     /// The documents among `documents` that have unsaved changes.

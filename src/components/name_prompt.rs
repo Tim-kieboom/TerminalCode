@@ -42,25 +42,47 @@ impl Command {
     }
 }
 
+/// What the name is for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Purpose {
+    Create(EntryKind),
+    /// Renames this entry.
+    Rename(PathBuf),
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct NamePrompt {
-    kind: EntryKind,
+    purpose: Purpose,
     /// The folder the new entry is made in.
     dir: PathBuf,
     name: String,
 }
 
 impl NamePrompt {
+    /// Asks for the name of a new entry in `dir`.
     pub(crate) fn new(kind: EntryKind, dir: PathBuf) -> Self {
         Self {
-            kind,
+            purpose: Purpose::Create(kind),
             dir,
             name: String::new(),
         }
     }
 
-    pub(crate) fn kind(&self) -> EntryKind {
-        self.kind
+    /// Asks for the new name of `from`, starting from its current one.
+    pub(crate) fn rename(from: PathBuf) -> Self {
+        let dir = from.parent().map(Path::to_path_buf).unwrap_or_default();
+        let name = from
+            .file_name()
+            .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+        Self {
+            purpose: Purpose::Rename(from),
+            dir,
+            name,
+        }
+    }
+
+    pub(crate) fn purpose(&self) -> &Purpose {
+        &self.purpose
     }
 
     pub(crate) fn dir(&self) -> &Path {
@@ -93,22 +115,20 @@ impl NamePrompt {
             width,
             height,
         };
-        let what = match self.kind {
-            EntryKind::File => "New file",
-            EntryKind::Folder => "New folder",
-        };
         let folder = self.dir.file_name().map_or_else(
             || self.dir.display().to_string(),
             |name| name.to_string_lossy().into_owned(),
         );
+        let title = match &self.purpose {
+            Purpose::Create(EntryKind::File) => format!(" New file in {folder} "),
+            Purpose::Create(EntryKind::Folder) => format!(" New folder in {folder} "),
+            Purpose::Rename(_) => format!(" Rename in {folder} "),
+        };
         let block = Block::new()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(theme.style("pane.border.focused"))
-            .title(Line::styled(
-                format!(" {what} in {folder} "),
-                theme.style("pane.title"),
-            ));
+            .title(Line::styled(title, theme.style("pane.title")));
         let inner = block.inner(area);
         frame.render_widget(Clear, area);
         frame.render_widget(block, area);

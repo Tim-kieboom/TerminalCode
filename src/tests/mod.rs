@@ -12,6 +12,7 @@ mod mouse_tests;
 mod notification_tests;
 mod palette_tests;
 mod quit_tests;
+mod rename_tests;
 mod search_tests;
 mod stale_view_tests;
 mod startup_tests;

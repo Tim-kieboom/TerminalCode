@@ -174,6 +174,7 @@ impl App {
             Action::DeleteSelected => self.delete_selected(),
             Action::CreateFile => self.create_entry(EntryKind::File),
             Action::CreateFolder => self.create_entry(EntryKind::Folder),
+            Action::Rename => self.rename_selected(),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,

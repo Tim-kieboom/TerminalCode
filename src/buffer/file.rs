@@ -136,6 +136,12 @@ impl Buffer {
         Ok(())
     }
 
+    /// Makes `path` the file this buffer belongs to, because the file was moved
+    /// there. The text and what the buffer knows of the disk stay as they are.
+    pub(crate) fn set_path(&mut self, path: PathBuf) {
+        self.path = Some(path);
+    }
+
     /// Writes the buffer to its own path.
     pub(crate) fn save(&mut self) -> Result<(), FileError> {
         let Some(path) = self.path.clone() else {

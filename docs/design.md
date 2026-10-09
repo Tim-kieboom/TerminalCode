@@ -162,6 +162,11 @@ used `anyhow` everywhere instead of typed errors.
   name prompt for the selected folder (the parent of a selected file). The name may have several parts; existing
   entries are never touched (`create_new`, `create_dir`), and names that leave the folder (`..`, absolute) are
   refused. A made file opens in the editor; either kind is revealed in the tree (`Explorer::reveal`).
+- Renaming (same prompt, `Purpose::Rename`): `entries::rename` uses `renamore::rename_exclusive_fallback`, so an
+  existing entry is never replaced. Before the move the app notes which open documents are inside the entry and
+  where; right after it, in the same handler, it points them at the new paths (`Workspace::set_document_paths`,
+  which also bumps the documents version so the watcher re-syncs). A late event for the old path therefore names
+  no open file and does nothing.
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
   directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
   (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first
