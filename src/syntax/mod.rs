@@ -7,6 +7,7 @@ pub(crate) use error::SyntaxError;
 pub(crate) use highlighter::{Highlighter, Span};
 pub(crate) use language::Language;
 pub(crate) use ranges::{MAX_RANGES, merge as merge_ranges};
+pub(crate) use worker::{Output, SyntaxWorker};
 
 pub(crate) mod document;
 mod error;
@@ -16,3 +17,4 @@ mod mapping;
 mod ranges;
 #[cfg(test)]
 mod tests;
+pub(crate) mod worker;

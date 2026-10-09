@@ -16,6 +16,7 @@ use crate::components::quit_prompt::QuitPrompt;
 use crate::components::search::Search;
 use crate::components::status_view::StatusBar;
 use crate::components::workspace::Workspace;
+use crate::syntax::SyntaxWorker;
 use crate::ui::Hideable;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::{Rgb, Theme};
@@ -38,6 +39,9 @@ pub(crate) struct AppState {
     layout: LayoutTree,
     components: AppComponents,
     notifications: Notifications,
+    /// The thread that parses for syntax highlighting, once the app has an
+    /// event channel for it to answer on.
+    syntax: Option<SyntaxWorker>,
 }
 
 /// The overlay that has the keyboard, if any. There is only ever one: opening
@@ -182,9 +186,22 @@ impl AppState {
         &mut self.components.workspace
     }
 
-    /// The workspace and the theme together, for work that needs both.
-    pub(crate) fn workspace_and_theme_mut(&mut self) -> (&mut Workspace, &Theme) {
-        (&mut self.components.workspace, &self.theme)
+    /// Sets the syntax worker, so documents get colors.
+    pub(crate) fn set_syntax_worker(&mut self, worker: SyntaxWorker) {
+        self.syntax = Some(worker);
+    }
+
+    /// A copy of the theme for the syntax worker, which lives on another thread.
+    pub(crate) fn theme_for_worker(&self) -> Theme {
+        self.theme.clone()
+    }
+
+    /// Asks the syntax worker for the colors of everything on screen; returns
+    /// what went wrong for documents it could not highlight, each once.
+    pub(crate) fn refresh_highlights(&mut self) -> Vec<String> {
+        self.components
+            .workspace
+            .refresh_highlights(self.syntax.as_ref())
     }
 
     /// The focused editor, for reading.

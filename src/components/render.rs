@@ -69,8 +69,7 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
     match placement.kind {
         ComponentKind::Editor => {
             state.workspace_mut().prepare(placement);
-            let (workspace, theme) = state.workspace_and_theme_mut();
-            for error in workspace.refresh_highlights(theme) {
+            for error in state.refresh_highlights() {
                 state.notify_error(error);
             }
         }

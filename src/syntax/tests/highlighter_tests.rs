@@ -1,4 +1,5 @@
 use ratatui::style::Color;
+use ropey::Rope;
 
 use crate::syntax::{Highlighter, Language, Span};
 use crate::ui::theme::Theme;
@@ -21,7 +22,7 @@ fn painted(text: &str, spans: &[Span]) -> Vec<(String, Option<Color>)> {
 
 fn parsed(source: &str, theme: &Theme) -> (Highlighter, String) {
     let mut highlighter = highlighter(theme);
-    highlighter.parse(source).unwrap();
+    highlighter.parse(&Rope::from_str(source)).unwrap();
     (highlighter, source.to_owned())
 }
 
@@ -37,7 +38,7 @@ fn keywords_and_strings_get_the_style_of_their_capture() {
     let theme = theme(KEYWORD_AND_STRING);
     let (highlighter, text) = parsed("fn main() { let s = \"hi\"; }", &theme);
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     assert_eq!(
         painted(&text, &spans),
@@ -56,7 +57,7 @@ fn spans_are_in_order_and_never_overlap() {
         &Theme::default(),
     );
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     assert!(!spans.is_empty());
     for pair in spans.windows(2) {
@@ -73,7 +74,7 @@ fn a_capture_the_theme_does_not_know_leaves_the_text_plain() {
     let theme = theme("[\"syntax.string\"]\ntext = \"green\"\n");
     let (highlighter, text) = parsed("fn main() { \"hi\" }", &theme);
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     assert_eq!(
         painted(&text, &spans),
@@ -86,7 +87,7 @@ fn a_capture_falls_back_to_the_shorter_slot() {
     let theme = theme("[\"syntax.function\"]\ntext = \"blue\"\n");
     let (highlighter, text) = parsed("fn main() { println!(\"x\"); }", &theme);
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     // `main` is a function, `println!` a function.macro: both use syntax.function.
     let names: Vec<_> = painted(&text, &spans).into_iter().map(|(t, _)| t).collect();
@@ -101,7 +102,7 @@ fn a_more_specific_slot_beats_the_shorter_one() {
     );
     let (highlighter, text) = parsed("fn main() { println!(\"x\"); }", &theme);
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     let colors = painted(&text, &spans);
     assert!(colors.contains(&("main".to_owned(), Some(Color::Blue))));
@@ -115,7 +116,7 @@ fn only_the_asked_range_is_returned_and_edges_are_cut() {
     let start = text.find("fn b").unwrap();
     let end = start + "fn b".len();
 
-    let spans = highlighter.spans(&text, start..end);
+    let spans = highlighter.spans(&Rope::from_str(&text), start..end);
 
     assert_eq!(
         painted(&text, &spans),
@@ -131,7 +132,7 @@ fn only_the_asked_range_is_returned_and_edges_are_cut() {
     let text = "let s = \"abcdef\";\n";
     let (highlighter, text) = parsed(text, &theme);
     let open = text.find("abc").unwrap();
-    let spans = highlighter.spans(&text, open..open + 3);
+    let spans = highlighter.spans(&Rope::from_str(&text), open..open + 3);
     assert_eq!(spans.len(), 1);
     assert_eq!(spans[0].range, open..open + 3);
 }
@@ -140,19 +141,25 @@ fn only_the_asked_range_is_returned_and_edges_are_cut() {
 fn nothing_is_returned_before_the_text_is_parsed() {
     let highlighter = highlighter(&Theme::default());
 
-    assert!(highlighter.spans("fn main() {}", 0..12).is_empty());
+    assert!(
+        highlighter
+            .spans(&Rope::from_str("fn main() {}"), 0..12)
+            .is_empty()
+    );
 }
 
 #[test]
 fn parsing_again_replaces_the_old_tree() {
     let theme = theme(KEYWORD_AND_STRING);
     let mut highlighter = highlighter(&theme);
-    highlighter.parse("fn a() {}").unwrap();
+    highlighter.parse(&Rope::from_str("fn a() {}")).unwrap();
 
-    highlighter.parse("\"only a string\"").unwrap();
+    highlighter
+        .parse(&Rope::from_str("\"only a string\""))
+        .unwrap();
 
     let text = "\"only a string\"";
-    let spans = highlighter.spans(text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(text), 0..text.len());
     assert_eq!(
         painted(text, &spans),
         [(text.to_owned(), Some(Color::Green))]
@@ -164,7 +171,7 @@ fn text_with_syntax_errors_still_gets_the_colors_it_can() {
     let theme = theme(KEYWORD_AND_STRING);
     let (highlighter, text) = parsed("fn ( { let \"unclosed", &theme);
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     assert!(spans.iter().any(|s| s.style.fg == Some(Color::Red)));
 }
@@ -174,7 +181,7 @@ fn a_range_past_the_end_of_the_text_is_clamped() {
     let theme = theme(KEYWORD_AND_STRING);
     let (highlighter, text) = parsed("fn a() {}", &theme);
 
-    let spans = highlighter.spans(&text, 0..10_000);
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..10_000);
 
     assert_eq!(painted(&text, &spans).len(), 1);
 }
@@ -184,7 +191,7 @@ fn multibyte_text_gets_byte_offsets_on_char_boundaries() {
     let theme = theme(KEYWORD_AND_STRING);
     let (highlighter, text) = parsed("let s = \"héllo wörld ✓\"; let t = 1;", &theme);
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     assert!(painted(&text, &spans).contains(&("\"héllo wörld ✓\"".to_owned(), Some(Color::Green))));
 }
@@ -196,7 +203,7 @@ fn the_default_theme_colors_ordinary_rust() {
         &Theme::default(),
     );
 
-    let spans = highlighter.spans(&text, 0..text.len());
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     let colored: Vec<_> = painted(&text, &spans).into_iter().map(|(t, _)| t).collect();
     for expected in ["struct", "fn", "let", "u32", "main", "println!"] {

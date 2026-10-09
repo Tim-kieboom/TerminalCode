@@ -446,3 +446,19 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   Rust in a release build: the first parse 0.9 s, a keystroke afterwards ≈ 0.12 s (down from 0.9 s). What is left
   is copying the text into a `String` and the UI thread doing it; step D moves the work to a worker and reads the
   rope in chunks.
+- Step D is done. One worker thread (`syntax/worker.rs`, started by `App::with_events`, which is why highlighting
+  needs the event channel) keeps a `Highlighter` and its tree per document, keyed by the document id. A `Job`
+  carries a rope clone (`Buffer::snapshot`, cheap), the version, the version it continues from (`base`) with the
+  edits between, and the byte ranges. Jobs for one document are coalesced while the worker is busy (`coalesce`: a
+  job that continues the one it replaces takes over its edits and its base, otherwise it stands alone), so there is
+  never more than one parse queued per document. The worker reparses from its tree when its parsed version is the
+  job's base and the edit count matches the version gap, parses from scratch otherwise, and only re-runs the query
+  when the version did not change (a scroll). Text goes to tree-sitter and the query in rope chunks, never as one
+  `String`. The answer travels as `Event::Highlighted(Output)`. The document side (`DocumentSyntax`) keeps a log of
+  edits since the version its spans describe: `record_edits` moves the spans through each at once, `accept` moves
+  an answer forward through the edits made since the text it describes, ignores one older than the spans on
+  screen or from a version it has no record of, and trims the log. A change nobody reported (a reload) breaks the
+  `base + log.len() == version` check and clears the spans and starts over; a pile of more than 10,000 edits does
+  the same. Closing a document sends the worker a `forget`. A grammar that cannot be set up comes back as a failed
+  `Output`, reported once as a notification. Measured on 7 MB of Rust in release: asking and recording an edit cost
+  the UI a few microseconds; the worker takes ≈ 0.9 s for the first parse and ≈ 0.12 s for each keystroke after.

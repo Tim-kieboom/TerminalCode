@@ -17,6 +17,7 @@ use crate::components;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
 use crate::keymap::Keymap;
+use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 
 mod background;
@@ -181,6 +182,12 @@ impl App {
     /// Gives the app a way to start background work that reports back through
     /// the event channel.
     pub(crate) fn with_events(mut self, events: mpsc::Sender<Event>) -> Self {
+        let theme = self.state.theme_for_worker();
+        let results = events.clone();
+        self.state
+            .set_syntax_worker(SyntaxWorker::spawn(theme, move |output| {
+                let _ = results.blocking_send(Event::Highlighted(output));
+            }));
         self.background.connect(events);
         self
     }
@@ -274,6 +281,11 @@ impl App {
             } => {
                 if let Some(open) = self.state.search_mut() {
                     open.finish(search, files, truncated);
+                    self.needs_redraw = true;
+                }
+            }
+            Event::Highlighted(output) => {
+                if self.state.workspace_mut().accept_highlights(output) {
                     self.needs_redraw = true;
                 }
             }

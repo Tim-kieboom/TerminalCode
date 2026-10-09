@@ -21,9 +21,9 @@ use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, displ
 use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
 use crate::paths::canonical;
-use crate::syntax::{DocumentSyntax, MAX_RANGES, merge_ranges};
+use crate::syntax::worker::Key as SyntaxKey;
+use crate::syntax::{DocumentSyntax, MAX_RANGES, Output, SyntaxWorker, merge_ranges};
 use crate::ui::layout::Axis;
-use crate::ui::theme::Theme;
 
 pub(crate) use disk::{DiskEvent, SaveOutcome};
 use tree::Node;
@@ -112,6 +112,8 @@ pub(crate) struct Workspace {
     confirm_overwrite: Option<DocumentId>,
     /// Changes whenever a document is opened or closed.
     docs_version: u64,
+    /// Syntax keys of closed documents, for the worker to drop what it keeps.
+    forgotten: Vec<SyntaxKey>,
     /// Whether the focused pane has a row reserved for the find bar.
     find_bar: bool,
     /// Stands in for the active editor while the only pane has no tabs.
@@ -137,6 +139,7 @@ impl Workspace {
             confirm_close: None,
             confirm_overwrite: None,
             docs_version: 0,
+            forgotten: Vec::new(),
             find_bar: false,
             empty: (Buffer::default(), ViewState::default()),
         };
@@ -153,7 +156,13 @@ impl Workspace {
     ///
     /// Returns what went wrong for documents whose highlighting could not be
     /// set up, each once.
-    pub(crate) fn refresh_highlights(&mut self, theme: &Theme) -> Vec<String> {
+    pub(crate) fn refresh_highlights(&mut self, worker: Option<&SyntaxWorker>) -> Vec<String> {
+        let Some(worker) = worker else {
+            return Vec::new();
+        };
+        for key in self.forgotten.drain(..) {
+            worker.forget(key);
+        }
         let mut errors = Vec::new();
         let mut wanted: HashMap<DocumentId, Vec<std::ops::Range<usize>>> = HashMap::new();
         for pane in &self.panes {
@@ -170,7 +179,7 @@ impl Workspace {
         for (id, ranges) in wanted {
             let ranges = merge_ranges(ranges, MAX_RANGES);
             if let Some(document) = self.documents.get_mut(&id) {
-                document.syntax.update(&document.buffer, theme, &ranges);
+                document.syntax.update(&document.buffer, &ranges, worker);
                 if let Some(error) = document.syntax.take_error() {
                     errors.push(format!("{}: {error}", display_name(&document.buffer)));
                 }
@@ -185,6 +194,23 @@ impl Workspace {
         self.active_tab()
             .map(|tab| self.documents[&tab.document].syntax.parses())
             .unwrap_or_default()
+    }
+
+    /// Whether any document on screen still waits for the syntax worker.
+    #[cfg(test)]
+    pub(crate) fn highlights_pending(&self) -> bool {
+        self.documents
+            .values()
+            .any(|document| document.syntax.is_waiting())
+    }
+
+    /// Takes what the syntax worker found. Returns whether the screen has to
+    /// be drawn again.
+    pub(crate) fn accept_highlights(&mut self, output: Output) -> bool {
+        self.documents
+            .values_mut()
+            .find(|document| document.syntax.key() == output.key)
+            .is_some_and(|document| document.syntax.accept(output))
     }
 
     /// The focused pane's active tab, for reading.
@@ -449,7 +475,9 @@ impl Workspace {
             pane.active.min(pane.tabs.len().saturating_sub(1))
         };
         if !shared {
-            self.documents.remove(&document);
+            if let Some(removed) = self.documents.remove(&document) {
+                self.forgotten.push(removed.syntax.key());
+            }
             self.docs_version += 1;
         }
         if self.panes[index].tabs.is_empty() {
@@ -669,7 +697,7 @@ impl Workspace {
                 indent,
                 last_editor: None,
                 warned: None,
-                syntax: DocumentSyntax::default(),
+                syntax: DocumentSyntax::new(u64::from(id.0)),
             },
         );
         id

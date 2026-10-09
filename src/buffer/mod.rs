@@ -115,6 +115,12 @@ impl Buffer {
         self.rope.to_string()
     }
 
+    /// The text as it is now, for work on another thread. Cheap: ropes share
+    /// their contents, so later edits do not show in the copy.
+    pub(crate) fn snapshot(&self) -> Rope {
+        self.rope.clone()
+    }
+
     /// Byte offset where `line` starts; the end of the text for a line past
     /// the last.
     pub(crate) fn line_start_byte(&self, line: usize) -> usize {

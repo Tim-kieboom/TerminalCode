@@ -1,34 +1,68 @@
 use std::fs;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::style::Color;
+use tokio::sync::mpsc;
 
 use crate::app::App;
 use crate::components::prepare_and_render;
+use crate::event::Event;
 use crate::initial_state;
 
 /// The default theme's keyword color.
 const KEYWORD: Color = Color::Rgb(0xcb, 0xa6, 0xf7);
 
-fn app_with(dir: &Path, name: &str, text: &str) -> App {
+/// An app wired to an event channel, as in the real app, so that the syntax
+/// worker has somewhere to send its answers.
+struct Rig {
+    app: App,
+    events: mpsc::Receiver<Event>,
+}
+
+fn app_with(dir: &Path, name: &str, text: &str) -> Rig {
     let path = dir.join(name);
     fs::write(&path, text).unwrap();
-    App::new(initial_state(&[path]).unwrap())
+    let (tx, events) = mpsc::channel(256);
+    let app = App::new(initial_state(&[path]).unwrap()).with_events(tx);
+    Rig { app, events }
 }
 
-fn draw(app: &mut App) -> Terminal<TestBackend> {
+/// Draws, then keeps taking the worker's answers and drawing until it owes
+/// none, and returns the last frame.
+fn draw(rig: &mut Rig) -> Terminal<TestBackend> {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
-    terminal
-        .draw(|frame| prepare_and_render(frame, app.state_mut()))
-        .unwrap();
-    terminal
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        terminal
+            .draw(|frame| prepare_and_render(frame, rig.app.state_mut()))
+            .unwrap();
+        if !rig.app.state().workspace().highlights_pending() {
+            return terminal;
+        }
+        loop {
+            assert!(
+                Instant::now() < deadline,
+                "the syntax worker never answered"
+            );
+            match rig.events.try_recv() {
+                Ok(event @ Event::Highlighted(_)) => {
+                    rig.app.handle_event(event);
+                    break;
+                }
+                Ok(_) => {}
+                Err(_) => std::thread::sleep(Duration::from_millis(2)),
+            }
+        }
+    }
 }
 
-fn key(app: &mut App, code: KeyCode, modifiers: KeyModifiers) {
-    app.handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
+fn key(rig: &mut Rig, code: KeyCode, modifiers: KeyModifiers) {
+    rig.app
+        .handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
 }
 
 /// The color of the first character of the first `text` found on screen.
@@ -51,9 +85,9 @@ fn color_of(terminal: &Terminal<TestBackend>, text: &str) -> Option<Color> {
 #[test]
 fn rust_keywords_are_drawn_in_the_theme_color() {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    let mut rig = app_with(dir.path(), "a.rs", "fn main() {}\n");
 
-    let terminal = draw(&mut app);
+    let terminal = draw(&mut rig);
 
     assert_eq!(color_of(&terminal, "fn main"), Some(KEYWORD));
 }
@@ -61,9 +95,9 @@ fn rust_keywords_are_drawn_in_the_theme_color() {
 #[test]
 fn text_in_a_file_of_no_known_language_stays_plain() {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with(dir.path(), "a.txt", "fn main() {}\n");
+    let mut rig = app_with(dir.path(), "a.txt", "fn main() {}\n");
 
-    let terminal = draw(&mut app);
+    let terminal = draw(&mut rig);
 
     assert_ne!(color_of(&terminal, "fn main"), Some(KEYWORD));
 }
@@ -71,13 +105,13 @@ fn text_in_a_file_of_no_known_language_stays_plain() {
 #[test]
 fn typing_recolors_the_new_text() {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with(dir.path(), "a.rs", "\n");
-    draw(&mut app);
+    let mut rig = app_with(dir.path(), "a.rs", "\n");
+    draw(&mut rig);
 
     for c in "fn".chars() {
-        key(&mut app, KeyCode::Char(c), KeyModifiers::NONE);
+        key(&mut rig, KeyCode::Char(c), KeyModifiers::NONE);
     }
-    let terminal = draw(&mut app);
+    let terminal = draw(&mut rig);
 
     assert_eq!(color_of(&terminal, "fn"), Some(KEYWORD));
 }
@@ -85,11 +119,11 @@ fn typing_recolors_the_new_text() {
 #[test]
 fn a_selection_keeps_the_syntax_color_of_its_text() {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with(dir.path(), "a.rs", "fn main() {}\n");
-    draw(&mut app);
+    let mut rig = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut rig);
 
-    key(&mut app, KeyCode::Char('a'), KeyModifiers::CONTROL);
-    let terminal = draw(&mut app);
+    key(&mut rig, KeyCode::Char('a'), KeyModifiers::CONTROL);
+    let terminal = draw(&mut rig);
 
     assert_eq!(color_of(&terminal, "fn main"), Some(KEYWORD));
 }
@@ -98,11 +132,11 @@ fn a_selection_keeps_the_syntax_color_of_its_text() {
 fn text_scrolled_into_view_is_colored_too() {
     let dir = tempfile::tempdir().unwrap();
     let text: String = (0..300).map(|n| format!("fn f{n}() {{}}\n")).collect();
-    let mut app = app_with(dir.path(), "a.rs", &text);
-    draw(&mut app);
+    let mut rig = app_with(dir.path(), "a.rs", &text);
+    draw(&mut rig);
 
-    key(&mut app, KeyCode::End, KeyModifiers::CONTROL);
-    let terminal = draw(&mut app);
+    key(&mut rig, KeyCode::End, KeyModifiers::CONTROL);
+    let terminal = draw(&mut rig);
 
     assert_eq!(color_of(&terminal, "fn f299"), Some(KEYWORD));
 }
@@ -111,14 +145,14 @@ fn text_scrolled_into_view_is_colored_too() {
 fn a_second_pane_scrolled_elsewhere_is_colored_as_well() {
     let dir = tempfile::tempdir().unwrap();
     let text: String = (0..300).map(|n| format!("fn f{n}() {{}}\n")).collect();
-    let mut app = app_with(dir.path(), "a.rs", &text);
-    draw(&mut app);
+    let mut rig = app_with(dir.path(), "a.rs", &text);
+    draw(&mut rig);
     // Split, then send the focused (new) pane to the end of the file.
-    key(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
-    key(&mut app, KeyCode::Right, KeyModifiers::NONE);
-    key(&mut app, KeyCode::End, KeyModifiers::CONTROL);
+    key(&mut rig, KeyCode::Char('k'), KeyModifiers::CONTROL);
+    key(&mut rig, KeyCode::Right, KeyModifiers::NONE);
+    key(&mut rig, KeyCode::End, KeyModifiers::CONTROL);
 
-    let terminal = draw(&mut app);
+    let terminal = draw(&mut rig);
 
     assert_eq!(color_of(&terminal, "fn f0()"), Some(KEYWORD), "left pane");
     assert_eq!(color_of(&terminal, "fn f299"), Some(KEYWORD), "right pane");
@@ -127,15 +161,15 @@ fn a_second_pane_scrolled_elsewhere_is_colored_as_well() {
 #[test]
 fn typing_reparses_from_the_previous_tree_instead_of_from_scratch() {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with(dir.path(), "a.rs", "fn main() {}\n");
-    draw(&mut app);
+    let mut rig = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut rig);
 
     for c in "abc".chars() {
-        key(&mut app, KeyCode::Char(c), KeyModifiers::NONE);
-        draw(&mut app);
+        key(&mut rig, KeyCode::Char(c), KeyModifiers::NONE);
+        draw(&mut rig);
     }
 
-    let parses = app.state().workspace().active_parses();
+    let parses = rig.app.state().workspace().active_parses();
     assert_eq!(parses.full, 1, "only the first parse is from scratch");
     assert_eq!(parses.incremental, 3);
 }
@@ -143,14 +177,53 @@ fn typing_reparses_from_the_previous_tree_instead_of_from_scratch() {
 #[test]
 fn undo_is_reparsed_incrementally_too() {
     let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with(dir.path(), "a.rs", "fn main() {}\n");
-    draw(&mut app);
-    key(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
-    draw(&mut app);
+    let mut rig = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut rig);
+    key(&mut rig, KeyCode::Char('x'), KeyModifiers::NONE);
+    draw(&mut rig);
 
-    key(&mut app, KeyCode::Char('z'), KeyModifiers::CONTROL);
-    let terminal = draw(&mut app);
+    key(&mut rig, KeyCode::Char('z'), KeyModifiers::CONTROL);
+    let terminal = draw(&mut rig);
 
-    assert_eq!(app.state().workspace().active_parses().full, 1);
+    assert_eq!(rig.app.state().workspace().active_parses().full, 1);
     assert_eq!(color_of(&terminal, "fn main"), Some(KEYWORD));
+}
+
+/// One frame, without waiting for the syntax worker.
+fn draw_now(rig: &mut Rig) -> Terminal<TestBackend> {
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, rig.app.state_mut()))
+        .unwrap();
+    terminal
+}
+
+#[test]
+fn colors_stay_on_their_text_while_the_worker_is_still_parsing() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut rig = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut rig);
+
+    // Indent the line. The worker's answer is never taken in this test, so
+    // what is on screen comes only from moving the old spans along.
+    key(&mut rig, KeyCode::Home, KeyModifiers::NONE);
+    for _ in 0..4 {
+        key(&mut rig, KeyCode::Char(' '), KeyModifiers::NONE);
+    }
+    let terminal = draw_now(&mut rig);
+
+    assert_eq!(color_of(&terminal, "fn main"), Some(KEYWORD));
+}
+
+#[test]
+fn a_document_that_is_closed_is_forgotten_by_the_worker() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut rig = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut rig);
+
+    key(&mut rig, KeyCode::Char('w'), KeyModifiers::CONTROL);
+    let terminal = draw(&mut rig);
+
+    assert!(!rig.app.state().workspace().highlights_pending());
+    drop(terminal);
 }

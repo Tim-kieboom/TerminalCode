@@ -2,7 +2,11 @@ use std::cmp::Reverse;
 use std::ops::Range;
 
 use ratatui::style::Style;
-use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, StreamingIterator, Tree};
+use ropey::Rope;
+use ropey::iter::Chunks;
+use tree_sitter::{
+    InputEdit, Node, Parser, Point, Query, QueryCursor, StreamingIterator, TextProvider, Tree,
+};
 
 use super::{Language, SyntaxError};
 use crate::buffer::EditInfo;
@@ -72,8 +76,8 @@ impl Highlighter {
     }
 
     /// Parses `text` from scratch, replacing the tree of any earlier text.
-    pub(crate) fn parse(&mut self, text: &str) -> Result<(), SyntaxError> {
-        self.tree = self.parser.parse(text, None);
+    pub(crate) fn parse(&mut self, text: &Rope) -> Result<(), SyntaxError> {
+        self.tree = parse_rope(&mut self.parser, text, None);
         self.parsed_or_error()
     }
 
@@ -109,23 +113,23 @@ impl Highlighter {
     /// [`Highlighter::edit`]. `text` must be the text those changes lead to; if
     /// the edits do not describe it exactly the tree is wrong, so when in
     /// doubt use [`Highlighter::parse`].
-    pub(crate) fn reparse(&mut self, text: &str) -> Result<(), SyntaxError> {
-        self.tree = self.parser.parse(text, self.tree.as_ref());
+    pub(crate) fn reparse(&mut self, text: &Rope) -> Result<(), SyntaxError> {
+        self.tree = parse_rope(&mut self.parser, text, self.tree.as_ref());
         self.parsed_or_error()
     }
 
     /// The spans inside `range`, for `text`, which must be what was last
     /// parsed. Spans that stick out of the range are cut at its edges. Empty
     /// until `text` has been parsed.
-    pub(crate) fn spans(&self, text: &str, range: Range<usize>) -> Vec<Span> {
+    pub(crate) fn spans(&self, text: &Rope, range: Range<usize>) -> Vec<Span> {
         let Some(tree) = &self.tree else {
             return Vec::new();
         };
-        let range = range.start.min(text.len())..range.end.min(text.len());
+        let range = range.start.min(text.len_bytes())..range.end.min(text.len_bytes());
         let mut cursor = QueryCursor::new();
         cursor.set_byte_range(range.clone());
         let mut found = Vec::new();
-        let mut captures = cursor.captures(&self.query, tree.root_node(), text.as_bytes());
+        let mut captures = cursor.captures(&self.query, tree.root_node(), RopeText(text));
         while let Some((matched, index)) = captures.next() {
             let capture = matched.captures()[*index];
             let Some(style) = self.styles[capture.index as usize] else {
@@ -212,5 +216,31 @@ fn point(at: crate::buffer::Point) -> Point {
     Point {
         row: at.row,
         column: at.column,
+    }
+}
+
+/// Parses a rope without copying it: tree-sitter asks for the text in pieces.
+fn parse_rope(parser: &mut Parser, text: &Rope, old: Option<&Tree>) -> Option<Tree> {
+    let mut chunk_at = |byte: usize, _: Point| -> &[u8] {
+        if byte >= text.len_bytes() {
+            return &[];
+        }
+        let (chunk, start, ..) = text.chunk_at_byte(byte);
+        &chunk.as_bytes()[byte - start..]
+    };
+    parser.parse_with_options(&mut chunk_at, old, None)
+}
+
+/// The text of a node, for the query's text predicates.
+struct RopeText<'a>(&'a Rope);
+
+impl<'a> TextProvider<&'a [u8]> for RopeText<'a> {
+    type I = std::iter::Map<Chunks<'a>, fn(&str) -> &[u8]>;
+
+    fn text(&mut self, node: Node) -> Self::I {
+        self.0
+            .byte_slice(node.byte_range())
+            .chunks()
+            .map(str::as_bytes)
     }
 }

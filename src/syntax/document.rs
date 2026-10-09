@@ -1,39 +1,44 @@
 use std::ops::Range;
 
 use super::mapping::map_spans;
-use super::{Highlighter, Language, Span, SyntaxError};
+#[cfg(test)]
+use super::worker::Parse;
+use super::worker::{Job, Key, Output, SyntaxWorker};
+use super::{Language, Span};
 use crate::buffer::{Buffer, EditInfo};
-use crate::ui::theme::Theme;
 
-/// More edits than this are not kept for the next parse: the tree is parsed
-/// afresh instead, which is cheaper than replaying them anyway.
-const MAX_PENDING_EDITS: usize = 10_000;
+/// More edits than this are not kept: the worker parses afresh instead, which
+/// is cheaper than replaying them anyway.
+const MAX_LOGGED_EDITS: usize = 10_000;
 
-/// What highlights one document: the highlighter for its language, kept in
-/// step with the text, and the spans for the parts of it that are on screen.
-#[derive(Debug, Default)]
+/// A document's side of syntax highlighting: the spans on screen, kept right
+/// while the worker parses, and what it takes to ask the worker for new ones.
+///
+/// The worker is slow compared to typing, so its answer is for text that has
+/// since changed. The document therefore logs every edit made since the
+/// version the spans describe, and moves the spans through them when an
+/// answer arrives, and again whenever an edit comes in.
+#[derive(Debug)]
 pub(crate) struct DocumentSyntax {
-    current: Option<Current>,
+    key: Key,
+    /// The language the worker has been asked to parse this document as.
+    language: Option<Language>,
     /// The language that could not be set up, so it is not retried every frame.
     failed: Option<Language>,
     error: Option<String>,
-}
-
-#[derive(Debug)]
-struct Current {
-    language: Language,
-    highlighter: Highlighter,
-    /// The buffer version the tree was parsed from.
-    parsed: Option<u64>,
-    /// The edits made since `parsed`, in order, as long as every change to the
-    /// text since then is among them.
-    pending: Vec<EditInfo>,
-    /// More edits came than `pending` keeps.
-    overflowed: bool,
-    /// What `spans` was computed for: the buffer version and the ranges.
-    computed: Option<(u64, Vec<Range<usize>>)>,
+    /// The spans for the text as it is now (as far as the edits tell).
     spans: Vec<Span>,
-    /// How often the text was parsed in full and from the previous tree.
+    /// The version the oldest logged edit starts from, or `None` when the log
+    /// does not lead to the buffer's version (nothing asked yet, or a change
+    /// nobody reported).
+    log_base: Option<u64>,
+    /// The edits since `log_base`, in order.
+    log: Vec<EditInfo>,
+    /// The version and ranges the worker was last asked for.
+    submitted: Option<(u64, Vec<Range<usize>>)>,
+    /// Whether the newest question has not been answered yet.
+    #[cfg(test)]
+    awaiting: bool,
     #[cfg(test)]
     parses: Parses,
 }
@@ -43,55 +48,168 @@ struct Current {
 pub(crate) struct Parses {
     pub(crate) full: usize,
     pub(crate) incremental: usize,
+    pub(crate) reused: usize,
 }
 
 impl DocumentSyntax {
-    /// Notes edits made to the document's text, oldest first, so the next
-    /// [`DocumentSyntax::update`] can parse from the previous tree. The spans
-    /// follow along at once, so they never describe text that is gone.
-    pub(crate) fn record_edits(&mut self, edits: &[EditInfo]) {
-        let Some(current) = self.current.as_mut() else {
-            return;
-        };
-        current.record(edits);
+    pub(crate) fn new(key: Key) -> Self {
+        Self {
+            key,
+            language: None,
+            failed: None,
+            error: None,
+            spans: Vec::new(),
+            log_base: None,
+            log: Vec::new(),
+            submitted: None,
+            #[cfg(test)]
+            awaiting: false,
+            #[cfg(test)]
+            parses: Parses::default(),
+        }
     }
 
-    /// Brings the spans up to date for `buffer` and the byte `ranges` to show.
-    /// The language comes from the buffer's path, so a rename that changes the
-    /// extension changes it here. Text that changed is parsed again, from the
-    /// previous tree when every change since is known (see
-    /// [`DocumentSyntax::record_edits`]) and from scratch otherwise.
-    pub(crate) fn update(&mut self, buffer: &Buffer, theme: &Theme, ranges: &[Range<usize>]) {
-        let language = buffer.path().and_then(Language::from_path);
-        if self.current.as_ref().map(|current| current.language) != language {
-            self.current = None;
+    pub(crate) fn key(&self) -> Key {
+        self.key
+    }
+
+    /// Notes edits made to the document's text, oldest first. The spans move
+    /// with them at once, so they never describe text that is gone.
+    pub(crate) fn record_edits(&mut self, edits: &[EditInfo]) {
+        if self.log_base.is_none() {
+            return;
         }
-        let Some(language) = language else {
+        if self.log.len() + edits.len() > MAX_LOGGED_EDITS {
+            self.restart();
+            return;
+        }
+        for edit in edits {
+            map_spans(&mut self.spans, edit);
+        }
+        self.log.extend_from_slice(edits);
+    }
+
+    /// Asks the worker for spans for `buffer` and the byte `ranges` to show,
+    /// if what it was last asked for is not that. The language comes from the
+    /// buffer's path, so a rename that changes the extension changes it here.
+    pub(crate) fn update(
+        &mut self,
+        buffer: &Buffer,
+        ranges: &[Range<usize>],
+        worker: &SyntaxWorker,
+    ) {
+        let language = buffer.path().and_then(Language::from_path);
+        if self.language != language {
+            if self.language.is_some() {
+                worker.forget(self.key);
+            }
+            self.restart();
+            self.language = language;
             self.failed = None;
             self.error = None;
+        }
+        let Some(language) = language else {
             return;
         };
         if self.failed == Some(language) {
             return;
         }
-        if self.current.is_none() {
-            match Current::new(language, theme) {
-                Ok(current) => self.current = Some(current),
-                Err(error) => return self.fail(language, error),
-            }
+
+        let version = buffer.version();
+        let tracked = self
+            .log_base
+            .is_some_and(|base| base + self.log.len() as u64 == version);
+        if !tracked {
+            // A change nobody reported (a reload): what is shown is wrong.
+            self.restart();
+            self.log_base = Some(version);
         }
-        let Some(current) = self.current.as_mut() else {
+        let unchanged = self
+            .submitted
+            .as_ref()
+            .is_some_and(|(sent, wanted)| *sent == version && wanted == ranges);
+        if unchanged {
             return;
+        }
+
+        let (base, edits) = match (&self.submitted, self.log_base) {
+            (Some((sent, _)), Some(log_base)) => {
+                let from = (*sent - log_base) as usize;
+                (Some(*sent), self.log[from..].to_vec())
+            }
+            _ => (None, Vec::new()),
         };
-        if let Err(error) = current.update(buffer, ranges) {
-            self.current = None;
-            self.fail(language, error);
+        worker.submit(Job {
+            key: self.key,
+            language,
+            text: buffer.snapshot(),
+            version,
+            base,
+            edits,
+            ranges: ranges.to_vec(),
+        });
+        self.submitted = Some((version, ranges.to_vec()));
+        #[cfg(test)]
+        {
+            self.awaiting = true;
         }
     }
 
-    fn fail(&mut self, language: Language, error: SyntaxError) {
-        self.failed = Some(language);
-        self.error = Some(error.to_string());
+    /// Takes the worker's answer. An answer for text older than the spans
+    /// already shown, or for text this document no longer has a record of, is
+    /// ignored; any other is moved forward through the edits made since the
+    /// text it describes, and replaces the spans. Returns whether the screen
+    /// needs to be drawn again.
+    pub(crate) fn accept(&mut self, output: Output) -> bool {
+        if let Some(message) = output.failure {
+            self.failed = self.language;
+            self.error = Some(message);
+            self.restart();
+            return true;
+        }
+        let Some(base) = self.log_base else {
+            return false;
+        };
+        let version = output.version;
+        let newest = base + self.log.len() as u64;
+        if version < base || version > newest {
+            return false;
+        }
+        let behind = (version - base) as usize;
+        let mut spans = output.spans;
+        for edit in &self.log[behind..] {
+            map_spans(&mut spans, edit);
+        }
+        self.spans = spans;
+        self.log.drain(..behind);
+        self.log_base = Some(version);
+        #[cfg(test)]
+        {
+            self.awaiting = self
+                .submitted
+                .as_ref()
+                .is_some_and(|(sent, _)| *sent != version);
+        }
+        #[cfg(test)]
+        match output.parse {
+            Parse::Full => self.parses.full += 1,
+            Parse::Incremental => self.parses.incremental += 1,
+            Parse::Reused => self.parses.reused += 1,
+        }
+        true
+    }
+
+    /// Forgets everything about the text: the spans, the log and what the
+    /// worker was asked. The next update asks for everything again.
+    fn restart(&mut self) {
+        #[cfg(test)]
+        {
+            self.awaiting = false;
+        }
+        self.spans.clear();
+        self.log.clear();
+        self.log_base = None;
+        self.submitted = None;
     }
 
     /// Why highlighting could not be set up, once; asking again gives `None`
@@ -100,99 +218,19 @@ impl DocumentSyntax {
         self.error.take()
     }
 
-    /// The spans for the ranges last asked for, in order, not overlapping.
+    /// The spans for the ranges last answered, in order, not overlapping.
     pub(crate) fn spans(&self) -> &[Span] {
-        self.current
-            .as_ref()
-            .map_or(&[][..], |current| &current.spans)
+        &self.spans
+    }
+
+    /// Whether the worker still owes an answer to the newest question.
+    #[cfg(test)]
+    pub(crate) fn is_waiting(&self) -> bool {
+        self.awaiting
     }
 
     #[cfg(test)]
     pub(crate) fn parses(&self) -> Parses {
-        self.current
-            .as_ref()
-            .map(|current| current.parses)
-            .unwrap_or_default()
-    }
-}
-
-impl Current {
-    fn new(language: Language, theme: &Theme) -> Result<Self, SyntaxError> {
-        Ok(Self {
-            language,
-            highlighter: Highlighter::new(language, theme)?,
-            parsed: None,
-            pending: Vec::new(),
-            overflowed: false,
-            computed: None,
-            spans: Vec::new(),
-            #[cfg(test)]
-            parses: Parses::default(),
-        })
-    }
-
-    fn record(&mut self, edits: &[EditInfo]) {
-        if self.parsed.is_none() || self.overflowed {
-            return;
-        }
-        for edit in edits {
-            map_spans(&mut self.spans, edit);
-        }
-        if self.pending.len() + edits.len() > MAX_PENDING_EDITS {
-            self.pending.clear();
-            self.overflowed = true;
-            return;
-        }
-        self.pending.extend_from_slice(edits);
-    }
-
-    fn update(&mut self, buffer: &Buffer, ranges: &[Range<usize>]) -> Result<(), SyntaxError> {
-        let version = buffer.version();
-        let up_to_date = self
-            .computed
-            .as_ref()
-            .is_some_and(|(computed, wanted)| *computed == version && wanted == ranges);
-        if up_to_date {
-            return Ok(());
-        }
-        let text = buffer.text();
-        if self.parsed != Some(version) {
-            self.parse(&text, version)?;
-        }
-        self.spans = ranges
-            .iter()
-            .flat_map(|range| self.highlighter.spans(&text, range.clone()))
-            .collect();
-        self.computed = Some((version, ranges.to_vec()));
-        Ok(())
-    }
-
-    /// Parses `text`, the text of buffer `version`. Every edit applied
-    /// changed the version by one, so the recorded ones lead from the parsed
-    /// version to this one exactly when there are as many as the versions
-    /// between; anything else (a reload, say) means they are not all known.
-    fn parse(&mut self, text: &str, version: u64) -> Result<(), SyntaxError> {
-        let known = !self.overflowed
-            && self
-                .parsed
-                .is_some_and(|parsed| parsed + self.pending.len() as u64 == version);
-        if known {
-            self.highlighter.edit(&self.pending);
-            self.highlighter.reparse(text)?;
-            #[cfg(test)]
-            {
-                self.parses.incremental += 1;
-            }
-        } else {
-            self.highlighter.parse(text)?;
-            #[cfg(test)]
-            {
-                self.parses.full += 1;
-            }
-        }
-        self.parsed = Some(version);
-        self.pending.clear();
-        self.overflowed = false;
-        Ok(())
+        self.parses
     }
 }
