@@ -1,10 +1,12 @@
 pub mod editor;
 pub mod explorer;
+pub mod find;
 pub mod finder;
 pub mod notifications;
 pub mod palette;
 pub mod quit_prompt;
 mod render;
+pub mod search;
 pub mod status_view;
 pub mod workspace;
 pub use render::prepare_and_render;

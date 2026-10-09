@@ -3,6 +3,7 @@ pub mod mouse;
 use std::path::PathBuf;
 
 use crate::components::PluginViewId;
+use crate::components::search::Hit;
 use crate::ui::view::ViewNode;
 
 /// Non-input events delivered to the app loop (PTY output, file watcher,
@@ -25,6 +26,17 @@ pub(crate) enum Event {
     FinderDone {
         scan: u64,
         unreadable: usize,
+    },
+    /// Matching lines the project search found.
+    SearchBatch {
+        search: u64,
+        hits: Vec<Hit>,
+    },
+    /// The project search is over.
+    SearchDone {
+        search: u64,
+        files: usize,
+        truncated: bool,
     },
     /// The file watcher reported a problem.
     WatchFailed(String),

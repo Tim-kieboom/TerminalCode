@@ -159,6 +159,20 @@ used `anyhow` everywhere instead of typed errors.
   or reopened are ignored; dropping the finder's `ScanHandle` stops the walk, and the bounded event channel slows
   the walk down if the UI falls behind. `ui::fuzzy::Query` is the shared matcher (lowercased once per query).
   Measured at 200,000 files: about 10 ms per keystroke in release builds.
+- Project search (`components/search`) is the second background worker. `worker::start` compiles the pattern up front
+  (so an invalid regex is an immediate error, not a dead search), then runs on a std thread: it sleeps 150 ms and
+  quits if its `SearchHandle` was dropped meanwhile, which debounces typing without a timer in the app loop; it
+  walks with the same rules as the explorer, searches each file with `grep-searcher` (binary files skipped), and
+  sends `SearchBatch` / `SearchDone` tagged with a search number. A `Hit` is shaped for the list (indent dropped,
+  long lines cut around the match, column in graphemes). It reads files from disk, so unsaved edits are not
+  searched. 17,740 files in the cargo registry: a miss takes about 0.2 s after the debounce, 2,860 hits about 1 s,
+  streaming.
+- Find in the open file (`components/find`) is a modal like the others, but it reserves a row: while it is open
+  `Workspace::set_find_bar(true)` makes the focused pane's editor area one row shorter and the bar draws in the
+  row left, so the scrolling logic keeps the current match above it without knowing about the bar. Matches are
+  found by the `regex` crate line by line (the query is escaped unless regex is on), stored as grapheme columns,
+  and drawn by the editor from `Find::matches_on_line`; the current match is the selection. Matches are found
+  again when the buffer version changed (an outside reload) at the next key.
 - Outside changes: `watcher::FsWatcher` (notify + debouncer) watches the explorer's open directories and the directories
   of open files, one directory at a time, and sends `Event::FilesChanged`. A `Buffer` remembers a hash of what the
   file held when it last read or wrote it (`Disk`), so it can tell its own saves from someone else's changes and a

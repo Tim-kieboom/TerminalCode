@@ -177,6 +177,21 @@ impl Editor {
         Ok(())
     }
 
+    /// Puts the cursor at `position`, or the nearest place that exists.
+    pub(crate) fn go_to(&mut self, position: Position) {
+        self.view.last_edit = None;
+        let position = self.buffer.clamp_position(position);
+        self.view.selections = Selections::single(Selection::cursor(position));
+    }
+
+    /// Selects from `anchor` to `head`, or the nearest places that exist.
+    pub(crate) fn select_range(&mut self, anchor: Position, head: Position) {
+        self.view.last_edit = None;
+        let anchor = self.buffer.clamp_position(anchor);
+        let head = self.buffer.clamp_position(head);
+        self.view.selections = Selections::single(Selection::new(anchor, head));
+    }
+
     /// Selects the whole document.
     pub(crate) fn select_all(&mut self) -> Result<(), BufferError> {
         self.view.last_edit = None;

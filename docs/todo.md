@@ -58,7 +58,10 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Create / rename / delete / move
 - [x] Fuzzy file finder (`ctrl+p`, palette: "File: Go to File"): a thread walks the project with the explorer's rules (gitignore honored, `.git` skipped, other hidden files kept, links to files listed, links to directories not followed) and sends batches over the event channel, so the finder opens at once and ranks what has arrived while you type; a name match beats a scattered path match, shorter paths win ties; only the best 200 are kept; a longer query only re-ranks the files that matched the shorter one; enter opens the file and the editor gets the keyboard; the footer counts files and says "indexing..." until the walk is done; closing the finder stops the walk
 - [ ] Finder follow-ups: recently opened files first, highlight the matched characters, open in a split, `file:line` queries, a fallback scan when the project has more than ~1M files
-- [ ] Project-wide text search with results list
+- [x] Project-wide text search (`alt+f`, palette: "Search: Find in Project"; `ctrl+shift+f` is kitty's and Windows Terminal's): literal by default, `alt+c` toggles match case (ignored by default), `alt+r` toggles regex; searches as you type (a search waits 150 ms and is dropped if a newer one replaced it); one row per matching line, `path:line  text` with the match marked, in path order, streaming in; up/down/pageup/pagedown choose, enter opens the file with the cursor on the match and the editor gets the keyboard; stops at 5000 results (at most 200 per file) and says so; an invalid regex is explained in the footer; ignored files, `.git` and binary files are skipped; reopening restores the last query and options; uses `grep-searcher` + `grep-regex` (no `rg` needed)
+- [x] Find in the open file (`ctrl+f`, palette: "Search: Find in File"): a bar takes the bottom row of the focused pane, every match is highlighted (`editor.match` theme slot) and the current one is selected, the bar shows "3 of 12" (or "no results", or why a regex is invalid); typing searches from where the cursor was, enter/down/`f3` go to the next match and shift+enter/up/shift+`f3` to the previous (both wrap), `alt+c` toggles match case and `alt+r` regex (same meaning as the project search; literal and case-insensitive by default), esc closes and leaves the match selected; a selected word seeds the query, otherwise the last query comes back; capped at 10,000 matches
+- [ ] Find follow-ups: replace (and replace all), whole-word toggle, multi-line patterns, search within the selection, keep the bar open while editing and clicking in the text, the match count of other panes showing the same file, a scrollbar-style overview of matches, `ctrl+g` go to line
+- [ ] Search follow-ups: replace, search only the open file/folder/selection, include/exclude globs, search unsaved buffers (it reads the disk), keep the results open while editing (a results pane), group results under file headers, next/previous result without reopening, whole-word toggle, multi-line patterns
 
 ## M5 — Syntax highlighting
 - [ ] tree-sitter integration, grammar bundle (starter languages)
@@ -104,5 +107,5 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 
 ## Open questions (resolve before the milestone that needs them)
 - [ ] Clipboard strategy details (M3)
-- [ ] Project search implementation: crate vs `rg` (M4)
+- [x] Project search implementation: the `grep-searcher` crates, no `rg` dependency (M4)
 - [ ] Mouse scope (M8)

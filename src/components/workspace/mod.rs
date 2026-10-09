@@ -89,6 +89,8 @@ struct Pane {
     tab_bar: Rect,
     tab_rects: Vec<Rect>,
     editor_area: Rect,
+    /// The row of the find bar; empty when there is none.
+    find_bar: Rect,
 }
 
 #[derive(Debug)]
@@ -105,6 +107,8 @@ pub(crate) struct Workspace {
     confirm_overwrite: Option<DocumentId>,
     /// Changes whenever a document is opened or closed.
     docs_version: u64,
+    /// Whether the focused pane has a row reserved for the find bar.
+    find_bar: bool,
     /// Stands in for the active editor while the only pane has no tabs.
     empty: (Buffer, ViewState),
 }
@@ -128,6 +132,7 @@ impl Workspace {
             confirm_close: None,
             confirm_overwrite: None,
             docs_version: 0,
+            find_bar: false,
             empty: (Buffer::default(), ViewState::default()),
         };
         let (view, buffer) = editor.into_parts();
@@ -143,6 +148,12 @@ impl Workspace {
             return EditorRef::new(&self.empty.0, &self.empty.1);
         };
         EditorRef::new(&self.documents[&tab.document].buffer, &tab.view)
+    }
+
+    /// Reserves (or gives back) a row at the bottom of the focused pane for
+    /// the find bar.
+    pub(crate) fn set_find_bar(&mut self, shown: bool) {
+        self.find_bar = shown;
     }
 
     /// Whether the focused pane has a tab. After the last tab is closed the
@@ -640,6 +651,7 @@ impl Pane {
             tab_bar: Rect::default(),
             tab_rects: Vec::new(),
             editor_area: Rect::default(),
+            find_bar: Rect::default(),
         }
     }
 }

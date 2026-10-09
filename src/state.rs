@@ -4,10 +4,12 @@ use std::time::Instant;
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
+use crate::components::find::Find;
 use crate::components::finder::Finder;
 use crate::components::notifications::{Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
+use crate::components::search::Search;
 use crate::components::status_view::StatusBar;
 use crate::components::workspace::Workspace;
 use crate::ui::layout::LayoutTree;
@@ -34,6 +36,8 @@ pub(crate) struct AppState {
     quit_prompt: Option<QuitPrompt>,
     palette: Option<Palette>,
     finder: Option<Finder>,
+    search: Option<Search>,
+    find: Option<Find>,
 }
 
 #[derive(Debug, Default)]
@@ -176,6 +180,36 @@ impl AppState {
 
     pub(crate) fn take_quit_prompt(&mut self) -> Option<QuitPrompt> {
         self.quit_prompt.take()
+    }
+
+    /// Find in the open file, while its bar is open. It takes all keys.
+    pub(crate) fn find(&self) -> Option<&Find> {
+        self.find.as_ref()
+    }
+
+    pub(crate) fn open_find(&mut self, find: Find) {
+        self.find = Some(find);
+    }
+
+    pub(crate) fn take_find(&mut self) -> Option<Find> {
+        self.find.take()
+    }
+
+    /// The project search, while it is open. It takes all keys.
+    pub(crate) fn search(&self) -> Option<&Search> {
+        self.search.as_ref()
+    }
+
+    pub(crate) fn search_mut(&mut self) -> Option<&mut Search> {
+        self.search.as_mut()
+    }
+
+    pub(crate) fn open_search(&mut self, search: Search) {
+        self.search = Some(search);
+    }
+
+    pub(crate) fn take_search(&mut self) -> Option<Search> {
+        self.search.take()
     }
 
     /// The file finder, while it is open. It takes all keys.

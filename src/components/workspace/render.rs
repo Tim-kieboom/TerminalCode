@@ -58,7 +58,11 @@ impl Render for Workspace {
                 pane.editor_area,
                 &placement.frame,
                 focused,
+                state.find().filter(|_| focused),
             );
+            if let Some(find) = state.find().filter(|_| focused) {
+                find.render(frame, theme, pane.find_bar);
+            }
         }
     }
 }
@@ -71,16 +75,31 @@ impl Workspace {
             .map(|tab| format!(" {} ", display_name(&self.documents[&tab.document].buffer)))
             .collect();
 
+        let reserve_find_bar = self.find_bar && self.panes[index].id == self.focused;
         let pane = &mut self.panes[index];
         pane.area = area;
         pane.tab_bar = Rect {
             height: area.height.min(1),
             ..area
         };
-        pane.editor_area = Rect {
+        let body = Rect {
             y: area.y + pane.tab_bar.height,
             height: area.height - pane.tab_bar.height,
             ..area
+        };
+        (pane.editor_area, pane.find_bar) = match reserve_find_bar && body.height > 1 {
+            true => (
+                Rect {
+                    height: body.height - 1,
+                    ..body
+                },
+                Rect {
+                    y: body.bottom() - 1,
+                    height: 1,
+                    ..body
+                },
+            ),
+            false => (body, Rect::default()),
         };
         pane.tab_rects = tab_rects(&labels, pane.active, pane.tab_bar);
 

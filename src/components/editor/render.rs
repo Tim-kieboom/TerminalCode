@@ -13,6 +13,7 @@ use ratatui::widgets::Paragraph;
 use crate::buffer::{Buffer, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
+use crate::components::find::Find;
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 
@@ -38,6 +39,7 @@ pub(crate) fn draw(
     area: Rect,
     pane_frame: &PaneFrame,
     focused: bool,
+    find: Option<&Find>,
 ) {
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
@@ -46,7 +48,7 @@ pub(crate) fn draw(
     frame.render_widget(block, area);
 
     let geometry = Geometry::new(inner, buffer.len_lines());
-    draw_lines(frame, theme, buffer, view, &geometry);
+    draw_lines(frame, theme, buffer, view, find, &geometry);
     if focused {
         place_cursor(frame, buffer, view, &geometry);
     }
@@ -94,6 +96,7 @@ fn draw_lines(
     theme: &Theme,
     buffer: &Buffer,
     view: &ViewState,
+    find: Option<&Find>,
     geometry: &Geometry,
 ) {
     let scroll = view.scroll();
@@ -122,11 +125,19 @@ fn draw_lines(
         let selected = selected_columns(selection, line, buffer.line_len(line).unwrap_or(0));
 
         let selection_style = theme.style("editor.selection");
+        let match_style = theme.style("editor.match");
+        let found = find.map_or(&[][..], |find| find.matches_on_line(line));
         let mut spans: Vec<Span> = cells
             .into_iter()
             .map(|cell| {
                 let style = match &selected {
                     Some((range, _)) if range.contains(&cell.grapheme) => selection_style,
+                    _ if found
+                        .iter()
+                        .any(|m| (m.start..m.end).contains(&cell.grapheme)) =>
+                    {
+                        match_style
+                    }
                     _ => Style::default(),
                 };
                 Span::styled(cell.text, style)

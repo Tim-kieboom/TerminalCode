@@ -94,3 +94,19 @@ text = "dark_gray"
 
 ["explorer.guide"]
 text = "#2f2c37"
+
+["search.match"]
+text = "yellow"
+modifiers = ["bold"]
+
+["editor.match"]
+text = "black"
+background = "yellow"
+
+["find.bar"]
+text = "#b9b9bd"
+background = "#171725"
+
+["find.hint"]
+text = "dark_gray"
+background = "#171725"

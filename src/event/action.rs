@@ -18,6 +18,10 @@ pub(crate) enum Action {
     FocusExplorer,
     /// Opens the file finder.
     FindFile,
+    /// Opens the project search.
+    FindInProject,
+    /// Opens the find bar for the open file.
+    FindInFile,
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -74,6 +78,7 @@ impl Action {
                 | Self::CommandPalette
                 | Self::FocusExplorer
                 | Self::FindFile
+                | Self::FindInProject
                 | Self::Explorer(_)
                 | Self::ToggleMouse
                 | Self::NewFile
@@ -100,6 +105,8 @@ impl Action {
             Self::CommandPalette => "Application: Command Palette",
             Self::FocusExplorer => "Explorer: Focus",
             Self::FindFile => "File: Go to File",
+            Self::FindInProject => "Search: Find in Project",
+            Self::FindInFile => "Search: Find in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
@@ -144,6 +151,8 @@ impl Action {
         vec![
             Self::CommandPalette,
             Self::FindFile,
+            Self::FindInProject,
+            Self::FindInFile,
             Self::FocusExplorer,
             Self::Explorer(ExplorerCommand::Refresh),
             Self::Save,

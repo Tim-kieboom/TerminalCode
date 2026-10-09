@@ -21,6 +21,10 @@ base64 = "0.23.1"
 terminal-colorsaurus = "1.0.3"
 ignore = "0.4.33"
 notify-debouncer-mini = "0.7.0"
+grep-searcher = "0.1.17"
+grep-regex = "0.1.14"
+grep-matcher = "0.1.9"
+regex = "1.13.1"
 
 [dev-dependencies]
 proptest = "1.11.0"

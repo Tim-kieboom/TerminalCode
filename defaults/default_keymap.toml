@@ -4,7 +4,7 @@
 #          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
 # context: "global" (default), "editor" or "explorer". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
-# Actions: "quit", "command_palette", "find_file", "save", "undo", "redo", "insert_newline", "delete_backward",
+# Actions: "quit", "command_palette", "find_file", "find_in_project", "find_in_file", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
@@ -409,3 +409,14 @@ action = { explorer = "refresh" }
 [[binding]]
 keys = "ctrl+p"
 action = "find_file"
+
+# Project search (alt+f: ctrl+shift+f belongs to kitty and Windows Terminal)
+[[binding]]
+keys = "alt+f"
+action = "find_in_project"
+
+# Find in the open file
+[[binding]]
+keys = "ctrl+f"
+context = "editor"
+action = "find_in_file"

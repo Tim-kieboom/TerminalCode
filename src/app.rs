@@ -12,9 +12,11 @@ use tokio::time::{Instant, sleep_until};
 
 use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components::explorer::ExplorerCommand;
+use crate::components::find::{self, Find};
 use crate::components::finder::{self, Finder};
 use crate::components::palette::{self, Entry, Palette};
 use crate::components::quit_prompt::{self, QuitPrompt};
+use crate::components::search::{self, Options as SearchOptions, Search};
 use crate::components::workspace::{CloseResult, DiskEvent, DocumentId, SaveOutcome, canonical};
 use crate::components::{self, ComponentKind};
 use crate::error::{IdeError, IdeResult};
@@ -122,6 +124,11 @@ pub(crate) struct App {
     events: Option<mpsc::Sender<Event>>,
     /// Numbers the file finder's walks so a stale walk's files are ignored.
     scans_started: u64,
+    /// The last project search, restored when the search is opened again.
+    last_search: (String, SearchOptions),
+    /// The last find in a file, restored when the find bar is opened again.
+    last_find: (String, SearchOptions),
+    searches_started: u64,
 }
 
 /// Everything that can wake the app loop.
@@ -182,6 +189,9 @@ impl App {
             watch_failure_shown: false,
             events: None,
             scans_started: 0,
+            last_search: (String::new(), SearchOptions::default()),
+            last_find: (String::new(), SearchOptions::default()),
+            searches_started: 0,
             flow: Flow::Continue,
             needs_redraw: true,
         }
@@ -320,6 +330,22 @@ impl App {
                     self.needs_redraw = true;
                 }
             }
+            Event::SearchBatch { search, hits } => {
+                if let Some(open) = self.state.search_mut() {
+                    open.add_hits(search, hits);
+                    self.needs_redraw = true;
+                }
+            }
+            Event::SearchDone {
+                search,
+                files,
+                truncated,
+            } => {
+                if let Some(open) = self.state.search_mut() {
+                    open.finish(search, files, truncated);
+                    self.needs_redraw = true;
+                }
+            }
             Event::WatchFailed(message) => {
                 self.state.notify_error(format!("file watcher: {message}"));
                 self.needs_redraw = true;
@@ -377,6 +403,14 @@ impl App {
         }
         if self.state.finder().is_some() {
             self.handle_finder_key(key);
+            return;
+        }
+        if self.state.search().is_some() {
+            self.handle_search_key(key);
+            return;
+        }
+        if self.state.find().is_some() {
+            self.handle_find_key(key);
             return;
         }
         if self.state.quit_prompt().is_some() {
@@ -452,6 +486,8 @@ impl App {
             Action::Quit => self.quit(),
             Action::CommandPalette => self.open_palette(),
             Action::FindFile => self.open_finder(),
+            Action::FindInProject => self.open_search(),
+            Action::FindInFile => self.open_find(),
             Action::FocusExplorer => self.toggle_explorer_focus(),
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Save => self.save()?,
@@ -645,6 +681,160 @@ impl App {
         self.state.quit_prompt().is_some()
             || self.state.palette().is_some()
             || self.state.finder().is_some()
+            || self.state.search().is_some()
+            || self.state.find().is_some()
+    }
+
+    /// Opens the find bar for the open file. A selected word becomes the query;
+    /// otherwise the last one is used. The first match from the cursor is
+    /// selected.
+    fn open_find(&mut self) {
+        let (query, origin) = {
+            let editor = self.state.editor();
+            let selection = *editor.selections().primary();
+            let seeded = Find::seed(editor.buffer(), selection.start(), selection.end());
+            (
+                seeded.unwrap_or_else(|| self.last_find.0.clone()),
+                selection.start(),
+            )
+        };
+        let find = Find::open(
+            self.state.editor().buffer(),
+            origin,
+            query,
+            self.last_find.1,
+        );
+        self.state.workspace_mut().set_find_bar(true);
+        self.select_found(&find);
+        self.last_find = (find.query().to_owned(), find.options());
+        self.state.open_find(find);
+    }
+
+    fn handle_find_key(&mut self, key: KeyEvent) {
+        let Some(command) = find::Command::from_key(key) else {
+            return;
+        };
+        let Some(mut find) = self.state.take_find() else {
+            return;
+        };
+        find.refresh(self.state.editor().buffer());
+        match command {
+            find::Command::Insert(c) => find.insert(self.state.editor().buffer(), c),
+            find::Command::Backspace => find.backspace(self.state.editor().buffer()),
+            find::Command::ClearQuery => find.clear_query(self.state.editor().buffer()),
+            find::Command::ToggleCase => find.toggle_case(self.state.editor().buffer()),
+            find::Command::ToggleRegex => find.toggle_regex(self.state.editor().buffer()),
+            find::Command::Next => find.next(),
+            find::Command::Previous => find.previous(),
+            find::Command::Close => {
+                self.last_find = (find.query().to_owned(), find.options());
+                self.state.workspace_mut().set_find_bar(false);
+                self.needs_redraw = true;
+                return;
+            }
+        }
+        self.select_found(&find);
+        self.last_find = (find.query().to_owned(), find.options());
+        self.state.open_find(find);
+        self.needs_redraw = true;
+    }
+
+    /// Selects the match the find bar is on, so it shows and the cursor is there.
+    fn select_found(&mut self, find: &Find) {
+        let Some(found) = find.current() else {
+            return;
+        };
+        self.state
+            .edit(|editor| editor.select_range(found.start_position(), found.end_position()));
+    }
+
+    /// The project: the explorer's root, else the working directory.
+    fn project_root(&self) -> std::path::PathBuf {
+        match self.state.explorer().root_path() {
+            Some(root) => root.to_path_buf(),
+            None => std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        }
+    }
+
+    /// Opens the project search with the last query and options, and runs it.
+    fn open_search(&mut self) {
+        if self.events.is_none() {
+            self.state
+                .notify_error("the project search needs the event loop, which is not running");
+            return;
+        }
+        let (query, options) = self.last_search.clone();
+        let mut search = Search::new(self.project_root(), query, options);
+        self.restart_search(&mut search);
+        self.state.open_search(search);
+    }
+
+    /// Stops the running search and starts one for what is typed now.
+    fn restart_search(&mut self, search: &mut Search) {
+        if search.query().is_empty() {
+            search.idle();
+            return;
+        }
+        let Some(events) = self.events.clone() else {
+            search.invalid("no event loop".to_owned());
+            return;
+        };
+        self.searches_started += 1;
+        let id = self.searches_started;
+        let root = search.root().to_path_buf();
+        match search::start_search(root, id, search.query(), search.options(), events) {
+            Ok(handle) => search.begin(id, handle),
+            Err(error) => search.invalid(error.to_string()),
+        }
+    }
+
+    fn handle_search_key(&mut self, key: KeyEvent) {
+        let Some(command) = search::Command::from_key(key) else {
+            return;
+        };
+        let Some(mut search) = self.state.take_search() else {
+            return;
+        };
+        let mut keep_open = true;
+        let mut changed = true;
+        let mut chosen = None;
+        match command {
+            search::Command::Insert(c) => search.insert(c),
+            search::Command::Backspace => search.backspace(),
+            search::Command::ClearQuery => search.clear_query(),
+            search::Command::ToggleCase => search.toggle_case(),
+            search::Command::ToggleRegex => search.toggle_regex(),
+            search::Command::Previous => (changed, _) = (false, search.select_previous()),
+            search::Command::Next => (changed, _) = (false, search.select_next()),
+            search::Command::PageUp => (changed, _) = (false, search.page_up()),
+            search::Command::PageDown => (changed, _) = (false, search.page_down()),
+            search::Command::Cancel => (changed, keep_open) = (false, false),
+            search::Command::Open => {
+                changed = false;
+                chosen = search.selected_hit().cloned();
+                keep_open = chosen.is_none();
+            }
+        }
+        if changed {
+            self.restart_search(&mut search);
+        }
+        self.last_search = (search.query().to_owned(), search.options());
+        let root = search.root().to_path_buf();
+        if keep_open {
+            self.state.open_search(search);
+        }
+        self.needs_redraw = true;
+        let Some(hit) = chosen else {
+            return;
+        };
+        // The editor gets the keyboard, with the cursor at the match.
+        self.state.set_focus(Focus::Editor);
+        let target = crate::buffer::Position::new(hit.line, hit.column);
+        let opened = self.state.workspace_mut().open_path(&root.join(&hit.path));
+        match opened {
+            Ok(()) => self.state.edit(|editor| editor.go_to(target)),
+            Err(error) => self.state.notify_error(error.to_string()),
+        }
     }
 
     /// Opens the file finder on the project and starts the walk that feeds it.
@@ -654,10 +844,7 @@ impl App {
                 .notify_error("the file finder needs the event loop, which is not running");
             return;
         };
-        let root = match self.state.explorer().root_path() {
-            Some(root) => root.to_path_buf(),
-            None => std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        };
+        let root = self.project_root();
         self.scans_started += 1;
         let scan = self.scans_started;
         let handle = finder::start_scan(root.clone(), scan, events);
