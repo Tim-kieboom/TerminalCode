@@ -28,6 +28,8 @@ pub(super) struct History {
 pub(crate) struct Transaction<'a> {
     buffer: &'a mut Buffer,
     record: Option<Record>,
+    /// Whether the text matched the disk when the transaction began.
+    was_clean: bool,
 }
 
 impl Transaction<'_> {
@@ -69,13 +71,19 @@ impl Drop for Transaction<'_> {
         // changed behind the transaction's back, which `&mut` rules out.
         let rolled_back = revert(self.buffer, &record.inverses);
         debug_assert!(rolled_back.is_ok(), "rollback failed: {rolled_back:?}");
+        // The text is what it was, so a clean file must not turn modified.
+        if self.was_clean {
+            self.buffer.saved_version = self.buffer.version;
+        }
     }
 }
 
 impl Buffer {
     pub(crate) fn begin_transaction(&mut self, before: Selections) -> Transaction<'_> {
+        let was_clean = !self.is_dirty();
         Transaction {
             buffer: self,
+            was_clean,
             record: Some(Record {
                 edits: Vec::new(),
                 inverses: Vec::new(),

@@ -214,3 +214,31 @@ fn merging_with_fewer_than_two_steps_does_nothing() {
     buffer.undo().unwrap();
     assert_eq!(buffer.text(), "");
 }
+
+#[test]
+fn rolled_back_transaction_leaves_a_clean_buffer_clean() {
+    let mut buffer = Buffer::from_text("abc");
+    {
+        let mut transaction = buffer.begin_transaction(cursor(0, 0));
+        transaction.apply(&Edit::insert(0, "x")).unwrap();
+    }
+
+    assert!(!buffer.is_dirty());
+}
+
+#[test]
+fn rolled_back_transaction_leaves_a_modified_buffer_modified() {
+    let mut buffer = Buffer::from_text("abc");
+    commit(
+        &mut buffer,
+        cursor(0, 0),
+        &[Edit::insert(0, "x")],
+        cursor(0, 1),
+    );
+    {
+        let mut transaction = buffer.begin_transaction(cursor(0, 1));
+        transaction.apply(&Edit::insert(0, "y")).unwrap();
+    }
+
+    assert!(buffer.is_dirty());
+}
