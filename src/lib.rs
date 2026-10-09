@@ -103,6 +103,7 @@ where
 
     runtime.block_on(async {
         let (sources, events) = Sources::spawn();
+        app = app.with_events(events.clone());
         match FsWatcher::new(events) {
             Ok(watcher) => app = app.with_watcher(watcher),
             Err(error) => app.state_mut().notify_error(error.to_string()),

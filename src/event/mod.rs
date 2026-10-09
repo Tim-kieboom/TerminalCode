@@ -16,6 +16,16 @@ pub(crate) enum Event {
     },
     /// Files or directories changed outside the editor.
     FilesChanged(Vec<PathBuf>),
+    /// Files the file finder's walk found, as paths from the project root.
+    FinderBatch {
+        scan: u64,
+        files: Vec<PathBuf>,
+    },
+    /// The file finder's walk is over.
+    FinderDone {
+        scan: u64,
+        unreadable: usize,
+    },
     /// The file watcher reported a problem.
     WatchFailed(String),
 }

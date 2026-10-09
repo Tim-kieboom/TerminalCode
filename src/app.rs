@@ -12,6 +12,7 @@ use tokio::time::{Instant, sleep_until};
 
 use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components::explorer::ExplorerCommand;
+use crate::components::finder::{self, Finder};
 use crate::components::palette::{self, Entry, Palette};
 use crate::components::quit_prompt::{self, QuitPrompt};
 use crate::components::workspace::{CloseResult, DiskEvent, DocumentId, SaveOutcome, canonical};
@@ -116,6 +117,11 @@ pub(crate) struct App {
     watched_versions: Option<(u64, u64)>,
     /// Whether a watch failure was already reported, so it is shown once.
     watch_failure_shown: bool,
+    /// Where background work sends its results; without it the file finder
+    /// has no way to get its files.
+    events: Option<mpsc::Sender<Event>>,
+    /// Numbers the file finder's walks so a stale walk's files are ignored.
+    scans_started: u64,
 }
 
 /// Everything that can wake the app loop.
@@ -174,6 +180,8 @@ impl App {
             watcher: None,
             watched_versions: None,
             watch_failure_shown: false,
+            events: None,
+            scans_started: 0,
             flow: Flow::Continue,
             needs_redraw: true,
         }
@@ -183,6 +191,13 @@ impl App {
     /// has its own register.
     pub(crate) fn with_clipboard(mut self, clipboard: Clipboard) -> Self {
         self.clipboard = clipboard;
+        self
+    }
+
+    /// Gives the app a way to start background work that reports back through
+    /// the event channel.
+    pub(crate) fn with_events(mut self, events: mpsc::Sender<Event>) -> Self {
+        self.events = Some(events);
         self
     }
 
@@ -293,6 +308,18 @@ impl App {
                 self.needs_redraw = true;
             }
             Event::FilesChanged(paths) => self.files_changed(&paths),
+            Event::FinderBatch { scan, files } => {
+                if let Some(finder) = self.state.finder_mut() {
+                    finder.add_batch(scan, files);
+                    self.needs_redraw = true;
+                }
+            }
+            Event::FinderDone { scan, unreadable } => {
+                if let Some(finder) = self.state.finder_mut() {
+                    finder.finish(scan, unreadable);
+                    self.needs_redraw = true;
+                }
+            }
             Event::WatchFailed(message) => {
                 self.state.notify_error(format!("file watcher: {message}"));
                 self.needs_redraw = true;
@@ -346,6 +373,10 @@ impl App {
         }
         if self.state.palette().is_some() {
             self.handle_palette_key(key);
+            return;
+        }
+        if self.state.finder().is_some() {
+            self.handle_finder_key(key);
             return;
         }
         if self.state.quit_prompt().is_some() {
@@ -420,6 +451,7 @@ impl App {
         match action {
             Action::Quit => self.quit(),
             Action::CommandPalette => self.open_palette(),
+            Action::FindFile => self.open_finder(),
             Action::FocusExplorer => self.toggle_explorer_focus(),
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Save => self.save()?,
@@ -610,7 +642,63 @@ impl App {
 
     /// Whether an overlay is open and taking all input.
     fn modal_open(&self) -> bool {
-        self.state.quit_prompt().is_some() || self.state.palette().is_some()
+        self.state.quit_prompt().is_some()
+            || self.state.palette().is_some()
+            || self.state.finder().is_some()
+    }
+
+    /// Opens the file finder on the project and starts the walk that feeds it.
+    fn open_finder(&mut self) {
+        let Some(events) = self.events.clone() else {
+            self.state
+                .notify_error("the file finder needs the event loop, which is not running");
+            return;
+        };
+        let root = match self.state.explorer().root_path() {
+            Some(root) => root.to_path_buf(),
+            None => std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+        };
+        self.scans_started += 1;
+        let scan = self.scans_started;
+        let handle = finder::start_scan(root.clone(), scan, events);
+        self.state
+            .open_finder(Finder::new(root, scan, Some(handle)));
+    }
+
+    fn handle_finder_key(&mut self, key: KeyEvent) {
+        let Some(command) = palette::Command::from_key(key) else {
+            return;
+        };
+        let Some(mut finder) = self.state.take_finder() else {
+            return;
+        };
+        let mut keep_open = true;
+        let mut chosen = None;
+        match command {
+            palette::Command::Insert(c) => finder.insert(c),
+            palette::Command::Backspace => finder.backspace(),
+            palette::Command::ClearQuery => finder.clear_query(),
+            palette::Command::Previous => finder.select_previous(),
+            palette::Command::Next => finder.select_next(),
+            palette::Command::Cancel => keep_open = false,
+            palette::Command::Run => {
+                chosen = finder.selected_path();
+                keep_open = chosen.is_none();
+            }
+        }
+        if keep_open {
+            self.state.open_finder(finder);
+        }
+        self.needs_redraw = true;
+        let Some(path) = chosen else {
+            return;
+        };
+        // Unlike the explorer, the finder is for getting to a file: the editor
+        // gets the keyboard.
+        self.state.set_focus(Focus::Editor);
+        if let Err(error) = self.state.workspace_mut().open_path(&path) {
+            self.state.notify_error(error.to_string());
+        }
     }
 
     fn open_palette(&mut self) {

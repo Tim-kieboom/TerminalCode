@@ -154,6 +154,11 @@ used `anyhow` everywhere instead of typed errors.
   `[Explorer, Global]`. Printable keys are only typed into the editor when it has focus. `ctrl+b` toggles focus,
   `esc` returns to the editor, clicking either component focuses it. Opening a file from the explorer keeps focus
   in the tree; actions that open or switch tabs and panes (`Action::focuses_editor`) move it to the editor.
+- The file finder is the first background worker: `components/finder/scan.rs` walks the project on a std thread and
+  sends `Event::FinderBatch` / `Event::FinderDone` tagged with a scan number, so batches of a finder that was closed
+  or reopened are ignored; dropping the finder's `ScanHandle` stops the walk, and the bounded event channel slows
+  the walk down if the UI falls behind. `ui::fuzzy::Query` is the shared matcher (lowercased once per query).
+  Measured at 200,000 files: about 10 ms per keystroke in release builds.
 - Outside changes: `watcher::FsWatcher` (notify + debouncer) watches the explorer's open directories and the directories
   of open files, one directory at a time, and sends `Event::FilesChanged`. A `Buffer` remembers a hash of what the
   file held when it last read or wrote it (`Disk`), so it can tell its own saves from someone else's changes and a

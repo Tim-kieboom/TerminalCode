@@ -28,6 +28,9 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         .find(|placement| placement.kind == ComponentKind::StatusBar)
         .map_or(frame.area().bottom(), |placement| placement.area.y);
     state.notifications().render(frame, state.theme(), bottom);
+    if let Some(finder) = state.finder() {
+        finder.render(frame, state.theme());
+    }
     if let Some(palette) = state.palette() {
         palette.render(frame, state.theme());
     }

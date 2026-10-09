@@ -1,5 +1,6 @@
 pub mod editor;
 pub mod explorer;
+pub mod finder;
 pub mod notifications;
 pub mod palette;
 pub mod quit_prompt;

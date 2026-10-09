@@ -16,6 +16,8 @@ pub(crate) enum Action {
     CommandPalette,
     /// Moves the keyboard to the explorer, or back to the editor if it is there.
     FocusExplorer,
+    /// Opens the file finder.
+    FindFile,
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -71,6 +73,7 @@ impl Action {
             Self::Quit
                 | Self::CommandPalette
                 | Self::FocusExplorer
+                | Self::FindFile
                 | Self::Explorer(_)
                 | Self::ToggleMouse
                 | Self::NewFile
@@ -96,6 +99,7 @@ impl Action {
             Self::Quit => "Application: Quit",
             Self::CommandPalette => "Application: Command Palette",
             Self::FocusExplorer => "Explorer: Focus",
+            Self::FindFile => "File: Go to File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
@@ -139,6 +143,7 @@ impl Action {
         use FocusDirection::*;
         vec![
             Self::CommandPalette,
+            Self::FindFile,
             Self::FocusExplorer,
             Self::Explorer(ExplorerCommand::Refresh),
             Self::Save,

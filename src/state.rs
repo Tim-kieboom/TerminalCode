@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::components::PluginViewId;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
+use crate::components::finder::Finder;
 use crate::components::notifications::{Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
@@ -32,6 +33,7 @@ pub(crate) struct AppState {
     pending_keys: Option<Box<str>>,
     quit_prompt: Option<QuitPrompt>,
     palette: Option<Palette>,
+    finder: Option<Finder>,
 }
 
 #[derive(Debug, Default)]
@@ -174,6 +176,23 @@ impl AppState {
 
     pub(crate) fn take_quit_prompt(&mut self) -> Option<QuitPrompt> {
         self.quit_prompt.take()
+    }
+
+    /// The file finder, while it is open. It takes all keys.
+    pub(crate) fn finder(&self) -> Option<&Finder> {
+        self.finder.as_ref()
+    }
+
+    pub(crate) fn finder_mut(&mut self) -> Option<&mut Finder> {
+        self.finder.as_mut()
+    }
+
+    pub(crate) fn open_finder(&mut self, finder: Finder) {
+        self.finder = Some(finder);
+    }
+
+    pub(crate) fn take_finder(&mut self) -> Option<Finder> {
+        self.finder.take()
     }
 
     /// The command palette, while it is open. It takes all keys.
