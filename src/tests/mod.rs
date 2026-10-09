@@ -1,5 +1,6 @@
 mod app_tests;
 mod config_tests;
+mod create_tests;
 mod delete_tests;
 mod disk_tests;
 mod explorer_tests;

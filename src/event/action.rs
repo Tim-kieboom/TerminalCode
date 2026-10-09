@@ -29,6 +29,10 @@ pub(crate) enum Action {
     FindInFile,
     /// Deletes the explorer's selected file or folder, to the trash.
     DeleteSelected,
+    /// Asks for the name of a new file in the explorer's selected folder.
+    CreateFile,
+    /// Asks for the name of a new folder in the explorer's selected folder.
+    CreateFolder,
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -91,6 +95,8 @@ impl Action {
                 | Self::FindInProject
                 | Self::Explorer(_)
                 | Self::DeleteSelected
+                | Self::CreateFile
+                | Self::CreateFolder
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseTab
@@ -122,6 +128,8 @@ impl Action {
             Self::FindInFile => "Search: Find in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
             Self::DeleteSelected => "Explorer: Delete Selected",
+            Self::CreateFile => "Explorer: New File",
+            Self::CreateFolder => "Explorer: New Folder",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::NewFile => "File: New",
@@ -173,6 +181,8 @@ impl Action {
             Self::ToggleStatusBar,
             Self::Explorer(ExplorerCommand::Refresh),
             Self::DeleteSelected,
+            Self::CreateFile,
+            Self::CreateFolder,
             Self::Save,
             Self::NewFile,
             Self::CloseTab,

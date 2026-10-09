@@ -8,6 +8,7 @@ use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::find::Find;
 use crate::components::finder::Finder;
+use crate::components::name_prompt::NamePrompt;
 use crate::components::notifications::{Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
@@ -46,6 +47,7 @@ pub(crate) enum Popup {
     None,
     QuitPrompt(QuitPrompt),
     Confirm(Confirm),
+    NewEntry(NamePrompt),
     Palette(Palette),
     Finder(Finder),
     Search(Search),
@@ -271,6 +273,29 @@ impl AppState {
         }
         match std::mem::take(&mut self.popup) {
             Popup::Confirm(confirm) => Some(confirm),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn name_prompt(&self) -> Option<&NamePrompt> {
+        match &self.popup {
+            Popup::NewEntry(prompt) => Some(prompt),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn open_name_prompt(&mut self, prompt: NamePrompt) {
+        self.popup = Popup::NewEntry(prompt);
+    }
+
+    /// Closes the prompt and hands it back; any other popup stays open.
+    pub(crate) fn take_name_prompt(&mut self) -> Option<NamePrompt> {
+        if !matches!(self.popup, Popup::NewEntry(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::NewEntry(prompt) => Some(prompt),
             _ => None,
         }
     }

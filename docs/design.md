@@ -158,6 +158,10 @@ used `anyhow` everywhere instead of typed errors.
   trash move fails (e.g. on a mount without a trash), a second `Confirm` offers permanent delete. In a `Confirm`
   only `y` says yes; Enter, Esc and everything else cancel. Tests swap the trash for a stand-in
   (`App::with_trash`) so they never touch the real one.
+- Creating (`app/popups/new_entry.rs`, `entries.rs`, `components/name_prompt.rs`): `a` / `shift+a` open a one-line
+  name prompt for the selected folder (the parent of a selected file). The name may have several parts; existing
+  entries are never touched (`create_new`, `create_dir`), and names that leave the folder (`..`, absolute) are
+  refused. A made file opens in the editor; either kind is revealed in the tree (`Explorer::reveal`).
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
   directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
   (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first

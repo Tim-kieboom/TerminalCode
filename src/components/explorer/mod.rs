@@ -135,6 +135,37 @@ impl Explorer {
         Ok(None)
     }
 
+    /// Shows `path` and selects it: lists the folders down to it again (so a
+    /// file made just now appears) and opens them.
+    pub(crate) fn reveal(&mut self, path: &Path) -> Result<(), ExplorerError> {
+        let Some(root) = self.root_path().map(Path::to_path_buf) else {
+            return Ok(());
+        };
+        let Ok(relative) = path.strip_prefix(&root) else {
+            return Ok(());
+        };
+        let parts: Vec<_> = relative.components().collect();
+        let mut folders = vec![root.clone()];
+        for part in parts.iter().take(parts.len().saturating_sub(1)) {
+            let next = folders.last().unwrap_or(&root).join(part);
+            folders.push(next);
+        }
+        // The folders already listed are read again, so the new entry shows up.
+        let listed: HashSet<PathBuf> = folders.iter().cloned().collect();
+        let mut result = self.reload(Scope::Only(&listed));
+        for dir in folders.iter().skip(1) {
+            if let Err(error) = self.expand_path(dir) {
+                result = result.and(Err(error));
+                break;
+            }
+        }
+        if let Some(index) = self.rows.iter().position(|row| row.path == path) {
+            self.selected = index;
+            self.follow_selection = true;
+        }
+        result
+    }
+
     /// A click on a screen cell: selects the row there and opens it. Returns
     /// the file to open, if the row is a file.
     pub(crate) fn click(

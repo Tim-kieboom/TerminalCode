@@ -17,6 +17,7 @@ mod buffer;
 mod clipboard;
 mod components;
 mod config;
+mod entries;
 pub mod error;
 mod event;
 mod keymap;

@@ -6,6 +6,7 @@ use crossterm::event::{KeyEvent, KeyEventKind};
 
 use super::App;
 use crate::app::state::{Focus, Popup};
+use crate::entries::EntryKind;
 use crate::error::IdeResult;
 use crate::event::action::Action;
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolution, Resolver};
@@ -90,6 +91,7 @@ impl App {
             Popup::None => {}
             Popup::QuitPrompt(_) => return self.handle_prompt_key(key),
             Popup::Confirm(_) => return self.handle_confirm_key(key),
+            Popup::NewEntry(_) => return self.handle_name_key(key),
             Popup::Palette(_) => return self.handle_palette_key(key),
             Popup::Finder(_) => return self.handle_finder_key(key),
             Popup::Search(_) => return self.handle_search_key(key),
@@ -170,6 +172,8 @@ impl App {
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::DeleteSelected => self.delete_selected(),
+            Action::CreateFile => self.create_entry(EntryKind::File),
+            Action::CreateFolder => self.create_entry(EntryKind::Folder),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,

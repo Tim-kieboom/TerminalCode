@@ -3,6 +3,7 @@ pub mod editor;
 pub mod explorer;
 pub mod find;
 pub mod finder;
+pub mod name_prompt;
 pub mod notifications;
 pub mod palette;
 pub mod quit_prompt;
