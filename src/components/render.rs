@@ -35,6 +35,11 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
 
     state.notifications().render(frame, state.theme(), bottom);
 
+    let screen = frame.area();
+    if let Some(menu) = state.menu_mut() {
+        menu.place(screen);
+    }
+
     let theme = state.theme();
     match state.popup() {
         Popup::None => {}

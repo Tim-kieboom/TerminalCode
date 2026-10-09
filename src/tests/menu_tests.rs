@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::Path;
 
-use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    Event as InputEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -268,4 +270,188 @@ fn a_menu_near_the_bottom_opens_above_its_row() {
         "menu on line {menu}, row on line {row}\n{screen}"
     );
     assert!(line_of("Delete").is_some(), "{screen}");
+}
+
+fn mouse(app: &mut App, kind: MouseEventKind, column: u16, row: u16) {
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+}
+
+fn right_click(app: &mut App, (column, row): (u16, u16)) {
+    mouse(app, MouseEventKind::Down(MouseButton::Right), column, row);
+}
+
+fn left_click(app: &mut App, (column, row): (u16, u16)) {
+    mouse(app, MouseEventKind::Down(MouseButton::Left), column, row);
+}
+
+/// The screen cell of the first character of `text`, as last drawn.
+fn cell_of(terminal: &Terminal<TestBackend>, text: &str) -> (u16, u16) {
+    let screen = terminal.backend().to_string();
+    for (row, line) in screen.lines().enumerate() {
+        if let Some(byte) = line.find(text) {
+            return (line[..byte].chars().count() as u16, row as u16);
+        }
+    }
+    panic!("{text} is not on screen:\n{screen}");
+}
+
+fn target_name(app: &App) -> String {
+    let menu = app.state().menu().unwrap();
+    menu.target().file_name().unwrap().to_string_lossy().into()
+}
+
+#[test]
+fn a_right_click_selects_the_row_and_opens_the_menu_on_it() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+
+    right_click(&mut app, cell_of(&terminal, "b.txt"));
+
+    assert_eq!(target_name(&app), "b.txt");
+    assert_eq!(app.state().explorer().selected_row().unwrap().name, "b.txt");
+    assert_eq!(labels(&app).len(), 5);
+}
+
+#[test]
+fn a_right_click_on_empty_space_opens_the_menu_on_the_project_folder() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    let body = app.state().explorer().body_for_tests();
+
+    right_click(&mut app, (body.x + 2, body.bottom() - 2));
+    draw(&mut app, &mut terminal);
+
+    assert_eq!(app.state().menu().unwrap().target(), dir.path());
+    assert_eq!(labels(&app), ["New File", "New Folder"]);
+}
+
+#[test]
+fn clicking_an_item_runs_it_on_the_row_the_menu_was_opened_on() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "b.txt"));
+    draw(&mut app, &mut terminal);
+
+    left_click(&mut app, cell_of(&terminal, "Rename"));
+
+    assert!(app.state().menu().is_none());
+    assert_eq!(app.state().name_prompt().unwrap().name(), "b.txt");
+}
+
+#[test]
+fn clicking_delete_deletes_the_clicked_row() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "b.txt"));
+    draw(&mut app, &mut terminal);
+
+    left_click(&mut app, cell_of(&terminal, "Delete"));
+
+    assert!(!dir.path().join("b.txt").exists());
+    assert!(dir.path().join("a.txt").exists());
+}
+
+#[test]
+fn clicking_the_frame_or_the_separator_keeps_the_menu_open() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+    let (x, top) = cell_of(&terminal, "New File");
+
+    left_click(&mut app, (x, top - 1));
+    left_click(&mut app, (x, top + 3));
+
+    assert!(app.state().menu().is_some());
+    assert!(app.state().name_prompt().is_none());
+    assert!(dir.path().join("a.txt").exists());
+}
+
+#[test]
+fn a_left_click_outside_closes_the_menu_and_acts_on_what_it_hit() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+    // The menu hangs over the rows below a.txt; the editor side is free.
+    let editor = (terminal.backend().buffer().area.width - 3, 3);
+
+    left_click(&mut app, editor);
+
+    assert!(app.state().menu().is_none());
+    assert_eq!(app.state().focus(), crate::app::state::Focus::Editor);
+}
+
+#[test]
+fn a_right_click_outside_reopens_the_menu_on_the_new_row() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    let src = cell_of(&terminal, "src");
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+
+    right_click(&mut app, src);
+
+    assert_eq!(target_name(&app), "src");
+}
+
+#[test]
+fn the_wheel_closes_the_menu_and_touches_nothing_else() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+
+    mouse(&mut app, MouseEventKind::ScrollDown, 2, 2);
+
+    assert!(app.state().menu().is_none());
+    assert!(dir.path().join("a.txt").exists());
+}
+
+#[test]
+fn releasing_the_button_that_opened_the_menu_does_not_close_it() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    let (column, row) = cell_of(&terminal, "a.txt");
+    right_click(&mut app, (column, row));
+    draw(&mut app, &mut terminal);
+
+    mouse(
+        &mut app,
+        MouseEventKind::Up(MouseButton::Right),
+        column,
+        row,
+    );
+
+    assert!(app.state().menu().is_some());
+}
+
+#[test]
+fn a_left_click_on_another_row_closes_the_menu_and_selects_that_row() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    draw(&mut app, &mut terminal);
+    let src = cell_of(&terminal, "src");
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+
+    left_click(&mut app, src);
+
+    assert!(app.state().menu().is_none());
+    assert_eq!(app.state().explorer().selected_row().unwrap().name, "src");
 }

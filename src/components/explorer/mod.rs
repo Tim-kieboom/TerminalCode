@@ -197,6 +197,24 @@ impl Explorer {
         self.open_selected()
     }
 
+    /// Selects the row at a screen cell, or the project folder when the cell is
+    /// not on a row (empty space below the tree, the frame). For a right click.
+    pub(crate) fn select_at_or_root(&mut self, column: u16, row: u16) {
+        let position = Position::new(column, row);
+        let hit = self
+            .body
+            .contains(position)
+            .then(|| self.scroll + usize::from(row - self.body.y))
+            .filter(|&index| index < self.rows.len());
+        let root = self
+            .root_path()
+            .and_then(|root| self.rows.iter().position(|r| r.path == root));
+        if let Some(index) = hit.or(root) {
+            self.selected = index;
+            self.follow_selection = true;
+        }
+    }
+
     /// Scrolls by `lines` (negative is up) without moving the selection.
     pub(crate) fn scroll_by(&mut self, lines: isize) {
         self.follow_selection = false;

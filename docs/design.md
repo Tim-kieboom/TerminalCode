@@ -175,7 +175,11 @@ used `anyhow` everywhere instead of typed errors.
   opened on; picking an item checks that the path still exists, reveals it so it is the explorer's selection, checks
   the selection really is that path, and only then runs the ordinary action. A vanished path gives an error and
   nothing runs, so a watcher reload while the menu is open cannot retarget it. The project folder only gets New File
-  and New Folder. Right-click opening and key hints come next.
+  and New Folder. A right click in the explorer selects the row under the pointer (the project folder on empty
+  space) and opens the menu there; the menu places itself before each draw (`Menu::place`) and keeps its area, so
+  clicks are tested against what is on screen. A left click on an item runs it; on the frame or a separator it does
+  nothing. A press outside closes the menu and is then handled as if the menu were not there (so a right click
+  reopens it elsewhere); the wheel only closes it. Key hints come next.
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
   directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
   (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first

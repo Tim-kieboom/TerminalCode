@@ -65,6 +65,8 @@ pub(crate) struct Menu {
     anchor: Position,
     /// What the menu was opened on.
     target: PathBuf,
+    /// Where it was last placed on screen; empty until the first draw.
+    area: Rect,
 }
 
 impl Menu {
@@ -78,6 +80,7 @@ impl Menu {
             selected,
             anchor,
             target,
+            area: Rect::default(),
         }
     }
 
@@ -117,8 +120,32 @@ impl Menu {
         }
     }
 
+    /// Works out where the menu goes on a screen of this size. Done before
+    /// drawing, so that clicks are tested against what is on screen.
+    pub(crate) fn place(&mut self, screen: Rect) {
+        self.area = self.area_on(screen);
+    }
+
+    /// Whether a screen cell is inside the menu, frame included.
+    pub(crate) fn contains(&self, position: Position) -> bool {
+        self.area.contains(position)
+    }
+
+    /// The action of the item at a screen cell; `None` on the frame, on a
+    /// separator, and outside.
+    pub(crate) fn action_at(&self, position: Position) -> Option<&Action> {
+        let inner = Block::bordered().inner(self.area);
+        if !inner.contains(position) {
+            return None;
+        }
+        match self.entries.get(usize::from(position.y - inner.y))? {
+            Entry::Item { action, .. } => Some(action),
+            Entry::Separator => None,
+        }
+    }
+
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
-        let area = self.area(frame.area());
+        let area = self.area;
         let block = Block::new()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
@@ -150,7 +177,7 @@ impl Menu {
 
     /// Where the menu is drawn on a screen of the given size: below the
     /// anchor, above it when it would run off the bottom, and always inside.
-    fn area(&self, screen: Rect) -> Rect {
+    fn area_on(&self, screen: Rect) -> Rect {
         let widest = self
             .entries
             .iter()

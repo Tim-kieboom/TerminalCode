@@ -83,6 +83,10 @@ impl App {
                 }
                 true
             }
+            MouseEventKind::Down(MouseButton::Right) if over => {
+                self.right_click_explorer(column, row);
+                true
+            }
             MouseEventKind::Down(MouseButton::Left) => {
                 self.state.set_focus(Focus::Editor);
                 false

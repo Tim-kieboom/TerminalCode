@@ -287,6 +287,14 @@ impl AppState {
         }
     }
 
+    /// The open context menu, to place it before it is drawn.
+    pub(crate) fn menu_mut(&mut self) -> Option<&mut Menu> {
+        match &mut self.popup {
+            Popup::Menu(menu) => Some(menu),
+            _ => None,
+        }
+    }
+
     pub(crate) fn open_menu(&mut self, menu: Menu) {
         self.popup = Popup::Menu(menu);
     }

@@ -68,7 +68,14 @@ impl App {
         if matches!(event.kind, MouseEventKind::Down(_)) && self.state.dismiss_errors() {
             self.needs_redraw = true;
         }
-        if !self.mouse.is_enabled() || self.modal_open() {
+        if !self.mouse.is_enabled() {
+            return;
+        }
+        if self.handle_menu_mouse(event) {
+            self.needs_redraw = true;
+            return;
+        }
+        if self.modal_open() {
             return;
         }
         if self.handle_explorer_mouse(event) {
