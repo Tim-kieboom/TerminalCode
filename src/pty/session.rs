@@ -66,6 +66,9 @@ struct Shared {
     wake_pending: AtomicBool,
     /// The size the child should have, until the writer thread applies it.
     wanted_size: Mutex<Option<PtySize>>,
+    /// Everything the child has printed, for tests.
+    #[cfg(test)]
+    received: std::sync::atomic::AtomicU64,
 }
 
 enum Message {
@@ -115,6 +118,8 @@ impl Session {
             screen: Mutex::new(vt100::Parser::new(config.rows, config.columns, SCROLLBACK)),
             wake_pending: AtomicBool::new(false),
             wanted_size: Mutex::new(None),
+            #[cfg(test)]
+            received: std::sync::atomic::AtomicU64::new(0),
         });
         let input = Arc::new(BoundedQueue::new(QUEUED_CHUNKS));
         let process_id = child.process_id();
@@ -195,6 +200,12 @@ impl Session {
             .map(|status| status.exit_code())
     }
 
+    /// How many bytes the child has printed so far.
+    #[cfg(test)]
+    pub(crate) fn bytes_received(&self) -> u64 {
+        self.shared.received.load(Ordering::Relaxed)
+    }
+
     pub(crate) fn process_id(&self) -> Option<u32> {
         self.process_id
     }
@@ -242,6 +253,8 @@ fn read_output(mut reader: Box<dyn Read + Send>, shared: &Shared, wake: &(dyn Fn
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .process(&buffer[..read]);
+        #[cfg(test)]
+        shared.received.fetch_add(read as u64, Ordering::Relaxed);
         wake_once(shared, wake);
     }
     // The shell ended; the app wants to know.

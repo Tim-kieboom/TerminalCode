@@ -519,3 +519,12 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   fit instead of blocking the writer, so a child that "is not reading" only makes writes block once it has set raw
   mode (what a shell's line editor does); the not-reading tests use `stty raw -echo`. Needs the `cc`-free
   `portable-pty` and `vt100` crates only; Windows (ConPTY) is untested.
+- Step A2 is done (`src/pty/tests/flood_tests.rs`): a `probe` stands in for the app between two events: it hands a
+  byte to the shell and, when the screen changed, looks at every cell, timing both against the 50 ms limit. While a
+  shell prints scrolling lines (`yes | head -c N`) the slowest key took about 9 µs and the slowest frame about
+  2.7 ms in a debug build (0.3 ms in release); 100 MB parses in about 1 s in release and about 12 s in debug, so
+  the 100 MB test is `#[ignore]`d (`cargo test --release -- --ignored`) and the ordinary suite runs the same test
+  with 10 MB. Also tested: one wake-up per drawn frame during the flood, keys reaching a shell that is busy printing,
+  and an 8 MB paste into a raw-mode shell that is not reading (the write returns inside the limit with the rest
+  dropped; drawing, further keys and the child's output stay live). The probe was checked against a deliberately
+  bad reader that holds the screen lock for 80 ms now and then: the frame limit fails at 83 ms.

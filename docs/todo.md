@@ -81,7 +81,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 ## M6 — Integrated terminal
 - [ ] (Step A done: `src/pty`, `Session` with reader and writer threads, tested with scripted `sh -c`; Windows untested) `portable-pty` spawn (Unix + ConPTY), shell selection; the terminal pane is toggled (hidden by default), the shell starts on first show in the project root and keeps its last size while hidden
 - [ ] `vt100` screen (chosen over `alacritty_terminal`: enough for scrollback, alternate screen, bracketed paste and mouse modes, far lighter), render into Ratatui
-- [ ] PTY output parsed on the reader thread (parser behind a mutex, fed in slices of a few KB), one dirty wake-up per drawn frame; backpressure test: a headless program prints 100 MB while keys are fed, each key handled within 50 ms
+- [x] PTY output parsed on the reader thread (parser behind a mutex, fed in slices of a few KB), one dirty wake-up per drawn frame; backpressure tests (step A2): a headless program prints 100 MB (ignored in debug, `cargo test --release -- --ignored`; 10 MB in the ordinary suite) while keys are fed, each key and frame within 50 ms; an 8 MB paste into a shell that is not reading
 - [ ] Resize, scrollback, alt screen, bracketed paste, mouse reporting passthrough
 - [ ] Multiple terminal tabs
 - [ ] Focus handling: all keys to the shell except the one reserved chord `ctrl+b` (twice sends a literal `ctrl+b`); the global bindings go to the shell while the terminal has focus; what follows the prefix: see `docs/design.md`
