@@ -226,6 +226,48 @@ impl Workspace {
         dirty
     }
 
+    /// The open documents whose file is `path` or inside it.
+    pub(crate) fn documents_under(&self, path: &Path) -> Vec<DocumentId> {
+        let root = canonical(path);
+        let mut found: Vec<_> = self
+            .documents
+            .iter()
+            .filter(|(_, doc)| {
+                doc.buffer
+                    .path()
+                    .is_some_and(|own| canonical(own).starts_with(&root))
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        found.sort();
+        found
+    }
+
+    /// The documents among `documents` that have unsaved changes.
+    pub(crate) fn dirty_among(&self, documents: &[DocumentId]) -> Vec<Item> {
+        self.dirty_documents()
+            .into_iter()
+            .filter(|item| documents.contains(&item.document))
+            .collect()
+    }
+
+    /// Closes every tab of `documents` without asking, e.g. because their
+    /// files were deleted.
+    pub(crate) fn close_documents(&mut self, documents: &[DocumentId]) {
+        for document in documents {
+            while let Some((pane, tab)) = self.find_tab_of(*document) {
+                self.remove_tab(pane, tab);
+            }
+        }
+    }
+
+    fn find_tab_of(&self, document: DocumentId) -> Option<(usize, usize)> {
+        self.panes.iter().enumerate().find_map(|(pane, p)| {
+            let tab = p.tabs.iter().position(|tab| tab.document == document)?;
+            Some((pane, tab))
+        })
+    }
+
     /// Forgets the pending "close again" and "save again" confirmations; any
     /// other action in between cancels them.
     fn reset_confirmations(&mut self) {
@@ -325,6 +367,17 @@ impl Workspace {
             return CloseResult::Unsaved(display_name(&doc.buffer));
         }
 
+        self.remove_tab(index, tab_index);
+        CloseResult::Closed
+    }
+
+    /// Removes a tab without asking. The document goes with its last view.
+    fn remove_tab(&mut self, index: usize, tab_index: usize) {
+        let Some(tab) = self.panes[index].tabs.get(tab_index) else {
+            return;
+        };
+        let document = tab.document;
+        let shared = self.views_of(document) > 1;
         self.reset_confirmations();
         let pane = &mut self.panes[index];
         pane.tabs.remove(tab_index);
@@ -340,7 +393,6 @@ impl Workspace {
         if self.panes[index].tabs.is_empty() {
             self.remove_pane(index);
         }
-        CloseResult::Closed
     }
 
     /// Activates tab `index` of the focused pane (the last one if out of range).

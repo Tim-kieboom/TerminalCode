@@ -2,10 +2,10 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
+use crate::app::state::AppState;
 use crate::buffer::{Buffer, Position};
 use crate::components::editor::{Editor, Motion};
 use crate::event::mouse::Clicks;
-use crate::state::AppState;
 
 /// Text starts at screen cell (5, 1) and is 40 x 10 cells.
 const AREA: Rect = Rect::new(5, 1, 40, 10);

@@ -11,12 +11,12 @@ use ratatui::{Terminal, backend::Backend};
 use tokio::sync::mpsc;
 use tokio::time::{Instant, sleep_until};
 
+use crate::app::state::{AppState, Popup};
 use crate::clipboard::Clipboard;
 use crate::components;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
 use crate::keymap::Keymap;
-use crate::state::{AppState, Popup};
 use crate::terminal::{self, KeyboardSupport};
 
 mod background;
@@ -25,12 +25,13 @@ mod keys;
 mod mouse;
 mod panels;
 mod popups;
+pub(crate) mod state;
 mod watching;
 
 use background::Background;
 use keys::Keyboard;
 use mouse::MouseInput;
-use popups::Remembered;
+use popups::{Remembered, Removal};
 use watching::Watching;
 
 /// Upper bound on redraw rate (about 60 fps).
@@ -53,6 +54,7 @@ pub(crate) struct App {
     watching: Watching,
     background: Background,
     remembered: Remembered,
+    removal: Removal,
 }
 
 /// Everything that can wake the app loop.
@@ -165,6 +167,7 @@ impl App {
             watching: Watching::default(),
             background: Background::default(),
             remembered: Remembered::default(),
+            removal: Removal::default(),
         }
     }
 
@@ -179,6 +182,13 @@ impl App {
     /// the event channel.
     pub(crate) fn with_events(mut self, events: mpsc::Sender<Event>) -> Self {
         self.background.connect(events);
+        self
+    }
+
+    /// Moves files to `trash` instead of the OS trash.
+    #[cfg(test)]
+    pub(crate) fn with_trash(mut self, trash: crate::removal::TrashFn) -> Self {
+        self.removal = Removal::with_trash(trash);
         self
     }
 

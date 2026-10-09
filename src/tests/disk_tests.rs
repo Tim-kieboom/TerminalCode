@@ -8,11 +8,11 @@ use ratatui::backend::TestBackend;
 use tokio::sync::mpsc;
 
 use crate::app::App;
+use crate::app::state::AppState;
 use crate::buffer::Position;
 use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::initial_state;
-use crate::state::AppState;
 use crate::watcher::FsWatcher;
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> InputEvent {
@@ -415,7 +415,7 @@ fn the_watched_directories_follow_open_files_and_the_explorers_open_directories(
     assert!(app.watched_directories().contains(&canon(other.path())));
 
     // Closing it stops watching.
-    app.state_mut().set_focus(crate::state::Focus::Editor);
+    app.state_mut().set_focus(crate::app::state::Focus::Editor);
     ctrl(&mut app, 'w');
     app.sync_watches();
     assert!(!app.watched_directories().contains(&canon(other.path())));

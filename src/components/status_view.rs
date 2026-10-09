@@ -2,7 +2,7 @@ use ratatui::Frame;
 use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 
-use crate::state::AppState;
+use crate::app::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 

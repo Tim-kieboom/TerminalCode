@@ -4,8 +4,8 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
+use crate::app::state::AppState;
 use crate::components::ComponentKind;
-use crate::state::AppState;
 use crate::ui::layout::Placement;
 use crate::ui::{Hideable, Render};
 

@@ -4,7 +4,7 @@
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
-use crate::state::AppState;
+use crate::app::state::AppState;
 use crate::ui::layout::LayoutTree;
 
 /// Draws a layout stacking the explorer (6 rows), the editor (the rest) and

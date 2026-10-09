@@ -3,8 +3,8 @@ use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
+use crate::app::state::AppState;
 use crate::components::editor::{EditorRef, display_name, render as editor_render};
-use crate::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::pane_frame::PaneFrame;

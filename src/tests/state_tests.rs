@@ -1,4 +1,4 @@
-use crate::{components::PluginViewId, state::AppState, ui::view::ViewNode};
+use crate::{app::state::AppState, components::PluginViewId, ui::view::ViewNode};
 
 fn text(line: &str) -> ViewNode {
     ViewNode::List {
@@ -93,13 +93,13 @@ fn a_terminal_that_does_not_answer_leaves_the_tint_color_alone() {
 mod popups {
     use std::path::PathBuf;
 
+    use crate::app::state::{AppState, Popup};
     use crate::buffer::{Buffer, Position};
     use crate::components::find::Find;
     use crate::components::finder::Finder;
     use crate::components::palette::Palette;
     use crate::components::quit_prompt::QuitPrompt;
     use crate::components::search::{Options, Search};
-    use crate::state::{AppState, Popup};
 
     fn quit_prompt() -> QuitPrompt {
         QuitPrompt::new(Vec::new())

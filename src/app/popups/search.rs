@@ -4,8 +4,8 @@ use crossterm::event::KeyEvent;
 
 use super::SavedQuery;
 use crate::app::App;
+use crate::app::state::Focus;
 use crate::components::search::{self, Search};
-use crate::state::Focus;
 
 impl App {
     /// Opens the project search with the last query and options, and runs it.

@@ -5,6 +5,9 @@
 use super::App;
 use crate::components::search::Options as SearchOptions;
 
+pub(super) use delete::Removal;
+
+mod delete;
 mod find;
 mod finder;
 mod palette;

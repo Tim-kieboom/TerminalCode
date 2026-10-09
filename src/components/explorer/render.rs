@@ -3,7 +3,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::{Explorer, NodeKind, Row};
-use crate::state::{AppState, Focus};
+use crate::app::state::{AppState, Focus};
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::theme::Theme;

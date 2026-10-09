@@ -1,6 +1,6 @@
 use ratatui::Frame;
 
-use crate::state::AppState;
+use crate::app::state::AppState;
 use crate::ui::layout::Placement;
 
 pub mod fuzzy;

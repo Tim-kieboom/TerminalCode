@@ -8,10 +8,10 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use tokio::sync::mpsc;
 
+use crate::app::state::AppState;
 use crate::components::PluginViewId;
 use crate::error::IdeError;
 use crate::event::Event;
-use crate::state::AppState;
 use crate::ui::view::{ViewLine, ViewNode};
 
 use super::super::app::*;

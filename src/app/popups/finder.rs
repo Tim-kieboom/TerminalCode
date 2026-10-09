@@ -3,9 +3,9 @@
 use crossterm::event::KeyEvent;
 
 use crate::app::App;
+use crate::app::state::Focus;
 use crate::components::finder::{self, Finder};
 use crate::components::palette;
-use crate::state::Focus;
 
 impl App {
     /// Opens the file finder on the project and starts the walk that feeds it.

@@ -9,10 +9,10 @@ use ratatui::backend::TestBackend;
 use tokio::sync::mpsc;
 
 use crate::app::App;
+use crate::app::state::{AppState, Focus};
 use crate::components::finder::Walk;
 use crate::components::prepare_and_render;
 use crate::event::Event;
-use crate::state::{AppState, Focus};
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> InputEvent {
     InputEvent::Key(KeyEvent::new(code, modifiers))

@@ -4,10 +4,10 @@
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
+use crate::app::state::Focus;
 use crate::components::explorer::ExplorerCommand;
 use crate::components::{ComponentKind, PluginViewId};
 use crate::error::IdeResult;
-use crate::state::Focus;
 
 impl App {
     /// Moves the keyboard to the explorer (showing it if it was hidden), or

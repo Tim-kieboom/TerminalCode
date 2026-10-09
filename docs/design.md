@@ -153,6 +153,11 @@ used `anyhow` everywhere instead of typed errors.
 ### Explorer
 - Tree view over the project root, lazy-loaded, file watcher driven refresh, create/rename/delete/move,
   gitignore-aware.
+- Deleting (`app/popups/delete.rs`, `removal.rs`): the selection goes to the OS trash. The project root cannot be
+  deleted. Open tabs of the deleted path close; if any has unsaved changes a `Confirm` popup asks first. If the
+  trash move fails (e.g. on a mount without a trash), a second `Confirm` offers permanent delete. In a `Confirm`
+  only `y` says yes; Enter, Esc and everything else cancel. Tests swap the trash for a stand-in
+  (`App::with_trash`) so they never touch the real one.
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
   directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
   (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first

@@ -2,10 +2,10 @@ use ratatui::backend::TestBackend;
 use ratatui::layout::Position as ScreenPosition;
 use ratatui::{Frame, Terminal};
 
+use crate::app::state::AppState;
 use crate::buffer::Buffer;
 use crate::components::ComponentKind;
 use crate::components::editor::{Editor, Motion};
-use crate::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 

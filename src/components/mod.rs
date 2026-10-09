@@ -1,3 +1,4 @@
+pub mod confirm;
 pub mod editor;
 pub mod explorer;
 pub mod find;

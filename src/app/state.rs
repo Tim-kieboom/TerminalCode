@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::components::ComponentKind;
 use crate::components::PluginViewId;
+use crate::components::confirm::Confirm;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::find::Find;
@@ -44,6 +45,7 @@ pub(crate) enum Popup {
     #[default]
     None,
     QuitPrompt(QuitPrompt),
+    Confirm(Confirm),
     Palette(Palette),
     Finder(Finder),
     Search(Search),
@@ -245,6 +247,30 @@ impl AppState {
         }
         match std::mem::take(&mut self.popup) {
             Popup::QuitPrompt(prompt) => Some(prompt),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn confirm(&self) -> Option<&Confirm> {
+        match &self.popup {
+            Popup::Confirm(confirm) => Some(confirm),
+            _ => None,
+        }
+    }
+
+    /// Opens the question, closing any other popup.
+    pub(crate) fn open_confirm(&mut self, confirm: Confirm) {
+        self.popup = Popup::Confirm(confirm);
+    }
+
+    /// Closes the question and hands it back; any other popup stays open.
+    pub(crate) fn take_confirm(&mut self) -> Option<Confirm> {
+        if !matches!(self.popup, Popup::Confirm(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Confirm(confirm) => Some(confirm),
             _ => None,
         }
     }

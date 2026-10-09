@@ -7,8 +7,8 @@ use ratatui::{
 };
 
 use crate::{
+    app::state::{AppState, PluginView, Popup},
     components::ComponentKind,
-    state::{AppState, PluginView, Popup},
     ui::{Render, layout::Placement, view::ViewNode},
 };
 
@@ -42,6 +42,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         Popup::Finder(finder) => finder.render(frame, theme),
         Popup::Palette(palette) => palette.render(frame, theme),
         Popup::QuitPrompt(prompt) => prompt.render(frame, theme),
+        Popup::Confirm(confirm) => confirm.render(frame, theme),
         // The find bar is drawn with its pane, which knows where its row is.
         Popup::Find(_) => {}
     }

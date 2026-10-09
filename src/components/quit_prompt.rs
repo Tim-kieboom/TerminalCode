@@ -9,8 +9,8 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph};
 
+use crate::app::state::AppState;
 use crate::components::workspace::DocumentId;
-use crate::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::theme::Theme;

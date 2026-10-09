@@ -3,12 +3,12 @@ use std::path::PathBuf;
 
 use ratatui::{Terminal, backend::Backend};
 
+use crate::app::state::AppState;
 use crate::app::{App, Sources};
 use crate::buffer::Buffer;
 use crate::clipboard::{Clipboard, System};
 use crate::components::editor::Editor;
 use crate::error::{IdeError, IdeResult};
-use crate::state::AppState;
 use crate::terminal::Capabilities;
 use crate::watcher::FsWatcher;
 
@@ -21,7 +21,7 @@ pub mod error;
 mod event;
 mod keymap;
 mod paths;
-mod state;
+mod removal;
 pub mod terminal;
 #[cfg(test)]
 mod tests;

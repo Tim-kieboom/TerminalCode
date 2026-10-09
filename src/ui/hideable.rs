@@ -4,7 +4,7 @@
 use ratatui::Frame;
 
 use super::Render;
-use crate::state::AppState;
+use crate::app::state::AppState;
 use crate::ui::layout::Placement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

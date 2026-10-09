@@ -5,10 +5,10 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
 use crate::app::App;
+use crate::app::state::{AppState, Focus};
 use crate::components::{ComponentKind, PluginViewId, prepare_and_render};
 use crate::event::Event;
 use crate::keymap::Keymap;
-use crate::state::{AppState, Focus};
 use crate::terminal::KeyboardSupport;
 use crate::ui::layout::LayoutTree;
 use crate::ui::view::{ViewLine, ViewNode};

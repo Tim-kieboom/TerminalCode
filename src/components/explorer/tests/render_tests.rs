@@ -3,9 +3,9 @@ use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
 use super::explorer_tests::project;
+use crate::app::state::AppState;
 use crate::components::ComponentKind;
 use crate::components::explorer::{Explorer, ExplorerCommand};
-use crate::state::AppState;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 
