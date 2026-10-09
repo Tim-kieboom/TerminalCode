@@ -35,6 +35,8 @@ pub(crate) enum Action {
     CreateFolder,
     /// Asks for a new name for the explorer's selected file or folder.
     Rename,
+    /// Asks where to move the explorer's selected file or folder to.
+    MoveEntry,
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -100,6 +102,7 @@ impl Action {
                 | Self::CreateFile
                 | Self::CreateFolder
                 | Self::Rename
+                | Self::MoveEntry
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseTab
@@ -134,6 +137,7 @@ impl Action {
             Self::CreateFile => "Explorer: New File",
             Self::CreateFolder => "Explorer: New Folder",
             Self::Rename => "Explorer: Rename",
+            Self::MoveEntry => "Explorer: Move",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::NewFile => "File: New",
@@ -188,6 +192,7 @@ impl Action {
             Self::CreateFile,
             Self::CreateFolder,
             Self::Rename,
+            Self::MoveEntry,
             Self::Save,
             Self::NewFile,
             Self::CloseTab,

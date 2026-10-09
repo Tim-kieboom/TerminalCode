@@ -14,6 +14,8 @@ pub(crate) enum EntryError {
     Outside(String),
     #[error("{0} already exists")]
     Exists(String),
+    #[error("a folder cannot be moved into itself ({0})")]
+    IntoItself(String),
     #[error("{name}: {source}")]
     Io { name: String, source: io::Error },
 }
@@ -81,14 +83,39 @@ fn inside(name: &str) -> Result<PathBuf, EntryError> {
 /// may have several parts (the folders are made as needed). An entry that is
 /// already there is never replaced.
 pub(crate) fn rename(from: &Path, name: &str) -> Result<PathBuf, EntryError> {
-    let name = name.trim();
-    let relative = inside(name)?;
     let dir = from
         .parent()
-        .ok_or_else(|| EntryError::Outside(name.to_owned()))?;
-    let to = dir.join(relative);
+        .ok_or_else(|| EntryError::Outside(name.trim().to_owned()))?;
+    relocate(from, dir, name, false)
+}
+
+/// Moves `from` to the path `name`, which is relative to `root`. Like `mv`, a
+/// `name` that is an existing folder means "into it". Missing folders are made
+/// and an entry that is already there is never replaced.
+pub(crate) fn move_to(from: &Path, root: &Path, name: &str) -> Result<PathBuf, EntryError> {
+    relocate(from, root, name, true)
+}
+
+fn relocate(
+    from: &Path,
+    dir: &Path,
+    name: &str,
+    into_folders: bool,
+) -> Result<PathBuf, EntryError> {
+    let name = name.trim();
+    let mut to = dir.join(inside(name)?);
+    if into_folders
+        && to != from
+        && to.is_dir()
+        && let Some(own_name) = from.file_name()
+    {
+        to.push(own_name);
+    }
     if to == from {
         return Ok(to);
+    }
+    if to.starts_with(from) {
+        return Err(EntryError::IntoItself(name.to_owned()));
     }
     let io_error = |source| EntryError::Io {
         name: name.to_owned(),

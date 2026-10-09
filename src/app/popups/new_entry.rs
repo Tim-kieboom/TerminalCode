@@ -45,6 +45,26 @@ impl App {
         self.state.open_name_prompt(NamePrompt::rename(path));
     }
 
+    /// Asks where to move the explorer's selected file or folder to.
+    pub(in crate::app) fn move_selected(&mut self) {
+        let Some(path) = self
+            .state
+            .explorer()
+            .selected_row()
+            .map(|row| row.path.clone())
+        else {
+            return;
+        };
+        let root = self.state.explorer().root_path().map(PathBuf::from);
+        match root {
+            Some(root) if root != path => {
+                self.state
+                    .open_name_prompt(NamePrompt::move_from(path, root));
+            }
+            _ => self.state.notify("the project folder cannot be moved here"),
+        }
+    }
+
     pub(in crate::app) fn handle_name_key(&mut self, key: KeyEvent) {
         let Some(command) = name_prompt::Command::from_key(key) else {
             return;
@@ -76,6 +96,11 @@ impl App {
                 // Taken before the move, while the files are still where they were.
                 let open = self.state.workspace().documents_with_suffix(from);
                 let to = entries::rename(from, prompt.name())?;
+                self.renamed(from, &to, open);
+            }
+            Purpose::Move(from) => {
+                let open = self.state.workspace().documents_with_suffix(from);
+                let to = entries::move_to(from, prompt.dir(), prompt.name())?;
                 self.renamed(from, &to, open);
             }
         }

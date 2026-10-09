@@ -167,6 +167,9 @@ used `anyhow` everywhere instead of typed errors.
   where; right after it, in the same handler, it points them at the new paths (`Workspace::set_document_paths`,
   which also bumps the documents version so the watcher re-syncs). A late event for the old path therefore names
   no open file and does nothing.
+- Moving (`m`, `Purpose::Move`): the same path as rename with the prompt holding the path from the project root
+  (`entries::move_to`); an existing folder as destination means "into it". A folder into itself is refused before
+  any folder is made.
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
   directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
   (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first

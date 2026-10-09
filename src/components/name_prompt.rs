@@ -48,6 +48,8 @@ pub(crate) enum Purpose {
     Create(EntryKind),
     /// Renames this entry.
     Rename(PathBuf),
+    /// Moves this entry to a path from the project root.
+    Move(PathBuf),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,6 +79,21 @@ impl NamePrompt {
         Self {
             purpose: Purpose::Rename(from),
             dir,
+            name,
+        }
+    }
+
+    /// Asks for the new place of `from`, as a path from `root`, starting from
+    /// the current one.
+    pub(crate) fn move_from(from: PathBuf, root: PathBuf) -> Self {
+        let name = from
+            .strip_prefix(&root)
+            .unwrap_or(&from)
+            .to_string_lossy()
+            .into_owned();
+        Self {
+            purpose: Purpose::Move(from),
+            dir: root,
             name,
         }
     }
@@ -123,6 +140,7 @@ impl NamePrompt {
             Purpose::Create(EntryKind::File) => format!(" New file in {folder} "),
             Purpose::Create(EntryKind::Folder) => format!(" New folder in {folder} "),
             Purpose::Rename(_) => format!(" Rename in {folder} "),
+            Purpose::Move(_) => format!(" Move within {folder} "),
         };
         let block = Block::new()
             .borders(Borders::ALL)

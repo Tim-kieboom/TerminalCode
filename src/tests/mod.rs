@@ -9,6 +9,7 @@ mod finder_tests;
 mod frame_tests;
 mod hide_tests;
 mod mouse_tests;
+mod move_tests;
 mod notification_tests;
 mod palette_tests;
 mod quit_tests;
