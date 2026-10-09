@@ -265,3 +265,33 @@ fn an_empty_project_still_finishes() {
     assert!(outcome.hits.is_empty());
     assert_eq!(outcome.files, 0);
 }
+
+#[test]
+fn a_regex_anchored_at_the_end_of_the_line_matches_in_a_file_with_windows_line_endings() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "crlf.txt", "foo;\r\nbar\r\nbaz; \r\n");
+    write(dir.path(), "lf.txt", "foo;\nbar\n");
+    let options = Options {
+        regex: true,
+        ..Options::default()
+    };
+
+    let outcome = run(dir.path(), ";$", options);
+
+    assert_eq!(lines(&outcome), ["crlf.txt:1", "lf.txt:1"]);
+}
+
+#[test]
+fn a_regex_anchored_at_the_start_of_the_line_matches_after_a_windows_line_ending() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "crlf.txt", "foo\r\nbar\r\n");
+    let options = Options {
+        regex: true,
+        ..Options::default()
+    };
+
+    let outcome = run(dir.path(), "^bar$", options);
+
+    assert_eq!(lines(&outcome), ["crlf.txt:2"]);
+    assert_eq!(outcome.hits[0].text, "bar");
+}

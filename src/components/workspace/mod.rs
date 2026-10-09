@@ -306,16 +306,15 @@ impl Workspace {
     /// focus.
     pub(crate) fn middle_press(&mut self, column: u16, row: u16) -> Option<CloseResult> {
         let pane = self.pane_at(column, row)?;
-        let tab = self.panes[pane]
-            .tab_rects
-            .iter()
-            .position(|rect| contains(*rect, column, row))?;
+        let tab = self.panes[pane].tab_at(column, row)?;
         Some(self.close_tab_at(pane, tab))
     }
 
     /// Closes tab `tab` of pane `pane` (indices into `panes` and its tabs).
     fn close_tab_at(&mut self, index: usize, tab_index: usize) -> CloseResult {
-        let tab = &self.panes[index].tabs[tab_index];
+        let Some(tab) = self.panes[index].tabs.get(tab_index) else {
+            return CloseResult::Closed;
+        };
         let (tab_id, document) = (tab.id, tab.document);
 
         let shared = self.views_of(document) > 1;
@@ -415,11 +414,7 @@ impl Workspace {
         self.focused = self.panes[index].id;
 
         let pane = &self.panes[index];
-        if let Some(tab) = pane
-            .tab_rects
-            .iter()
-            .position(|rect| contains(*rect, column, row))
-        {
+        if let Some(tab) = pane.tab_at(column, row) {
             self.reset_confirmations();
             self.panes[index].active = tab;
             return Ok(());
@@ -526,15 +521,18 @@ impl Workspace {
             let anchor = log
                 .iter()
                 .fold(selection.anchor, |byte, info| info.remap_byte(byte));
+
             let head = log
                 .iter()
                 .fold(selection.head, |byte, info| info.remap_byte(byte));
+
             let (Ok(anchor), Ok(head)) = (
                 buffer.byte_to_position(anchor),
                 buffer.byte_to_position(head),
             ) else {
                 continue;
             };
+
             let selections = Selections::single(Selection::new(anchor, head));
             self.panes[selection.pane].tabs[selection.tab]
                 .view
@@ -642,6 +640,18 @@ impl Workspace {
 }
 
 impl Pane {
+    /// The tab drawn at a screen cell, going by the last layout pass. Tabs can
+    /// have been closed since, so a rectangle left over from the last frame
+    /// does not count if its tab is gone.
+    fn tab_at(&self, column: u16, row: u16) -> Option<usize> {
+        let tab = self
+            .tab_rects
+            .iter()
+            .position(|rect| contains(*rect, column, row))?;
+
+        (tab < self.tabs.len()).then_some(tab)
+    }
+
     fn with_tab(id: PaneId, tab: Tab) -> Self {
         Self {
             id,

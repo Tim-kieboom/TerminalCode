@@ -75,6 +75,18 @@ impl ViewState {
         }
     }
 
+    /// Brings a view back that is scrolled past the end of a document of
+    /// `line_count` lines. The text can get shorter under a view that is scrolled
+    /// down (another view deleted it, or the file was reloaded); such a view
+    /// would show nothing, so it shows the last page of the text instead. A
+    /// view that is inside the text is left alone, so a wheel scroll that went
+    /// as far as the last line stays.
+    pub(crate) fn clamp_scroll(&mut self, line_count: usize) {
+        if self.scroll.top >= line_count {
+            self.scroll.top = line_count.saturating_sub(self.viewport_height);
+        }
+    }
+
     /// Forgets a pending typing burst, e.g. because another view edited the
     /// document in between.
     pub(crate) fn end_edit_run(&mut self) {

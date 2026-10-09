@@ -1,12 +1,13 @@
 //! The search itself, on a thread of its own.
 
-use std::io;
+use std::fs::File;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use grep_matcher::Matcher;
+use grep_matcher::{LineTerminator, Matcher};
 use grep_regex::{RegexMatcher, RegexMatcherBuilder};
 use grep_searcher::{BinaryDetection, Searcher, SearcherBuilder, Sink, SinkMatch};
 use ignore::{DirEntry, WalkBuilder};
@@ -108,10 +109,8 @@ fn run(
         .sort_by_file_path(|a, b| a.cmp(b))
         .filter_entry(|entry| entry.file_name() != HIDDEN_DIRECTORY)
         .build();
-    let mut searcher = SearcherBuilder::new()
-        .line_number(true)
-        .binary_detection(BinaryDetection::quit(b'\x00'))
-        .build();
+    let mut lf_searcher = searcher(LineTerminator::byte(b'\n'));
+    let mut crlf_searcher = searcher(LineTerminator::crlf());
 
     let mut batch = Vec::new();
     let mut total = 0;
@@ -140,6 +139,12 @@ fn run(
             cancelled,
         };
         // A file that cannot be read is skipped, like one that is ignored.
+        // The terminator decides what `$` matches before: `\n` alone would leave
+        // the `\r` of a Windows line ending in the way.
+        let searcher = match has_crlf_lines(entry.path()) {
+            true => &mut crlf_searcher,
+            false => &mut lf_searcher,
+        };
         let _ = searcher.search_path(matcher, entry.path(), &mut sink);
         if batch.len() > before {
             files += 1;
@@ -178,6 +183,30 @@ fn run(
         files,
         truncated,
     });
+}
+
+fn searcher(terminator: LineTerminator) -> Searcher {
+    SearcherBuilder::new()
+        .line_terminator(terminator)
+        .line_number(true)
+        .binary_detection(BinaryDetection::quit(b'\x00'))
+        .build()
+}
+
+/// Whether the file's lines end in `\r\n`, judged by its first line break in
+/// the first few kilobytes. A file that mixes both is searched by its first.
+fn has_crlf_lines(path: &Path) -> bool {
+    let mut head = [0u8; 8192];
+    let Ok(mut file) = File::open(path) else {
+        return false;
+    };
+    let Ok(read) = file.read(&mut head) else {
+        return false;
+    };
+    head[..read]
+        .iter()
+        .position(|byte| *byte == b'\n')
+        .is_some_and(|newline| newline > 0 && head[newline - 1] == b'\r')
 }
 
 /// A regular file, or a link to one.

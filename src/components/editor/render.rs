@@ -20,11 +20,13 @@ use crate::ui::theme::Theme;
 /// Smallest line-number column, in digits.
 const MIN_GUTTER_DIGITS: usize = 3;
 
-/// Records where the text will be drawn inside `area` and, if the cursor,
-/// the text or the area changed, scrolls so the cursor stays visible.
+/// Records where the text will be drawn inside `area`, keeps the scroll inside
+/// the text and, if the cursor, the text or the area changed, scrolls so the
+/// cursor stays visible.
 pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect, frame: &PaneFrame) {
     let geometry = Geometry::new(frame.inner(area), buffer.len_lines());
     view.set_viewport(geometry.text);
+    view.clamp_scroll(buffer.len_lines());
     if view.take_view_change(buffer.version()) {
         keep_cursor_visible(buffer, view, &geometry);
     }
