@@ -232,7 +232,17 @@ per OS.
 ```
 src/
   main.rs
-  app/        # AppState, Event, loop, dispatch
+  app/        # the single owner of the state: the event loop and the plumbing (mod.rs)
+                # App holds the state and a few small structs, each owning one concern and its invariants:
+                # Keyboard (keymap, half-typed sequence, deadline), MouseInput, Watching, Background,
+                # Remembered (last queries); clipboard is its own type
+    keys.rs     # which bindings apply, typing, running an Action
+    mouse.rs    # clicks, drags and the wheel in the editor panes and tabs
+    panels.rs   # the explorer and plugin views: show, hide, keyboard focus, explorer mouse
+    editing.rs  # clipboard, save, close tab
+    watching.rs # watched directories and what to do with a report of changed files
+    popups/     # one file per popup: open it, handle its keys, act on what it returns
+    background.rs # where background work sends its results, and the numbers that tell its runs apart
   buffer/     # rope, Edit, transactions, positions, selections
   action/     # Action enum + registry
   keymap/     # KeyChord, layers, kitty detection, fallbacks, vim parser

@@ -9,7 +9,7 @@ use crate::terminal::KeyboardSupport;
 
 pub(crate) use key::KeyChord;
 use key::KeyParseError;
-pub(crate) use resolver::{Expiry, Outcome, Resolver};
+pub(crate) use resolver::{Expiry, Outcome, Resolution, Resolver};
 use trie::Node;
 
 mod key;
