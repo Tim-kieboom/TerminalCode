@@ -1,93 +1,136 @@
-use ratatui::Frame;
+use std::cell::Cell;
 
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::layout::Rect;
+
+use crate::components::ComponentKind;
 use crate::state::AppState;
 use crate::ui::layout::Placement;
-use crate::ui::{Hideable, HideableKind, Render};
+use crate::ui::{Hideable, Render};
 
-#[derive(Debug, Default, PartialEq, Eq)]
-struct Popup(Vec<u32>);
+/// Counts how often it is prepared and drawn.
+#[derive(Debug, Default)]
+struct Counting {
+    prepared: u32,
+    rendered: Cell<u32>,
+}
 
-impl Render for Popup {
-    fn render(&self, _: &mut Frame, _: &AppState, _: &Placement) {}
+impl Render for Counting {
+    fn prepare(&mut self, _: &Placement) {
+        self.prepared += 1;
+    }
+
+    fn render(&self, _: &mut ratatui::Frame, _: &AppState, _: &Placement) {
+        self.rendered.set(self.rendered.get() + 1);
+    }
+}
+
+fn placement() -> Placement {
+    Placement::new(ComponentKind::Explorer, Rect::new(0, 0, 10, 5))
+}
+
+fn hidden<T>(node: T) -> Hideable<T> {
+    let mut hideable = Hideable::new_show(node);
+    hideable.hide();
+    hideable
+}
+
+fn draw(hideable: &mut Hideable<Counting>) {
+    let state = AppState::default();
+    let placement = placement();
+    let mut terminal = Terminal::new(TestBackend::new(10, 5)).unwrap();
+    hideable.prepare(&placement);
+    terminal
+        .draw(|frame| hideable.render(frame, &state, &placement))
+        .unwrap();
 }
 
 #[test]
-fn it_starts_hidden() {
-    let popup: Hideable<Popup> = Hideable::default();
+fn it_holds_any_value_not_only_one_that_can_be_drawn() {
+    // `u32` is not a `Render`: the bound is only on drawing.
+    let mut number = Hideable::new_show(7_u32);
 
-    assert_eq!(popup.hideable_kind(), HideableKind::Hide);
-    assert!(popup.try_get().is_none());
+    *number.node_mut() += 1;
+
+    assert_eq!(*number.node(), 8);
 }
 
 #[test]
-fn a_shown_popup_gives_access_to_its_value() {
-    let popup = Hideable::new_show(Popup(vec![1]));
-
-    assert_eq!(popup.hideable_kind(), HideableKind::Show);
-    assert_eq!(popup.try_get(), Some(&Popup(vec![1])));
+fn it_is_shown_when_made_and_hidden_once_hidden() {
+    assert!(Hideable::new_show(1).is_shown());
+    assert!(!hidden(1).is_shown());
 }
 
 #[test]
-fn a_hidden_popup_keeps_its_value_for_when_it_is_shown_again() {
-    let mut popup = Hideable::new_show(Popup(vec![1, 2]));
+fn show_hide_and_toggle_change_whether_it_is_shown() {
+    let mut popup = hidden(1);
 
-    popup.set_kind(HideableKind::Hide);
-    assert!(popup.try_get().is_none());
-    assert_eq!(
-        popup.node,
-        Popup(vec![1, 2]),
-        "hiding does not forget the state"
-    );
-
-    popup.set_kind(HideableKind::Show);
-    assert_eq!(popup.try_get(), Some(&Popup(vec![1, 2])));
-}
-
-#[test]
-fn the_shown_value_can_be_changed_in_place_but_not_while_hidden() {
-    let mut popup = Hideable::new_show(Popup(vec![1]));
-
-    popup.try_get_mut().unwrap().0.push(2);
-    assert_eq!(popup.try_get(), Some(&Popup(vec![1, 2])));
-
-    popup.set_kind(HideableKind::Hide);
-    assert!(popup.try_get_mut().is_none());
-}
-
-#[test]
-fn take_hides_it_and_hands_back_the_value() {
-    let mut popup = Hideable::new_show(Popup(vec![7]));
-
-    assert_eq!(popup.take(), Some(Popup(vec![7])));
-
-    assert_eq!(popup.hideable_kind(), HideableKind::Hide);
-    assert_eq!(popup.take(), None, "taking twice finds nothing");
-}
-
-#[test]
-fn showing_again_after_a_take_starts_from_the_new_value() {
-    let mut popup = Hideable::new_show(Popup(vec![1]));
-    popup.take();
-
-    popup = Hideable::new_show(Popup(vec![2]));
-
-    assert_eq!(popup.try_get(), Some(&Popup(vec![2])));
-}
-
-#[test]
-fn is_shown_and_toggle_follow_the_kind() {
-    let mut popup = Hideable::new_show(Popup(vec![1]));
+    popup.show();
     assert!(popup.is_shown());
+    popup.show();
+    assert!(popup.is_shown(), "showing twice is fine");
 
+    popup.hide();
+    assert!(!popup.is_shown());
+    popup.hide();
+    assert!(!popup.is_shown(), "hiding twice is fine");
+
+    popup.toggle();
+    assert!(popup.is_shown());
     popup.toggle();
     assert!(!popup.is_shown());
-    assert_eq!(popup.hideable_kind(), HideableKind::Hide);
-    assert_eq!(
-        popup.node,
-        Popup(vec![1]),
-        "toggling does not touch the value"
-    );
+}
 
-    popup.toggle();
-    assert!(popup.is_shown());
+#[test]
+fn hiding_keeps_the_value_for_when_it_is_shown_again() {
+    let mut popup = Hideable::new_show(vec![1, 2]);
+
+    popup.hide();
+    popup.node_mut().push(3);
+    popup.show();
+
+    assert_eq!(popup.node(), &vec![1, 2, 3]);
+}
+
+#[test]
+fn the_value_is_reachable_while_hidden() {
+    let popup = hidden(String::from("kept"));
+
+    assert_eq!(popup.node(), "kept");
+}
+
+#[test]
+fn a_shown_component_is_prepared_and_drawn() {
+    let mut shown = Hideable::new_show(Counting::default());
+
+    draw(&mut shown);
+
+    assert_eq!(shown.node().prepared, 1);
+    assert_eq!(shown.node().rendered.get(), 1);
+}
+
+#[test]
+fn a_hidden_component_is_neither_prepared_nor_drawn() {
+    let mut popup = hidden(Counting::default());
+
+    draw(&mut popup);
+
+    assert_eq!(popup.node().prepared, 0);
+    assert_eq!(popup.node().rendered.get(), 0);
+}
+
+#[test]
+fn a_component_hidden_and_shown_again_is_drawn_again() {
+    let mut popup = Hideable::new_show(Counting::default());
+    draw(&mut popup);
+
+    popup.hide();
+    draw(&mut popup);
+    assert_eq!(popup.node().rendered.get(), 1, "not drawn while hidden");
+
+    popup.show();
+    draw(&mut popup);
+    assert_eq!(popup.node().rendered.get(), 2);
+    assert_eq!(popup.node().prepared, 2);
 }

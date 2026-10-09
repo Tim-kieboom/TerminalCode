@@ -16,7 +16,7 @@ impl App {
         if self.state.focus() == Focus::Explorer {
             self.state.set_focus(Focus::Editor);
         } else if self.state.layout().contains(&ComponentKind::Explorer) {
-            self.state.set_explorer_visible(true);
+            self.state.show_explorer();
             self.state.set_focus(Focus::Explorer);
         } else {
             self.state.notify("the layout has no explorer");
@@ -32,13 +32,13 @@ impl App {
         }
         match self.state.is_visible(&ComponentKind::Explorer) {
             true => {
-                self.state.set_explorer_visible(false);
+                self.state.hide_explorer();
                 if self.state.focus() == Focus::Explorer {
                     self.state.set_focus(Focus::Editor);
                 }
             }
             false => {
-                self.state.set_explorer_visible(true);
+                self.state.show_explorer();
                 self.state.set_focus(Focus::Explorer);
             }
         }

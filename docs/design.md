@@ -121,9 +121,10 @@ used `anyhow` everywhere instead of typed errors.
 ### UI layout
 - Ratatui. Regions: sidebar (explorer), editor area (tabs, splits), bottom panel (terminal), status
   bar, notifications overlay, command palette / fuzzy finder overlay.
-- `ui::Hideable<T>` wraps a component or popup that can be hidden: it keeps the value while hidden. `AppState` holds
-  the explorer, the status bar and every plugin view as `Hideable`s (shown by default, so `AppComponents` has a
-  hand-written `Default`), and the popups are one `Popup` enum (`None`, or the one popup that is open: opening one closes the other, so two
+- `ui::Hideable<T>` wraps a component that can be hidden: it keeps the value while hidden (reachable through
+  `node()` / `node_mut()`, never a public field), has no `Default` (starting shown is spelled out), needs no
+  bound on `T`, and implements `Render` for `T: Render` by drawing nothing while hidden. `AppState` holds the
+  explorer, the status bar and every plugin view as `Hideable`s (`AppComponents` has a hand-written `Default`), and the popups are one `Popup` enum (`None`, or the one popup that is open: opening one closes the other, so two
   can never be open; key routing and drawing are a `match` on it). `LayoutTree::resolve_visible`
   asks `AppState::is_visible` per component: a hidden one is left out and the space goes to its siblings, a split
   with nothing visible disappears. A hidden explorer is skipped by mouse hit-testing, and hiding it moves the

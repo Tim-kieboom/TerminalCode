@@ -13,10 +13,10 @@ use crate::components::quit_prompt::QuitPrompt;
 use crate::components::search::Search;
 use crate::components::status_view::StatusBar;
 use crate::components::workspace::Workspace;
+use crate::ui::Hideable;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
-use crate::ui::{Hideable, HideableKind};
 
 /// Which component the keyboard goes to.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -61,7 +61,7 @@ struct AppComponents {
 }
 
 impl Default for AppComponents {
-    // Not derived: a `Hideable` starts hidden, and these start shown.
+    // Not derived: the explorer and the status bar start shown.
     fn default() -> Self {
         Self {
             workspace: Workspace::default(),
@@ -117,8 +117,12 @@ impl AppState {
         }
     }
 
-    pub(crate) fn set_explorer_visible(&mut self, visible: bool) {
-        self.components.explorer.set_kind(kind_of(visible));
+    pub(crate) fn show_explorer(&mut self) {
+        self.components.explorer.show();
+    }
+
+    pub(crate) fn hide_explorer(&mut self) {
+        self.components.explorer.hide();
     }
 
     pub(crate) fn toggle_status_bar(&mut self) {
@@ -135,24 +139,24 @@ impl AppState {
     }
 
     pub(crate) fn status_bar(&self) -> &StatusBar {
-        &self.components.status_bar.node
+        self.components.status_bar.node()
     }
 
     pub(crate) fn status_bar_mut(&mut self) -> &mut StatusBar {
-        &mut self.components.status_bar.node
+        self.components.status_bar.node_mut()
     }
 
     pub(crate) fn explorer(&self) -> &Explorer {
-        &self.components.explorer.node
+        self.components.explorer.node()
     }
 
     pub(crate) fn explorer_mut(&mut self) -> &mut Explorer {
-        &mut self.components.explorer.node
+        self.components.explorer.node_mut()
     }
 
     /// Shows the project in `root` in the explorer.
     pub(crate) fn open_project(&mut self, root: &std::path::Path) -> Result<(), ExplorerError> {
-        self.components.explorer.node = Explorer::open(root)?;
+        *self.components.explorer.node_mut() = Explorer::open(root)?;
         Ok(())
     }
 
@@ -382,7 +386,7 @@ impl AppState {
     }
 
     pub(crate) fn plugin_view(&self, id: &PluginViewId) -> Option<&PluginView> {
-        self.components.plugin_views.get(id).map(|view| &view.node)
+        self.components.plugin_views.get(id).map(|view| view.node())
     }
 
     pub(crate) fn set_plugin_view(&mut self, id: PluginViewId, content: ViewNode) {
@@ -390,24 +394,17 @@ impl AppState {
             .components
             .plugin_views
             .get(&id)
-            .map_or(0, |existing| existing.node.version + 1);
+            .map_or(0, |existing| existing.node().version + 1);
         let view = PluginView { version, content };
 
         // An update does not show a view the user hid.
         match self.components.plugin_views.get_mut(&id) {
-            Some(existing) => existing.node = view,
+            Some(existing) => *existing.node_mut() = view,
             None => {
                 self.components
                     .plugin_views
                     .insert(id, Hideable::new_show(view));
             }
         }
-    }
-}
-
-fn kind_of(visible: bool) -> HideableKind {
-    match visible {
-        true => HideableKind::Show,
-        false => HideableKind::Hide,
     }
 }
