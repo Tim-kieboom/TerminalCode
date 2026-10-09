@@ -2,9 +2,10 @@ use std::cmp::Reverse;
 use std::ops::Range;
 
 use ratatui::style::Style;
-use tree_sitter::{Parser, Query, QueryCursor, StreamingIterator, Tree};
+use tree_sitter::{InputEdit, Parser, Point, Query, QueryCursor, StreamingIterator, Tree};
 
 use super::{Language, SyntaxError};
+use crate::buffer::EditInfo;
 use crate::ui::theme::Theme;
 
 /// A stretch of text and how to draw it. The spans of one query never
@@ -73,12 +74,44 @@ impl Highlighter {
     /// Parses `text` from scratch, replacing the tree of any earlier text.
     pub(crate) fn parse(&mut self, text: &str) -> Result<(), SyntaxError> {
         self.tree = self.parser.parse(text, None);
+        self.parsed_or_error()
+    }
+
+    fn parsed_or_error(&self) -> Result<(), SyntaxError> {
         match self.tree {
             Some(_) => Ok(()),
             None => Err(SyntaxError::Parse {
                 language: self.language.name(),
             }),
         }
+    }
+
+    /// Tells the tree about changes to the text it was parsed from, oldest
+    /// first, each described against the text the one before left. The next
+    /// [`Highlighter::reparse`] then only looks at what changed.
+    pub(crate) fn edit(&mut self, edits: &[EditInfo]) {
+        let Some(tree) = self.tree.as_mut() else {
+            return;
+        };
+        for edit in edits {
+            tree.edit(&InputEdit {
+                start_byte: edit.start_byte,
+                old_end_byte: edit.old_end_byte,
+                new_end_byte: edit.new_end_byte,
+                start_position: point(edit.start_point),
+                old_end_position: point(edit.old_end_point),
+                new_end_position: point(edit.new_end_point),
+            });
+        }
+    }
+
+    /// Parses `text` reusing the tree of the text before the changes given to
+    /// [`Highlighter::edit`]. `text` must be the text those changes lead to; if
+    /// the edits do not describe it exactly the tree is wrong, so when in
+    /// doubt use [`Highlighter::parse`].
+    pub(crate) fn reparse(&mut self, text: &str) -> Result<(), SyntaxError> {
+        self.tree = self.parser.parse(text, self.tree.as_ref());
+        self.parsed_or_error()
     }
 
     /// The spans inside `range`, for `text`, which must be what was last
@@ -172,4 +205,12 @@ pub(super) fn flatten(mut found: Vec<Found>, range: &Range<usize>) -> Vec<Span> 
         at = at.max(top.end);
     }
     out
+}
+
+/// A buffer position as tree-sitter wants it.
+fn point(at: crate::buffer::Point) -> Point {
+    Point {
+        row: at.row,
+        column: at.column,
+    }
 }

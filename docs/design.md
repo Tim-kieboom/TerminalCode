@@ -435,3 +435,14 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   the selection and find-match styles (`Style::patch`, so a selection keeps the syntax color of its text). A grammar
   that cannot be set up is reported once as a notification. This is still synchronous: a 7 MB Rust file takes
   about 0.9 s per reparse in a release build (3 s in debug), on every keystroke. That is what steps C and D remove.
+- Step C is done. `Workspace::with_editor` hands the edit log it already drains for the other views to the
+  document's `DocumentSyntax::record_edits`, which keeps the edits since the tree was parsed and moves the spans
+  through each one at once (`syntax::mapping::map_spans`: before an edit stays, after it shifts, an insert at a
+  span's edge stays outside, an edit inside grows or shrinks the span, new text over a whole span takes its color,
+  a span an edit cuts into keeps what is left, one it covers is dropped). The next update calls `Tree::edit` for
+  each and reparses from the old tree, but only when every change since the last parse is accounted for: each edit
+  adds one to the buffer version, so `parsed + pending == version` says so, and a reload or any unrecorded change
+  breaks it and gets a full parse. More than 10,000 pending edits are dropped the same way. Measured on 7 MB of
+  Rust in a release build: the first parse 0.9 s, a keystroke afterwards ≈ 0.12 s (down from 0.9 s). What is left
+  is copying the text into a `String` and the UI thread doing it; step D moves the work to a worker and reads the
+  rope in chunks.

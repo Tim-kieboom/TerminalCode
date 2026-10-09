@@ -14,7 +14,7 @@ pub(crate) use edit::EditInfo;
 use file::Disk;
 use history::History;
 pub(crate) use line_ending::LineEnding;
-use position::Point;
+pub(crate) use position::Point;
 pub(crate) use position::Position;
 pub(crate) use selection::{Selection, Selections};
 

@@ -179,6 +179,14 @@ impl Workspace {
         errors
     }
 
+    /// How the focused document's text has been parsed so far.
+    #[cfg(test)]
+    pub(crate) fn active_parses(&self) -> crate::syntax::document::Parses {
+        self.active_tab()
+            .map(|tab| self.documents[&tab.document].syntax.parses())
+            .unwrap_or_default()
+    }
+
     /// The focused pane's active tab, for reading.
     pub(crate) fn active_editor(&self) -> EditorRef<'_> {
         let Some(tab) = self.active_tab() else {
@@ -581,6 +589,9 @@ impl Workspace {
         self.panes[pane].tabs[tab_index].view = view;
         let doc = self.document_mut(document);
         doc.buffer = buffer;
+        if !log.is_empty() {
+            doc.syntax.record_edits(&log);
+        }
         if !log.is_empty() {
             doc.last_editor = Some(view_id);
         }

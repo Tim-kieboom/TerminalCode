@@ -123,3 +123,34 @@ fn a_second_pane_scrolled_elsewhere_is_colored_as_well() {
     assert_eq!(color_of(&terminal, "fn f0()"), Some(KEYWORD), "left pane");
     assert_eq!(color_of(&terminal, "fn f299"), Some(KEYWORD), "right pane");
 }
+
+#[test]
+fn typing_reparses_from_the_previous_tree_instead_of_from_scratch() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut app);
+
+    for c in "abc".chars() {
+        key(&mut app, KeyCode::Char(c), KeyModifiers::NONE);
+        draw(&mut app);
+    }
+
+    let parses = app.state().workspace().active_parses();
+    assert_eq!(parses.full, 1, "only the first parse is from scratch");
+    assert_eq!(parses.incremental, 3);
+}
+
+#[test]
+fn undo_is_reparsed_incrementally_too() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with(dir.path(), "a.rs", "fn main() {}\n");
+    draw(&mut app);
+    key(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
+    draw(&mut app);
+
+    key(&mut app, KeyCode::Char('z'), KeyModifiers::CONTROL);
+    let terminal = draw(&mut app);
+
+    assert_eq!(app.state().workspace().active_parses().full, 1);
+    assert_eq!(color_of(&terminal, "fn main"), Some(KEYWORD));
+}

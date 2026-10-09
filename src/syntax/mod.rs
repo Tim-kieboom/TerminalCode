@@ -8,10 +8,11 @@ pub(crate) use highlighter::{Highlighter, Span};
 pub(crate) use language::Language;
 pub(crate) use ranges::{MAX_RANGES, merge as merge_ranges};
 
-mod document;
+pub(crate) mod document;
 mod error;
 mod highlighter;
 mod language;
+mod mapping;
 mod ranges;
 #[cfg(test)]
 mod tests;
