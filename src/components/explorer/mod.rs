@@ -44,6 +44,8 @@ pub(crate) struct Explorer {
     /// Whether the next draw scrolls to keep the selection in view; the wheel
     /// turns it off so scrolling does not snap back.
     follow_selection: bool,
+    /// Changes whenever the rows are rebuilt, i.e. when directories open or close.
+    version: u64,
     /// Screen areas as of the last layout pass.
     area: Rect,
     body: Rect,
@@ -73,6 +75,24 @@ impl Explorer {
 
     pub(crate) fn selected_row(&self) -> Option<&Row> {
         self.rows.get(self.selected)
+    }
+
+    /// The directory the tree starts at.
+    pub(crate) fn root_path(&self) -> Option<&Path> {
+        self.root.as_ref().map(Node::path)
+    }
+
+    /// The directories whose contents are listed: the root and every open one.
+    pub(crate) fn open_directories(&self) -> Vec<PathBuf> {
+        let mut dirs = Vec::new();
+        if let Some(root) = &self.root {
+            root.collect_open_dirs(&mut dirs);
+        }
+        dirs
+    }
+
+    pub(crate) fn version(&self) -> u64 {
+        self.version
     }
 
     pub(crate) fn has_project(&self) -> bool {
@@ -202,7 +222,9 @@ impl Explorer {
         }
     }
 
-    fn refresh(&mut self) -> Result<(), ExplorerError> {
+    /// Reads the open directories again, keeping what is still there open and
+    /// the selection where it was.
+    pub(crate) fn refresh(&mut self) -> Result<(), ExplorerError> {
         let Some(root) = self.root.as_mut() else {
             return Ok(());
         };
@@ -240,6 +262,7 @@ impl Explorer {
     }
 
     fn rebuild_rows(&mut self) {
+        self.version += 1;
         self.rows.clear();
         if let Some(root) = &self.root {
             root.push_rows(0, &mut self.rows);

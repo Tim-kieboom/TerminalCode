@@ -1,5 +1,7 @@
 pub mod action;
 pub mod mouse;
+use std::path::PathBuf;
+
 use crate::components::PluginViewId;
 use crate::ui::view::ViewNode;
 
@@ -8,5 +10,12 @@ use crate::ui::view::ViewNode;
 /// so that it is never queued behind these.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Event {
-    SetPluginView { id: PluginViewId, content: ViewNode },
+    SetPluginView {
+        id: PluginViewId,
+        content: ViewNode,
+    },
+    /// Files or directories changed outside the editor.
+    FilesChanged(Vec<PathBuf>),
+    /// The file watcher reported a problem.
+    WatchFailed(String),
 }

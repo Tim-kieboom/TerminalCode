@@ -16,14 +16,16 @@ use std::path::{Path, PathBuf};
 use ratatui::layout::Rect;
 use serde::Deserialize;
 
-use crate::buffer::{Buffer, EditInfo, FileError, Selection, Selections};
+use crate::buffer::{Buffer, DiskChange, EditInfo, FileError, Selection, Selections};
 use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, display_name};
 use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
 use crate::ui::layout::Axis;
 
+pub(crate) use disk::{DiskEvent, SaveOutcome};
 use tree::Node;
 
+mod disk;
 mod render;
 #[cfg(test)]
 mod tests;
@@ -61,6 +63,9 @@ pub(crate) enum CloseResult {
 struct Document {
     buffer: Buffer,
     indent: IndentStyle,
+    /// The change on disk the user was already told about, so repeated file
+    /// events do not repeat the warning.
+    warned: Option<DiskChange>,
     /// The view that made the latest change, so a typing burst is not merged
     /// with another view's edit.
     last_editor: Option<ViewId>,
@@ -95,6 +100,11 @@ pub(crate) struct Workspace {
     focused: PaneId,
     next_id: u32,
     confirm_close: Option<ViewId>,
+    /// The document whose save was refused because its file changed on disk;
+    /// saving it again overwrites the file.
+    confirm_overwrite: Option<DocumentId>,
+    /// Changes whenever a document is opened or closed.
+    docs_version: u64,
     /// Stands in for the active editor while the only pane has no tabs.
     empty: (Buffer, ViewState),
 }
@@ -116,6 +126,8 @@ impl Workspace {
             focused: pane,
             next_id: 1,
             confirm_close: None,
+            confirm_overwrite: None,
+            docs_version: 0,
             empty: (Buffer::default(), ViewState::default()),
         };
         let (view, buffer) = editor.into_parts();
@@ -202,18 +214,16 @@ impl Workspace {
         dirty
     }
 
-    /// Writes document `id` to its file. A document that is no longer open
-    /// counts as saved.
-    pub(crate) fn save_document(&mut self, id: DocumentId) -> Result<(), FileError> {
-        match self.documents.get_mut(&id) {
-            Some(doc) => doc.buffer.save(),
-            None => Ok(()),
-        }
+    /// Forgets the pending "close again" and "save again" confirmations; any
+    /// other action in between cancels them.
+    fn reset_confirmations(&mut self) {
+        self.confirm_close = None;
+        self.confirm_overwrite = None;
     }
 
     /// Opens `buffer` in a new tab of the focused pane and activates it.
     pub(crate) fn open_buffer(&mut self, buffer: Buffer) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let document = self.add_document(buffer);
         let tab = self.new_tab(document, ViewState::default());
         let pane = self.focused_pane_mut();
@@ -242,7 +252,7 @@ impl Workspace {
     /// Activates a tab of `document`, preferring the focused pane; opens a new
     /// tab for it in the focused pane if no pane shows it.
     fn show_document(&mut self, document: DocumentId) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let focused = self.focused_index();
         let order =
             std::iter::once(focused).chain((0..self.panes.len()).filter(|&index| index != focused));
@@ -304,7 +314,7 @@ impl Workspace {
             return CloseResult::Unsaved(display_name(&doc.buffer));
         }
 
-        self.confirm_close = None;
+        self.reset_confirmations();
         let pane = &mut self.panes[index];
         pane.tabs.remove(tab_index);
         pane.active = if tab_index < pane.active {
@@ -314,6 +324,7 @@ impl Workspace {
         };
         if !shared {
             self.documents.remove(&document);
+            self.docs_version += 1;
         }
         if self.panes[index].tabs.is_empty() {
             self.remove_pane(index);
@@ -323,7 +334,7 @@ impl Workspace {
 
     /// Activates tab `index` of the focused pane (the last one if out of range).
     pub(crate) fn activate_tab(&mut self, index: usize) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let pane = self.focused_pane_mut();
         pane.active = index.min(pane.tabs.len().saturating_sub(1));
     }
@@ -339,7 +350,7 @@ impl Workspace {
     /// Splits the focused pane. The new pane, which gets the focus, shows the
     /// same document as the active tab.
     pub(crate) fn split(&mut self, axis: Axis) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let Some(source) = self.active_tab() else {
             return;
         };
@@ -354,7 +365,7 @@ impl Workspace {
 
     /// Moves focus to the next pane in reading order, wrapping around.
     pub(crate) fn focus_next_pane(&mut self) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let order = self.tree.leaves();
         let Some(position) = order.iter().position(|id| *id == self.focused) else {
             return;
@@ -365,7 +376,7 @@ impl Workspace {
     /// Moves focus to the nearest pane in `direction`, if there is one. Uses
     /// the screen areas of the last layout pass.
     pub(crate) fn focus_direction(&mut self, direction: FocusDirection) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let from = self.focused_pane().area;
         let best = self
             .panes
@@ -398,7 +409,7 @@ impl Workspace {
             .iter()
             .position(|rect| contains(*rect, column, row))
         {
-            self.confirm_close = None;
+            self.reset_confirmations();
             self.panes[index].active = tab;
             return Ok(());
         }
@@ -426,7 +437,7 @@ impl Workspace {
     }
 
     fn with_editor_in<R>(&mut self, pane: usize, f: impl FnOnce(&mut Editor) -> R) -> R {
-        self.confirm_close = None;
+        self.reset_confirmations();
         if self.panes[pane].tabs.is_empty() {
             // Nothing to edit: the closure gets a throwaway editor.
             return f(&mut Editor::default());
@@ -523,12 +534,14 @@ impl Workspace {
     fn add_document(&mut self, buffer: Buffer) -> DocumentId {
         let id = DocumentId(self.take_id());
         let indent = IndentStyle::detect(&buffer).unwrap_or_default();
+        self.docs_version += 1;
         self.documents.insert(
             id,
             Document {
                 buffer,
                 indent,
                 last_editor: None,
+                warned: None,
             },
         );
         id
@@ -557,7 +570,7 @@ impl Workspace {
     }
 
     fn step_tab(&mut self, delta: isize) {
-        self.confirm_close = None;
+        self.reset_confirmations();
         let pane = self.focused_pane_mut();
         let count = pane.tabs.len() as isize;
         if count == 0 {
@@ -642,8 +655,19 @@ struct ByteSelection {
 
 /// `path` with symlinks and `..` resolved, so two spellings of one file compare
 /// equal. A path that cannot be resolved (a file not saved yet) stays as it is.
-fn canonical(path: &Path) -> PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+pub(crate) fn canonical(path: &Path) -> PathBuf {
+    if let Ok(resolved) = std::fs::canonicalize(path) {
+        return resolved;
+    }
+    // A file that does not exist (any more): resolve its directory instead.
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return path.to_path_buf();
+    };
+    let parent = match parent.as_os_str().is_empty() {
+        true => Path::new("."),
+        false => parent,
+    };
+    std::fs::canonicalize(parent).map_or_else(|_| path.to_path_buf(), |dir| dir.join(name))
 }
 
 fn contains(area: Rect, column: u16, row: u16) -> bool {

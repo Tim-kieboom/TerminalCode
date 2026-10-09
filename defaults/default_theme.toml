@@ -87,7 +87,7 @@ background = "#560e31"
 
 ["explorer.selected.inactive"]
 background = "#560e31"
-modifiers = ["bold", "underlined"]
+modifiers = ["bold"]
 
 ["explorer.hint"]
 text = "dark_gray"

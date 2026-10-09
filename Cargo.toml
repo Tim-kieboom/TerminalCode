@@ -20,6 +20,7 @@ arboard = { version = "3.6.1", default-features = false, features = ["wayland-da
 base64 = "0.23.1"
 terminal-colorsaurus = "1.0.3"
 ignore = "0.4.33"
+notify-debouncer-mini = "0.7.0"
 
 [dev-dependencies]
 proptest = "1.11.0"

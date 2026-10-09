@@ -43,7 +43,13 @@ Split(
                                         title: Hidden,
                                     ))
                                 ),
-                                (size: Fixed(12), node: Leaf(Terminal)),
+                                (size: Fixed(12), node: Framed(
+                                    component: Terminal,
+                                    frame: (
+                                        border: Double,
+                                        title: Name,
+                                    ))
+                                ),
                                 (size: Fixed(1), node: Leaf(StatusBar)),
                             ],
                         ),

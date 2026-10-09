@@ -1,5 +1,6 @@
 mod app_tests;
 mod config_tests;
+mod disk_tests;
 mod explorer_tests;
 mod frame_tests;
 mod mouse_tests;

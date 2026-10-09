@@ -5,11 +5,13 @@ use ropey::Rope;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub use error::BufferError;
+pub(crate) use file::DiskChange;
 pub use file::FileError;
 
 use edit::AppliedEdit;
 pub(crate) use edit::Edit;
 pub(crate) use edit::EditInfo;
+use file::Disk;
 use history::History;
 pub(crate) use line_ending::LineEnding;
 use position::Point;
@@ -28,7 +30,8 @@ mod tests;
 
 /// Text of one file. Lines end with `\n` or `\r\n`.
 ///
-/// All changes go through [`Buffer::apply`], which bumps `version`; anything
+/// All changes go through [`Buffer::apply`], which bumps `version` (loading from
+/// disk with [`Buffer::reload`] replaces everything and bumps it too); anything
 /// computed from the text (highlighting, plugin snapshots) carries the
 /// version it saw so stale results can be discarded.
 #[derive(Debug, Default)]
@@ -40,6 +43,8 @@ pub(crate) struct Buffer {
     path: Option<PathBuf>,
     history: History,
     edit_log: Vec<EditInfo>,
+    /// What the file held when this buffer last read or wrote it.
+    disk: Disk,
 }
 
 impl Buffer {
@@ -52,6 +57,7 @@ impl Buffer {
             path: None,
             history: History::default(),
             edit_log: Vec::new(),
+            disk: Disk::Unknown,
         }
     }
 
@@ -80,6 +86,13 @@ impl Buffer {
         let start = self.rope.byte_to_char(range.start);
         let end = self.rope.byte_to_char(range.end);
         Ok(self.rope.slice(start..end).to_string())
+    }
+
+    /// `position` moved to the nearest place that exists in the text.
+    pub(crate) fn clamp_position(&self, position: Position) -> Position {
+        let line = position.line.min(self.len_lines() - 1);
+        let column = position.column.min(self.line_len(line).unwrap_or(0));
+        Position::new(line, column)
     }
 
     /// Number of grapheme columns in `line`, not counting its line break.

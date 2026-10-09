@@ -10,6 +10,7 @@ use crate::components::editor::Editor;
 use crate::error::{IdeError, IdeResult};
 use crate::state::AppState;
 use crate::terminal::Capabilities;
+use crate::watcher::FsWatcher;
 
 mod app;
 mod buffer;
@@ -24,6 +25,7 @@ pub mod terminal;
 #[cfg(test)]
 mod tests;
 mod ui;
+mod watcher;
 
 /// The files to open: every argument after the program name. A leading `--`
 /// marks the end of options and is skipped.
@@ -93,14 +95,18 @@ where
     }
 
     let clipboard = Clipboard::new(System::detect());
-    let app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
+    let mut app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
 
     runtime.block_on(async {
-        let (sources, _events) = Sources::spawn();
+        let (sources, events) = Sources::spawn();
+        match FsWatcher::new(events) {
+            Ok(watcher) => app = app.with_watcher(watcher),
+            Err(error) => app.state_mut().notify_error(error.to_string()),
+        }
         app::run(&mut terminal, sources, app).await
     })
 }

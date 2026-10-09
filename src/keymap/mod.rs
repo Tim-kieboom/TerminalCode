@@ -102,11 +102,20 @@ impl Keymap {
         let mut keymap = Self::default();
         keymap
             .apply_toml(DEFAULT_KEYMAP_TOML)
-            .expect("defaults/default_keymap.toml must be a valid keymap");
+            .unwrap_or_else(|err| {
+                panic!(
+                    "while tyring to parse defaults/default_keymap.toml: {}",
+                    err
+                )
+            });
+
         if keyboard == KeyboardSupport::Legacy {
-            keymap
-                .apply_toml(LEGACY_KEYMAP_TOML)
-                .expect("defaults/default_keymap_legacy.toml must be a valid keymap");
+            keymap.apply_toml(LEGACY_KEYMAP_TOML).unwrap_or_else(|err| {
+                panic!(
+                    "while tyring to parse defaults/default_keymap_legacy.toml: {}",
+                    err
+                )
+            });
         }
         keymap
     }

@@ -14,7 +14,7 @@ use crate::clipboard::{Clipboard, Notice, Register};
 use crate::components::explorer::ExplorerCommand;
 use crate::components::palette::{self, Entry, Palette};
 use crate::components::quit_prompt::{self, QuitPrompt};
-use crate::components::workspace::{CloseResult, DocumentId};
+use crate::components::workspace::{CloseResult, DiskEvent, DocumentId, SaveOutcome, canonical};
 use crate::components::{self, ComponentKind};
 use crate::error::{IdeError, IdeResult};
 use crate::event::{Event, action::Action, mouse::ClickTracker};
@@ -22,6 +22,7 @@ use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
 use crate::state::{AppState, Focus};
 use crate::terminal::{self, KeyboardSupport};
 use crate::ui::layout::Axis;
+use crate::watcher::FsWatcher;
 
 /// Upper bound on redraw rate (about 60 fps).
 const FRAME_INTERVAL: Duration = Duration::from_millis(16);
@@ -85,6 +86,7 @@ where
             if notification_deadline.is_some() => app.expire_notifications(std::time::Instant::now()),
         }
 
+        app.sync_watches();
         if let Some(enabled) = app.take_mouse_change() {
             terminal::set_mouse_capture(enabled);
         }
@@ -109,6 +111,11 @@ pub(crate) struct App {
     mouse_change: Option<bool>,
     sequence_timeout: Duration,
     pending_deadline: Option<std::time::Instant>,
+    watcher: Option<FsWatcher>,
+    /// The explorer and document versions the watches were last set for.
+    watched_versions: Option<(u64, u64)>,
+    /// Whether a watch failure was already reported, so it is shown once.
+    watch_failure_shown: bool,
 }
 
 /// Everything that can wake the app loop.
@@ -164,6 +171,9 @@ impl App {
             resolver: Resolver::default(),
             sequence_timeout: SEQUENCE_TIMEOUT,
             pending_deadline: None,
+            watcher: None,
+            watched_versions: None,
+            watch_failure_shown: false,
             flow: Flow::Continue,
             needs_redraw: true,
         }
@@ -174,6 +184,56 @@ impl App {
     pub(crate) fn with_clipboard(mut self, clipboard: Clipboard) -> Self {
         self.clipboard = clipboard;
         self
+    }
+
+    /// Watches the directories of open files and of the explorer for changes
+    /// made outside the editor.
+    pub(crate) fn with_watcher(mut self, watcher: FsWatcher) -> Self {
+        self.watcher = Some(watcher);
+        self.sync_watches();
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn watched_directories(&self) -> Vec<std::path::PathBuf> {
+        self.watcher
+            .as_ref()
+            .map(|watcher| watcher.watched().iter().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    /// Makes the watched directories match what is open. Cheap when nothing
+    /// was opened or closed since the last call.
+    pub(crate) fn sync_watches(&mut self) {
+        let Some(watcher) = self.watcher.as_mut() else {
+            return;
+        };
+        let versions = (
+            self.state.explorer().version(),
+            self.state.workspace().documents_version(),
+        );
+        if self.watched_versions == Some(versions) {
+            return;
+        }
+        self.watched_versions = Some(versions);
+
+        let wanted: std::collections::BTreeSet<_> = self
+            .state
+            .explorer()
+            .open_directories()
+            .iter()
+            .map(|dir| canonical(dir))
+            .chain(self.state.workspace().directories())
+            .collect();
+        if let Err(error) = watcher.watch_only(&wanted)
+            && !self.watch_failure_shown
+        {
+            self.watch_failure_shown = true;
+            self.state.notify_error(format!(
+                "changes made outside the editor may be missed: {error}"
+            ));
+            self.needs_redraw = true;
+        }
     }
 
     #[cfg(test)]
@@ -232,6 +292,48 @@ impl App {
                 self.state.set_plugin_view(id, content);
                 self.needs_redraw = true;
             }
+            Event::FilesChanged(paths) => self.files_changed(&paths),
+            Event::WatchFailed(message) => {
+                self.state.notify_error(format!("file watcher: {message}"));
+                self.needs_redraw = true;
+            }
+        }
+    }
+
+    /// Files changed outside the editor: brings open documents in step (see
+    /// [`crate::components::workspace::Workspace::check_disk`]) and refreshes
+    /// the explorer.
+    fn files_changed(&mut self, paths: &[std::path::PathBuf]) {
+        for event in self.state.workspace_mut().check_disk(paths) {
+            match event {
+                DiskEvent::Reloaded(name) => {
+                    self.state
+                        .notify(format!("{name} changed on disk; reloaded it"));
+                }
+                DiskEvent::Conflict(name) => self.state.notify_error(format!(
+                    "{name} changed on disk; your changes are kept (saving asks before overwriting)"
+                )),
+                DiskEvent::Deleted(name) => {
+                    self.state.notify(format!("{name} was deleted on disk"));
+                }
+                DiskEvent::Unreadable(message) => self.state.notify_error(message),
+            }
+        }
+        self.refresh_explorer_for(paths);
+        self.needs_redraw = true;
+    }
+
+    /// Re-reads the explorer's directories if any of `paths` is inside the
+    /// project.
+    fn refresh_explorer_for(&mut self, paths: &[std::path::PathBuf]) {
+        let Some(root) = self.state.explorer().root_path().map(canonical) else {
+            return;
+        };
+        if !paths.iter().any(|path| canonical(path).starts_with(&root)) {
+            return;
+        }
+        if let Err(error) = self.state.explorer_mut().refresh() {
+            self.state.notify_error(error.to_string());
         }
     }
 
@@ -611,9 +713,13 @@ impl App {
     /// failure it stays listed and the error is shown.
     fn save_for_prompt(&mut self, prompt: &mut QuitPrompt, name: &str, id: DocumentId) -> bool {
         match self.state.workspace_mut().save_document(id) {
-            Ok(()) => {
+            Ok(SaveOutcome::Saved) => {
                 prompt.remove_selected();
                 true
+            }
+            Ok(SaveOutcome::NeedsConfirmation(name)) => {
+                self.state.notify_error(overwrite_warning(&name));
+                false
             }
             Err(error) => {
                 self.state.notify_error(format!("{name}: {error}"));
@@ -680,15 +786,26 @@ impl App {
     }
 
     fn save(&mut self) -> IdeResult {
-        self.state.edit(|editor| editor.save())?;
-        let name = self.state.editor().display_name();
-        self.state.notify(format!("saved {name}"));
+        match self.state.workspace_mut().save_active()? {
+            SaveOutcome::Saved => {
+                let name = self.state.editor().display_name();
+                self.state.notify(format!("saved {name}"));
+            }
+            SaveOutcome::NeedsConfirmation(name) => {
+                self.state.notify_error(overwrite_warning(&name))
+            }
+        }
         Ok(())
     }
 
     pub(super) fn mark_drawn(&mut self) {
         self.needs_redraw = false;
     }
+}
+
+/// What saving says when the file changed on disk since it was read.
+fn overwrite_warning(name: &str) -> String {
+    format!("{name} changed on disk since you opened it; save again to overwrite it")
 }
 
 /// Text a key types when nothing is bound to it.

@@ -242,8 +242,9 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        Self::from_toml(DEFAULT_THEME_TOML)
-            .expect("defaults/default_theme.toml must be a valid theme")
+        Self::from_toml(DEFAULT_THEME_TOML).unwrap_or_else(|err| {
+            panic!("while tyring to parse defaults/default_theme.toml: {}", err)
+        })
     }
 }
 

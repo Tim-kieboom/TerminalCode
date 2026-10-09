@@ -63,6 +63,21 @@ impl Node {
         Ok(root)
     }
 
+    pub(super) fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Appends this directory and every open directory below it.
+    pub(super) fn collect_open_dirs(&self, out: &mut Vec<PathBuf>) {
+        if self.kind != NodeKind::Dir || !self.expanded {
+            return;
+        }
+        out.push(self.path.clone());
+        for child in self.children.iter().flatten() {
+            child.collect_open_dirs(out);
+        }
+    }
+
     fn entry(path: PathBuf) -> Self {
         let kind = match path.is_dir() {
             true => NodeKind::Dir,

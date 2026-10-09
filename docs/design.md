@@ -154,6 +154,13 @@ used `anyhow` everywhere instead of typed errors.
   `[Explorer, Global]`. Printable keys are only typed into the editor when it has focus. `ctrl+b` toggles focus,
   `esc` returns to the editor, clicking either component focuses it. Opening a file from the explorer keeps focus
   in the tree; actions that open or switch tabs and panes (`Action::focuses_editor`) move it to the editor.
+- Outside changes: `watcher::FsWatcher` (notify + debouncer) watches the explorer's open directories and the directories
+  of open files, one directory at a time, and sends `Event::FilesChanged`. A `Buffer` remembers a hash of what the
+  file held when it last read or wrote it (`Disk`), so it can tell its own saves from someone else's changes and a
+  rewrite with identical contents from a real change. `Workspace::check_disk` reloads unmodified documents and flags
+  modified ones (once per distinct change, `Document::warned`); `save_document` refuses to overwrite a changed file
+  until it is asked a second time with nothing else done in between. The same check runs at save time, so a
+  missed event cannot lose someone's change.
 - `Workspace::open_path` never reads an open file twice: it switches to a tab that shows it (focused pane first,
   then others) or adds a view to the existing document.
 

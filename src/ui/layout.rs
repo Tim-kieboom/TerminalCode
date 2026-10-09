@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use serde::Deserialize;
 use thiserror::Error;
@@ -143,8 +145,9 @@ impl LayoutTree {
 
 impl Default for LayoutTree {
     fn default() -> Self {
-        Self::from_ron(DEFAULT_LAYOUT_RON)
-            .expect("defaults/default_layout.ron must be a valid layout")
+        Self::from_ron(DEFAULT_LAYOUT_RON).unwrap_or_else(|err| {
+            panic!("while tyring to parse defaults/default_layout.ron: {}", err)
+        })
     }
 }
 
