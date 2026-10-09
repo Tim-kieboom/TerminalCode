@@ -8,6 +8,7 @@ mod find_tests;
 mod finder_tests;
 mod frame_tests;
 mod hide_tests;
+mod highlight_tests;
 mod menu_tests;
 mod mouse_tests;
 mod move_tests;

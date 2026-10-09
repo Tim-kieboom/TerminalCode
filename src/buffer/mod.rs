@@ -115,6 +115,12 @@ impl Buffer {
         self.rope.to_string()
     }
 
+    /// Byte offset where `line` starts; the end of the text for a line past
+    /// the last.
+    pub(crate) fn line_start_byte(&self, line: usize) -> usize {
+        self.rope.line_to_byte(line.min(self.rope.len_lines()))
+    }
+
     /// Applies `edit` and returns its inverse, bypassing history. Editing
     /// code goes through [`Buffer::begin_transaction`]. On error the buffer
     /// is unchanged.

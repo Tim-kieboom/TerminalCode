@@ -14,8 +14,10 @@ use crate::buffer::{Buffer, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
 use crate::components::find::Find;
+use crate::syntax::Span as SyntaxSpan;
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Smallest line-number column, in digits.
 const MIN_GUTTER_DIGITS: usize = 3;
@@ -32,17 +34,31 @@ pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect, frame: 
     }
 }
 
-/// Draws the editor into `area` inside `pane_frame`. Only the focused editor
-/// gets the terminal cursor and the highlighted border.
+/// What one editor shows besides its frame.
+pub(crate) struct Content<'a> {
+    pub(crate) editor: EditorRef<'a>,
+    /// The syntax colors of the text.
+    pub(crate) syntax: &'a [SyntaxSpan],
+    /// Only the focused editor gets the terminal cursor and the highlighted
+    /// border.
+    pub(crate) focused: bool,
+    pub(crate) find: Option<&'a Find>,
+}
+
+/// Draws the editor into `area` inside `pane_frame`.
 pub(crate) fn draw(
     frame: &mut Frame,
     theme: &Theme,
-    editor: EditorRef<'_>,
+    content: Content<'_>,
     area: Rect,
     pane_frame: &PaneFrame,
-    focused: bool,
-    find: Option<&Find>,
 ) {
+    let Content {
+        editor,
+        syntax,
+        focused,
+        find,
+    } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
     let block = pane_frame.block(theme, pane_frame.title_text(&name), focused);
@@ -50,7 +66,7 @@ pub(crate) fn draw(
     frame.render_widget(block, area);
 
     let geometry = Geometry::new(inner, buffer.len_lines());
-    draw_lines(frame, theme, buffer, view, find, &geometry);
+    draw_lines(frame, theme, buffer, view, syntax, find, &geometry);
     if focused {
         place_cursor(frame, buffer, view, &geometry);
     }
@@ -98,6 +114,7 @@ fn draw_lines(
     theme: &Theme,
     buffer: &Buffer,
     view: &ViewState,
+    syntax: &[SyntaxSpan],
     find: Option<&Find>,
     geometry: &Geometry,
 ) {
@@ -125,6 +142,7 @@ fn draw_lines(
         };
         let cells = visible_cells(&content, scroll.left, usize::from(geometry.text.width));
         let selected = selected_columns(selection, line, buffer.line_len(line).unwrap_or(0));
+        let colors = LineColors::new(syntax, buffer.line_start_byte(line), &content);
 
         let selection_style = theme.style("editor.selection");
         let match_style = theme.style("editor.match");
@@ -132,15 +150,18 @@ fn draw_lines(
         let mut spans: Vec<Span> = cells
             .into_iter()
             .map(|cell| {
+                let base = colors.style_of(cell.grapheme);
                 let style = match &selected {
-                    Some((range, _)) if range.contains(&cell.grapheme) => selection_style,
+                    Some((range, _)) if range.contains(&cell.grapheme) => {
+                        base.patch(selection_style)
+                    }
                     _ if found
                         .iter()
                         .any(|m| (m.start..m.end).contains(&cell.grapheme)) =>
                     {
-                        match_style
+                        base.patch(match_style)
                     }
-                    _ => Style::default(),
+                    _ => base,
                 };
                 Span::styled(cell.text, style)
             })
@@ -197,4 +218,44 @@ fn place_cursor(frame: &mut Frame, buffer: &Buffer, view: &ViewState, geometry: 
         geometry.text.x + col as u16,
         geometry.text.y + row as u16,
     ));
+}
+
+/// The syntax colors of one line, by grapheme column.
+struct LineColors<'a> {
+    /// The spans that touch the line.
+    spans: &'a [SyntaxSpan],
+    /// Byte offset of the line in the text, and of each grapheme in the line.
+    line_start: usize,
+    grapheme_starts: Vec<usize>,
+}
+
+impl<'a> LineColors<'a> {
+    fn new(spans: &'a [SyntaxSpan], line_start: usize, content: &str) -> Self {
+        let line_end = line_start + content.len();
+        let first = spans.partition_point(|span| span.range.end <= line_start);
+        let touching = &spans[first..];
+        let count = touching.partition_point(|span| span.range.start < line_end);
+        let spans = &touching[..count];
+        let grapheme_starts = if spans.is_empty() {
+            Vec::new()
+        } else {
+            content.grapheme_indices(true).map(|(at, _)| at).collect()
+        };
+        Self {
+            spans,
+            line_start,
+            grapheme_starts,
+        }
+    }
+
+    fn style_of(&self, grapheme: usize) -> Style {
+        let Some(offset) = self.grapheme_starts.get(grapheme) else {
+            return Style::default();
+        };
+        let byte = self.line_start + offset;
+        self.spans
+            .iter()
+            .find(|span| span.range.contains(&byte))
+            .map_or_else(Style::default, |span| span.style)
+    }
 }

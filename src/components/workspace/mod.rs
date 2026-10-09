@@ -21,7 +21,9 @@ use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, displ
 use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
 use crate::paths::canonical;
+use crate::syntax::{DocumentSyntax, MAX_RANGES, merge_ranges};
 use crate::ui::layout::Axis;
+use crate::ui::theme::Theme;
 
 pub(crate) use disk::{DiskEvent, SaveOutcome};
 use tree::Node;
@@ -70,6 +72,8 @@ struct Document {
     /// The view that made the latest change, so a typing burst is not merged
     /// with another view's edit.
     last_editor: Option<ViewId>,
+    /// Colors for the part of the text on screen.
+    syntax: DocumentSyntax,
 }
 
 #[derive(Debug)]
@@ -141,6 +145,38 @@ impl Workspace {
         let tab = workspace.new_tab(document, view);
         workspace.panes.push(Pane::with_tab(pane, tab));
         workspace
+    }
+
+    /// Brings the colors of every document that is on screen up to date, for
+    /// the lines each pane shows and a screen of margin above and below, so a
+    /// scroll does not show uncolored text. Run after the panes are laid out.
+    ///
+    /// Returns what went wrong for documents whose highlighting could not be
+    /// set up, each once.
+    pub(crate) fn refresh_highlights(&mut self, theme: &Theme) -> Vec<String> {
+        let mut errors = Vec::new();
+        let mut wanted: HashMap<DocumentId, Vec<std::ops::Range<usize>>> = HashMap::new();
+        for pane in &self.panes {
+            let Some(tab) = pane.tabs.get(pane.active) else {
+                continue;
+            };
+            let buffer = &self.documents[&tab.document].buffer;
+            let height = tab.view.viewport_height();
+            let top = tab.view.scroll().top;
+            let first = buffer.line_start_byte(top.saturating_sub(height));
+            let last = buffer.line_start_byte(top + 2 * height);
+            wanted.entry(tab.document).or_default().push(first..last);
+        }
+        for (id, ranges) in wanted {
+            let ranges = merge_ranges(ranges, MAX_RANGES);
+            if let Some(document) = self.documents.get_mut(&id) {
+                document.syntax.update(&document.buffer, theme, &ranges);
+                if let Some(error) = document.syntax.take_error() {
+                    errors.push(format!("{}: {error}", display_name(&document.buffer)));
+                }
+            }
+        }
+        errors
     }
 
     /// The focused pane's active tab, for reading.
@@ -622,6 +658,7 @@ impl Workspace {
                 indent,
                 last_editor: None,
                 warned: None,
+                syntax: DocumentSyntax::default(),
             },
         );
         id

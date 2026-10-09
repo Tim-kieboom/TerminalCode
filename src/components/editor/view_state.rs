@@ -35,6 +35,11 @@ impl ViewState {
         self.scroll
     }
 
+    /// Lines the text area shows, as of the last layout pass.
+    pub(crate) fn viewport_height(&self) -> usize {
+        self.viewport_height
+    }
+
     #[cfg(test)]
     pub(crate) fn text_area(&self) -> Option<Rect> {
         self.text_area

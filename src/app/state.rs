@@ -182,6 +182,11 @@ impl AppState {
         &mut self.components.workspace
     }
 
+    /// The workspace and the theme together, for work that needs both.
+    pub(crate) fn workspace_and_theme_mut(&mut self) -> (&mut Workspace, &Theme) {
+        (&mut self.components.workspace, &self.theme)
+    }
+
     /// The focused editor, for reading.
     pub(crate) fn editor(&self) -> EditorRef<'_> {
         self.components.workspace.active_editor()

@@ -428,3 +428,10 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   pattern wins a tie, cut to the range, same-style neighbours joined). `Theme::syntax_style` is the longest-prefix
   lookup, and `defaults/default_theme.toml` has the `syntax.*` slots. It builds with just a C compiler (`cc`);
   nothing Windows-specific has been tried yet.
+- Step B is done: each `Document` owns a `DocumentSyntax` (`src/syntax/document.rs`) that picks the language from the
+  buffer's path, parses in full whenever the buffer version changed and recomputes spans for the ranges asked
+  for. `Workspace::refresh_highlights` runs after layout every frame: per pane, the visible lines plus one screen
+  above and below, merged across panes (`syntax::merge_ranges`, capped at 8). The editor draws a span's style under
+  the selection and find-match styles (`Style::patch`, so a selection keeps the syntax color of its text). A grammar
+  that cannot be set up is reported once as a notification. This is still synchronous: a 7 MB Rust file takes
+  about 0.9 s per reparse in a release build (3 s in debug), on every keystroke. That is what steps C and D remove.

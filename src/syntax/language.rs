@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use tree_sitter::Language as Grammar;
 
 /// A language the editor can highlight; its grammar is compiled in.
@@ -10,6 +12,14 @@ impl Language {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Rust => "Rust",
+        }
+    }
+
+    /// The language of the file at `path`, going by its extension.
+    pub(crate) fn from_path(path: &Path) -> Option<Self> {
+        match path.extension()?.to_str()? {
+            "rs" => Some(Self::Rust),
+            _ => None,
         }
     }
 

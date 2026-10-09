@@ -53,16 +53,15 @@ impl Render for Workspace {
                 continue;
             };
 
-            let editor = EditorRef::new(&self.documents[&tab.document].buffer, &tab.view);
-            editor_render::draw(
-                frame,
-                theme,
+            let document = &self.documents[&tab.document];
+            let editor = EditorRef::new(&document.buffer, &tab.view);
+            let content = editor_render::Content {
                 editor,
-                pane.editor_area,
-                &placement.frame,
+                syntax: document.syntax.spans(),
                 focused,
-                state.find().filter(|_| focused),
-            );
+                find: state.find().filter(|_| focused),
+            };
+            editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 
             if let Some(find) = state.find().filter(|_| focused) {
                 find.render(frame, theme, pane.find_bar);

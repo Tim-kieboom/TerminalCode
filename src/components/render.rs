@@ -67,7 +67,13 @@ fn paint_background(frame: &mut Frame, state: &AppState) {
 
 fn prepare_component(state: &mut AppState, placement: &Placement) {
     match placement.kind {
-        ComponentKind::Editor => state.workspace_mut().prepare(placement),
+        ComponentKind::Editor => {
+            state.workspace_mut().prepare(placement);
+            let (workspace, theme) = state.workspace_and_theme_mut();
+            for error in workspace.refresh_highlights(theme) {
+                state.notify_error(error);
+            }
+        }
         ComponentKind::Explorer => state.explorer_mut().prepare(placement),
         ComponentKind::StatusBar => state.status_bar_mut().prepare(placement),
         _ => (),
