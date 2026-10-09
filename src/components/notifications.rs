@@ -17,7 +17,8 @@ use crate::ui::theme::Theme;
 
 /// How long an info message stays.
 pub(crate) const INFO_LIFETIME: Duration = Duration::from_secs(4);
-/// Messages kept; the oldest go first.
+/// Messages kept. When there are more, the oldest info messages go first, then
+/// the oldest errors.
 const MAX_STORED: usize = 20;
 const WIDTH: u16 = 50;
 /// Border plus one cell of padding on each side.
@@ -62,8 +63,21 @@ impl Notifications {
             expires,
         });
         if self.items.len() > MAX_STORED {
-            self.items.remove(0);
+            self.evict_one();
         }
+    }
+
+    /// Drops one message to make room. Errors stay until the user acts, so the
+    /// oldest info message goes first (which can be the one just added, if it
+    /// is the only one); only when everything stored is an error does the oldest
+    /// error go.
+    fn evict_one(&mut self) {
+        let victim = self
+            .items
+            .iter()
+            .position(|item| item.level == Level::Info)
+            .unwrap_or(0);
+        self.items.remove(victim);
     }
 
     /// Removes every error. Returns whether there was one.
@@ -92,6 +106,12 @@ impl Notifications {
         self.items.last()
     }
 
+    /// The text of every message, oldest first.
+    #[cfg(test)]
+    pub(crate) fn texts(&self) -> Vec<&str> {
+        self.items.iter().map(|item| &*item.text).collect()
+    }
+
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.items.len()
@@ -103,23 +123,21 @@ impl Notifications {
     }
 
     /// Draws the messages that fit between the top of the screen and `bottom`
-    /// (a row), newest nearest to it.
+    /// (a row), newest nearest to it. When not all fit, the errors are drawn
+    /// first, because they stay until the user acts, and the newest info
+    /// messages after them.
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme, bottom: u16) {
         let screen = frame.area();
         let width = WIDTH.min(screen.width);
         if width <= CHROME_WIDTH {
             return;
         }
-        let text_width = usize::from(width - CHROME_WIDTH);
         let mut floor = bottom.min(screen.bottom());
+        let available = floor.saturating_sub(screen.y);
+        let text_width = usize::from(width - CHROME_WIDTH);
 
-        for item in self.items.iter().rev() {
-            let mut lines = wrap(&item.text, text_width);
-            lines.truncate(MAX_TEXT_LINES);
+        for (index, lines) in self.fitting(text_width, available).into_iter().rev() {
             let height = lines.len() as u16 + 2;
-            if floor < screen.y + height {
-                break;
-            }
             floor -= height;
             let area = Rect {
                 x: screen.right() - width,
@@ -127,8 +145,35 @@ impl Notifications {
                 width,
                 height,
             };
-            draw_one(frame, theme, item.level, lines, area);
+            draw_one(frame, theme, self.items[index].level, lines, area);
         }
+    }
+
+    /// The messages that fit in `available` rows, as their index and their
+    /// wrapped text, oldest first. Errors are taken before info messages, and
+    /// the newest before the older ones of the same level.
+    fn fitting(&self, text_width: usize, available: u16) -> Vec<(usize, Vec<String>)> {
+        let newest_first = |level: Level| {
+            self.items
+                .iter()
+                .enumerate()
+                .rev()
+                .filter(move |(_, item)| item.level == level)
+        };
+        let mut fitting = Vec::new();
+        let mut used = 0_u16;
+        for (index, item) in newest_first(Level::Error).chain(newest_first(Level::Info)) {
+            let mut lines = wrap(&item.text, text_width);
+            lines.truncate(MAX_TEXT_LINES);
+            let height = lines.len() as u16 + 2;
+            if used.saturating_add(height) > available {
+                break;
+            }
+            used += height;
+            fitting.push((index, lines));
+        }
+        fitting.sort_by_key(|(index, _)| *index);
+        fitting
     }
 }
 

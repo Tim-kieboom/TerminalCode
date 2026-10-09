@@ -267,3 +267,157 @@ fn the_status_bar_no_longer_carries_messages() {
     let status = rows.iter().find(|row| row.contains("Ln 1, Col 1")).unwrap();
     assert!(!status.contains("a message"), "{status}");
 }
+
+fn texts(app: &App) -> Vec<String> {
+    app.state()
+        .notifications()
+        .texts()
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn a_sticky_error_survives_a_flood_of_info_messages() {
+    let mut app = App::default();
+    app.state_mut().notify_error("the disk is full");
+
+    for number in 0..50 {
+        app.state_mut().notify(format!("info {number}"));
+    }
+
+    assert!(app.state().notifications().has_errors());
+    assert!(texts(&app).contains(&"the disk is full".to_owned()));
+    assert_eq!(app.state().notifications().len(), 20);
+}
+
+#[test]
+fn when_the_store_is_full_the_oldest_info_message_goes_not_an_older_error() {
+    let mut app = App::default();
+    app.state_mut().notify_error("first error");
+    for number in 1..20 {
+        app.state_mut().notify(format!("info {number}"));
+    }
+    assert_eq!(app.state().notifications().len(), 20);
+
+    app.state_mut().notify("one more");
+
+    let kept = texts(&app);
+    assert_eq!(kept.len(), 20);
+    assert!(kept.contains(&"first error".to_owned()));
+    assert!(
+        !kept.contains(&"info 1".to_owned()),
+        "the oldest info message went"
+    );
+    assert!(kept.contains(&"info 2".to_owned()));
+    assert_eq!(kept.last().map(String::as_str), Some("one more"));
+}
+
+#[test]
+fn a_new_error_also_makes_room_by_dropping_an_info_message() {
+    let mut app = App::default();
+    for number in 0..20 {
+        app.state_mut().notify(format!("info {number}"));
+    }
+
+    app.state_mut().notify_error("new error");
+
+    let kept = texts(&app);
+    assert_eq!(kept.len(), 20);
+    assert!(!kept.contains(&"info 0".to_owned()));
+    assert_eq!(kept.last().map(String::as_str), Some("new error"));
+}
+
+#[test]
+fn when_everything_stored_is_an_error_the_oldest_error_goes() {
+    let mut app = App::default();
+    for number in 0..20 {
+        app.state_mut().notify_error(format!("error {number}"));
+    }
+
+    app.state_mut().notify_error("error 20");
+
+    let kept = texts(&app);
+    assert_eq!(kept.len(), 20);
+    assert!(!kept.contains(&"error 0".to_owned()));
+    assert!(kept.contains(&"error 1".to_owned()));
+    assert_eq!(kept.last().map(String::as_str), Some("error 20"));
+}
+
+#[test]
+fn an_info_message_does_not_displace_errors_in_a_store_full_of_them() {
+    let mut app = App::default();
+    for number in 0..20 {
+        app.state_mut().notify_error(format!("error {number}"));
+    }
+
+    app.state_mut().notify("saved a.txt");
+
+    let kept = texts(&app);
+    assert_eq!(kept.len(), 20);
+    assert!(
+        !kept.contains(&"saved a.txt".to_owned()),
+        "the new info is the one dropped"
+    );
+    assert!(kept.contains(&"error 0".to_owned()));
+    assert!(app.state().notifications().has_errors());
+}
+
+#[test]
+fn the_error_is_still_drawn_after_a_flood_of_info_messages() {
+    let mut app = App::default();
+    app.state_mut().notify_error("the disk is full");
+    for number in 0..50 {
+        app.state_mut().notify(format!("info {number}"));
+    }
+
+    let screen = screen(&mut app, 100, 60);
+
+    assert!(screen.contains("the disk is full"), "{screen}");
+}
+
+#[test]
+fn the_oldest_infos_going_first_keeps_the_order_of_what_is_left() {
+    let mut app = App::default();
+    app.state_mut().notify_error("error a");
+    app.state_mut().notify("info 1");
+    app.state_mut().notify_error("error b");
+    for number in 2..=19 {
+        app.state_mut().notify(format!("info {number}"));
+    }
+    app.state_mut().notify("info 20");
+
+    let kept = texts(&app);
+
+    // 21 messages were stored when `info 19` came, so `info 1` went; `info 20` then
+    // pushed out `info 2`. The errors stayed in their places.
+    assert_eq!(&kept[..3], ["error a", "error b", "info 3"]);
+}
+
+#[test]
+fn when_not_everything_fits_the_error_and_the_newest_infos_are_drawn_in_order() {
+    let mut app = App::default();
+    app.state_mut().notify_error("the error");
+    for number in 0..10 {
+        app.state_mut().notify(format!("info {number}"));
+    }
+
+    // 29 rows are free above the status bar: nine messages of three rows.
+    let screen = screen(&mut app, 100, 30);
+
+    let rows: Vec<&str> = screen.lines().collect();
+    let row_of = |needle: &str| rows.iter().position(|row| row.contains(needle));
+    assert!(row_of("the error").is_some(), "{screen}");
+    assert!(row_of("info 9").is_some(), "{screen}");
+    assert!(row_of("info 2").is_some(), "{screen}");
+    assert!(
+        row_of("info 0").is_none(),
+        "the oldest infos are the ones left out: {screen}"
+    );
+    assert!(row_of("info 1").is_none(), "{screen}");
+    assert!(row_of("the error") < row_of("info 2"), "oldest on top");
+    assert!(
+        row_of("info 2") < row_of("info 9"),
+        "newest nearest the bottom"
+    );
+}
