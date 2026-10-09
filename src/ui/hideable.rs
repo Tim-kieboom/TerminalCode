@@ -32,6 +32,14 @@ impl<T> Hideable<T> {
         }
     }
 
+    /// A component that starts out hidden; [`Hideable::show`] shows it.
+    pub(crate) fn new_hidden(node: T) -> Self {
+        Self {
+            node,
+            visibility: Visibility::Hidden,
+        }
+    }
+
     pub(crate) fn is_shown(&self) -> bool {
         self.visibility == Visibility::Shown
     }

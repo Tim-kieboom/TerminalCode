@@ -11,6 +11,7 @@ pub mod quit_prompt;
 mod render;
 pub mod search;
 pub mod status_view;
+pub mod terminal;
 pub mod workspace;
 pub use render::prepare_and_render;
 use serde::Deserialize;

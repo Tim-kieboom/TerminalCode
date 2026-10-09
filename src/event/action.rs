@@ -19,6 +19,8 @@ pub(crate) enum Action {
     /// Shows the explorer if it is hidden, hides it if it is shown.
     ToggleExplorer,
     ToggleStatusBar,
+    /// Shows the terminal pane (starting the shell the first time), or hides it.
+    ToggleTerminal,
     /// Shows or hides the view of the plugin with this id.
     TogglePluginView(Box<str>),
     /// Opens the file finder.
@@ -76,6 +78,7 @@ impl Action {
         matches!(
             self,
             Self::NewFile
+                | Self::ToggleTerminal
                 | Self::ContextMenu
                 | Self::CloseTab
                 | Self::NextTab
@@ -132,6 +135,7 @@ impl Action {
             Self::FocusExplorer => "Explorer: Focus",
             Self::ToggleExplorer => "View: Toggle Explorer",
             Self::ToggleStatusBar => "View: Toggle Status Bar",
+            Self::ToggleTerminal => "View: Toggle Terminal",
             Self::FindFile => "File: Go to File",
             Self::FindInProject => "Search: Find in Project",
             Self::FindInFile => "Search: Find in File",
@@ -191,6 +195,7 @@ impl Action {
             Self::FocusExplorer,
             Self::ToggleExplorer,
             Self::ToggleStatusBar,
+            Self::ToggleTerminal,
             Self::Explorer(ExplorerCommand::Refresh),
             Self::DeleteSelected,
             Self::CreateFile,

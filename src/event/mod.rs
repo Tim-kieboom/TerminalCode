@@ -38,6 +38,8 @@ pub(crate) enum Event {
         files: usize,
         truncated: bool,
     },
+    /// The shell in the terminal pane printed something, or ended.
+    TerminalChanged,
     /// The syntax worker found the colors of a document.
     Highlighted(crate::syntax::Output),
     /// The file watcher reported a problem.

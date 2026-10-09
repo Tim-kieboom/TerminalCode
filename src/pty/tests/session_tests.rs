@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use crate::pty::{PtyError, Session, Shell, SpawnConfig};
 
-use super::support::{start, start_shell};
+use super::support::start;
 
 #[test]
 fn what_the_shell_prints_shows_on_the_screen() {

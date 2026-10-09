@@ -2,11 +2,11 @@
 //! draws, and the way keystrokes and pastes get to it without ever blocking
 //! the thread that draws.
 
-// Not used by the app yet (M6 step B).
-#![allow(dead_code, unused_imports)]
+// Writing to the shell is used by the key handling (M6 step C).
+#![allow(dead_code)]
 
 pub(crate) use error::PtyError;
-pub(crate) use session::{Session, SpawnConfig, Written};
+pub(crate) use session::{Session, SpawnConfig};
 pub(crate) use shell::Shell;
 
 mod error;

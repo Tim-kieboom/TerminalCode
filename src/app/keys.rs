@@ -170,6 +170,7 @@ impl App {
             Action::FocusExplorer => self.toggle_explorer_focus(),
             Action::ToggleExplorer => self.toggle_explorer(),
             Action::ToggleStatusBar => self.state.toggle_status_bar(),
+            Action::ToggleTerminal => self.toggle_terminal(),
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::DeleteSelected => self.delete_selected(),

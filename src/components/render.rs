@@ -15,6 +15,7 @@ use crate::{
 /// Draws every component of the layout: first all `prepare` steps, then all
 /// read-only draws.
 pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
+    state.set_screen(frame.area());
     paint_background(frame, state);
     let placements = state
         .layout()
@@ -75,6 +76,7 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
         }
         ComponentKind::Explorer => state.explorer_mut().prepare(placement),
         ComponentKind::StatusBar => state.status_bar_mut().prepare(placement),
+        ComponentKind::Terminal => state.terminal_mut().prepare(placement),
         _ => (),
     }
 }
@@ -84,6 +86,7 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
         ComponentKind::Editor => state.workspace().render(frame, state, placement),
         ComponentKind::Explorer => state.explorer().render(frame, state, placement),
         ComponentKind::StatusBar => state.status_bar().render(frame, state, placement),
+        ComponentKind::Terminal => state.terminal().render(frame, state, placement),
         _ => render_plain(frame, state, placement),
     }
 }

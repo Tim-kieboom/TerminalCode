@@ -15,6 +15,7 @@ use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
 use crate::components::search::Search;
 use crate::components::status_view::StatusBar;
+use crate::components::terminal::TerminalPane;
 use crate::components::workspace::Workspace;
 use crate::syntax::SyntaxWorker;
 use crate::ui::Hideable;
@@ -39,6 +40,9 @@ pub(crate) struct AppState {
     layout: LayoutTree,
     components: AppComponents,
     notifications: Notifications,
+    /// The size of the screen as of the last draw, for working out where
+    /// something that is not drawn yet would go.
+    screen: ratatui::layout::Rect,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,
@@ -67,6 +71,7 @@ struct AppComponents {
     workspace: Workspace,
     explorer: Hideable<Explorer>,
     status_bar: Hideable<StatusBar>,
+    terminal: Hideable<TerminalPane>,
     plugin_views: HashMap<PluginViewId, Hideable<PluginView>>,
 }
 
@@ -77,6 +82,7 @@ impl Default for AppComponents {
             workspace: Workspace::default(),
             explorer: Hideable::new_show(Explorer::default()),
             status_bar: Hideable::new_show(StatusBar),
+            terminal: Hideable::new_hidden(TerminalPane::default()),
             plugin_views: HashMap::new(),
         }
     }
@@ -123,7 +129,8 @@ impl AppState {
                 .plugin_views
                 .get(id)
                 .is_none_or(Hideable::is_shown),
-            ComponentKind::Editor | ComponentKind::Terminal => true,
+            ComponentKind::Terminal => self.components.terminal.is_shown(),
+            ComponentKind::Editor => true,
         }
     }
 
@@ -133,6 +140,39 @@ impl AppState {
 
     pub(crate) fn hide_explorer(&mut self) {
         self.components.explorer.hide();
+    }
+
+    pub(crate) fn terminal(&self) -> &TerminalPane {
+        self.components.terminal.node()
+    }
+
+    pub(crate) fn terminal_mut(&mut self) -> &mut TerminalPane {
+        self.components.terminal.node_mut()
+    }
+
+    pub(crate) fn set_screen(&mut self, screen: ratatui::layout::Rect) {
+        self.screen = screen;
+    }
+
+    /// Rows and columns the terminal pane has, or would have if it is shown
+    /// now, going by the screen as of the last draw. `None` before the first.
+    pub(crate) fn terminal_size_now(&self) -> Option<(u16, u16)> {
+        let placements = self
+            .layout
+            .resolve_visible(self.screen, &|kind| self.is_visible(kind));
+        let placement = placements
+            .iter()
+            .find(|placement| placement.kind == ComponentKind::Terminal)?;
+        let inner = placement.frame.inner(placement.area);
+        Some((inner.height, inner.width))
+    }
+
+    pub(crate) fn show_terminal(&mut self) {
+        self.components.terminal.show();
+    }
+
+    pub(crate) fn hide_terminal(&mut self) {
+        self.components.terminal.hide();
     }
 
     pub(crate) fn toggle_status_bar(&mut self) {

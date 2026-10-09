@@ -20,4 +20,5 @@ mod search_tests;
 mod stale_view_tests;
 mod startup_tests;
 mod state_tests;
+mod terminal_tests;
 mod watcher_tests;

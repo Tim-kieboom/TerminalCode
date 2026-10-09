@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
-use super::queue::{BoundedQueue, PushError};
+use super::queue::BoundedQueue;
 use super::{PtyError, Shell};
 
 /// How much a write may hand to the writer thread in one piece.
@@ -64,6 +64,8 @@ struct Shared {
     screen: Mutex<vt100::Parser>,
     /// A wake-up has gone out that no draw has answered yet.
     wake_pending: AtomicBool,
+    /// The reader has seen the end of the child's output.
+    ended: AtomicBool,
     /// The size the child should have, until the writer thread applies it.
     wanted_size: Mutex<Option<PtySize>>,
     /// Everything the child has printed, for tests.
@@ -117,6 +119,7 @@ impl Session {
         let shared = Arc::new(Shared {
             screen: Mutex::new(vt100::Parser::new(config.rows, config.columns, SCROLLBACK)),
             wake_pending: AtomicBool::new(false),
+            ended: AtomicBool::new(false),
             wanted_size: Mutex::new(None),
             #[cfg(test)]
             received: std::sync::atomic::AtomicU64::new(0),
@@ -206,6 +209,31 @@ impl Session {
         self.shared.received.load(Ordering::Relaxed)
     }
 
+    /// Whether the shell has closed its end of the terminal, which is what
+    /// happens when it exits.
+    pub(crate) fn output_ended(&self) -> bool {
+        self.shared.ended.load(Ordering::SeqCst)
+    }
+
+    /// The exit code of a shell that is over. The end of its output comes a
+    /// moment before it can be reaped, so this waits a little for that; `None`
+    /// if it is still running.
+    pub(crate) fn finished(&self) -> Option<u32> {
+        if let Some(code) = self.exit_code() {
+            return Some(code);
+        }
+        if !self.output_ended() {
+            return None;
+        }
+        for _ in 0..40 {
+            thread::sleep(Duration::from_millis(5));
+            if let Some(code) = self.exit_code() {
+                return Some(code);
+            }
+        }
+        None
+    }
+
     pub(crate) fn process_id(&self) -> Option<u32> {
         self.process_id
     }
@@ -257,6 +285,7 @@ fn read_output(mut reader: Box<dyn Read + Send>, shared: &Shared, wake: &(dyn Fn
         shared.received.fetch_add(read as u64, Ordering::Relaxed);
         wake_once(shared, wake);
     }
+    shared.ended.store(true, Ordering::SeqCst);
     // The shell ended; the app wants to know.
     wake_once(shared, wake);
 }

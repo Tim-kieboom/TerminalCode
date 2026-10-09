@@ -528,3 +528,14 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   and an 8 MB paste into a raw-mode shell that is not reading (the write returns inside the limit with the rest
   dropped; drawing, further keys and the child's output stay live). The probe was checked against a deliberately
   bad reader that holds the screen lock for 80 ms now and then: the frame limit fails at 83 ms.
+- Step B is done. The terminal pane (`components/terminal`, `TerminalPane`) is hidden by default (`Hideable::new_hidden`)
+  and toggled with `ctrl+k t` (`toggle_terminal`, "View: Toggle Terminal" in the palette). Showing it starts the
+  shell if there is none or it ended: in the project root, with the size the pane has when shown, worked out from
+  the layout and the screen as of the last draw (`AppState::terminal_size_now`), so a shell that asks for its size
+  straight away already gets the right one. Each frame `prepare` takes the dirty flag (the next change wakes the
+  app again) and resizes the shell if the pane's text area changed; while hidden the pane keeps its last size.
+  `Event::TerminalChanged` (sent with `blocking_send`, because a lost wake-up leaves the screen stale) redraws and
+  reports the end of a shell once, with its exit code. `components/terminal/render.rs` copies the `vt100` cells into
+  the frame buffer: colors (default/indexed/RGB), bold/dim/italic/underline/inverse, wide characters take two
+  cells, combining marks stay with their letter. The pane only draws so far: no focus, no keys (step C), no
+  cursor, no scrollback (step D).

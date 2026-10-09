@@ -17,6 +17,7 @@ use crate::components;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
 use crate::keymap::Keymap;
+use crate::pty::Shell;
 use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 
@@ -27,6 +28,7 @@ mod mouse;
 mod panels;
 mod popups;
 pub(crate) mod state;
+mod terminal_pane;
 mod watching;
 
 use background::Background;
@@ -56,6 +58,8 @@ pub(crate) struct App {
     background: Background,
     remembered: Remembered,
     removal: Removal,
+    /// What the terminal pane runs.
+    terminal_shell: Shell,
 }
 
 /// Everything that can wake the app loop.
@@ -169,6 +173,7 @@ impl App {
             background: Background::default(),
             remembered: Remembered::default(),
             removal: Removal::default(),
+            terminal_shell: Shell::detect(),
         }
     }
 
@@ -189,6 +194,13 @@ impl App {
                 let _ = results.blocking_send(Event::Highlighted(output));
             }));
         self.background.connect(events);
+        self
+    }
+
+    /// Runs `shell` in the terminal pane instead of the user's.
+    #[cfg(test)]
+    pub(crate) fn with_terminal_shell(mut self, shell: Shell) -> Self {
+        self.terminal_shell = shell;
         self
     }
 
@@ -284,6 +296,7 @@ impl App {
                     self.needs_redraw = true;
                 }
             }
+            Event::TerminalChanged => self.terminal_changed(),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {
                     self.needs_redraw = true;
