@@ -234,6 +234,7 @@ impl Session {
         None
     }
 
+    #[cfg(test)]
     pub(crate) fn process_id(&self) -> Option<u32> {
         self.process_id
     }

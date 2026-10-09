@@ -21,6 +21,8 @@ pub(crate) struct TerminalPane {
     size: Option<(u16, u16)>,
     /// The end of the shell has been reported to the user.
     exit_reported: bool,
+    /// Where the pane is on screen, as of the last layout pass.
+    area: ratatui::layout::Rect,
 }
 
 impl TerminalPane {
@@ -34,7 +36,6 @@ impl TerminalPane {
         self.exit_reported = false;
     }
 
-    #[cfg(test)]
     pub(crate) fn session(&self) -> Option<&Session> {
         self.session.as_ref()
     }
@@ -44,6 +45,12 @@ impl TerminalPane {
         self.session
             .as_ref()
             .is_some_and(|session| session.exit_code().is_none() && !session.output_ended())
+    }
+
+    /// Whether a screen cell is inside the pane, as of the last layout pass.
+    pub(crate) fn contains(&self, column: u16, row: u16) -> bool {
+        self.area
+            .contains(ratatui::layout::Position::new(column, row))
     }
 
     /// The size the shell has, or will have once the pane is drawn.
@@ -65,6 +72,7 @@ impl TerminalPane {
 
 impl Render for TerminalPane {
     fn prepare(&mut self, placement: &Placement) {
+        self.area = placement.area;
         let inner = placement.frame.inner(placement.area);
         let size = (inner.height, inner.width);
         let Some(session) = &self.session else {

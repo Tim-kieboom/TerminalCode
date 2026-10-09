@@ -10,7 +10,10 @@ use crate::ui::layout::Placement;
 pub struct StatusBar;
 impl Render for StatusBar {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
-        let text = if state.workspace().has_tabs() {
+        let text = if state.terminal_prefix_pending() {
+            " ctrl+b ...  e: editor  x: explorer  t: hide terminal  ctrl+b: send ctrl+b  esc: cancel"
+                .to_owned()
+        } else if state.workspace().has_tabs() {
             let editor = state.editor();
             let head = editor.selections().primary().head();
             format!(

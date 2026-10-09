@@ -39,6 +39,10 @@ impl App {
         if self.modal_open() {
             return;
         }
+        if self.state.focus() == crate::app::state::Focus::Terminal {
+            self.paste_into_shell(&text);
+            return;
+        }
         if !self.state.workspace().has_tabs() {
             self.state.notify(NO_FILE_MESSAGE);
             self.needs_redraw = true;

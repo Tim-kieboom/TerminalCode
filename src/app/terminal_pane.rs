@@ -2,6 +2,8 @@
 //! hearing from the shell.
 
 use crate::app::App;
+use crate::app::state::Focus;
+use crate::components::ComponentKind;
 use crate::event::Event;
 use crate::pty::{Session, SpawnConfig};
 
@@ -9,21 +11,18 @@ use crate::pty::{Session, SpawnConfig};
 const FIRST_SIZE: (u16, u16) = (24, 80);
 
 impl App {
-    /// Hides the terminal pane, or shows it. The first time it is shown, and
-    /// whenever the shell has ended, a shell starts in the project root.
+    /// Hides the terminal pane when the keyboard is in it, gives the keyboard
+    /// to it when it is shown but the keyboard is elsewhere, and shows it
+    /// otherwise. The first time it is shown, and whenever the shell has
+    /// ended, a shell starts in the project root.
     pub(in crate::app) fn toggle_terminal(&mut self) {
-        if self
-            .state
-            .is_visible(&crate::components::ComponentKind::Terminal)
-        {
+        let shown = self.state.is_visible(&ComponentKind::Terminal);
+        if shown && self.state.focus() == Focus::Terminal {
             self.state.hide_terminal();
+            self.state.set_focus(Focus::Editor);
             return;
         }
-        if !self
-            .state
-            .layout()
-            .contains(&crate::components::ComponentKind::Terminal)
-        {
+        if !self.state.layout().contains(&ComponentKind::Terminal) {
             self.state.notify("the layout has no terminal");
             return;
         }
@@ -31,6 +30,13 @@ impl App {
         if !self.state.terminal().is_running() {
             self.start_shell();
         }
+        self.state.set_focus(Focus::Terminal);
+    }
+
+    /// Gives the keyboard to the explorer, showing it if it was hidden.
+    pub(in crate::app) fn focus_explorer_shown(&mut self) {
+        self.state.show_explorer();
+        self.state.set_focus(Focus::Explorer);
     }
 
     fn start_shell(&mut self) {

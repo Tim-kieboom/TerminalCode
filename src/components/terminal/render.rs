@@ -3,7 +3,7 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 
-use crate::app::state::AppState;
+use crate::app::state::{AppState, Focus};
 use crate::pty::Session;
 use crate::ui::layout::Placement;
 
@@ -15,11 +15,23 @@ pub(super) fn draw(
     session: Option<&Session>,
 ) {
     let title = placement.frame.title_text(placement.kind.title());
-    let block = placement.frame.block(state.theme(), title, false);
+    let focused = state.focus() == Focus::Terminal;
+    let block = placement.frame.block(state.theme(), title, focused);
     let inner = block.inner(placement.area);
+
     frame.render_widget(block, placement.area);
     if let Some(session) = session {
-        session.with_screen(|screen| draw_screen(frame.buffer_mut(), inner, screen));
+        let cursor = session.with_screen(|screen| {
+            draw_screen(frame.buffer_mut(), inner, screen);
+            (!screen.hide_cursor()).then(|| screen.cursor_position())
+        });
+
+        if let (true, Some((row, column))) = (focused, cursor)
+            && row < inner.height
+            && column < inner.width
+        {
+            frame.set_cursor_position((inner.x + column, inner.y + row));
+        }
     }
 }
 

@@ -539,3 +539,18 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   the frame buffer: colors (default/indexed/RGB), bold/dim/italic/underline/inverse, wide characters take two
   cells, combining marks stay with their letter. The pane only draws so far: no focus, no keys (step C), no
   cursor, no scrollback (step D).
+- Step C is done. `Focus::Terminal`: `ctrl+k t` shows the pane and gives it the keyboard, gives the keyboard to a pane
+  that is shown but not focused, and hides a focused pane (the keyboard goes back to the editor); a click in the
+  pane focuses it, a click elsewhere takes the keyboard away; the focused pane has the focused border and the shell's
+  cursor. While it has the keyboard `handle_key` sends everything to `pty::encode_key` (xterm bytes: control
+  letters and punctuation, alt as an ESC prefix, arrows/Home/End as `ESC [ A` or `ESC O A` when the program is in
+  application-cursor mode, `ESC [ 1 ; m A` with modifiers, Insert/Delete/Page keys and F1-F12 in xterm's forms)
+  except `ctrl+b`. Behind it (`terminal_keys.rs`): `ctrl+b` sends a literal 0x02, `esc` cancels, `e` / `x` / `t` move
+  focus to the editor / explorer or hide the pane, and any other chord goes through the keymap in the editor and
+  global contexts (so `ctrl+b ctrl+p` opens the finder and a half-typed `ctrl+b ctrl+k` goes on to `b`). An unbound
+  key cancels with a "ctrl+b X is not bound" notification, and one second of silence cancels quietly; while it waits
+  the status bar shows the choices. Pastes go to the shell: bracketed (`ESC [ 200 ~ ... ESC [ 201 ~`, with any end
+  marker inside the text removed) when the program asked for it, otherwise with line breaks as carriage returns;
+  a write that does not fit says how many bytes went through. A shell that has ended says so when typed at.
+  The 16 key tests, 19 app tests: keys reach the shell, `ctrl+q` / `ctrl+p` / `ctrl+s` go to the shell instead of the
+  editor, the prefix, the status bar, pastes, mouse focus, and the cursor position.

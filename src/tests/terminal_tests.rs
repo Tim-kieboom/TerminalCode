@@ -9,7 +9,7 @@ use ratatui::style::Color;
 use tokio::sync::mpsc;
 
 use crate::app::App;
-use crate::app::state::AppState;
+use crate::app::state::{AppState, Focus};
 use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::pty::Shell;
@@ -52,16 +52,28 @@ impl Rig {
             .unwrap();
     }
 
-    /// `ctrl+k t`.
+    /// The chord that toggles the pane: `ctrl+k t` from the editor, `ctrl+b t`
+    /// from inside the terminal.
     fn toggle(&mut self) {
-        for (code, modifiers) in [
-            (KeyCode::Char('k'), KeyModifiers::CONTROL),
-            (KeyCode::Char('t'), KeyModifiers::NONE),
-        ] {
-            self.app
-                .handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
-        }
+        let prefix = if self.app.state().focus() == Focus::Terminal {
+            'b'
+        } else {
+            'k'
+        };
+        self.press(KeyCode::Char(prefix), KeyModifiers::CONTROL);
+        self.press(KeyCode::Char('t'), KeyModifiers::NONE);
         self.draw();
+    }
+
+    fn press(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        self.app
+            .handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
+    }
+
+    fn type_text(&mut self, text: &str) {
+        for c in text.chars() {
+            self.press(KeyCode::Char(c), KeyModifiers::NONE);
+        }
     }
 
     /// Takes what the shell reported until `condition` holds of the screen.
@@ -290,4 +302,339 @@ fn the_editor_gets_the_space_back_while_the_terminal_is_hidden() {
 
     assert!(short < tall, "{short} vs {tall}");
     assert_eq!(tall, tall_again);
+}
+
+/// A shell that shows the bytes it receives, with the terminal in raw mode
+/// the way a line editor leaves it, so keys arrive as they are.
+const SHOW_BYTES: &str = "stty raw -echo; cat -v";
+
+fn rig_showing_bytes() -> (Rig, tempfile::TempDir) {
+    let (mut rig, dir) = rig(SHOW_BYTES);
+    rig.toggle();
+    // Give the shell a moment to switch modes before the first key.
+    rig.wait_for("the shell to be running", |rig| {
+        rig.app.state().terminal().is_running()
+    });
+    std::thread::sleep(Duration::from_millis(200));
+    (rig, dir)
+}
+
+#[test]
+fn showing_the_terminal_gives_it_the_keyboard() {
+    let (mut rig, _dir) = rig("sleep 30");
+
+    rig.toggle();
+
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+}
+
+#[test]
+fn toggling_from_the_editor_with_the_pane_already_shown_moves_the_keyboard_into_it() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('e'), KeyModifiers::NONE);
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+
+    rig.toggle();
+
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+    assert!(rig.screen().contains("Terminal"), "still shown");
+}
+
+#[test]
+fn typed_keys_reach_the_shell() {
+    let (mut rig, _dir) = rig("cat");
+    rig.toggle();
+
+    rig.type_text("hello there");
+    rig.press(KeyCode::Enter, KeyModifiers::NONE);
+
+    rig.wait_for("the echo", |rig| {
+        rig.screen().matches("hello there").count() >= 2
+    });
+}
+
+#[test]
+fn special_keys_are_sent_as_the_bytes_a_terminal_sends() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.press(KeyCode::Up, KeyModifiers::NONE);
+    rig.press(KeyCode::Char('c'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Enter, KeyModifiers::NONE);
+    rig.press(KeyCode::Delete, KeyModifiers::NONE);
+
+    rig.wait_for_text("^[[A^C^M^[[3~");
+}
+
+#[test]
+fn keys_the_editor_binds_go_to_the_shell_while_the_terminal_has_the_keyboard() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.press(KeyCode::Char('q'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('p'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('s'), KeyModifiers::CONTROL);
+
+    rig.wait_for_text("^Q^P^S");
+    assert!(!rig.app.should_quit());
+}
+
+#[test]
+fn ctrl_b_twice_sends_a_literal_ctrl_b() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+
+    rig.wait_for_text("^B");
+}
+
+#[test]
+fn ctrl_b_alone_sends_nothing() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    std::thread::sleep(Duration::from_millis(300));
+    rig.wait_for("a redraw", |_| true);
+
+    assert!(!rig.screen().contains("^B"), "{}", rig.screen());
+}
+
+#[test]
+fn behind_the_prefix_e_goes_to_the_editor_and_x_to_the_explorer() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('x'), KeyModifiers::NONE);
+    assert_eq!(rig.app.state().focus(), Focus::Explorer);
+
+    rig.toggle();
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('e'), KeyModifiers::NONE);
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+    assert!(rig.app.state().terminal().is_running(), "the shell goes on");
+}
+
+#[test]
+fn behind_the_prefix_t_hides_the_pane_and_returns_the_keyboard_to_the_editor() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+
+    rig.toggle();
+
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+    assert!(!rig.screen().contains("Terminal"), "{}", rig.screen());
+}
+
+#[test]
+fn behind_the_prefix_a_binding_of_the_keymap_works() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('p'), KeyModifiers::CONTROL);
+
+    assert!(rig.app.state().finder().is_some(), "the file finder opened");
+}
+
+#[test]
+fn behind_the_prefix_a_binding_with_more_keys_goes_on_through_the_keymap() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+
+    // `ctrl+k b` hides and shows the explorer; ctrl+k alone is half a binding.
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('k'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('b'), KeyModifiers::NONE);
+    rig.draw();
+
+    assert!(!rig.screen().contains("Explorer"), "{}", rig.screen());
+}
+
+#[test]
+fn an_unbound_key_behind_the_prefix_cancels_it_and_says_so() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('z'), KeyModifiers::NONE);
+    rig.type_text("ok");
+
+    rig.wait_for_text("ok");
+    assert!(
+        rig.notifications().contains("ctrl+b z is not bound"),
+        "{}",
+        rig.notifications()
+    );
+    assert!(
+        !rig.screen().contains("zok"),
+        "the z did not reach the shell"
+    );
+}
+
+#[test]
+fn escape_behind_the_prefix_cancels_it_quietly() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Esc, KeyModifiers::NONE);
+    rig.type_text("ok");
+
+    rig.wait_for_text("ok");
+    assert_eq!(rig.notifications(), "");
+    assert!(!rig.screen().contains("^["), "the escape was not sent");
+}
+
+#[test]
+fn the_prefix_gives_up_silently_after_a_second() {
+    let (mut rig, _dir) = rig_showing_bytes();
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    let deadline = rig.app.pending_deadline().expect("the prefix is waiting");
+
+    std::thread::sleep(
+        deadline.saturating_duration_since(std::time::Instant::now()) + Duration::from_millis(20),
+    );
+    rig.app.expire_pending();
+    rig.type_text("ok");
+
+    rig.wait_for_text("ok");
+    assert_eq!(rig.notifications(), "");
+    assert_eq!(rig.app.pending_deadline(), None);
+}
+
+#[test]
+fn the_status_bar_shows_that_the_prefix_is_waiting() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.draw();
+    assert!(rig.screen().contains("ctrl+b ..."), "{}", rig.screen());
+
+    rig.press(KeyCode::Char('e'), KeyModifiers::NONE);
+    rig.draw();
+    assert!(!rig.screen().contains("ctrl+b ..."), "{}", rig.screen());
+}
+
+#[test]
+fn a_plain_paste_goes_to_the_shell_with_carriage_returns() {
+    let (mut rig, _dir) = rig_showing_bytes();
+
+    rig.app.handle_input(InputEvent::Paste("a\nb".to_owned()));
+
+    rig.wait_for_text("a^Mb");
+    assert_eq!(
+        rig.app.state().editor().buffer().text(),
+        "",
+        "not into the editor"
+    );
+}
+
+#[test]
+fn a_program_that_asked_for_bracketed_paste_gets_one() {
+    let (mut rig, _dir) = rig("printf '\\033[?2004h'; stty raw -echo; cat -v");
+    rig.toggle();
+    rig.wait_for("the mode", |rig| {
+        rig.app
+            .state()
+            .terminal()
+            .session()
+            .is_some_and(|session| session.with_screen(|screen| screen.bracketed_paste()))
+    });
+    std::thread::sleep(Duration::from_millis(200));
+
+    rig.app.handle_input(InputEvent::Paste("a\nb".to_owned()));
+
+    rig.wait_for_text("^[[200~a");
+    rig.wait_for_text("^[[201~");
+}
+
+#[test]
+fn a_paste_into_a_shell_that_is_not_reading_reports_how_much_went_through() {
+    let (mut rig, _dir) = rig("stty raw -echo; sleep 30");
+    rig.toggle();
+    rig.wait_for("the shell", |rig| rig.app.state().terminal().is_running());
+    std::thread::sleep(Duration::from_millis(300));
+
+    let start = Instant::now();
+    rig.app
+        .handle_input(InputEvent::Paste("p".repeat(8 * 1024 * 1024)));
+
+    assert!(
+        start.elapsed() < Duration::from_millis(500),
+        "{:?}",
+        start.elapsed()
+    );
+    assert!(
+        rig.notifications().contains("not reading"),
+        "{}",
+        rig.notifications()
+    );
+}
+
+#[test]
+fn clicking_the_pane_gives_it_the_keyboard_and_clicking_the_editor_takes_it_back() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    let (mut rig, _dir) = rig("printf hello; sleep 30");
+    rig.toggle();
+    rig.wait_for_text("hello");
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('e'), KeyModifiers::NONE);
+    let screen = rig.screen();
+    let (row, line) = screen
+        .lines()
+        .enumerate()
+        .find(|(_, line)| line.contains("hello"))
+        .unwrap();
+    let column = line.chars().position(|c| c == 'h').unwrap() as u16;
+    let click = |column: u16, row: u16| {
+        InputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        })
+    };
+
+    rig.app.handle_input(click(column, row as u16));
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+
+    rig.app.handle_input(click(60, 2));
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+}
+
+#[test]
+fn the_cursor_is_where_the_shells_is_while_the_pane_has_the_keyboard() {
+    let (mut rig, _dir) = rig("printf abc; sleep 30");
+    rig.toggle();
+    rig.wait_for_text("abc");
+    let screen = rig.screen();
+    let (row, line) = screen
+        .lines()
+        .enumerate()
+        .find(|(_, line)| line.contains("abc"))
+        .unwrap();
+    // The backend's text form wraps every line in a quote.
+    let start = line.chars().position(|c| c == 'a').unwrap() as u16 - 1;
+
+    let cursor = rig.terminal.get_cursor_position().unwrap();
+
+    assert_eq!((cursor.x, cursor.y), (start + 3, row as u16));
+}
+
+#[test]
+fn typing_after_the_shell_ended_says_so_instead_of_failing_silently() {
+    let (mut rig, _dir) = rig("exit 0");
+    rig.toggle();
+    rig.wait_for("the shell to end", |rig| {
+        !rig.app.state().terminal().is_running()
+    });
+
+    rig.type_text("x");
+
+    assert!(
+        rig.notifications().contains("has ended"),
+        "{}",
+        rig.notifications()
+    );
 }

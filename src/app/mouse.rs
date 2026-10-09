@@ -71,6 +71,17 @@ impl App {
         if !self.mouse.is_enabled() {
             return;
         }
+        if matches!(event.kind, MouseEventKind::Down(MouseButton::Left))
+            && !self.modal_open()
+            && self
+                .state
+                .is_visible(&crate::components::ComponentKind::Terminal)
+            && self.state.terminal().contains(event.column, event.row)
+        {
+            self.state.set_focus(crate::app::state::Focus::Terminal);
+            self.needs_redraw = true;
+            return;
+        }
         if self.handle_menu_mouse(event) {
             self.needs_redraw = true;
             return;

@@ -15,7 +15,7 @@ use crate::ui::layout::Axis;
 /// Shown when an editing action arrives while every tab is closed.
 pub(super) const NO_FILE_MESSAGE: &str = "no open file (ctrl+n opens a new one)";
 /// Contexts whose bindings apply to the focused editor, most specific first.
-const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
+pub(super) const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
 pub(super) const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
 /// Where the palette looks for the keys shown beside an action.
 pub(super) const PALETTE_CONTEXTS: [Context; 3] =
@@ -56,9 +56,14 @@ impl Keyboard {
         self.pending_deadline
     }
 
+    /// Whether a key sequence is half typed, so the next key belongs to it.
+    pub(super) fn is_pending(&self) -> bool {
+        self.pending_deadline.is_some()
+    }
+
     /// Takes the next chord. The sequence starts waiting for its deadline when
     /// the chord left it half typed, and stops when it did not.
-    fn feed(&mut self, contexts: &[Context], chord: KeyChord) -> Resolution {
+    pub(super) fn feed(&mut self, contexts: &[Context], chord: KeyChord) -> Resolution {
         let resolution = self.resolver.feed(&self.keymap, contexts, chord);
         self.pending_deadline = matches!(resolution.outcome, Outcome::Pending)
             .then(|| Instant::now() + self.sequence_timeout);
@@ -99,6 +104,11 @@ impl App {
             Popup::Find(_) => return self.handle_find_key(key),
         }
 
+        // The terminal keeps the keyboard, except for the keys behind its prefix.
+        if self.state.focus() == Focus::Terminal && !self.keyboard.is_pending() {
+            return self.handle_terminal_key(key);
+        }
+
         let Some(chord) = KeyChord::from_event(key) else {
             return;
         };
@@ -112,6 +122,9 @@ impl App {
         match resolution.outcome {
             Outcome::Action(action) => self.run_action(action),
             Outcome::Pending => {}
+            Outcome::Unbound(chord) if self.state.focus() == Focus::Terminal => {
+                self.state.notify(format!("ctrl+b {chord} is not bound"))
+            }
             Outcome::Unbound(chord) => self.type_chord(chord),
         }
     }
@@ -119,6 +132,9 @@ impl App {
     /// Gives up on a half-typed key sequence: runs it if it is a binding by
     /// itself, otherwise types what can be typed.
     pub(crate) fn expire_pending(&mut self) {
+        if self.expire_terminal_prefix() {
+            return;
+        }
         let contexts = self.contexts();
         match self.keyboard.expire(contexts) {
             Expiry::Nothing => {}
@@ -132,6 +148,7 @@ impl App {
         match self.state.focus() {
             Focus::Editor => &EDITOR_CONTEXTS,
             Focus::Explorer => &EXPLORER_CONTEXTS,
+            Focus::Terminal => &EDITOR_CONTEXTS,
         }
     }
 

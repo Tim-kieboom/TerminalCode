@@ -28,6 +28,7 @@ mod mouse;
 mod panels;
 mod popups;
 pub(crate) mod state;
+mod terminal_keys;
 mod terminal_pane;
 mod watching;
 
@@ -60,6 +61,8 @@ pub(crate) struct App {
     removal: Removal,
     /// What the terminal pane runs.
     terminal_shell: Shell,
+    /// When `ctrl+b` in the terminal gives up waiting for the next key.
+    terminal_prefix: Option<std::time::Instant>,
 }
 
 /// Everything that can wake the app loop.
@@ -174,6 +177,7 @@ impl App {
             remembered: Remembered::default(),
             removal: Removal::default(),
             terminal_shell: Shell::detect(),
+            terminal_prefix: None,
         }
     }
 
@@ -231,7 +235,13 @@ impl App {
 
     /// When the half-typed key sequence, if any, gives up waiting.
     pub(crate) fn pending_deadline(&self) -> Option<std::time::Instant> {
-        self.keyboard.pending_deadline()
+        [
+            self.keyboard.pending_deadline(),
+            self.terminal_prefix_deadline(),
+        ]
+        .into_iter()
+        .flatten()
+        .min()
     }
 
     #[cfg(test)]

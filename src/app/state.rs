@@ -29,6 +29,7 @@ pub(crate) enum Focus {
     #[default]
     Editor,
     Explorer,
+    Terminal,
 }
 
 /// Everything the UI renders from. Owned by the app loop alone.
@@ -43,6 +44,8 @@ pub(crate) struct AppState {
     /// The size of the screen as of the last draw, for working out where
     /// something that is not drawn yet would go.
     screen: ratatui::layout::Rect,
+    /// `ctrl+b` was pressed in the terminal and the key after it is awaited.
+    terminal_prefix: bool,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,
@@ -148,6 +151,14 @@ impl AppState {
 
     pub(crate) fn terminal_mut(&mut self) -> &mut TerminalPane {
         self.components.terminal.node_mut()
+    }
+
+    pub(crate) fn set_terminal_prefix(&mut self, pending: bool) {
+        self.terminal_prefix = pending;
+    }
+
+    pub(crate) fn terminal_prefix_pending(&self) -> bool {
+        self.terminal_prefix
     }
 
     pub(crate) fn set_screen(&mut self, screen: ratatui::layout::Rect) {
