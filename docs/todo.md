@@ -72,11 +72,11 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Search follow-ups: replace, search only the open file/folder/selection, include/exclude globs, search unsaved buffers (it reads the disk), keep the results open while editing (a results pane), group results under file headers, next/previous result without reopening, whole-word toggle, multi-line patterns
 
 ## M5 — Syntax highlighting
-- [ ] tree-sitter integration, grammar bundle (starter languages)
-- [ ] Parse worker with `version` stale-result discard
+- [ ] tree-sitter integration, grammars compiled into the binary: Rust, TOML (`tree-sitter-toml-ng`), JSON, RON (`tree-sitter-ron`, 0.2, check it matches the `tree-sitter` version), Markdown (`tree-sitter-md`), Nix. If the binary size or the Windows build starts to hurt, drop in this order: RON, TOML, JSON
+- [ ] Parse worker: at most one parse pending, always started from the newest text (coalescing); any result is accepted and its highlights are mapped forward through the edits made since the text it parsed, so a steady typist on a big file still sees colors; `version` only guards against results arriving out of order. Until a result arrives the old highlights are mapped through each `Edit
 - [ ] Incremental reparse from `Edit`
 - [ ] Smart indent: add a level after an opening token (`{`, `(`, `[`, `:`) and dedent on a closing one, using the syntax tree to skip strings and comments (Enter copies indentation verbatim until then)
-- [ ] Highlight theme as data; default dark + light themes
+- [ ] Highlight theme as data; default dark + light themes (`syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span); vendor `highlights.scm` under `defaults/` for grammars that lack one (RON, Nix)
 
 ## M6 — Integrated terminal
 - [ ] `portable-pty` spawn (Unix + ConPTY), shell selection
@@ -99,6 +99,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Mouse: pane focus by click (needs several panes)
 - [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
+- [ ] Benchmarks (`criterion`): parse and highlight on a large file, mapping highlights through edits, buffer edits and undo, rope line access, explorer reload of a big directory, finder and project search on a big tree, render of a full frame; run in CI or on demand to catch regressions
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
 
 ## M9 — Release 0.1.0
@@ -108,6 +109,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Tag `v0.1.0`
 
 ## Post-0.1.0 backlog
+- [ ] Load tree-sitter grammars at runtime from shared libraries (`.so` / `.dll`), so languages can be added without a rebuild; needs a place to find them, a version check against the `tree-sitter` ABI, and per-platform shipping
 - [ ] adding usefull keybinds like (move line `alt+up/down` cursor go back `alt+left/right` multicursor `ctrl+alt+up/down`)
 - [ ] LSP client (possibly as a Lua plugin)
 - [ ] Lua plugin runtime on top of the Action registry

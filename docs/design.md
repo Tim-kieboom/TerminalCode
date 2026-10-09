@@ -392,3 +392,33 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   To see the terminal's blur through the whole editor, paint nothing (no `[background]`, or `color = "transparent"`).
 - A blend is not a blur and not true see-through: it gives a tinted look in terminals that cannot be made
   translucent. For real translucency leave the background transparent and configure the terminal.
+
+## Syntax highlighting (M5 plan, decided before building)
+- Grammars are compiled in: Rust, TOML, JSON, RON, Markdown, Nix (see the drop order in `docs/todo.md`). Loading
+  them at runtime from shared libraries is post-0.1.0.
+- Each document owns a highlighter (panes sharing a document share it). `Buffer::apply` already returns the edit;
+  the document forwards it to its highlighter, which keeps the edits made since the tree it holds was parsed.
+  A reload, or a path change that switches the language, drops the tree and parses in full.
+- A worker thread parses. At most one parse is pending and it always starts from the newest text (a rope clone is
+  cheap), with the stored edits applied to the old tree first, so reparsing is incremental. Any result is
+  accepted, whatever version it parsed, and mapped forward through the edits made since; `version` only guards
+  against results arriving out of order. A steady typist on a big file therefore never starves the colors.
+- Highlights are flat spans of (byte range, theme slot), not tree nodes, because the renderer wants them per
+  line. They cover only the visible range plus a margin of a few screens (the query runs with
+  `QueryCursor::set_byte_range`), so mapping and rebuilding scale with the screen, not the file. The worker is
+  told which range(s) to query; a scroll outside the cached range asks for a new query on the existing tree.
+  One document can be open in several panes at different scroll positions, so the ranges are the union of every
+  pane's visible range plus margin: overlapping ones are merged, and at most 8 are kept.
+- Until a result arrives, the old spans are mapped through each edit: an edit before a span shifts it, inside it
+  grows or shrinks it, across it cuts it; an insert exactly at a boundary stays outside the span.
+- A capture name from a grammar's `highlights.scm` (`function.builtin`) resolves to a theme slot by longest prefix:
+  `syntax.function.builtin`, then `syntax.function`, then `syntax`. A capture the theme has no slot for gets no
+  span at all. The default dark and light themes define a short fixed list (keyword, function, type, string,
+  number, comment, constant, operator, punctuation, property). Grammars without a `HIGHLIGHTS_QUERY` constant
+  (RON and Nix probably) get a `highlights.scm` vendored under `defaults/`.
+- Build order, one commit each: (A) a synchronous `Highlighter` for Rust that turns text plus a byte range into
+  spans, with the capture→slot mapping and default `syntax.*` theme; (B) spans drawn in the editor, the document
+  owning the highlighter and reparsing synchronously on change; (C) mapping spans through edits and `Tree::edit`
+  for incremental reparse; (D) the worker (coalescing, range list, late results mapped forward); (E) the other
+  grammars, Markdown injection and the vendored queries. No cross-check test between the worker and the
+  synchronous path; the worker is tested on its own.
