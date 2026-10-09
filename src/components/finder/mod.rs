@@ -5,7 +5,7 @@
 //! shown at once and re-ranked as more files arrive.
 
 use std::cmp::Reverse;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
@@ -47,32 +47,55 @@ enum Narrowing {
     FromAllFiles,
 }
 
-/// A file found by the walk: its path from the project root, with `/` as
-/// the separator on every platform.
+/// A file found by the walk. What is shown and matched is its path from the
+/// project root as text, one name per component with `/` between them; what
+/// is opened is the real path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct File {
-    path: String,
+    shown: String,
     name_start: usize,
+    /// The real path from the root, kept only when `shown` cannot rebuild it,
+    /// which is when the path is not valid Unicode (`shown` then has U+FFFD in
+    /// place of what it could not show). A file name may well contain a `\` on
+    /// Unix, and is not changed.
+    exact: Option<PathBuf>,
 }
 
 impl File {
-    fn new(path: &std::path::Path) -> Self {
-        let path = path.to_string_lossy().replace('\\', "/");
-        let name_start = path.rfind('/').map_or(0, |slash| slash + 1);
-        Self { path, name_start }
+    fn new(path: &Path) -> Self {
+        let names: Vec<_> = path
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy())
+            .collect();
+        let shown = names.join("/");
+        let name_start = shown.len() - names.last().map_or(0, |name| name.len());
+        let exact = path.to_str().is_none().then(|| path.to_path_buf());
+        Self {
+            shown,
+            name_start,
+            exact,
+        }
+    }
+
+    /// The path to open, under `root`.
+    fn path_in(&self, root: &Path) -> PathBuf {
+        match &self.exact {
+            Some(exact) => root.join(exact),
+            None => root.join(&self.shown),
+        }
     }
 
     fn name(&self) -> &str {
-        &self.path[self.name_start..]
+        &self.shown[self.name_start..]
     }
 
     fn directory(&self) -> &str {
-        &self.path[..self.name_start]
+        &self.shown[..self.name_start]
     }
 
     /// How well `query` matches, or `None`.
     fn rank(&self, query: &Query) -> Option<i32> {
-        let by_path = query.score(&self.path)?;
+        let by_path = query.score(&self.shown)?;
         let by_name = query
             .score(self.name())
             .map_or(0, |score| score + NAME_BONUS);
@@ -147,14 +170,14 @@ impl Finder {
     pub(crate) fn results(&self) -> Vec<&str> {
         self.matches
             .iter()
-            .map(|found| self.files[found.index].path.as_str())
+            .map(|found| self.files[found.index].shown.as_str())
             .collect()
     }
 
     /// The file the selection is on, as a path that can be opened.
     pub(crate) fn selected_path(&self) -> Option<PathBuf> {
         let found = self.matches.get(self.selected)?;
-        Some(self.root.join(&self.files[found.index].path))
+        Some(self.files[found.index].path_in(&self.root))
     }
 
     /// Takes a batch of files from the walk. A batch from another walk is
@@ -237,7 +260,7 @@ impl Finder {
         let key = |found: &Match| {
             (
                 Reverse(found.score),
-                files[found.index].path.len(),
+                files[found.index].shown.len(),
                 found.index,
             )
         };

@@ -163,13 +163,77 @@ fn only_the_best_matches_are_kept_when_there_are_very_many() {
     assert_eq!(finder.file_count(), 1001);
 }
 
+#[cfg(windows)]
 #[test]
-fn backslashes_from_windows_paths_become_slashes() {
+fn windows_separators_are_shown_as_slashes() {
     let mut finder = finder();
 
     batch(&mut finder, &["src\\main.rs"]);
 
     assert_eq!(finder.results(), ["src/main.rs"]);
+}
+
+#[cfg(unix)]
+mod unix_names {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    use std::path::PathBuf;
+
+    use super::{batch, finder, type_str};
+
+    #[test]
+    fn a_backslash_in_a_file_name_is_part_of_the_name_not_a_separator() {
+        let mut finder = finder();
+
+        batch(&mut finder, &["src/we\\ird.txt"]);
+
+        assert_eq!(finder.results(), ["src/we\\ird.txt"]);
+        assert_eq!(
+            finder.selected_path(),
+            Some(PathBuf::from("/project/src/we\\ird.txt")),
+            "the file that exists, not one in a directory called we"
+        );
+    }
+
+    #[test]
+    fn a_name_that_is_not_valid_unicode_is_still_opened_by_its_real_path() {
+        let mut finder = finder();
+        let name = PathBuf::from(OsString::from_vec(b"caf\xe9.txt".to_vec()));
+
+        finder.add_batch(1, vec![name.clone()]);
+
+        assert_eq!(finder.results(), ["caf\u{FFFD}.txt"]);
+        assert_eq!(
+            finder.selected_path(),
+            Some(PathBuf::from("/project").join(name))
+        );
+    }
+
+    #[test]
+    fn a_name_that_is_not_valid_unicode_can_be_found_by_the_part_that_is() {
+        let mut finder = finder();
+        let name = PathBuf::from(OsString::from_vec(b"docs/caf\xe9.txt".to_vec()));
+        finder.add_batch(1, vec![name, PathBuf::from("src/main.rs")]);
+
+        type_str(&mut finder, "caf");
+
+        assert_eq!(finder.results().len(), 1);
+        assert!(finder.results()[0].starts_with("docs/caf"));
+    }
+}
+
+#[test]
+fn the_names_of_a_nested_path_are_shown_with_slashes_and_the_last_is_the_file_name() {
+    let mut finder = finder();
+
+    batch(&mut finder, &["a/b/c.rs"]);
+    type_str(&mut finder, "c.rs");
+
+    assert_eq!(finder.results(), ["a/b/c.rs"]);
+    assert_eq!(
+        finder.selected_path(),
+        Some(PathBuf::from("/project").join("a/b/c.rs"))
+    );
 }
 
 #[test]

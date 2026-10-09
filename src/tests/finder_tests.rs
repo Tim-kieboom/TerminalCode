@@ -354,3 +354,53 @@ fn the_finder_works_from_the_palette_too() {
     assert!(app.state().palette().is_none());
     assert_eq!(app.state().finder().unwrap().file_count(), 5);
 }
+
+/// Files whose names a path-as-text conversion would damage: a backslash in a
+/// Unix file name, and a name that is not valid Unicode.
+#[cfg(target_os = "linux")]
+mod unusual_names {
+    use std::ffi::OsString;
+    use std::fs;
+    use std::os::unix::ffi::OsStringExt;
+
+    use crossterm::event::KeyCode;
+
+    use super::{app_in, ctrl, finish_walk, press, type_str};
+
+    fn project_with_unusual_names() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("we\\ird_name.txt"), "backslash file\n").unwrap();
+        let latin = OsString::from_vec(b"caf\xe9_menu.txt".to_vec());
+        fs::write(dir.path().join(latin), "latin file\n").unwrap();
+        fs::write(dir.path().join("plain.txt"), "plain file\n").unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_file_with_a_backslash_in_its_name_opens() {
+        let dir = project_with_unusual_names();
+        let (mut app, mut rx) = app_in(dir.path());
+        ctrl(&mut app, 'p');
+        finish_walk(&mut app, &mut rx);
+
+        type_str(&mut app, "ird_name");
+        press(&mut app, KeyCode::Enter);
+
+        assert_eq!(app.state().editor().buffer().text(), "backslash file\n");
+        assert!(app.state().notifications().latest().is_none());
+    }
+
+    #[test]
+    fn a_file_whose_name_is_not_valid_unicode_opens() {
+        let dir = project_with_unusual_names();
+        let (mut app, mut rx) = app_in(dir.path());
+        ctrl(&mut app, 'p');
+        finish_walk(&mut app, &mut rx);
+
+        type_str(&mut app, "menu");
+        press(&mut app, KeyCode::Enter);
+
+        assert_eq!(app.state().editor().buffer().text(), "latin file\n");
+        assert!(!app.state().notifications().has_errors());
+    }
+}
