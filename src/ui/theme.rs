@@ -238,6 +238,21 @@ impl Theme {
     pub(crate) fn style(&self, slot: &str) -> Style {
         self.slots.get(slot).copied().unwrap_or_default()
     }
+
+    /// The style of a highlight capture such as `function.builtin`: the most
+    /// specific of `syntax.function.builtin`, `syntax.function` and `syntax`
+    /// the theme defines. `None` when it defines none of them, which leaves
+    /// the text plain.
+    pub(crate) fn syntax_style(&self, capture: &str) -> Option<Style> {
+        let mut slot = format!("syntax.{capture}");
+        loop {
+            if let Some(style) = self.slots.get(slot.as_str()) {
+                return Some(*style);
+            }
+            let dot = slot.rfind('.')?;
+            slot.truncate(dot);
+        }
+    }
 }
 
 impl Default for Theme {

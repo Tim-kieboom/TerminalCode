@@ -403,8 +403,9 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   cheap), with the stored edits applied to the old tree first, so reparsing is incremental. Any result is
   accepted, whatever version it parsed, and mapped forward through the edits made since; `version` only guards
   against results arriving out of order. A steady typist on a big file therefore never starves the colors.
-- Highlights are flat spans of (byte range, theme slot), not tree nodes, because the renderer wants them per
-  line. They cover only the visible range plus a margin of a few screens (the query runs with
+- Highlights are flat spans of (byte range, style), not tree nodes, because the renderer wants them per
+  line; the theme turns capture names into styles when the highlighter is made (a changed theme needs a new
+  one), and captures it has no style for are left out so the capture around them shows through. They cover only the visible range plus a margin of a few screens (the query runs with
   `QueryCursor::set_byte_range`), so mapping and rebuilding scale with the screen, not the file. The worker is
   told which range(s) to query; a scroll outside the cached range asks for a new query on the existing tree.
   One document can be open in several panes at different scroll positions, so the ranges are the union of every
@@ -422,3 +423,8 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   for incremental reparse; (D) the worker (coalescing, range list, late results mapped forward); (E) the other
   grammars, Markdown injection and the vendored queries. No cross-check test between the worker and the
   synchronous path; the worker is tested on its own.
+- Step A is done: `src/syntax` has `Language` (Rust), `Highlighter` (`parse` from scratch, `spans(text, range)`)
+  and `flatten`, which turns the nesting captures of a query into non-overlapping spans (innermost wins, first
+  pattern wins a tie, cut to the range, same-style neighbours joined). `Theme::syntax_style` is the longest-prefix
+  lookup, and `defaults/default_theme.toml` has the `syntax.*` slots. It builds with just a C compiler (`cc`);
+  nothing Windows-specific has been tried yet.

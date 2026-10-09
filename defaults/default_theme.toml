@@ -110,3 +110,56 @@ background = "#171725"
 ["find.hint"]
 text = "dark_gray"
 background = "#171725"
+
+# Syntax highlighting. A highlight capture such as `function.macro` uses the most
+# specific of `syntax.function.macro`, `syntax.function` and `syntax` that exists
+# here; a capture with none of them is not colored.
+["syntax.keyword"]
+text = "#cba6f7"
+
+["syntax.function"]
+text = "#89b4fa"
+
+["syntax.function.macro"]
+text = "#94e2d5"
+
+["syntax.type"]
+text = "#f9e2af"
+
+["syntax.constructor"]
+text = "#f9e2af"
+
+["syntax.string"]
+text = "#a6e3a1"
+
+["syntax.escape"]
+text = "#fab387"
+
+["syntax.constant"]
+text = "#fab387"
+
+["syntax.comment"]
+text = "#6c7086"
+modifiers = ["italic"]
+
+["syntax.operator"]
+text = "#89dceb"
+
+["syntax.punctuation"]
+text = "#9399b2"
+
+["syntax.property"]
+text = "#eba0ac"
+
+["syntax.attribute"]
+text = "#f9e2af"
+
+["syntax.label"]
+text = "#fab387"
+
+["syntax.variable.parameter"]
+text = "#eba0ac"
+modifiers = ["italic"]
+
+["syntax.variable.builtin"]
+text = "#f38ba8"

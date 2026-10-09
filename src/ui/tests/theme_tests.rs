@@ -348,3 +348,29 @@ fn highlighted_slots_set_their_own_colors_instead_of_reversing_the_ones_below() 
         );
     }
 }
+
+#[test]
+fn a_capture_uses_the_most_specific_syntax_slot_the_theme_has() {
+    let theme = Theme::from_toml(
+        "[\"syntax.function\"]\ntext = \"blue\"\n[\"syntax.function.macro\"]\ntext = \"red\"\n[\"syntax\"]\ntext = \"gray\"\n",
+    )
+    .unwrap();
+
+    let fg = |capture| theme.syntax_style(capture).and_then(|style| style.fg);
+
+    assert_eq!(fg("function.macro"), Some(Color::Red));
+    assert_eq!(fg("function.builtin"), Some(Color::Blue));
+    assert_eq!(fg("function"), Some(Color::Blue));
+    assert_eq!(fg("keyword.control"), Some(Color::Gray), "plain `syntax`");
+}
+
+#[test]
+fn a_capture_without_any_syntax_slot_has_no_style() {
+    let theme = Theme::from_toml("[\"syntax.string\"]\ntext = \"green\"\n").unwrap();
+
+    assert_eq!(theme.syntax_style("keyword"), None);
+    assert_eq!(
+        theme.syntax_style("string.escape").unwrap().fg,
+        Some(Color::Green)
+    );
+}

@@ -23,6 +23,7 @@ mod event;
 mod keymap;
 mod paths;
 mod removal;
+mod syntax;
 pub mod terminal;
 #[cfg(test)]
 mod tests;
