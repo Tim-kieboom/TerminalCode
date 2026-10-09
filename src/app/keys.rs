@@ -16,7 +16,7 @@ use crate::ui::layout::Axis;
 pub(super) const NO_FILE_MESSAGE: &str = "no open file (ctrl+n opens a new one)";
 /// Contexts whose bindings apply to the focused editor, most specific first.
 const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
-const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
+pub(super) const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
 /// Where the palette looks for the keys shown beside an action.
 pub(super) const PALETTE_CONTEXTS: [Context; 3] =
     [Context::Explorer, Context::Editor, Context::Global];

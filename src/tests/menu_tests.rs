@@ -455,3 +455,94 @@ fn a_left_click_on_another_row_closes_the_menu_and_selects_that_row() {
     assert!(app.state().menu().is_none());
     assert_eq!(app.state().explorer().selected_row().unwrap().name, "src");
 }
+
+/// The text of the screen line that holds `label`.
+fn line_with(terminal: &Terminal<TestBackend>, label: &str) -> String {
+    let screen = terminal.backend().to_string();
+    screen
+        .lines()
+        .find(|line| line.contains(label))
+        .unwrap_or_else(|| panic!("{label} is not on screen:\n{screen}"))
+        .to_owned()
+}
+
+#[test]
+fn each_item_shows_the_keys_bound_to_its_action() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    open_menu(&mut app);
+
+    draw(&mut app, &mut terminal);
+
+    assert!(line_with(&terminal, "New File").contains(" a "));
+    assert!(line_with(&terminal, "New Folder").contains(" A "));
+    assert!(
+        line_with(&terminal, "Rename").contains(" r "),
+        "shortest wins over f2"
+    );
+    assert!(line_with(&terminal, "Delete").contains("delete"));
+}
+
+#[test]
+fn the_keys_sit_at_the_right_edge_of_the_menu() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    open_menu(&mut app);
+
+    draw(&mut app, &mut terminal);
+
+    let line = line_with(&terminal, "New Folder");
+    let keys = line.rfind(" A ").unwrap();
+    let after = &line[keys + 3..];
+    assert!(after.starts_with("│"), "{line}");
+}
+
+#[test]
+fn a_rebound_key_shows_in_the_menu_and_an_unbound_action_shows_none() {
+    let dir = project();
+    let keymap = crate::keymap::Keymap::from_toml(
+        r#"
+[[binding]]
+keys = "ctrl+b"
+action = "focus_explorer"
+
+[[binding]]
+keys = "f9"
+context = "explorer"
+action = "context_menu"
+
+[[binding]]
+keys = "f6"
+context = "explorer"
+action = "rename"
+
+[[binding]]
+keys = "home"
+context = "explorer"
+action = { explorer = "first" }
+
+[[binding]]
+keys = "down"
+context = "explorer"
+action = { explorer = "down" }
+"#,
+    )
+    .unwrap();
+    let mut state = AppState::default();
+    state.open_project(dir.path()).unwrap();
+    let mut app = App::with_keymap(state, keymap);
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('b'),
+        KeyModifiers::CONTROL,
+    )));
+    select(&mut app, "a.txt");
+    press(&mut app, KeyCode::F(9));
+
+    draw(&mut app, &mut terminal);
+
+    assert!(line_with(&terminal, "Rename").contains(" f6 "));
+    assert!(!line_with(&terminal, "Delete").contains("delete"));
+}

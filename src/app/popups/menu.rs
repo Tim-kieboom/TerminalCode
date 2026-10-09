@@ -8,6 +8,7 @@ use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Position;
 
 use crate::app::App;
+use crate::app::keys::EXPLORER_CONTEXTS;
 use crate::app::state::Focus;
 use crate::components::menu::{self, Entry, Menu};
 use crate::event::action::Action;
@@ -37,7 +38,7 @@ impl App {
         let target = row.path.clone();
         let is_root = explorer.root_path() == Some(target.as_path());
         self.state
-            .open_menu(Menu::new(explorer_entries(is_root), anchor, target));
+            .open_menu(Menu::new(self.explorer_entries(is_root), anchor, target));
     }
 
     pub(in crate::app) fn handle_menu_key(&mut self, key: KeyEvent) {
@@ -111,33 +112,32 @@ impl App {
     }
 }
 
-/// What the menu on an explorer row offers. The project folder itself cannot
-/// be renamed or deleted, so it only gets the entries that add to it.
-fn explorer_entries(is_root: bool) -> Vec<Entry> {
-    let mut entries = vec![
-        Entry::Item {
-            label: "New File",
-            action: Action::CreateFile,
-        },
-        Entry::Item {
-            label: "New Folder",
-            action: Action::CreateFolder,
-        },
-    ];
-    if !is_root {
-        entries.extend([
+/// What the menu on an explorer row offers, with the keys each item has in
+/// the explorer. The project folder itself cannot be renamed or deleted, so
+/// it only gets the entries that add to it.
+impl App {
+    fn explorer_entries(&self, is_root: bool) -> Vec<Entry> {
+        let item = |label, action: Action| {
+            let keys = self.keyboard.keys_for(&action, &EXPLORER_CONTEXTS);
             Entry::Item {
-                label: "Rename",
-                action: Action::Rename,
-            },
-            Entry::Separator,
-            Entry::Item {
-                label: "Delete",
-                action: Action::DeleteSelected,
-            },
-        ]);
+                label,
+                action,
+                keys,
+            }
+        };
+        let mut entries = vec![
+            item("New File", Action::CreateFile),
+            item("New Folder", Action::CreateFolder),
+        ];
+        if !is_root {
+            entries.extend([
+                item("Rename", Action::Rename),
+                Entry::Separator,
+                item("Delete", Action::DeleteSelected),
+            ]);
+        }
+        entries
     }
-    entries
 }
 
 fn name_of(path: &Path) -> String {

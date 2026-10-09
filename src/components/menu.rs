@@ -16,12 +16,17 @@ use unicode_width::UnicodeWidthStr;
 use crate::event::action::Action;
 use crate::ui::theme::Theme;
 
+/// The least space between a label and its keys.
+const KEY_GAP: usize = 2;
+
 /// One line of the menu.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Entry {
     Item {
         label: &'static str,
         action: Action,
+        /// The keys bound to the action, shown at the right edge.
+        keys: Option<String>,
     },
     /// A rule between two groups of items; the selection skips it.
     Separator,
@@ -161,8 +166,10 @@ impl Menu {
             .iter()
             .enumerate()
             .map(|(index, entry)| match entry {
-                Entry::Item { label, .. } => {
-                    let text = format!(" {label:<pad$}", pad = width.saturating_sub(1));
+                Entry::Item { label, keys, .. } => {
+                    let keys = keys.as_deref().unwrap_or("");
+                    let gap = width.saturating_sub(label.width() + keys.width() + 2);
+                    let text = format!(" {label}{}{keys} ", " ".repeat(gap));
                     if index == self.selected {
                         Line::styled(text, theme.style("list.selected"))
                     } else {
@@ -182,7 +189,9 @@ impl Menu {
             .entries
             .iter()
             .map(|entry| match entry {
-                Entry::Item { label, .. } => label.width(),
+                Entry::Item { label, keys, .. } => {
+                    label.width() + keys.as_ref().map_or(0, |keys| KEY_GAP + keys.width())
+                }
                 Entry::Separator => 0,
             })
             .max()
