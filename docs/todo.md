@@ -79,12 +79,12 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Highlight theme as data; a light theme (the default one has the `syntax.*` slots; `syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span)
 
 ## M6 — Integrated terminal
-- [ ] `portable-pty` spawn (Unix + ConPTY), shell selection
-- [ ] `alacritty_terminal` grid, render into Ratatui
-- [ ] Batched PTY output events, bounded channel, backpressure test (`cat` huge file keeps input responsive)
+- [ ] `portable-pty` spawn (Unix + ConPTY), shell selection; the terminal pane is toggled (hidden by default), the shell starts on first show in the project root and keeps its last size while hidden
+- [ ] `vt100` screen (chosen over `alacritty_terminal`: enough for scrollback, alternate screen, bracketed paste and mouse modes, far lighter), render into Ratatui
+- [ ] PTY output parsed on the reader thread (parser behind a mutex, fed in slices of a few KB), one dirty wake-up per drawn frame; backpressure test: a headless program prints 100 MB while keys are fed, each key handled within 50 ms
 - [ ] Resize, scrollback, alt screen, bracketed paste, mouse reporting passthrough
 - [ ] Multiple terminal tabs
-- [ ] Focus handling: all keys to shell except IDE prefix chord
+- [ ] Focus handling: all keys to the shell except the one reserved chord `ctrl+b` (twice sends a literal `ctrl+b`); the global bindings go to the shell while the terminal has focus; what follows the prefix: see `docs/design.md`
 
 ## M7 — Vim layer
 - [ ] Mode state machine: normal / insert / visual / visual-line

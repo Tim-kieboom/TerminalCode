@@ -474,3 +474,37 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   default theme gained slots for the new captures (`number`, `boolean`, `string.escape`, `string.special.key`,
   `text.title`/`literal`/`uri`/`reference`/`strong`/`emphasis`). The release binary grew from 8.3 MB to 10.7 MB with
   all grammars (Linux); the Windows build has not been tried.
+
+## Terminal focus (M6 plan, decided before building)
+- While the terminal pane has the keyboard, every key goes to the shell except one reserved chord, `ctrl+b`.
+  Pressing it twice (`ctrl+b ctrl+b`) sends a literal `ctrl+b` to the shell. The global bindings (`ctrl+s`,
+  `ctrl+q`, `ctrl+p`, `ctrl+w`, `ctrl+n`, ...) do not apply there: they go to the shell, so shell habits (readline,
+  history, flow control) keep working. The `ctrl+k` prefix that shipped, and the `ctrl+g` the docs mention, are not
+  used for the terminal.
+- After the prefix: a short fixed table moves focus (editor, explorer, terminal toggle, cancel), and any other key
+  is looked up in the normal keymap, so a global binding works behind the prefix (`ctrl+b ctrl+p` opens the finder).
+  What an unknown key or a timeout does is still to be decided.
+- An unknown key after the prefix cancels it: nothing goes to the shell and a notification says the chord is not
+  bound. A timeout cancels it silently. While the prefix is pending the status bar shows `ctrl+b …`.
+- The emulator is `vt100` (scrollback, alternate screen, bracketed paste, mouse modes are enough for now), not
+  `alacritty_terminal`; the PTY is `portable-pty`.
+- PTY output is parsed on the reader thread, which owns the `vt100` parser behind a mutex and feeds it in slices of
+  a few KB, releasing the lock between slices. The UI takes the lock only to draw. The reader sends one dirty
+  wake-up and stays quiet until the UI has drawn, so a flood becomes one redraw per frame, and backpressure is the
+  kernel's PTY buffer. Test: a headless program prints 100 MB while the test feeds keystrokes and asserts each key
+  is handled within 50 ms.
+- Keystrokes and pastes reach the child through a writer thread fed by a bounded channel, so a child that is not
+  reading stdin cannot block the UI thread on a PTY write; resizing the PTY goes through the same thread. When the
+  channel is full the sender waits at most 20 ms; if the channel is still full the rest of the paste is dropped
+  and a notification says how much went through. The flood test also pastes several MB into a child that is not
+  reading and asserts the UI stays responsive.
+- The terminal pane is toggled like the explorer (hidden by default). The shell starts the first time it is shown,
+  in the project root, and keeps its last PTY size while the pane is hidden, so toggling does not resize it.
+- Build order, one commit each: (A) a `Terminal` session with no UI: spawn through `portable-pty` in a directory,
+  reader thread feeding `vt100`, writer thread behind the bounded channel with the 20 ms rule, tested with `sh -c`
+  and scripted output; (A2) the flood tests (100 MB of output with keys within 50 ms, a several-MB paste into a
+  child that is not reading), written before any UI depends on the design; (B) the pane draws the screen, the
+  toggle, spawn on first show, PTY size following the pane, one wake-up per drawn frame; (C) key encoding, the
+  `ctrl+b` prefix with its fixed table and keymap fallthrough, the pending indicator in the status bar, bracketed
+  paste; (D) scrollback and the alternate screen; (E) mouse passthrough and terminal tabs. Windows (ConPTY) cannot
+  be tested here.
