@@ -1,7 +1,8 @@
 //! Keeping documents in step with their files: noticing that a file changed
 //! under an open document, and refusing to overwrite such a change by accident.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use super::{DocumentId, Workspace, canonical};
@@ -35,17 +36,32 @@ impl Workspace {
     /// step: reloads it if it has no edits, flags a conflict if it has.
     /// A change already reported is not reported again.
     pub(crate) fn check_disk(&mut self, changed: &[PathBuf]) -> Vec<DiskEvent> {
-        let changed: Vec<PathBuf> = changed.iter().map(|path| canonical(path)).collect();
-        let mut affected: Vec<DocumentId> = self
+        // A report can name thousands of files (a branch switch), and resolving a
+        // path asks the file system. Only the paths with the name of an open
+        // document's file can be that file, so only those are resolved.
+        let open: Vec<(DocumentId, PathBuf)> = self
             .documents
             .iter()
-            .filter(|(_, doc)| {
-                doc.buffer
-                    .path()
-                    .is_some_and(|path| changed.contains(&canonical(path)))
-            })
-            .map(|(id, _)| *id)
+            .filter_map(|(id, doc)| Some((*id, canonical(doc.buffer.path()?))))
             .collect();
+
+        let names: HashSet<&OsStr> = open
+            .iter()
+            .filter_map(|(_, path)| path.file_name())
+            .collect();
+
+        let changed: HashSet<PathBuf> = changed
+            .iter()
+            .filter(|path| path.file_name().is_some_and(|name| names.contains(name)))
+            .map(|path| canonical(path))
+            .collect();
+
+        let mut affected: Vec<DocumentId> = open
+            .into_iter()
+            .filter(|(_, path)| changed.contains(path))
+            .map(|(id, _)| id)
+            .collect();
+
         affected.sort();
         affected
             .into_iter()

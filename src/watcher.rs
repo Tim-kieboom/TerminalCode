@@ -79,6 +79,24 @@ impl FsWatcher {
         })
     }
 
+    /// Stops watching the directories that `changed` names itself, and says
+    /// whether there were any. The report names a watched directory when it
+    /// was deleted or replaced, and the operating system then drops the watch
+    /// (inotify follows the directory, not its name): a later [`FsWatcher::watch_only`]
+    /// starts a fresh one if a directory of that name exists again.
+    pub(crate) fn forget(&mut self, changed: &[PathBuf]) -> bool {
+        let watcher = self.debouncer.watcher();
+        let mut forgot = false;
+        for path in changed {
+            if self.watched.remove(path) {
+                // Best effort: the watch is probably gone already.
+                _ = watcher.unwatch(path);
+                forgot = true;
+            }
+        }
+        forgot
+    }
+
     /// Watches exactly the directories in `wanted`: starts on the new ones and
     /// stops on the ones no longer wanted. Directories that cannot be watched
     /// are skipped (and tried again next time); the first such error is
@@ -103,6 +121,11 @@ impl FsWatcher {
                 self.watched.insert(path.clone());
                 continue;
             };
+            // A directory that is gone is not a failure: there is nothing to
+            // watch, and it is tried again at the next call.
+            if is_missing(&source) {
+                continue;
+            }
 
             first_error.get_or_insert(WatchError::Watch {
                 path: path.clone(),
@@ -115,5 +138,14 @@ impl FsWatcher {
     #[cfg(test)]
     pub(crate) fn watched(&self) -> &BTreeSet<PathBuf> {
         &self.watched
+    }
+}
+
+/// Whether the error says the path does not exist.
+fn is_missing(error: &notify::Error) -> bool {
+    match &error.kind {
+        notify::ErrorKind::PathNotFound => true,
+        notify::ErrorKind::Io(io) => io.kind() == std::io::ErrorKind::NotFound,
+        _ => false,
     }
 }

@@ -2,10 +2,13 @@
 //! demand, and the flat list of rows the explorer shows.
 
 use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
 use thiserror::Error;
+
+use crate::paths::canonical;
 
 /// The version control directory is never listed.
 const HIDDEN_DIRECTORY: &str = ".git";
@@ -33,6 +36,24 @@ pub(super) struct Node {
     expanded: bool,
     /// `None` until the directory is first opened.
     children: Option<Vec<Node>>,
+}
+
+/// Which open directories [`Node::reload`] reads again.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum Scope<'a> {
+    Everything,
+    /// Only these directories (as paths the file watcher reports, which are
+    /// resolved ones; a node's own spelling is tried too).
+    Only(&'a HashSet<PathBuf>),
+}
+
+impl Scope<'_> {
+    fn includes(&self, dir: &Path) -> bool {
+        match self {
+            Self::Everything => true,
+            Self::Only(dirs) => dirs.contains(dir) || dirs.contains(&canonical(dir)),
+        }
+    }
 }
 
 /// One line of the explorer.
@@ -96,13 +117,16 @@ impl Node {
         }
     }
 
-    /// Opens a directory, reading it the first time. Nothing changes if the
-    /// read fails.
+    /// Opens a directory, reading it again every time: a closed directory is not
+    /// watched, so what was listed when it was closed may be out of date. What
+    /// was open inside it stays open. Nothing changes if the read fails.
     fn expand(&mut self) -> Result<(), ExplorerError> {
-        if self.kind == NodeKind::Dir && self.children.is_none() {
-            self.children = Some(read_children(&self.path)?);
+        if self.kind != NodeKind::Dir {
+            return Ok(());
         }
-        self.expanded = self.kind == NodeKind::Dir;
+        let fresh = read_children(&self.path)?;
+        self.children = Some(self.merge(fresh));
+        self.expanded = true;
         Ok(())
     }
 
@@ -133,34 +157,48 @@ impl Node {
         }
     }
 
-    /// Reads every directory that has been opened again, keeping what is
-    /// still there open. A directory that cannot be read any more is closed;
-    /// only the root's error is returned.
-    pub(super) fn reload(&mut self) -> Result<(), ExplorerError> {
-        let fresh = read_children(&self.path)?;
-        self.children = Some(self.merge(fresh));
+    /// Reads again the open directories in `scope`, keeping what is still
+    /// there open. Closed directories are left alone: opening one reads it.
+    /// An open directory that cannot be read any more is closed; only this
+    /// node's own error is returned.
+    pub(super) fn reload(&mut self, scope: Scope<'_>) -> Result<(), ExplorerError> {
+        if self.kind != NodeKind::Dir || !self.expanded {
+            return Ok(());
+        }
+        if scope.includes(&self.path) {
+            let fresh = read_children(&self.path)?;
+            self.children = Some(self.merge(fresh));
+        }
+        for child in self.children.iter_mut().flatten() {
+            if child.reload(scope).is_err() {
+                child.children = None;
+                child.expanded = false;
+            }
+        }
         Ok(())
     }
 
+    /// `fresh` (the directory as it is now) with what this node knew about the
+    /// entries that are still there: whether they are open, and what they
+    /// contain.
     fn merge(&mut self, fresh: Vec<Node>) -> Vec<Node> {
-        let mut old = self.children.take().unwrap_or_default();
-        let mut merged = Vec::with_capacity(fresh.len());
-        for mut node in fresh {
-            let previous = old.iter().position(|candidate| candidate.path == node.path);
-            if let Some(index) = previous {
-                let previous = old.swap_remove(index);
-                node.expanded = previous.expanded && node.kind == NodeKind::Dir;
-                node.children = previous.children;
-            }
-            if node.children.is_some() && node.reload().is_err() {
-                node.children = None;
-                node.expanded = false;
-            }
-            merged.push(node);
+        let mut known: HashMap<PathBuf, Node> = self
+            .children
+            .take()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|node| (node.path.clone(), node))
+            .collect();
+        let mut merged = fresh;
+        for node in &mut merged {
+            let Some(previous) = known.remove(&node.path) else {
+                continue;
+            };
+            node.expanded = previous.expanded && node.kind == NodeKind::Dir;
+            node.children = previous.children;
         }
         merged
     }
-
     /// Appends this node and, if it is open, everything below it.
     pub(super) fn push_rows(&self, depth: usize, rows: &mut Vec<Row>) {
         rows.push(Row {

@@ -352,3 +352,160 @@ fn clicking_below_the_last_row_or_outside_the_body_does_nothing() {
 
     assert_eq!(explorer.selected(), 0);
 }
+
+fn listed(explorer: &Explorer, name: &str) -> bool {
+    explorer.rows().iter().any(|row| row.name == name)
+}
+
+fn two_open_directories() -> (tempfile::TempDir, Explorer) {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "a/old_a.txt", "");
+    write(dir.path(), "b/old_b.txt", "");
+    let mut explorer = open(&dir);
+    select(&mut explorer, "a");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    select(&mut explorer, "b");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    (dir, explorer)
+}
+
+#[test]
+fn a_directory_opened_again_shows_what_was_added_while_it_was_closed() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+    select(&mut explorer, "docs");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    apply(&mut explorer, ExplorerCommand::Collapse);
+
+    // A closed directory is not watched, so nothing refreshed it.
+    write(dir.path(), "docs/added_while_closed.md", "");
+    apply(&mut explorer, ExplorerCommand::Expand);
+
+    assert!(listed(&explorer, "added_while_closed.md"));
+}
+
+#[test]
+fn a_directory_opened_again_keeps_the_directories_that_were_open_inside_it() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+    select(&mut explorer, "src");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    select(&mut explorer, "util");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    assert!(listed(&explorer, "mod.rs"));
+
+    select(&mut explorer, "src");
+    apply(&mut explorer, ExplorerCommand::Collapse);
+    apply(&mut explorer, ExplorerCommand::Expand);
+
+    assert!(
+        listed(&explorer, "mod.rs"),
+        "util is still open: {:?}",
+        names(&explorer)
+    );
+}
+
+#[test]
+fn refresh_paths_reads_only_the_directories_the_paths_are_in() {
+    let (dir, mut explorer) = two_open_directories();
+    write(dir.path(), "a/new_a.txt", "");
+    write(dir.path(), "b/new_b.txt", "");
+
+    explorer
+        .refresh_paths(&[dir.path().join("a/new_a.txt")])
+        .unwrap();
+
+    assert!(listed(&explorer, "new_a.txt"));
+    assert!(
+        !listed(&explorer, "new_b.txt"),
+        "b was not named, so it was not read"
+    );
+
+    explorer.refresh().unwrap();
+    assert!(
+        listed(&explorer, "new_b.txt"),
+        "a full refresh reads everything"
+    );
+}
+
+#[test]
+fn a_changed_path_that_is_an_open_directory_has_its_own_listing_read_again() {
+    let (dir, mut explorer) = two_open_directories();
+    write(dir.path(), "a/new_a.txt", "");
+
+    explorer.refresh_paths(&[dir.path().join("a")]).unwrap();
+
+    assert!(listed(&explorer, "new_a.txt"));
+}
+
+#[test]
+fn a_report_of_many_paths_in_one_directory_reads_it_once_and_finds_every_change() {
+    let (dir, mut explorer) = two_open_directories();
+    let created: Vec<_> = (0..300)
+        .map(|n| {
+            write(dir.path(), &format!("a/file_{n}.txt"), "");
+            dir.path().join(format!("a/file_{n}.txt"))
+        })
+        .collect();
+
+    explorer.refresh_paths(&created).unwrap();
+
+    let count = explorer
+        .rows()
+        .iter()
+        .filter(|row| row.name.starts_with("file_"))
+        .count();
+    assert_eq!(count, 300);
+}
+
+#[test]
+fn a_deleted_open_directory_disappears_when_its_parent_is_reported() {
+    let (dir, mut explorer) = two_open_directories();
+    fs::remove_dir_all(dir.path().join("a")).unwrap();
+
+    explorer.refresh_paths(&[dir.path().join("a")]).unwrap();
+
+    assert!(!listed(&explorer, "a"));
+    assert!(!listed(&explorer, "old_a.txt"));
+    assert!(listed(&explorer, "old_b.txt"), "b is untouched");
+}
+
+#[test]
+fn paths_outside_the_project_change_nothing() {
+    let (dir, mut explorer) = two_open_directories();
+    write(dir.path(), "a/new_a.txt", "");
+    let before = names(&explorer);
+
+    explorer
+        .refresh_paths(&[PathBuf::from("/somewhere/else/file.txt")])
+        .unwrap();
+
+    assert_eq!(names(&explorer), before);
+}
+
+#[test]
+fn refreshing_a_very_large_directory_keeps_what_was_open_and_the_selection() {
+    let dir = tempfile::tempdir().unwrap();
+    for n in 0..5_000 {
+        write(dir.path(), &format!("big/file_{n:04}.txt"), "");
+    }
+    write(dir.path(), "big/sub/inner.txt", "");
+    let mut explorer = open(&dir);
+    select(&mut explorer, "big");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    select(&mut explorer, "sub");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    select(&mut explorer, "file_2500.txt");
+    write(dir.path(), "big/file_9999.txt", "");
+
+    explorer.refresh().unwrap();
+
+    assert!(listed(&explorer, "file_9999.txt"));
+    assert!(listed(&explorer, "inner.txt"), "sub is still open");
+    assert_eq!(explorer.selected_row().unwrap().name, "file_2500.txt");
+    assert_eq!(
+        explorer.rows().len(),
+        1 + 1 + 1 + 1 + 5_001,
+        "root, big, sub, inner and the files"
+    );
+}

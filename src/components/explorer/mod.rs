@@ -2,13 +2,14 @@
 //! commands that move it. Opening a file is left to the caller, which gets
 //! the path back.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use ratatui::layout::Rect;
 use serde::Deserialize;
 
-use tree::Node;
 pub(crate) use tree::{ExplorerError, NodeKind, Row};
+use tree::{Node, Scope};
 
 mod render;
 #[cfg(test)]
@@ -225,10 +226,26 @@ impl Explorer {
     /// Reads the open directories again, keeping what is still there open and
     /// the selection where it was.
     pub(crate) fn refresh(&mut self) -> Result<(), ExplorerError> {
+        self.reload(Scope::Everything)
+    }
+
+    /// Reads again only the open directories that `changed` paths are in (or
+    /// are), however many paths there are. For a file watcher's report: the
+    /// rest of the tree is not touched.
+    pub(crate) fn refresh_paths(&mut self, changed: &[PathBuf]) -> Result<(), ExplorerError> {
+        let mut dirs: HashSet<PathBuf> = HashSet::with_capacity(changed.len());
+        for path in changed {
+            dirs.extend(path.parent().map(Path::to_path_buf));
+            dirs.insert(path.clone());
+        }
+        self.reload(Scope::Only(&dirs))
+    }
+
+    fn reload(&mut self, scope: Scope<'_>) -> Result<(), ExplorerError> {
         let Some(root) = self.root.as_mut() else {
             return Ok(());
         };
-        let result = root.reload();
+        let result = root.reload(scope);
         self.rebuild_keeping_selection();
         result
     }

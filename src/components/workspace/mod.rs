@@ -11,7 +11,7 @@
 //! document so their cursors keep pointing at the same text.
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use ratatui::layout::Rect;
 use serde::Deserialize;
@@ -20,6 +20,7 @@ use crate::buffer::{Buffer, DiskChange, EditInfo, FileError, Selection, Selectio
 use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, display_name};
 use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
+use crate::paths::canonical;
 use crate::ui::layout::Axis;
 
 pub(crate) use disk::{DiskEvent, SaveOutcome};
@@ -673,23 +674,6 @@ struct ByteSelection {
     tab: usize,
     anchor: usize,
     head: usize,
-}
-
-/// `path` with symlinks and `..` resolved, so two spellings of one file compare
-/// equal. A path that cannot be resolved (a file not saved yet) stays as it is.
-pub(crate) fn canonical(path: &Path) -> PathBuf {
-    if let Ok(resolved) = std::fs::canonicalize(path) {
-        return resolved;
-    }
-    // A file that does not exist (any more): resolve its directory instead.
-    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
-        return path.to_path_buf();
-    };
-    let parent = match parent.as_os_str().is_empty() {
-        true => Path::new("."),
-        false => parent,
-    };
-    std::fs::canonicalize(parent).map_or_else(|_| path.to_path_buf(), |dir| dir.join(name))
 }
 
 fn contains(area: Rect, column: u16, row: u16) -> bool {

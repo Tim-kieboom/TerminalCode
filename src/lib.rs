@@ -20,6 +20,7 @@ mod config;
 pub mod error;
 mod event;
 mod keymap;
+mod paths;
 mod state;
 pub mod terminal;
 #[cfg(test)]

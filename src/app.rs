@@ -17,11 +17,12 @@ use crate::components::finder::{self, Finder};
 use crate::components::palette::{self, Entry, Palette};
 use crate::components::quit_prompt::{self, QuitPrompt};
 use crate::components::search::{self, Options as SearchOptions, Search};
-use crate::components::workspace::{CloseResult, DiskEvent, DocumentId, SaveOutcome, canonical};
+use crate::components::workspace::{CloseResult, DiskEvent, DocumentId, SaveOutcome};
 use crate::components::{self, ComponentKind, PluginViewId};
 use crate::error::{IdeError, IdeResult};
 use crate::event::{Event, action::Action, mouse::ClickTracker};
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolver};
+use crate::paths::canonical;
 use crate::state::{AppState, Focus, Popup};
 use crate::terminal::{self, KeyboardSupport};
 use crate::ui::layout::Axis;
@@ -357,6 +358,7 @@ impl App {
     /// [`crate::components::workspace::Workspace::check_disk`]) and refreshes
     /// the explorer.
     fn files_changed(&mut self, paths: &[std::path::PathBuf]) {
+        self.rewatch_replaced(paths);
         for event in self.state.workspace_mut().check_disk(paths) {
             match event {
                 DiskEvent::Reloaded(name) => {
@@ -376,17 +378,21 @@ impl App {
         self.needs_redraw = true;
     }
 
-    /// Re-reads the explorer's directories if any of `paths` is inside the
-    /// project.
+    /// Re-reads the explorer's directories that `paths` are in, and only those.
     fn refresh_explorer_for(&mut self, paths: &[std::path::PathBuf]) {
-        let Some(root) = self.state.explorer().root_path().map(canonical) else {
+        if let Err(error) = self.state.explorer_mut().refresh_paths(paths) {
+            self.state.notify_error(error.to_string());
+        }
+    }
+
+    /// Starts watching again the directories the report says were replaced.
+    fn rewatch_replaced(&mut self, paths: &[std::path::PathBuf]) {
+        let Some(watcher) = self.watcher.as_mut() else {
             return;
         };
-        if !paths.iter().any(|path| canonical(path).starts_with(&root)) {
-            return;
-        }
-        if let Err(error) = self.state.explorer_mut().refresh() {
-            self.state.notify_error(error.to_string());
+        if watcher.forget(paths) {
+            // Forces `sync_watches` to look at what should be watched again.
+            self.watched_versions = None;
         }
     }
 

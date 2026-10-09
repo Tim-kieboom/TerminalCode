@@ -187,6 +187,11 @@ used `anyhow` everywhere instead of typed errors.
   modified ones (once per distinct change, `Document::warned`); `save_document` refuses to overwrite a changed file
   until it is asked a second time with nothing else done in between. The same check runs at save time, so a
   missed event cannot lose someone's change.
+- A report is cheap to apply however many paths it names: the explorer reloads only the open directories the paths
+  are in (`Explorer::refresh_paths`; the merge is a hash lookup, collapsed directories are skipped and re-read when
+  opened), and `check_disk` resolves only the paths whose file name is an open document's. `FsWatcher::forget`
+  drops the watch of a directory the report names itself (inotify loses a watch with its directory), and the next
+  `watch_only` starts a fresh one; a directory that does not exist yet is not an error and is retried.
 - `Workspace::open_path` never reads an open file twice: it switches to a tab that shows it (focused pane first,
   then others) or adds a view to the existing document.
 

@@ -441,3 +441,63 @@ fn a_real_change_on_disk_arrives_as_an_event() {
     drop(dir);
     assert!(seen, "no change event for a.txt within 10 seconds");
 }
+
+#[test]
+fn a_report_of_thousands_of_unrelated_files_still_finds_the_open_one() {
+    let (mut app, dir, path) = app_with_file("old\n");
+    fs::write(&path, "new\n").unwrap();
+    let mut paths: Vec<PathBuf> = (0..5_000)
+        .map(|n| dir.path().join(format!("other/branch_file_{n}.rs")))
+        .collect();
+    paths.push(path);
+
+    app.handle_event(Event::FilesChanged(paths));
+
+    assert_eq!(text(&app), "new\n");
+}
+
+#[test]
+fn a_report_naming_only_other_files_with_the_same_directory_changes_nothing() {
+    let (mut app, dir, path) = app_with_file("old\n");
+    fs::write(&path, "new\n").unwrap();
+
+    app.handle_event(Event::FilesChanged(vec![dir.path().join("not_a.txt")]));
+
+    assert_eq!(text(&app), "old\n");
+}
+
+#[test]
+fn a_report_that_a_watched_directory_was_replaced_starts_watching_the_new_one() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("sub")).unwrap();
+    fs::write(dir.path().join("sub/old.txt"), "").unwrap();
+    let (mut app, mut rx) = app_with_watcher(app_with_project(dir.path()));
+    // Open `sub` in the explorer, so it is watched.
+    ctrl(&mut app, 'b');
+    app.handle_input(key(KeyCode::Down, KeyModifiers::NONE));
+    app.handle_input(key(KeyCode::Right, KeyModifiers::NONE));
+    app.sync_watches();
+    let sub = canon(&dir.path().join("sub"));
+    assert!(app.watched_directories().contains(&sub));
+
+    fs::remove_dir_all(&sub).unwrap();
+    fs::create_dir(&sub).unwrap();
+    app.handle_event(Event::FilesChanged(vec![sub.clone()]));
+    app.sync_watches();
+    fs::write(sub.join("new.txt"), "").unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut seen = false;
+    while Instant::now() < deadline && !seen {
+        while let Ok(event) = rx.try_recv() {
+            if let Event::FilesChanged(paths) = event {
+                seen |= paths.iter().any(|path| path.ends_with("new.txt"));
+            }
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    assert!(
+        seen,
+        "no change event for the file made in the new directory"
+    );
+}
