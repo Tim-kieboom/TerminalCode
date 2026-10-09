@@ -30,6 +30,8 @@ tree-sitter-toml-ng = "0.7.0"
 tree-sitter-json = "0.24.8"
 tree-sitter-md = "0.5.3"
 tree-sitter-nix = "0.3.0"
+portable-pty = "0.9.0"
+vt100 = "0.16.2"
 ropey = { version = "1.6.1", default-features = false, features = ["simd"] }
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "sync", "time"] }
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }

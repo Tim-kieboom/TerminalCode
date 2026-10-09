@@ -508,3 +508,14 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   `ctrl+b` prefix with its fixed table and keymap fallthrough, the pending indicator in the status bar, bracketed
   paste; (D) scrollback and the alternate screen; (E) mouse passthrough and terminal tabs. Windows (ConPTY) cannot
   be tested here.
+- Step A is done: `src/pty` has `Session` (spawn a `Shell` in a directory through `portable-pty`, `TERM` set to
+  `xterm-256color`), with no UI. The reader thread reads 8 KB at a time and feeds `vt100` (10,000 lines of
+  scrollback) under a mutex it holds only per slice, then calls the wake-up once until `take_dirty` is called
+  (the draw's side of the one-wake-per-frame rule); the end of the shell also wakes. `write` cuts input into 4 KB
+  chunks for a 64-chunk bounded queue (`pty::queue`, own `Mutex`+`Condvar`, since `std::mpsc` has no send timeout)
+  that a writer thread drains, waits at most 20 ms for room per chunk and reports `Written { sent, complete }`.
+  `resize` changes the screen at once and hands the size to the writer thread, which applies it in order with the
+  input. Dropping the session kills and reaps the shell. A terminal in line mode throws away input that does not
+  fit instead of blocking the writer, so a child that "is not reading" only makes writes block once it has set raw
+  mode (what a shell's line editor does); the not-reading tests use `stty raw -echo`. Needs the `cc`-free
+  `portable-pty` and `vt100` crates only; Windows (ConPTY) is untested.

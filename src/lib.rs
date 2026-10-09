@@ -22,6 +22,7 @@ pub mod error;
 mod event;
 mod keymap;
 mod paths;
+mod pty;
 mod removal;
 mod syntax;
 pub mod terminal;
