@@ -5,7 +5,8 @@ use ratatui::style::Style;
 use ropey::Rope;
 use ropey::iter::Chunks;
 use tree_sitter::{
-    InputEdit, Node, Parser, Point, Query, QueryCursor, StreamingIterator, TextProvider, Tree,
+    InputEdit, Language as Grammar, Node, Parser, Point, Query, QueryCursor, StreamingIterator,
+    TextProvider, Tree,
 };
 
 use super::{Language, SyntaxError};
@@ -33,7 +34,18 @@ pub(crate) struct Highlighter {
     query: Query,
     /// The style of each capture of `query`, by capture index.
     styles: Vec<Option<Style>>,
+    /// For a language that holds another one (Markdown paragraphs).
+    inner: Option<InnerHighlights>,
     tree: Option<Tree>,
+}
+
+/// What highlights the language inside a language: the node kind of the outer
+/// tree whose text it covers, and how to parse and color that text.
+struct InnerHighlights {
+    node_kind: &'static str,
+    grammar: Grammar,
+    query: Query,
+    styles: Vec<Option<Style>>,
 }
 
 impl std::fmt::Debug for Highlighter {
@@ -61,16 +73,30 @@ impl Highlighter {
                 language: name,
                 source,
             })?;
-        let styles = query
-            .capture_names()
-            .iter()
-            .map(|capture| theme.syntax_style(capture))
-            .collect();
+        let styles = styles_of(&query, theme);
+        let inner = language
+            .inner()
+            .map(|inner| -> Result<_, SyntaxError> {
+                let query = Query::new(&inner.grammar, inner.highlights).map_err(|source| {
+                    SyntaxError::Query {
+                        language: name,
+                        source,
+                    }
+                })?;
+                Ok(InnerHighlights {
+                    node_kind: inner.node_kind,
+                    styles: styles_of(&query, theme),
+                    query,
+                    grammar: inner.grammar,
+                })
+            })
+            .transpose()?;
         Ok(Self {
             language,
             parser,
             query,
             styles,
+            inner,
             tree: None,
         })
     }
@@ -126,22 +152,18 @@ impl Highlighter {
             return Vec::new();
         };
         let range = range.start.min(text.len_bytes())..range.end.min(text.len_bytes());
-        let mut cursor = QueryCursor::new();
-        cursor.set_byte_range(range.clone());
         let mut found = Vec::new();
-        let mut captures = cursor.captures(&self.query, tree.root_node(), RopeText(text));
-        while let Some((matched, index)) = captures.next() {
-            let capture = matched.captures()[*index];
-            let Some(style) = self.styles[capture.index as usize] else {
-                continue;
-            };
-            let node = capture.node;
-            found.push(Found {
-                start: node.start_byte(),
-                end: node.end_byte(),
-                pattern: matched.pattern_index,
-                style,
-            });
+        collect(
+            &self.query,
+            &self.styles,
+            tree.root_node(),
+            text,
+            &range,
+            0,
+            &mut found,
+        );
+        if let Some(inner) = &self.inner {
+            inner.collect_into(tree.root_node(), text, &range, &mut found);
         }
         flatten(found, &range)
     }
@@ -242,5 +264,108 @@ impl<'a> TextProvider<&'a [u8]> for RopeText<'a> {
             .byte_slice(node.byte_range())
             .chunks()
             .map(str::as_bytes)
+    }
+}
+
+/// The style the theme gives each capture of `query`, by capture index.
+fn styles_of(query: &Query, theme: &Theme) -> Vec<Option<Style>> {
+    query
+        .capture_names()
+        .iter()
+        .map(|capture| theme.syntax_style(capture))
+        .collect()
+}
+
+/// Runs `query` over the part of the tree inside `range` and adds the styled
+/// captures to `found`; `pattern_offset` keeps the patterns of one query
+/// after those of another when they tie.
+fn collect(
+    query: &Query,
+    styles: &[Option<Style>],
+    root: Node<'_>,
+    text: &Rope,
+    range: &Range<usize>,
+    pattern_offset: usize,
+    found: &mut Vec<Found>,
+) {
+    let mut cursor = QueryCursor::new();
+    cursor.set_byte_range(range.clone());
+    let mut captures = cursor.captures(query, root, RopeText(text));
+    while let Some((matched, index)) = captures.next() {
+        let capture = matched.captures()[*index];
+        let Some(style) = styles[capture.index as usize] else {
+            continue;
+        };
+        let node = capture.node;
+        found.push(Found {
+            start: node.start_byte(),
+            end: node.end_byte(),
+            pattern: pattern_offset + matched.pattern_index,
+            style,
+        });
+    }
+}
+
+/// Inner patterns come after every outer one when two cover the same bytes.
+const INNER_PATTERN_OFFSET: usize = 1_000_000;
+
+impl InnerHighlights {
+    /// Parses the text of every `node_kind` node of `outer` that touches
+    /// `range` with the inner grammar and adds what the inner query finds.
+    /// Nothing is kept between calls: only a screenful is parsed each time.
+    fn collect_into(
+        &self,
+        outer: Node<'_>,
+        text: &Rope,
+        range: &Range<usize>,
+        found: &mut Vec<Found>,
+    ) {
+        let mut nodes = Vec::new();
+        nodes_of_kind(outer, self.node_kind, range, &mut nodes);
+        if nodes.is_empty() {
+            return;
+        }
+        let mut parser = Parser::new();
+        if parser.set_language(&self.grammar).is_err() {
+            return;
+        }
+        for node in nodes {
+            if parser.set_included_ranges(&[node.range()]).is_err() {
+                continue;
+            }
+            let Some(tree) = parse_rope(&mut parser, text, None) else {
+                continue;
+            };
+            let within = range.start.max(node.start_byte())..range.end.min(node.end_byte());
+            collect(
+                &self.query,
+                &self.styles,
+                tree.root_node(),
+                text,
+                &within,
+                INNER_PATTERN_OFFSET,
+                found,
+            );
+        }
+    }
+}
+
+/// The nodes of `kind` under `root` that touch `range`, in order. Nodes
+/// inside a node of that kind are not looked at.
+fn nodes_of_kind<'t>(root: Node<'t>, kind: &str, range: &Range<usize>, out: &mut Vec<Node<'t>>) {
+    let mut cursor = root.walk();
+    let mut pending = vec![root];
+    while let Some(node) = pending.pop() {
+        if node.end_byte() <= range.start || node.start_byte() >= range.end {
+            continue;
+        }
+        if node.kind() == kind {
+            out.push(node);
+            continue;
+        }
+        let before = pending.len();
+        pending.extend(node.children(&mut cursor));
+        // Popped from the end, so reverse to visit the children in order.
+        pending[before..].reverse();
     }
 }

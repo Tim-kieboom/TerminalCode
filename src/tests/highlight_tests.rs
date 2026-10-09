@@ -227,3 +227,28 @@ fn a_document_that_is_closed_is_forgotten_by_the_worker() {
     assert!(!rig.app.state().workspace().highlights_pending());
     drop(terminal);
 }
+
+/// The default theme's color for numbers, constants and booleans.
+const CONSTANT: Color = Color::Rgb(0xfa, 0xb3, 0x87);
+
+#[test]
+fn a_json_file_is_colored_too() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut rig = app_with(dir.path(), "a.json", "{\"on\": true}\n");
+
+    let terminal = draw(&mut rig);
+
+    assert_eq!(color_of(&terminal, "true"), Some(CONSTANT));
+}
+
+#[test]
+fn a_markdown_file_gets_inline_colors_from_the_second_grammar() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut rig = app_with(dir.path(), "a.md", "# Title\n\nSome `code` here.\n");
+
+    let terminal = draw(&mut rig);
+
+    let code = color_of(&terminal, "code");
+    assert_eq!(code, Some(Color::Rgb(0xa6, 0xe3, 0xa1)));
+    assert_ne!(color_of(&terminal, "here"), code);
+}

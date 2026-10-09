@@ -72,11 +72,11 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Search follow-ups: replace, search only the open file/folder/selection, include/exclude globs, search unsaved buffers (it reads the disk), keep the results open while editing (a results pane), group results under file headers, next/previous result without reopening, whole-word toggle, multi-line patterns
 
 ## M5 — Syntax highlighting
-- [ ] tree-sitter integration, grammars compiled into the binary: Rust, TOML (`tree-sitter-toml-ng`), JSON, RON (`tree-sitter-ron`, 0.2, check it matches the `tree-sitter` version), Markdown (`tree-sitter-md`), Nix. If the binary size or the Windows build starts to hurt, drop in this order: RON, TOML, JSON
+- [x] tree-sitter integration, grammars compiled into the binary: Rust, TOML (`tree-sitter-toml-ng`), JSON, Markdown (`tree-sitter-md`, block and inline grammars), Nix. Binary 8.3 MB → 10.7 MB (release, Linux). If the binary size or the Windows build starts to hurt, drop in this order: TOML, JSON. RON was tried and dropped (its crate pulls in a second, incompatible tree-sitter runtime; see `docs/design.md`). Not done: fenced code blocks in Markdown are not highlighted in their own language, the Windows build is untested
 - [x] Parse worker (done; a keystroke costs the UI ≈ 4 µs, the worker answers a 7 MB Rust file in ≈ 0.12 s, the first parse takes ≈ 0.9 s; why the incremental parse still takes 0.12 s is worth a benchmark): at most one parse pending, always started from the newest text (coalescing); any result is accepted and its highlights are mapped forward through the edits made since the text it parsed, so a steady typist on a big file still sees colors; `version` only guards against results arriving out of order. Until a result arrives the old highlights are mapped through each `Edit
 - [x] Incremental reparse from `Edit`
 - [ ] Smart indent: add a level after an opening token (`{`, `(`, `[`, `:`) and dedent on a closing one, using the syntax tree to skip strings and comments (Enter copies indentation verbatim until then)
-- [ ] Highlight theme as data; default dark + light themes (`syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span); vendor `highlights.scm` under `defaults/` for grammars that lack one (RON, Nix)
+- [ ] Highlight theme as data; a light theme (the default one has the `syntax.*` slots; `syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span)
 
 ## M6 — Integrated terminal
 - [ ] `portable-pty` spawn (Unix + ConPTY), shell selection

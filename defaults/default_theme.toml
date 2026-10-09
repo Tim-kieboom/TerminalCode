@@ -163,3 +163,41 @@ modifiers = ["italic"]
 
 ["syntax.variable.builtin"]
 text = "#f38ba8"
+
+["syntax.number"]
+text = "#fab387"
+
+["syntax.float"]
+text = "#fab387"
+
+["syntax.boolean"]
+text = "#fab387"
+
+["syntax.character"]
+text = "#a6e3a1"
+
+["syntax.string.escape"]
+text = "#fab387"
+
+["syntax.string.special.key"]
+text = "#eba0ac"
+
+["syntax.text.title"]
+text = "#89b4fa"
+modifiers = ["bold"]
+
+["syntax.text.literal"]
+text = "#a6e3a1"
+
+["syntax.text.uri"]
+text = "#89dceb"
+modifiers = ["underlined"]
+
+["syntax.text.reference"]
+text = "#89b4fa"
+
+["syntax.text.strong"]
+modifiers = ["bold"]
+
+["syntax.text.emphasis"]
+modifiers = ["italic"]

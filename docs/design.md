@@ -394,7 +394,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   translucent. For real translucency leave the background transparent and configure the terminal.
 
 ## Syntax highlighting (M5 plan, decided before building)
-- Grammars are compiled in: Rust, TOML, JSON, RON, Markdown, Nix (see the drop order in `docs/todo.md`). Loading
+- Grammars are compiled in: Rust, TOML, JSON, Markdown, Nix (RON was dropped again, see step E; the drop order if size hurts is in `docs/todo.md`). Loading
   them at runtime from shared libraries is post-0.1.0.
 - Each document owns a highlighter (panes sharing a document share it). `Buffer::apply` already returns the edit;
   the document forwards it to its highlighter, which keeps the edits made since the tree it holds was parsed.
@@ -416,7 +416,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   `syntax.function.builtin`, then `syntax.function`, then `syntax`. A capture the theme has no slot for gets no
   span at all. The default dark and light themes define a short fixed list (keyword, function, type, string,
   number, comment, constant, operator, punctuation, property). Grammars without a `HIGHLIGHTS_QUERY` constant
-  (RON and Nix probably) get a `highlights.scm` vendored under `defaults/`.
+  would get a `highlights.scm` vendored under `defaults/` (none of the final languages needed one).
 - Build order, one commit each: (A) a synchronous `Highlighter` for Rust that turns text plus a byte range into
   spans, with the capture→slot mapping and default `syntax.*` theme; (B) spans drawn in the editor, the document
   owning the highlighter and reparsing synchronously on change; (C) mapping spans through edits and `Tree::edit`
@@ -462,3 +462,15 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   the same. Closing a document sends the worker a `forget`. A grammar that cannot be set up comes back as a failed
   `Output`, reported once as a notification. Measured on 7 MB of Rust in release: asking and recording an edit cost
   the UI a few microseconds; the worker takes ≈ 0.9 s for the first parse and ≈ 0.12 s for each keystroke after.
+- Step E is done: TOML, JSON, Markdown and Nix join Rust (`Language::from_path` picks by extension: `rs`, `toml`,
+  `json`, `md`/`markdown`, `nix`). All of them ship their own `HIGHLIGHTS_QUERY`, so nothing had to be written by
+  hand. RON was tried and dropped: `tree-sitter-ron` 0.2 on crates.io depends on `tree-sitter` 0.20, whose `Language`
+  is a different type, and two tree-sitter C runtimes in one binary are not safe; making it work meant vendoring its
+  parser. If it comes back, vendor it rebuilt against `tree-sitter-language` (its `LANGUAGE` as a `LanguageFn`). Markdown has two
+  grammars: the block grammar is parsed and kept like any other tree; for the `inline` nodes that touch the range
+  being highlighted, a fresh parser with the inline grammar is run over just those nodes (`set_included_ranges`)
+  and its captures are added to the outer ones before flattening, so the cost scales with what is on screen and
+  nothing inline is kept between queries. Fenced code blocks are not highlighted in their own language yet. The
+  default theme gained slots for the new captures (`number`, `boolean`, `string.escape`, `string.special.key`,
+  `text.title`/`literal`/`uri`/`reference`/`strong`/`emphasis`). The release binary grew from 8.3 MB to 10.7 MB with
+  all grammars (Linux); the Windows build has not been tried.
