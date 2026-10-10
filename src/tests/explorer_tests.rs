@@ -328,8 +328,8 @@ fn clicking_a_file_in_the_explorer_opens_it_and_keeps_the_keyboard_there() {
         .position(|row| row.name == "a.txt")
         .unwrap() as u16;
 
-    // The title takes the first row; the tree starts below it.
-    app.handle_input(click(3, 1 + row));
+    // The default layout hides the explorer title, so the tree starts on the first row.
+    app.handle_input(click(3, row));
 
     assert_eq!(app.state().focus(), Focus::Explorer);
     assert_eq!(editor_text(&app), "alpha\n");

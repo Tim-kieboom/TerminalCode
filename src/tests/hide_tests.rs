@@ -63,7 +63,7 @@ fn everything_starts_shown() {
 fn ctrl_k_b_hides_the_explorer_and_the_editor_takes_its_space() {
     let mut app = App::default();
     let before = editor_area(&mut app);
-    assert!(screen(&mut app).contains("Explorer"));
+    assert!(screen(&mut app).contains("no folder open"));
 
     prefix(&mut app, 'b');
 
@@ -71,7 +71,7 @@ fn ctrl_k_b_hides_the_explorer_and_the_editor_takes_its_space() {
     let after = editor_area(&mut app);
     assert_eq!(after.width, before.width + 30);
     assert_eq!(after.x, 0);
-    assert!(!screen(&mut app).contains("Explorer"));
+    assert!(!screen(&mut app).contains("no folder open"));
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn toggling_again_shows_it_with_the_keyboard() {
 
     assert!(app.state().is_visible(&ComponentKind::Explorer));
     assert_eq!(app.state().focus(), Focus::Explorer);
-    assert!(screen(&mut app).contains("Explorer"));
+    assert!(screen(&mut app).contains("no folder open"));
 }
 
 #[test]

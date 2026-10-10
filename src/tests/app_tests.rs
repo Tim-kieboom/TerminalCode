@@ -107,7 +107,7 @@ async fn loop_draws_first_frame_then_quits_on_ctrl_q() {
     assert!(result.is_ok());
     let screen = terminal.backend().to_string();
     assert!(
-        screen.contains("Explorer"),
+        screen.contains("no folder open"),
         "first frame was not drawn:\n{screen}"
     );
 }
