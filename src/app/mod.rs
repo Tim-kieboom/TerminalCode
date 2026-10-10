@@ -22,6 +22,7 @@ use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 
 mod background;
+mod config_files;
 mod editing;
 mod keys;
 mod mouse;
@@ -63,6 +64,11 @@ pub(crate) struct App {
     terminal_shell: Shell,
     /// When `ctrl+b` in the terminal gives up waiting for the next key.
     terminal_prefix: Option<std::time::Instant>,
+    /// The directory of the user's files; `None` when there is none, in which
+    /// case the actions that open them say so.
+    config_dir: Option<std::path::PathBuf>,
+    /// What the terminal can do with keys, which decides the keymap's fallbacks.
+    keyboard_support: KeyboardSupport,
 }
 
 /// Everything that can wake the app loop.
@@ -178,7 +184,21 @@ impl App {
             removal: Removal::default(),
             terminal_shell: Shell::detect(),
             terminal_prefix: None,
+            config_dir: None,
+            keyboard_support: KeyboardSupport::Enhanced,
         }
+    }
+
+    /// Tells a reload which keymap fallbacks the terminal needs.
+    pub(crate) fn with_keyboard_support(mut self, support: KeyboardSupport) -> Self {
+        self.keyboard_support = support;
+        self
+    }
+
+    /// Where `Action::OpenConfig` finds and makes the user's files.
+    pub(crate) fn with_config_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
+        self.config_dir = dir;
+        self
     }
 
     /// Uses `clipboard` for copy, cut and paste. Without this the editor only
@@ -191,14 +211,25 @@ impl App {
     /// Gives the app a way to start background work that reports back through
     /// the event channel.
     pub(crate) fn with_events(mut self, events: mpsc::Sender<Event>) -> Self {
+        self.background.connect(events);
+        self.start_syntax_worker();
+        self
+    }
+
+    /// Starts a syntax worker with the current theme, in place of the one there
+    /// is, and has every document ask it for its colors. Nothing happens without
+    /// a way to hear back from it.
+    fn start_syntax_worker(&mut self) {
+        let Some(results) = self.background.sender() else {
+            return;
+        };
         let theme = self.state.theme_for_worker();
-        let results = events.clone();
         self.state
             .set_syntax_worker(SyntaxWorker::spawn(theme, move |output| {
                 let _ = results.blocking_send(Event::Highlighted(output));
             }));
-        self.background.connect(events);
-        self
+        self.state.workspace_mut().restart_highlights();
+        self.needs_redraw = true;
     }
 
     /// Runs `shell` in the terminal pane instead of the user's.

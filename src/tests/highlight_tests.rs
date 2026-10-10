@@ -14,7 +14,7 @@ use crate::event::Event;
 use crate::initial_state;
 
 /// The default theme's keyword color.
-const KEYWORD: Color = Color::Rgb(0xcb, 0xa6, 0xf7);
+const KEYWORD: Color = Color::Rgb(0x56, 0x9c, 0xd6);
 
 /// An app wired to an event channel, as in the real app, so that the syntax
 /// worker has somewhere to send its answers.
@@ -229,7 +229,7 @@ fn a_document_that_is_closed_is_forgotten_by_the_worker() {
 }
 
 /// The default theme's color for numbers, constants and booleans.
-const CONSTANT: Color = Color::Rgb(0xfa, 0xb3, 0x87);
+const CONSTANT: Color = Color::Rgb(0x56, 0x9c, 0xd6);
 
 #[test]
 fn a_json_file_is_colored_too() {
@@ -249,6 +249,6 @@ fn a_markdown_file_gets_inline_colors_from_the_second_grammar() {
     let terminal = draw(&mut rig);
 
     let code = color_of(&terminal, "code");
-    assert_eq!(code, Some(Color::Rgb(0xa6, 0xe3, 0xa1)));
+    assert_eq!(code, Some(Color::Rgb(0xce, 0x91, 0x78)));
     assert_ne!(color_of(&terminal, "here"), code);
 }

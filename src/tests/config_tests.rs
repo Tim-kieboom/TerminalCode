@@ -183,3 +183,89 @@ fn an_unreadable_layout_file_falls_back_with_a_warning() {
     assert!(loaded.warning.is_some());
     assert_eq!(loaded.layout, LayoutTree::default());
 }
+
+// ---- theme
+
+use crate::config::load_theme;
+use crate::ui::theme::Theme;
+use ratatui::style::Color;
+
+#[test]
+fn no_theme_file_gives_the_built_in_theme_without_a_warning() {
+    let loaded = load_theme(None);
+
+    assert!(loaded.warning.is_none());
+    assert_eq!(loaded.theme, Theme::default());
+}
+
+#[test]
+fn a_missing_theme_file_is_not_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let loaded = load_theme(Some(&dir.path().join("theme.toml")));
+
+    assert!(loaded.warning.is_none());
+    assert_eq!(loaded.theme, Theme::default());
+}
+
+#[test]
+fn a_user_theme_is_layered_over_the_built_in_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("theme.toml");
+    fs::write(&path, "[palette]\naccent = \"#00ff00\"\n").unwrap();
+
+    let loaded = load_theme(Some(&path));
+
+    assert!(loaded.warning.is_none());
+    let green = Some(Color::Rgb(0, 255, 0));
+    assert_eq!(loaded.theme.style("pane.border.focused").fg, green);
+    assert_eq!(
+        loaded.theme.style("pane.border"),
+        Theme::default().style("pane.border"),
+        "slots that do not use the entry are untouched"
+    );
+}
+
+#[test]
+fn an_invalid_theme_falls_back_to_the_whole_built_in_theme_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("theme.toml");
+    // The first slot is fine and the second is not: nothing is half applied.
+    fs::write(
+        &path,
+        "[\"status.bar\"]\ntext = \"red\"\n[\"pane.border\"]\ntext = \"@nope\"\n",
+    )
+    .unwrap();
+
+    let loaded = load_theme(Some(&path));
+
+    let warning = loaded.warning.unwrap();
+    assert!(warning.contains("theme.toml"), "{warning}");
+    assert!(warning.contains("`nope`"), "{warning}");
+    assert!(warning.ends_with("using default theme"), "{warning}");
+    assert_eq!(loaded.theme, Theme::default());
+}
+
+#[test]
+fn a_theme_with_a_syntax_error_falls_back_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("theme.toml");
+    fs::write(&path, "[[[").unwrap();
+
+    let loaded = load_theme(Some(&path));
+
+    assert!(loaded.warning.is_some());
+    assert_eq!(loaded.theme, Theme::default());
+}
+
+#[test]
+fn an_unreadable_theme_file_falls_back_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("theme.toml");
+    fs::create_dir(&path).unwrap();
+
+    let loaded = load_theme(Some(&path));
+
+    assert!(loaded.warning.is_some());
+    assert_eq!(loaded.theme, Theme::default());
+}

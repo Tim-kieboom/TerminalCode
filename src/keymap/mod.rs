@@ -19,7 +19,7 @@ mod tests;
 mod trie;
 
 /// Built-in bindings for every terminal.
-const DEFAULT_KEYMAP_TOML: &str = include_str!(concat!(
+pub(crate) const DEFAULT_KEYMAP_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/default_keymap.toml"
 ));

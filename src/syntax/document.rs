@@ -201,6 +201,14 @@ impl DocumentSyntax {
 
     /// Forgets everything about the text: the spans, the log and what the
     /// worker was asked. The next update asks for everything again.
+    /// Forgets what the worker was told and what it answered, and any failure,
+    /// so the next update asks a new worker for everything afresh.
+    pub(crate) fn start_over(&mut self) {
+        self.restart();
+        self.failed = None;
+        self.error = None;
+    }
+
     fn restart(&mut self) {
         #[cfg(test)]
         {

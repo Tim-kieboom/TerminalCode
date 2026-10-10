@@ -593,4 +593,49 @@ Col([
   it); a user layout file (`<config dir>/terminalcode/layout.ron`, next to `keymap.toml`, loaded by
   `config::load_layout`) that fails falls back to the embedded one and the error, with the file name and the tree
   path, goes through `notify_error`, like every user-visible message. A missing file is normal and silent.
-  editor, the prefix, the status bar, pastes, mouse focus, and the cursor position.
+
+## Theme palette v2 (plan, decided before building)
+Goal: do not write the same color in every slot, and let a user restyle without a rebuild. Today the theme is only
+the embedded `defaults/default_theme.toml`; there is no user theme file.
+- **`[palette]`** is a table of named colors (hex or a color name). Entries are literals only: a palette entry cannot
+  refer to another, so there are no cycles and no resolution order.
+- **References:** a slot's `text` and `background`, and `[background].color`, may be `"@name"`. The `@` keeps it apart
+  from color names such as `"red"`. A name the palette lacks is a load error naming the slot and the entry, not a
+  silent default (a typo would otherwise show up as an unstyled slot nobody can trace). A literal color in a slot
+  still works and is how one slot differs from its role.
+- **Semantic roles, one flat namespace.** UI: `text`, `muted`, `faint`, `surface`, `accent`, `accent_bg`,
+  `accent_text`, `selection`, `info`, `error`, `warning`. Syntax hues: `red`, `orange`, `yellow`, `green`, `teal`,
+  `cyan`, `blue`, `purple`, `pink`, `gold`, plus `comment` and `punctuation`. Flat, so `@green` works in
+  any slot and changing `green` retints strings and everything else that uses it. `error` and `red` are two entries
+  that may hold the same value.
+- **User file:** `<config dir>/terminalcode/theme.toml`, next to `keymap.toml` and `layout.ron`, layered over the
+  built-in theme. The palette is merged first and `@name` is resolved after, so redefining `accent` retints every
+  slot that uses it. A user slot merges key by key with the default slot: `text` and `background` replace;
+  `modifiers` replaces the whole list (a union could never remove `bold`). To remove something the default sets,
+  `text` or `background` = `"reset"` (the terminal's own color) and `modifiers = []`. Slots the file does not
+  mention keep the default. `[background]` merges key by key as well.
+- **Failure:** the embedded theme failing is a startup panic (a test catches it). A user file that is unreadable,
+  has a syntax error, a bad color or an unknown `@name` falls back to the whole built-in theme, with one
+  `notify_error` naming the file; a missing file is normal and silent. Plugins that ask for a slot the theme lacks
+  still get the plain style.
+- **Same loader shape as the layout:** `config::load_theme` / `config::user_theme_path`, built on the file-reading
+  and fallback code of `load_layout` and `load_keymap`.
+
+## Opening the user's config files (decided and built)
+- `Action::OpenConfig(Theme | Keymap | Layout)`, in the command palette (F1) as `Config: Open Theme`, `Config: Open
+  Keymap` and `Config: Open Layout`, and bindable in `keymap.toml` as `{ open_config = "theme" }`. It opens the
+  file in a tab. If the file does not exist it is first made (with the directory) from the built-in default, written
+  with `create_new` so an existing file is never overwritten, and a notification says so. A copy of the whole
+  default is the start on purpose: it shows every slot, binding or pane there is to change.
+- The files are read at startup and by `Config: Reload` (below); the notification for a new file says
+  that an edit applies on the next start or reload. (Reloading when a file is saved is not built.)
+- The directory is `App::config_dir`, set at startup from `config::user_config_dir()` and `None` otherwise, so a
+  test app never touches the real config directory; without one the action says so.
+- **Reload** (`Action::Reload`, palette `Config: Reload`): reads `theme.toml`, `layout.ron` and `keymap.toml` again
+  and applies them without restarting; later it will restart the plugins too. A missing file means the built-in one,
+  an invalid file is reported and replaced by the built-in one, the same as at startup (so removing a user file and
+  reloading goes back to the default). Open files, tabs and the terminal are untouched. What it does: the theme is
+  replaced (the terminal background learned at startup is kept, asking again would fight the input loop for stdin);
+  the layout is replaced and the keyboard goes back to the editor if the focused component is not in it; the keymap
+  is replaced and a half-typed sequence dropped; the syntax worker is started again with the new theme and every
+  document asks it for its colors afresh. Nothing is bound to it by default.

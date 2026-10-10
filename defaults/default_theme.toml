@@ -25,7 +25,8 @@
 # (`fg` and `bg` are still accepted for `text` and `background`.) The reserved
 # [background] table above is the screen's background, not a slot.
 #
-# Colors: names such as "red" or "dark_gray", or hex such as "#1e1e2e".
+# Colors: names such as "red" or "dark_gray", hex such as "#1e1e2e", or "@name" for an
+# entry of [palette] below.
 # Modifiers: bold, dim, italic, underlined, reversed, crossed_out.
 # Prefer explicit `text` and `background` over `reversed`: reversed swaps the colors
 # of whatever is underneath, so `text` would end up as the block color.
@@ -33,8 +34,41 @@
 [background]
 color = "transparent"
 
+# Named colors. A slot (or [background]) writes "@name" to use one, so a color is
+# written once and a theme is restyled by changing its entries; a slot can still
+# write a literal color to differ from its role. Entries are plain colors and
+# cannot refer to each other.
+[palette]
+# UI roles
+text        = "#b9b9bd"   # ordinary text
+dim         = "#8a8fa7"   # secondary text (inactive tabs)
+muted       = "dark_gray" # hints, borders, directories
+faint       = "#2f2c37"   # line numbers, tree guides
+surface     = "#171725"   # status and find bars
+accent      = "#7f0e3f"   # the focused pane's border
+accent_bg   = "#560e31"   # active tab and selected row
+accent_text = "#e0abdc"   # the current line number
+on_accent   = "#cbb7c1"   # text drawn on accent_bg
+selection   = "#45162e"   # selected text
+info        = "cyan"
+error       = "red"
+warning     = "yellow"    # search matches
+# Syntax hues
+red         = "#f44747"
+orange      = "#ce9178"   # strings
+yellow      = "#dcdcaa"   # functions
+green       = "#b5cea8"   # numbers
+teal        = "#4ec9b0"   # types
+cyan        = "#9cdcfe"   # properties, parameters
+blue        = "#569cd6"   # keywords
+purple      = "#c586c0"   # control-flow keywords; the grammars do not tell them apart yet
+pink        = "#d16969"
+gold        = "#d7ba7d"   # escapes
+comment     = "#6a9955"
+punctuation = "#d4d4d4"   # operators and punctuation
+
 ["pane.border"]
-text = "dark_gray"
+text = "@muted"
 
 ["pane.title"]
 modifiers = ["bold"]
@@ -43,158 +77,156 @@ modifiers = ["bold"]
 modifiers = ["reversed"]
 
 ["editor.line_number"]
-text = "#2f2c37"
+text = "@faint"
 
 ["editor.line_number.current"]
-text = "#e0abdc"
+text = "@accent_text"
 
 ["editor.selection"]
-background = "#45162e"
+background = "@selection"
 
 ["status.bar"]
-text = "#b9b9bd"
-background = "#171725"
+text = "@text"
+background = "@surface"
 
 ["pane.border.focused"]
-text = "cyan"
+text = "@accent"
 
 ["tab.bar"]
 
 ["tab.active"]
-text = "#cbb7c1"
-background = "#560e31"
+text = "@on_accent"
+background = "@accent_bg"
 modifiers = ["bold"]
 
 ["tab.inactive"]
-text = "#8a8fa7"
+text = "@dim"
 
 ["notification.info"]
-text = "cyan"
+text = "@info"
 
 ["notification.error"]
-text = "red"
+text = "@error"
 modifiers = ["bold"]
 
 ["explorer.dir"]
-text = "dark_gray"
+text = "@muted"
 modifiers = ["bold"]
 
 ["explorer.file"]
-text = "#b9b9bd"
+text = "@text"
 
 ["explorer.selected"]
-background = "#560e31"
+background = "@accent_bg"
 
 ["explorer.selected.inactive"]
-background = "#560e31"
+background = "@accent_bg"
 modifiers = ["bold"]
 
 ["explorer.hint"]
-text = "dark_gray"
+text = "@muted"
 
 ["explorer.guide"]
-text = "#2f2c37"
+text = "@faint"
 
 ["search.match"]
-text = "yellow"
+text = "@warning"
 modifiers = ["bold"]
 
 ["editor.match"]
 text = "black"
-background = "yellow"
+background = "@warning"
 
 ["find.bar"]
-text = "#b9b9bd"
-background = "#171725"
+text = "@text"
+background = "@surface"
 
 ["find.hint"]
-text = "dark_gray"
-background = "#171725"
+text = "@muted"
+background = "@surface"
 
 # Syntax highlighting. A highlight capture such as `function.macro` uses the most
 # specific of `syntax.function.macro`, `syntax.function` and `syntax` that exists
 # here; a capture with none of them is not colored.
 ["syntax.keyword"]
-text = "#cba6f7"
+text = "@blue"
 
 ["syntax.function"]
-text = "#89b4fa"
+text = "@yellow"
 
 ["syntax.function.macro"]
-text = "#94e2d5"
+text = "@yellow"
 
 ["syntax.type"]
-text = "#f9e2af"
+text = "@teal"
 
 ["syntax.constructor"]
-text = "#f9e2af"
+text = "@teal"
 
 ["syntax.string"]
-text = "#a6e3a1"
+text = "@orange"
 
 ["syntax.escape"]
-text = "#fab387"
+text = "@gold"
 
 ["syntax.constant"]
-text = "#fab387"
+text = "@blue"
 
 ["syntax.comment"]
-text = "#6c7086"
-modifiers = ["italic"]
+text = "@comment"
 
 ["syntax.operator"]
-text = "#89dceb"
+text = "@punctuation"
 
 ["syntax.punctuation"]
-text = "#9399b2"
+text = "@punctuation"
 
 ["syntax.property"]
-text = "#eba0ac"
+text = "@cyan"
 
 ["syntax.attribute"]
-text = "#f9e2af"
+text = "@teal"
 
 ["syntax.label"]
-text = "#fab387"
+text = "@blue"
 
 ["syntax.variable.parameter"]
-text = "#eba0ac"
-modifiers = ["italic"]
+text = "@cyan"
 
 ["syntax.variable.builtin"]
-text = "#f38ba8"
+text = "@blue"
 
 ["syntax.number"]
-text = "#fab387"
+text = "@green"
 
 ["syntax.float"]
-text = "#fab387"
+text = "@green"
 
 ["syntax.boolean"]
-text = "#fab387"
+text = "@blue"
 
 ["syntax.character"]
-text = "#a6e3a1"
+text = "@orange"
 
 ["syntax.string.escape"]
-text = "#fab387"
+text = "@gold"
 
 ["syntax.string.special.key"]
-text = "#eba0ac"
+text = "@cyan"
 
 ["syntax.text.title"]
-text = "#89b4fa"
+text = "@blue"
 modifiers = ["bold"]
 
 ["syntax.text.literal"]
-text = "#a6e3a1"
+text = "@orange"
 
 ["syntax.text.uri"]
-text = "#89dceb"
+text = "@blue"
 modifiers = ["underlined"]
 
 ["syntax.text.reference"]
-text = "#89b4fa"
+text = "@blue"
 
 ["syntax.text.strong"]
 modifiers = ["bold"]

@@ -1,4 +1,5 @@
 mod app_tests;
+mod config_files_tests;
 mod config_tests;
 mod create_tests;
 mod delete_tests;

@@ -5,8 +5,11 @@ use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
 use thiserror::Error;
 
+/// Marks a palette name in a color: `"@accent"`.
+const PALETTE_PREFIX: char = '@';
+
 /// Built-in theme, embedded at compile time.
-const DEFAULT_THEME_TOML: &str = include_str!(concat!(
+pub(crate) const DEFAULT_THEME_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/default_theme.toml"
 ));
@@ -86,14 +89,108 @@ pub enum ThemeError {
     InvalidBackgroundColor(Box<str>),
     #[error("background: an opacity below 1 needs a hex color such as \"#1e1e2e\", not `{0}`")]
     OpacityNeedsHex(Box<str>),
+    #[error("palette color `{name}` has an unknown color `{value}`")]
+    InvalidPaletteColor { name: Box<str>, value: Box<str> },
+    #[error(
+        "palette color `{name}` refers to another palette color; palette entries are plain colors"
+    )]
+    PaletteReference { name: Box<str> },
+    #[error("{place}: there is no palette color `{name}`")]
+    UnknownPaletteName { place: Box<str>, name: Box<str> },
 }
 
-/// A theme file: the reserved `[background]` table plus one table per slot.
+/// The named colors of a theme file's `[palette]`. A slot's color or the
+/// background's color written as `"@name"` means the palette's `name`.
+#[derive(Debug, Default)]
+struct Palette(HashMap<Box<str>, Box<str>>);
+
+impl Palette {
+    /// Entries are plain colors: one that refers to another entry is rejected,
+    /// so nothing has to be resolved in an order and cycles cannot happen.
+    fn new(entries: Option<HashMap<Box<str>, Box<str>>>) -> Result<Self, ThemeError> {
+        let entries = entries.unwrap_or_default();
+        for (name, value) in &entries {
+            if value.starts_with(PALETTE_PREFIX) {
+                return Err(ThemeError::PaletteReference { name: name.clone() });
+            }
+            if Color::from_str(value).is_err() {
+                return Err(ThemeError::InvalidPaletteColor {
+                    name: name.clone(),
+                    value: value.clone(),
+                });
+            }
+        }
+        Ok(Self(entries))
+    }
+
+    /// `value` as a color string: a palette name is replaced by its color,
+    /// anything else is returned as it is. `place` says where the value was
+    /// written, for the error.
+    fn resolve<'a>(&'a self, place: &str, value: &'a str) -> Result<&'a str, ThemeError> {
+        let Some(name) = value.strip_prefix(PALETTE_PREFIX) else {
+            return Ok(value);
+        };
+        match self.0.get(name) {
+            Some(color) => Ok(color),
+            None => Err(ThemeError::UnknownPaletteName {
+                place: place.into(),
+                name: name.into(),
+            }),
+        }
+    }
+}
+
+/// A theme file: the reserved `[background]` and `[palette]` tables plus one
+/// table per slot.
 #[derive(Debug, Deserialize)]
 struct ThemeFile {
     background: Option<BackgroundSpec>,
+    palette: Option<HashMap<Box<str>, Box<str>>>,
     #[serde(flatten)]
     slots: HashMap<Box<str>, StyleSpec>,
+}
+
+impl ThemeFile {
+    /// `user` laid over `self`; see [`Theme::layered`].
+    fn merged_with(mut self, user: ThemeFile) -> Self {
+        self.background = match (self.background, user.background) {
+            (Some(base), Some(user)) => Some(base.merged_with(user)),
+            (base, user) => user.or(base),
+        };
+
+        let mut palette = self.palette.unwrap_or_default();
+        palette.extend(user.palette.unwrap_or_default());
+        self.palette = Some(palette);
+
+        for (name, spec) in user.slots {
+            let merged = match self.slots.remove(&name) {
+                Some(base) => base.merged_with(spec),
+                None => spec,
+            };
+            self.slots.insert(name, merged);
+        }
+        self
+    }
+}
+
+impl BackgroundSpec {
+    fn merged_with(self, user: BackgroundSpec) -> Self {
+        Self {
+            color: user.color.or(self.color),
+            opacity: user.opacity.or(self.opacity),
+            blend: user.blend.or(self.blend),
+        }
+    }
+}
+
+impl StyleSpec {
+    fn merged_with(self, user: StyleSpec) -> Self {
+        Self {
+            text: user.text.or(self.text),
+            background: user.background.or(self.background),
+            modifiers: user.modifiers.or(self.modifiers),
+        }
+    }
 }
 
 /// The `[background]` table. `color` is a color or `"transparent"`; `opacity`
@@ -145,8 +242,7 @@ struct StyleSpec {
     /// Color behind the characters. `bg` is the old name and still works.
     #[serde(alias = "bg")]
     background: Option<Box<str>>,
-    #[serde(default)]
-    modifiers: Vec<ModifierName>,
+    modifiers: Option<Vec<ModifierName>>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -177,17 +273,39 @@ impl Theme {
     /// Parses a theme described as TOML. Colors are names such as `"red"` or
     /// `"dark_gray"`, or hex values such as `"#1e1e2e"`.
     pub(crate) fn from_toml(source: &str) -> Result<Self, ThemeError> {
-        let file: ThemeFile = toml::from_str(source)?;
+        Self::build(toml::from_str(source)?)
+    }
+
+    /// `user` laid over `base`, both theme files. A user palette entry replaces
+    /// the base's, and a name is resolved only after the layers are merged, so
+    /// redefining a role restyles every slot that uses it. A user slot is merged
+    /// with the base slot of the same name key by key: `text` and `background`
+    /// replace, `modifiers` replaces the whole list. `"reset"` clears a color and
+    /// `modifiers = []` clears the modifiers. Slots the user leaves out stay as
+    /// the base has them, and `[background]` is merged key by key too.
+    pub(crate) fn layered(base: &str, user: &str) -> Result<Self, ThemeError> {
+        let base: ThemeFile = toml::from_str(base)?;
+        let user: ThemeFile = toml::from_str(user)?;
+        Self::build(base.merged_with(user))
+    }
+
+    fn build(file: ThemeFile) -> Result<Self, ThemeError> {
+        let palette = Palette::new(file.palette)?;
         let mut slots = HashMap::with_capacity(file.slots.len());
         for (slot, spec) in file.slots {
-            let style = build_style(&slot, &spec)?;
+            let style = build_style(&slot, &spec, &palette)?;
             slots.insert(slot, style);
         }
         Ok(Self {
             slots,
-            background: build_background(file.background)?,
+            background: build_background(file.background, &palette)?,
             terminal_background: None,
         })
+    }
+
+    /// A user theme file laid over the built-in theme; see [`Theme::layered`].
+    pub(crate) fn layered_over_default(user: &str) -> Result<Self, ThemeError> {
+        Self::layered(DEFAULT_THEME_TOML, user)
     }
 
     /// Whether painting the background needs the terminal's own background
@@ -213,6 +331,11 @@ impl Theme {
 
     pub(crate) fn set_terminal_background(&mut self, color: Option<Rgb>) {
         self.terminal_background = color;
+    }
+
+    /// The terminal's own background, if it was asked for.
+    pub(crate) fn terminal_background(&self) -> Option<Rgb> {
+        self.terminal_background
     }
 
     /// The color to paint the whole screen with, or `None` to leave the
@@ -263,7 +386,10 @@ impl Default for Theme {
     }
 }
 
-fn build_background(spec: Option<BackgroundSpec>) -> Result<Background, ThemeError> {
+fn build_background(
+    spec: Option<BackgroundSpec>,
+    palette: &Palette,
+) -> Result<Background, ThemeError> {
     let Some(spec) = spec else {
         return Ok(Background::Transparent);
     };
@@ -278,6 +404,7 @@ fn build_background(spec: Option<BackgroundSpec>) -> Result<Background, ThemeErr
             None => Ok(Background::Transparent),
         };
     };
+    let color: Box<str> = palette.resolve("background", &color)?.into();
     if matches!(color.to_ascii_lowercase().as_str(), "transparent" | "reset") || opacity == 0.0 {
         return Ok(Background::Transparent);
     }
@@ -298,21 +425,34 @@ fn build_background(spec: Option<BackgroundSpec>) -> Result<Background, ThemeErr
     })
 }
 
-fn build_style(slot: &str, spec: &StyleSpec) -> Result<Style, ThemeError> {
+fn build_style(slot: &str, spec: &StyleSpec, palette: &Palette) -> Result<Style, ThemeError> {
+    let place = format!("slot `{slot}`");
     let mut style = Style::default();
     if let Some(text) = &spec.text {
-        style = style.fg(parse_color(slot, text)?);
+        let text = palette.resolve(&place, text)?;
+        if !is_reset(text) {
+            style = style.fg(parse_color(slot, text)?);
+        }
     }
 
     if let Some(background) = &spec.background {
-        style = style.bg(parse_color(slot, background)?);
+        let background = palette.resolve(&place, background)?;
+        if !is_reset(background) {
+            style = style.bg(parse_color(slot, background)?);
+        }
     }
 
-    for modifier in &spec.modifiers {
+    for modifier in spec.modifiers.iter().flatten() {
         style = style.add_modifier(Modifier::from(*modifier));
     }
 
     Ok(style)
+}
+
+/// `"reset"` stands for "no color here": it is how a theme file removes a color
+/// an earlier layer set.
+fn is_reset(value: &str) -> bool {
+    value.eq_ignore_ascii_case("reset")
 }
 
 fn parse_color(slot: &str, value: &str) -> Result<Color, ThemeError> {

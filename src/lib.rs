@@ -43,6 +43,13 @@ where
         state.notify_error(error.to_string());
     }
 
+    let theme_path = config::user_theme_path();
+    let loaded_theme = config::load_theme(theme_path.as_deref());
+    state.set_theme(loaded_theme.theme);
+    if let Some(warning) = loaded_theme.warning {
+        state.notify_error(warning);
+    }
+
     state.learn_terminal_background(terminal::query_background);
     if let Some(hint) = state.theme().terminal_hint() {
         state.notify(hint);
@@ -62,7 +69,10 @@ where
     }
 
     let clipboard = Clipboard::new(System::detect());
-    let mut app = App::with_keymap(state, loaded.keymap).with_clipboard(clipboard);
+    let mut app = App::with_keymap(state, loaded.keymap)
+        .with_clipboard(clipboard)
+        .with_keyboard_support(capabilities.keyboard)
+        .with_config_dir(config::user_config_dir());
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

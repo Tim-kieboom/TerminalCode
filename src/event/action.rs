@@ -3,6 +3,7 @@ use serde::Deserialize;
 use crate::components::editor::Motion;
 use crate::components::explorer::ExplorerCommand;
 use crate::components::workspace::FocusDirection;
+use crate::config::ConfigFile;
 
 /// Everything a key, menu or plugin can ask the editor to do. Keymaps bind
 /// keys to these, and the command palette lists them.
@@ -41,6 +42,11 @@ pub(crate) enum Action {
     MoveEntry,
     /// Opens the context menu on the explorer's selected row.
     ContextMenu,
+    /// Reads the theme, layout and keymap files again and applies them.
+    Reload,
+    /// Opens one of the user's config files, first making it from the built-in
+    /// default if there is none yet.
+    OpenConfig(ConfigFile),
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -78,6 +84,7 @@ impl Action {
         matches!(
             self,
             Self::NewFile
+                | Self::OpenConfig(_)
                 | Self::ToggleTerminal
                 | Self::ContextMenu
                 | Self::CloseTab
@@ -109,6 +116,8 @@ impl Action {
                 | Self::CreateFolder
                 | Self::Rename
                 | Self::MoveEntry
+                | Self::OpenConfig(_)
+                | Self::Reload
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseTab
@@ -146,6 +155,10 @@ impl Action {
             Self::Rename => "Explorer: Rename",
             Self::MoveEntry => "Explorer: Move",
             Self::ContextMenu => "Explorer: Context Menu",
+            Self::OpenConfig(ConfigFile::Theme) => "Config: Open Theme",
+            Self::OpenConfig(ConfigFile::Keymap) => "Config: Open Keymap",
+            Self::OpenConfig(ConfigFile::Layout) => "Config: Open Layout",
+            Self::Reload => "Config: Reload",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::NewFile => "File: New",
@@ -203,6 +216,10 @@ impl Action {
             Self::Rename,
             Self::MoveEntry,
             Self::ContextMenu,
+            Self::OpenConfig(ConfigFile::Theme),
+            Self::OpenConfig(ConfigFile::Keymap),
+            Self::OpenConfig(ConfigFile::Layout),
+            Self::Reload,
             Self::Save,
             Self::NewFile,
             Self::CloseTab,

@@ -188,6 +188,14 @@ impl Workspace {
         errors
     }
 
+    /// Makes every document ask the syntax worker for its colors again, for
+    /// when the worker is a new one (a new theme).
+    pub(crate) fn restart_highlights(&mut self) {
+        for document in self.documents.values_mut() {
+            document.syntax.start_over();
+        }
+    }
+
     /// How the focused document's text has been parsed so far.
     #[cfg(test)]
     pub(crate) fn active_parses(&self) -> crate::syntax::document::Parses {

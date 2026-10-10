@@ -36,6 +36,14 @@ impl Keyboard {
     /// How long a half-typed key sequence waits for its next chord.
     const SEQUENCE_TIMEOUT: Duration = Duration::from_millis(1000);
 
+    /// Uses `keymap` from now on. A half-typed sequence is dropped, since it
+    /// belonged to the old one.
+    pub(super) fn set_keymap(&mut self, keymap: Keymap) {
+        self.keymap = keymap;
+        self.resolver = Resolver::default();
+        self.pending_deadline = None;
+    }
+
     pub(super) fn new(keymap: Keymap) -> Self {
         Self {
             keymap,
@@ -196,6 +204,8 @@ impl App {
             Action::Rename => self.rename_selected(),
             Action::MoveEntry => self.move_selected(),
             Action::ContextMenu => self.open_context_menu(),
+            Action::OpenConfig(file) => self.open_config(file)?,
+            Action::Reload => self.reload(),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,

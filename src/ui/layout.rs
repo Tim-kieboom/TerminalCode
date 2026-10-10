@@ -200,7 +200,7 @@ impl Placement {
 }
 
 /// Built-in layout, embedded at compile time.
-const DEFAULT_LAYOUT_RON: &str = include_str!(concat!(
+pub(crate) const DEFAULT_LAYOUT_RON: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/default_layout.ron"
 ));

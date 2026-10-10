@@ -532,7 +532,6 @@ impl AppState {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn set_theme(&mut self, theme: Theme) {
         self.theme = theme;
     }
