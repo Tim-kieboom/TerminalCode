@@ -206,7 +206,7 @@ fn the_toggles_work_from_the_palette_too() {
 fn a_layout_without_an_explorer_says_so() {
     let mut app = App::default();
     app.state_mut()
-        .set_layout(LayoutTree::from_ron("Leaf(Editor)").unwrap());
+        .set_layout(LayoutTree::from_ron("Pane(view: Editor)").unwrap());
 
     prefix(&mut app, 'b');
 
@@ -218,9 +218,9 @@ fn a_layout_without_an_explorer_says_so() {
     );
 }
 
-const PLUGIN_LAYOUT: &str = r#"Split(direction: Horizontal, children: [
-    (size: Fill, node: Leaf(Editor)),
-    (size: Fixed(20), node: Leaf(Plugin("test.view"))),
+const PLUGIN_LAYOUT: &str = r#"Row([
+    Pane(view: Editor),
+    Fixed(20, Pane(view: Plugin("test.view"))),
 ])"#;
 
 fn plugin_text(text: &str) -> Event {

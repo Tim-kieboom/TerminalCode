@@ -108,6 +108,12 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Known-limits section (long single-line files, UTF-8 only, no undo tree, no LSP/debugger)
 - [ ] Tag `v0.1.0`
 
+## Layout file syntax rewrite (decided, not built; details in `docs/design.md`, "Layout syntax v2")
+- [x] Step 1, types and parser (done; `Axis` stays, the workspace uses it): `LayoutNode` becomes `Row([..])`, `Col([..])`, `Fixed(n, node)`, `Percent(n, node)` and `Pane(view: .., sides: .., border: .., title: .., ..)`; a bare node is `Fill`; `Framed` and `Leaf` are gone. `LayoutError` carries a tree path (`root > Col[0] > Row[1]: ...`); validation: two bare siblings, a size wrapping a size, a size on the root, `Percent` over 100, empty `Row`/`Col`, no editor. Table-driven tests for every rejection, with the path in the message
+- [x] Step 2, borders (done): split `Border` into `sides` (`Top`, `Right`, `Bottom`, `Left`, `All`, empty = none) and `border` (every ratatui `BorderType`); `Off`, `TopOnly` and `RightOnly` go away; omitted `sides:`/`border:` take the component default (status bar: no sides; others: `All` + `Plain`). Check that a hidden component still gives its space to siblings with implicit `Fill`
+- [ ] Step 3 (the default file and the fixtures were converted in step 1 to keep the build green; only the header comment on borders remains for step 2), rewrite `defaults/default_layout.ron` and the layout/frame/hide test fixtures to the new syntax (hard break, no compatibility with the old one); update the header comment in the file
+- [x] Step 4 (done; `config::load_layout`, `layout.ron` next to `keymap.toml`), user layout file in the keymap/theme config directory (find the convention first): the embedded file failing is a startup panic (a test catches it); a user file failing falls back to the embedded one and calls `notify_error` with the tree path
+
 ## Post-0.1.0 backlog
 - [ ] Load tree-sitter grammars at runtime from shared libraries (`.so` / `.dll`), so languages can be added without a rebuild; needs a place to find them, a version check against the `tree-sitter` ABI, and per-platform shipping
 - [ ] adding usefull keybinds like (move line `alt+up/down` cursor go back `alt+left/right` multicursor `ctrl+alt+up/down`)

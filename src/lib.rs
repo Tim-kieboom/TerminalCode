@@ -48,6 +48,13 @@ where
         state.notify(hint);
     }
 
+    let layout_path = config::user_layout_path();
+    let loaded_layout = config::load_layout(layout_path.as_deref());
+    state.set_layout(loaded_layout.layout);
+    if let Some(warning) = loaded_layout.warning {
+        state.notify_error(warning);
+    }
+
     let keymap_path = config::user_keymap_path();
     let loaded = config::load_keymap(keymap_path.as_deref(), capabilities.keyboard);
     if let Some(warning) = loaded.warning {

@@ -377,7 +377,7 @@ fn the_wheel_over_the_explorer_scrolls_it_not_the_editor() {
 fn a_layout_without_an_explorer_cannot_give_it_the_keyboard() {
     let dir = project();
     let mut app = app_in(dir.path());
-    let layout = LayoutTree::from_ron("Leaf(Editor)").unwrap();
+    let layout = LayoutTree::from_ron("Pane(view: Editor)").unwrap();
     assert!(!layout.contains(&ComponentKind::Explorer));
     app.state_mut().set_layout(layout);
 

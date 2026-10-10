@@ -12,16 +12,71 @@ use crate::ui::theme::Theme;
 const DEFAULT_BORDER_SLOT: &str = "pane.border";
 const DEFAULT_TITLE_SLOT: &str = "pane.title";
 
+/// An edge of a frame that has a border line. A layout file lists them in
+/// `sides`; an empty list means no border at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub(crate) enum Side {
+    Top,
+    Right,
+    Bottom,
+    Left,
+    /// All four edges.
+    All,
+}
+
+impl Side {
+    fn borders(self) -> Borders {
+        match self {
+            Self::Top => Borders::TOP,
+            Self::Right => Borders::RIGHT,
+            Self::Bottom => Borders::BOTTOM,
+            Self::Left => Borders::LEFT,
+            Self::All => Borders::ALL,
+        }
+    }
+}
+
+fn borders_of(sides: &[Side]) -> Borders {
+    sides
+        .iter()
+        .fold(Borders::NONE, |all, side| all | side.borders())
+}
+
+/// How the border lines are drawn: one of ratatui's border types.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-pub(crate) enum Border {
-    /// No border: the content gets the whole area. (Not called `None`, which a
-    /// layout file would read as "not set".)
-    Off,
+pub(crate) enum BorderStyle {
     #[default]
     Plain,
     Rounded,
     Double,
     Thick,
+    LightDoubleDashed,
+    HeavyDoubleDashed,
+    LightTripleDashed,
+    HeavyTripleDashed,
+    LightQuadrupleDashed,
+    HeavyQuadrupleDashed,
+    QuadrantInside,
+    QuadrantOutside,
+}
+
+impl From<BorderStyle> for BorderType {
+    fn from(style: BorderStyle) -> Self {
+        match style {
+            BorderStyle::Plain => Self::Plain,
+            BorderStyle::Rounded => Self::Rounded,
+            BorderStyle::Double => Self::Double,
+            BorderStyle::Thick => Self::Thick,
+            BorderStyle::LightDoubleDashed => Self::LightDoubleDashed,
+            BorderStyle::HeavyDoubleDashed => Self::HeavyDoubleDashed,
+            BorderStyle::LightTripleDashed => Self::LightTripleDashed,
+            BorderStyle::HeavyTripleDashed => Self::HeavyTripleDashed,
+            BorderStyle::LightQuadrupleDashed => Self::LightQuadrupleDashed,
+            BorderStyle::HeavyQuadrupleDashed => Self::HeavyQuadrupleDashed,
+            BorderStyle::QuadrantInside => Self::QuadrantInside,
+            BorderStyle::QuadrantOutside => Self::QuadrantOutside,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
@@ -48,7 +103,9 @@ pub(crate) enum TitleAlign {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub(crate) struct FrameSpec {
-    pub(crate) border: Option<Border>,
+    /// The edges that have a border line; empty for none.
+    pub(crate) sides: Option<Vec<Side>>,
+    pub(crate) border: Option<BorderStyle>,
     pub(crate) title: Option<Title>,
     pub(crate) title_align: Option<TitleAlign>,
     /// Theme slot that styles the title.
@@ -60,7 +117,8 @@ pub(crate) struct FrameSpec {
 /// A component's frame with everything filled in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PaneFrame {
-    border: Border,
+    sides: Borders,
+    border: BorderStyle,
     title: Title,
     title_align: TitleAlign,
     title_slot: Box<str>,
@@ -72,13 +130,14 @@ impl PaneFrame {
     /// plain border and their name; the editor shows file names in its tabs
     /// instead of a title; the status bar is a bare line.
     pub(crate) fn default_for(kind: &ComponentKind) -> Self {
-        let (border, title) = match kind {
-            ComponentKind::Editor => (Border::Plain, Title::Hidden),
-            ComponentKind::StatusBar => (Border::Off, Title::Hidden),
-            _ => (Border::Plain, Title::Name),
+        let (sides, title) = match kind {
+            ComponentKind::Editor => (Borders::ALL, Title::Hidden),
+            ComponentKind::StatusBar => (Borders::NONE, Title::Hidden),
+            _ => (Borders::ALL, Title::Name),
         };
         Self {
-            border,
+            sides,
+            border: BorderStyle::default(),
             title,
             title_align: TitleAlign::Left,
             title_slot: DEFAULT_TITLE_SLOT.into(),
@@ -90,6 +149,7 @@ impl PaneFrame {
     pub(crate) fn resolve(spec: &FrameSpec, kind: &ComponentKind) -> Self {
         let defaults = Self::default_for(kind);
         Self {
+            sides: spec.sides.as_deref().map_or(defaults.sides, borders_of),
             border: spec.border.unwrap_or(defaults.border),
             title: spec.title.clone().unwrap_or(defaults.title),
             title_align: spec.title_align.unwrap_or(defaults.title_align),
@@ -99,7 +159,12 @@ impl PaneFrame {
     }
 
     #[cfg(test)]
-    pub(crate) fn border(&self) -> Border {
+    pub(crate) fn sides(&self) -> Borders {
+        self.sides
+    }
+
+    #[cfg(test)]
+    pub(crate) fn border(&self) -> BorderStyle {
         self.border
     }
 
@@ -171,17 +236,9 @@ impl PaneFrame {
 
     /// The borders without any styling or title.
     fn shell(&self) -> Block<'static> {
-        let borders = match self.border {
-            Border::Off => Borders::NONE,
-            _ => Borders::ALL,
-        };
-        let shell = Block::new().borders(borders);
-        match self.border {
-            Border::Off | Border::Plain => shell,
-            Border::Rounded => shell.border_type(BorderType::Rounded),
-            Border::Double => shell.border_type(BorderType::Double),
-            Border::Thick => shell.border_type(BorderType::Thick),
-        }
+        Block::new()
+            .borders(self.sides)
+            .border_type(self.border.into())
     }
 
     fn border_style_slot(&self, theme: &Theme, focused: bool) -> String {

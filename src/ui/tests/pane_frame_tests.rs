@@ -2,12 +2,13 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::style::Color;
+use ratatui::widgets::Borders;
 
 use crate::components::{ComponentKind, PluginViewId};
 use crate::ui::pane_frame::*;
 use crate::ui::theme::Theme;
 
-fn spec(border: Option<Border>, title: Option<Title>) -> FrameSpec {
+fn spec(border: Option<BorderStyle>, title: Option<Title>) -> FrameSpec {
     FrameSpec {
         border,
         title,
@@ -38,11 +39,21 @@ fn row(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
         .collect()
 }
 
-fn frame_with(border: Border) -> PaneFrame {
-    PaneFrame::resolve(
-        &spec(Some(border), Some(Title::Hidden)),
-        &ComponentKind::Explorer,
-    )
+fn frame_with(border: BorderStyle) -> PaneFrame {
+    let spec = FrameSpec {
+        sides: Some(vec![Side::All]),
+        ..spec(Some(border), Some(Title::Hidden))
+    };
+    PaneFrame::resolve(&spec, &ComponentKind::Explorer)
+}
+
+/// A frame with a border on just `sides` (none for an empty list).
+fn frame_on(sides: &[Side]) -> PaneFrame {
+    let spec = FrameSpec {
+        sides: Some(sides.to_vec()),
+        ..spec(None, Some(Title::Hidden))
+    };
+    PaneFrame::resolve(&spec, &ComponentKind::Explorer)
 }
 
 #[test]
@@ -54,7 +65,7 @@ fn panes_default_to_a_plain_border_and_their_name() {
     ] {
         let frame = PaneFrame::default_for(&kind);
 
-        assert_eq!(frame.border(), Border::Plain);
+        assert_eq!(frame.border(), BorderStyle::Plain);
         assert_eq!(frame.title(), &Title::Name);
     }
 }
@@ -63,7 +74,7 @@ fn panes_default_to_a_plain_border_and_their_name() {
 fn the_editor_defaults_to_a_border_without_a_title() {
     let frame = PaneFrame::default_for(&ComponentKind::Editor);
 
-    assert_eq!(frame.border(), Border::Plain);
+    assert_eq!(frame.border(), BorderStyle::Plain);
     assert!(!frame.shows_title());
 }
 
@@ -71,21 +82,21 @@ fn the_editor_defaults_to_a_border_without_a_title() {
 fn the_status_bar_defaults_to_no_border_and_no_title() {
     let frame = PaneFrame::default_for(&ComponentKind::StatusBar);
 
-    assert_eq!(frame.border(), Border::Off);
+    assert_eq!(frame.sides(), Borders::NONE);
     assert!(!frame.shows_title());
 }
 
 #[test]
 fn a_spec_overrides_only_what_it_names() {
     let spec = FrameSpec {
-        border: Some(Border::Rounded),
+        border: Some(BorderStyle::Rounded),
         title_align: Some(TitleAlign::Center),
         ..FrameSpec::default()
     };
 
     let frame = PaneFrame::resolve(&spec, &ComponentKind::Terminal);
 
-    assert_eq!(frame.border(), Border::Rounded);
+    assert_eq!(frame.border(), BorderStyle::Rounded);
     assert_eq!(frame.title_align(), TitleAlign::Center);
     assert_eq!(frame.title(), &Title::Name);
     assert_eq!(&*frame.title_slot(), "pane.title");
@@ -110,21 +121,31 @@ fn title_text_follows_the_title_setting() {
 fn inner_leaves_room_for_a_border() {
     let area = Rect::new(2, 3, 10, 6);
 
-    assert_eq!(frame_with(Border::Plain).inner(area), Rect::new(3, 4, 8, 4));
-    assert_eq!(frame_with(Border::Thick).inner(area), Rect::new(3, 4, 8, 4));
+    assert_eq!(
+        frame_with(BorderStyle::Plain).inner(area),
+        Rect::new(3, 4, 8, 4)
+    );
+    assert_eq!(
+        frame_with(BorderStyle::Thick).inner(area),
+        Rect::new(3, 4, 8, 4)
+    );
 }
 
 #[test]
 fn without_a_border_the_content_gets_the_whole_area() {
     let area = Rect::new(2, 3, 10, 6);
 
-    assert_eq!(frame_with(Border::Off).inner(area), area);
+    assert_eq!(frame_on(&[]).inner(area), area);
 }
 
 #[test]
 fn a_title_without_a_border_still_costs_a_row() {
     let frame = PaneFrame::resolve(
-        &spec(Some(Border::Off), Some(Title::Name)),
+        &FrameSpec {
+            sides: Some(Vec::new()),
+            title: Some(Title::Name),
+            ..FrameSpec::default()
+        },
         &ComponentKind::Explorer,
     );
 
@@ -133,23 +154,28 @@ fn a_title_without_a_border_still_costs_a_row() {
 
 #[test]
 fn inner_agrees_with_what_the_block_draws() {
-    for border in [
-        Border::Off,
-        Border::Plain,
-        Border::Rounded,
-        Border::Double,
-        Border::Thick,
+    for sides in [
+        vec![],
+        vec![Side::All],
+        vec![Side::Top],
+        vec![Side::Right, Side::Left],
     ] {
         for title in [Title::Hidden, Title::Name] {
-            let frame =
-                PaneFrame::resolve(&spec(Some(border), Some(title)), &ComponentKind::Explorer);
+            let frame = PaneFrame::resolve(
+                &FrameSpec {
+                    sides: Some(sides.clone()),
+                    title: Some(title),
+                    ..FrameSpec::default()
+                },
+                &ComponentKind::Explorer,
+            );
             let area = Rect::new(1, 1, 12, 7);
             let shown = frame.title_text("x");
 
             assert_eq!(
                 frame.inner(area),
                 frame.block(&Theme::default(), shown, false).inner(area),
-                "{border:?} {:?}",
+                "{sides:?} {:?}",
                 frame.title()
             );
         }
@@ -164,16 +190,15 @@ fn each_border_type_draws_its_own_corners() {
         buffer[(0, 0)].symbol().to_owned()
     };
 
-    assert_eq!(corner(Border::Plain), "┌");
-    assert_eq!(corner(Border::Rounded), "╭");
-    assert_eq!(corner(Border::Double), "╔");
-    assert_eq!(corner(Border::Thick), "┏");
-    assert_eq!(corner(Border::Off), " ");
+    assert_eq!(corner(BorderStyle::Plain), "┌");
+    assert_eq!(corner(BorderStyle::Rounded), "╭");
+    assert_eq!(corner(BorderStyle::Double), "╔");
+    assert_eq!(corner(BorderStyle::Thick), "┏");
 }
 
 #[test]
 fn no_border_draws_no_lines_at_all() {
-    let buffer = draw(&frame_with(Border::Off), &Theme::default(), None, false);
+    let buffer = draw(&frame_on(&[]), &Theme::default(), None, false);
 
     for y in 0..5 {
         assert_eq!(row(&buffer, y).trim(), "");
@@ -202,7 +227,12 @@ fn titles_can_be_left_centered_or_right_aligned() {
 
 #[test]
 fn a_hidden_title_leaves_the_border_unbroken() {
-    let buffer = draw(&frame_with(Border::Plain), &Theme::default(), None, false);
+    let buffer = draw(
+        &frame_with(BorderStyle::Plain),
+        &Theme::default(),
+        None,
+        false,
+    );
 
     assert_eq!(row(&buffer, 0), "┌──────────────────┐");
 }
@@ -284,4 +314,32 @@ fn a_focused_frame_falls_back_to_the_plain_slot_without_a_focused_variant() {
     let focused = draw(&frame, &theme, None, true);
 
     assert_eq!(focused[(0, 2)].fg, Color::Red);
+}
+
+#[test]
+fn a_top_only_border_draws_just_the_top_line_in_any_style() {
+    let spec = FrameSpec {
+        sides: Some(vec![Side::Top]),
+        border: Some(BorderStyle::Rounded),
+        title: Some(Title::Hidden),
+        ..FrameSpec::default()
+    };
+    let frame = PaneFrame::resolve(&spec, &ComponentKind::Terminal);
+
+    let buffer = draw(&frame, &Theme::default(), None, false);
+
+    assert_eq!(buffer[(5, 0)].symbol(), "─");
+    assert_eq!(row(&buffer, 1).trim(), "");
+    assert_eq!(frame.inner(Rect::new(0, 0, 20, 5)), Rect::new(0, 1, 20, 4));
+}
+
+#[test]
+fn a_right_only_border_draws_just_the_right_edge() {
+    let frame = frame_on(&[Side::Right]);
+
+    let buffer = draw(&frame, &Theme::default(), None, false);
+
+    assert_ne!(buffer[(19, 2)].symbol(), " ");
+    assert_eq!(buffer[(0, 2)].symbol(), " ");
+    assert_eq!(frame.inner(Rect::new(0, 0, 20, 5)), Rect::new(0, 0, 19, 5));
 }

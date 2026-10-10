@@ -1,61 +1,39 @@
-// Default editor layout. Sizes: Fixed(cells), Percent(0..=100), Fill.
-// Components: Explorer, Editor, Terminal, StatusBar, Plugin("view.id").
+// Default editor layout.
 //
-// A component is written Leaf(Explorer) to take its default frame, or with its
-// frame spelled out; whatever you leave out keeps the component's default:
+// Row([..]) lays its children side by side, Col([..]) stacks them. A child
+// takes all that is left unless it is wrapped in a size: Fixed(cells) or
+// Percent(0..=100), written Fixed(30, child). Only one child of a Row or Col
+// may be left without a size.
 //
-//   Framed(component: Explorer, frame: (
-//       border: Rounded,        // Off, Plain, Rounded, Double or Thick
+// A Pane shows one component: Explorer, Editor, Terminal, StatusBar or
+// Plugin("view.id"). Whatever a pane leaves out keeps the component's default:
+//
+//   Pane(
+//       view: Explorer,
+//       sides: [Top, Right],    // edges with a border line: Top, Right, Bottom,
+//                               // Left or All; [] for no border
+//       border: Rounded,        // Plain, Rounded, Double, Thick, QuadrantInside,
+//                               // QuadrantOutside or a dashed form: Light/Heavy
+//                               // + Double/Triple/Quadruple + Dashed
 //       title: Text("Files"),   // Hidden, Name (its own name; the file name for
 //                               // the editor) or Text("...")
 //       title_align: Center,    // Left, Center or Right
 //       title_slot: "my.title", // theme slot that styles the title
 //       border_slot: "my.edge", // theme slot that styles the border; a focused
 //                               // pane uses "<slot>.focused" when the theme has it
-//   ))
+//   )
 //
-// Defaults: panes get a Plain border and their Name; the Editor gets a Plain
-// border and no title (its tab bar names the files); the StatusBar has no border.
-Split(
-    direction: Vertical,
-    children: [
-        (
-            size: Fill,
-            node: Split(
-                direction: Horizontal,
-                children: [
-                    (size: Fixed(30), node: Framed(
-                        component: Explorer,
-                        frame: (
-                            border: Off,
-                            title: Name,
-                        ))
-                    ),
-                    (
-                        size: Fill,
-                        node: Split(
-                            direction: Vertical,
-                            children: [
-                                (size: Fill, node: Framed(
-                                    component: Editor,
-                                    frame: (
-                                        border: Off,
-                                        title: Hidden,
-                                    ))
-                                ),
-                                (size: Fixed(12), node: Framed(
-                                    component: Terminal,
-                                    frame: (
-                                        border: Double,
-                                        title: Name,
-                                    ))
-                                ),
-                                (size: Fixed(1), node: Leaf(StatusBar)),
-                            ],
-                        ),
-                    ),
-                ],
-            ),
-        ),
-    ],
-)
+// Defaults: panes get a border on all sides, Plain, and their Name; the Editor
+// gets the same border and no title (its tab bar names the files); the
+// StatusBar has no border.
+
+Col([
+    Row([
+        Fixed(30, Pane(view: Explorer, sides: [Right], border: QuadrantInside, title: Hidden)),
+        Col([
+            Pane(view: Editor, sides: [], title: Hidden),
+            Fixed(12, Pane(view: Terminal, sides: [Top], border: LightDoubleDashed, title: Name)),
+            Fixed(1, Pane(view: StatusBar)),
+        ]),
+    ]),
+])

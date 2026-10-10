@@ -361,18 +361,19 @@ the seam: slots can become selector paths (`editor .selection`) without touching
 - Command line: every path argument opens a tab (first one active).
 
 ## Component frames
-- Every component is drawn inside a `PaneFrame` (`ui::pane_frame`): a border (`Off`, `Plain`, `Rounded`, `Double`,
-  `Thick`), a title (`Hidden`, `Name`, `Text("...")`), a title alignment, and the theme slots that style the title
-  and the border. The layout file sets them per component with `Framed(component: X, frame: (...))`; `Leaf(X)`
-  keeps the component's default. Anything left out of a frame takes the default, and unknown fields or variants are
-  errors (so a typo does not silently do nothing).
-- Defaults: panes `Plain` + `Name`; the editor `Plain` + `Hidden` (its tab bar shows file names; `title: Name` adds the
-  active file's name to the border); the status bar `Off` + `Hidden`.
+- Every component is drawn inside a `PaneFrame` (`ui::pane_frame`): border `sides` (a list of `Top`, `Right`, `Bottom`,
+  `Left` or `All`; empty for no border), a border `border` style (any ratatui `BorderType`: `Plain`, `Rounded`,
+  `Double`, `Thick`, the dashed forms, `QuadrantInside`, `QuadrantOutside`), a title (`Hidden`, `Name`,
+  `Text("...")`), a title alignment, and the theme slots that style the title and the border. The layout file sets
+  them in `Pane(view: X, sides: .., border: .., ..)`; every field is optional and takes the component's default
+  when left out, and unknown fields or variants are errors (so a typo does not silently do nothing).
+- Defaults: panes all sides, `Plain` and `Name`; the editor all sides, `Plain` and `Hidden` (its tab bar shows file
+  names; `title: Name` adds the active file's name to the border); the status bar no sides and `Hidden`. A style
+  alone adds no edge: `Pane(view: StatusBar, border: Double)` is still unboxed, it needs `sides: [All]` too.
 - The resolved frame travels with the `Placement`, so each component reads `placement.frame`. `PaneFrame::inner`
   gives the content area exactly as `PaneFrame::block` draws it: a title costs a row even without a border.
 - A focused editor pane uses `<border_slot>.focused` when the theme defines it, otherwise the plain slot. Style
   slots are plain theme names, so the same layout file can point two components at differently styled slots.
-- `Off` is not spelled `None`: with implicit `Some` in the RON reader, a bare `None` means "field not set".
 
 ## Background and transparency
 - A text-mode program only picks a color per cell; opacity and blur are the terminal's (kitty: `background_opacity`,
@@ -553,4 +554,43 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   marker inside the text removed) when the program asked for it, otherwise with line breaks as carriage returns;
   a write that does not fit says how many bytes went through. A shell that has ended says so when typed at.
   The 16 key tests, 19 app tests: keys reach the shell, `ctrl+q` / `ctrl+p` / `ctrl+s` go to the shell instead of the
+
+## Layout syntax v2 (plan, decided before building)
+Goal: less nesting to read. The tree shape is the thing to see, so the file says only what differs from the default.
+- **Containers:** `Row([..])` (side by side) and `Col([..])` (stacked) replace `Split(direction:, children:)`; no
+  `(size:, node:)` tuples and no single-child root split.
+- **Sizes wrap a node:** `Fixed(30, node)`, `Percent(50, node)`. A bare node is `Fill`. `Fill(..)` is not written.
+- **One leaf:** `Pane(view: Explorer, sides: [Right], border: QuadrantInside, title: Hidden)` replaces `Framed` and
+  `Leaf`. RON cannot mix positional and named fields, so every field is named; `component` is renamed `view`
+  (it matches `Plugin("view.id")`). The `frame: (...)` block is flattened into the pane. Every field is optional.
+- **Borders split in two:** `sides` is a list of `Top`, `Right`, `Bottom`, `Left` (or `All`; empty = no border) and
+  `border` is any ratatui `BorderType` (`Plain`, `Rounded`, `Double`, `Thick`, the dashed forms,
+  `QuadrantInside`, `QuadrantOutside`). `Off`, `TopOnly` and `RightOnly` are removed (they hard-coded a style).
+- **Defaults stay in the component**, for `sides` and `border` alike: the status bar has no sides, the others
+  `All`; panes `Plain`, the editor `Plain` with a hidden title.
+- Example:
+
+```ron
+Col([
+    Row([
+        Fixed(30, Pane(view: Explorer, sides: [Right], border: QuadrantInside, title: Hidden)),
+        Col([
+            Pane(view: Editor, sides: [], title: Hidden),
+            Fixed(12, Pane(view: Terminal, sides: [Top], border: LightDoubleDashed)),
+            Fixed(1, Pane(view: StatusBar)),
+        ]),
+    ]),
+])
+```
+- **Format stays RON** (enums map directly; TOML nests badly, KDL would add a dependency and a third syntax).
+- **Hard break:** the old syntax fails to load; there are no saved layouts outside this repo.
+- **Validation at load time**, as data, not types: the enum allows nonsense (`Fixed(Fixed(..))`, a size on the root,
+  two bare siblings, which would share space silently), so the loader rejects it. Errors carry a tree path, e.g.
+  `root > Col[0] > Row[1]: two children have no size`; no line numbers (RON reports them only for syntax errors).
+  Two bare siblings is an error, not an equal split, so a forgotten `Fixed(1, ..)` cannot hand half the screen
+  to the status bar. Hiding a component is checked at resolve time and is unaffected.
+- **Failure behaviour:** the embedded file failing is a startup panic (the `default_layout_is_valid` test catches
+  it); a user layout file (`<config dir>/terminalcode/layout.ron`, next to `keymap.toml`, loaded by
+  `config::load_layout`) that fails falls back to the embedded one and the error, with the file name and the tree
+  path, goes through `notify_error`, like every user-visible message. A missing file is normal and silent.
   editor, the prefix, the status bar, pastes, mouse focus, and the cursor position.

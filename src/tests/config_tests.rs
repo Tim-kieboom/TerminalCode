@@ -102,3 +102,84 @@ fn legacy_terminals_get_the_legacy_bindings_in_the_loaded_keymap() {
         Some(Action::DeleteWordBackward)
     );
 }
+
+// ---- layout
+
+use crate::config::load_layout;
+use crate::ui::layout::LayoutTree;
+
+const USER_LAYOUT: &str = "Row([Fixed(10, Pane(view: Explorer)), Pane(view: Editor)])";
+
+#[test]
+fn no_layout_file_gives_the_built_in_layout_without_a_warning() {
+    let loaded = load_layout(None);
+
+    assert!(loaded.warning.is_none());
+    assert_eq!(loaded.layout, LayoutTree::default());
+}
+
+#[test]
+fn a_missing_layout_file_is_not_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let loaded = load_layout(Some(&dir.path().join("layout.ron")));
+
+    assert!(loaded.warning.is_none());
+    assert_eq!(loaded.layout, LayoutTree::default());
+}
+
+#[test]
+fn a_valid_layout_file_replaces_the_built_in_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("layout.ron");
+    fs::write(&path, USER_LAYOUT).unwrap();
+
+    let loaded = load_layout(Some(&path));
+
+    assert!(loaded.warning.is_none());
+    assert_eq!(loaded.layout, LayoutTree::from_ron(USER_LAYOUT).unwrap());
+    assert_ne!(loaded.layout, LayoutTree::default());
+}
+
+#[test]
+fn an_invalid_layout_falls_back_and_names_the_file_and_the_place_in_the_tree() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("layout.ron");
+    fs::write(
+        &path,
+        "Col([Row([Pane(view: Explorer), Pane(view: Editor)])])",
+    )
+    .unwrap();
+
+    let loaded = load_layout(Some(&path));
+
+    let warning = loaded.warning.unwrap();
+    assert!(warning.contains("layout.ron"), "{warning}");
+    assert!(warning.contains("Col > Row[0]"), "{warning}");
+    assert!(warning.ends_with("using default layout"), "{warning}");
+    assert_eq!(loaded.layout, LayoutTree::default());
+}
+
+#[test]
+fn a_layout_with_a_syntax_error_falls_back_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("layout.ron");
+    fs::write(&path, "Row((").unwrap();
+
+    let loaded = load_layout(Some(&path));
+
+    assert!(loaded.warning.is_some());
+    assert_eq!(loaded.layout, LayoutTree::default());
+}
+
+#[test]
+fn an_unreadable_layout_file_falls_back_with_a_warning() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("layout.ron");
+    fs::create_dir(&path).unwrap();
+
+    let loaded = load_layout(Some(&path));
+
+    assert!(loaded.warning.is_some());
+    assert_eq!(loaded.layout, LayoutTree::default());
+}

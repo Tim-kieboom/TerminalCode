@@ -8,14 +8,14 @@ use crate::app::state::AppState;
 use crate::ui::layout::LayoutTree;
 
 /// Draws a layout stacking the explorer (6 rows), the editor (the rest) and
-/// the status bar (3 rows), each with the given RON frame, e.g. `()` for all
-/// defaults or `(border: Rounded)`.
+/// the status bar (3 rows), each with the given RON pane fields, e.g. `""` for all
+/// defaults or `"border: Rounded"`.
 fn screen_with(explorer: &str, editor: &str, status: &str) -> Vec<String> {
     let source = format!(
-        "Split(direction: Vertical, children: [
-            (size: Fixed(6), node: Framed(component: Explorer, frame: {explorer})),
-            (size: Fill, node: Framed(component: Editor, frame: {editor})),
-            (size: Fixed(3), node: Framed(component: StatusBar, frame: {status})),
+        "Col([
+            Fixed(6, Pane(view: Explorer, {explorer})),
+            Pane(view: Editor, {editor}),
+            Fixed(3, Pane(view: StatusBar, {status})),
         ])"
     );
     let mut state = AppState::default();
@@ -34,7 +34,7 @@ fn screen_with(explorer: &str, editor: &str, status: &str) -> Vec<String> {
 }
 
 fn defaults() -> &'static str {
-    "()"
+    ""
 }
 
 fn first_char(row: &str) -> char {
@@ -50,23 +50,23 @@ fn the_explorer_shows_its_name_by_default() {
 
 #[test]
 fn the_explorer_title_can_be_hidden_or_replaced() {
-    let hidden = screen_with("(title: Hidden)", defaults(), defaults());
+    let hidden = screen_with("title: Hidden", defaults(), defaults());
     assert!(
         hidden.iter().all(|row| !row.contains("Explorer")),
         "{hidden:#?}"
     );
     assert!(hidden[0].starts_with("┌──"), "{hidden:#?}");
 
-    let renamed = screen_with("(title: Text(\"Files\"))", defaults(), defaults());
+    let renamed = screen_with("title: Text(\"Files\")", defaults(), defaults());
     assert!(renamed[0].starts_with("┌Files"), "{renamed:#?}");
 }
 
 #[test]
 fn the_explorer_title_can_be_centered_or_right_aligned() {
-    let right = screen_with("(title_align: Right)", defaults(), defaults());
+    let right = screen_with("title_align: Right", defaults(), defaults());
     assert!(right[0].ends_with("Explorer┐"), "{right:#?}");
 
-    let center = screen_with("(title_align: Center)", defaults(), defaults());
+    let center = screen_with("title_align: Center", defaults(), defaults());
     let left_dashes = center[0].chars().skip(1).take_while(|c| *c == '─').count();
     assert!(left_dashes > 10, "{center:#?}");
 }
@@ -75,16 +75,16 @@ fn the_explorer_title_can_be_centered_or_right_aligned() {
 fn borders_can_be_rounded_double_thick_or_gone() {
     let corner = |frame| first_char(&screen_with(frame, defaults(), defaults())[0]);
 
-    assert_eq!(corner("(border: Plain)"), '┌');
-    assert_eq!(corner("(border: Rounded)"), '╭');
-    assert_eq!(corner("(border: Double)"), '╔');
-    assert_eq!(corner("(border: Thick)"), '┏');
-    assert_ne!(corner("(border: Off)"), '┌');
+    assert_eq!(corner("border: Plain"), '┌');
+    assert_eq!(corner("border: Rounded"), '╭');
+    assert_eq!(corner("border: Double"), '╔');
+    assert_eq!(corner("border: Thick"), '┏');
+    assert_ne!(corner("sides: []"), '┌');
 }
 
 #[test]
 fn a_borderless_explorer_has_no_border_lines() {
-    let rows = screen_with("(border: Off, title: Hidden)", defaults(), defaults());
+    let rows = screen_with("sides: [], title: Hidden", defaults(), defaults());
 
     // The explorer is the top 6 rows; with no project it only says so.
     for row in &rows[..6] {
@@ -95,7 +95,7 @@ fn a_borderless_explorer_has_no_border_lines() {
 
 #[test]
 fn a_title_without_a_border_is_still_drawn_on_its_own_row() {
-    let rows = screen_with("(border: Off)", defaults(), defaults());
+    let rows = screen_with("sides: []", defaults(), defaults());
 
     assert!(rows[0].contains("Explorer"), "{rows:#?}");
     assert!(!rows[0].contains('┌'), "{rows:#?}");
@@ -103,7 +103,7 @@ fn a_title_without_a_border_is_still_drawn_on_its_own_row() {
 
 #[test]
 fn the_editor_pane_can_be_borderless() {
-    let rows = screen_with(defaults(), "(border: Off)", defaults());
+    let rows = screen_with(defaults(), "sides: []", defaults());
 
     // Row 6 is the editor's tab bar, row 7 the first line of text.
     assert!(rows[7].starts_with("  1 "), "{rows:#?}");
@@ -113,7 +113,7 @@ fn the_editor_pane_can_be_borderless() {
 #[test]
 fn the_editor_can_show_its_file_name_as_a_border_title() {
     let without = screen_with(defaults(), defaults(), defaults());
-    let with = screen_with(defaults(), "(title: Name)", defaults());
+    let with = screen_with(defaults(), "title: Name", defaults());
 
     let count = |rows: &[String]| rows.join("\n").matches("[no name]").count();
     // The tab bar and the status bar already name the file; the title adds it
@@ -126,7 +126,7 @@ fn the_editor_can_show_its_file_name_as_a_border_title() {
 fn the_editor_can_have_a_custom_title_and_a_rounded_border() {
     let rows = screen_with(
         defaults(),
-        "(border: Rounded, title: Text(\"Code\"), title_align: Center)",
+        "border: Rounded, title: Text(\"Code\"), title_align: Center",
         defaults(),
     );
 
@@ -148,7 +148,7 @@ fn the_status_bar_can_be_boxed_with_a_title() {
     let rows = screen_with(
         defaults(),
         defaults(),
-        "(border: Rounded, title: Text(\"Status\"))",
+        "sides: [All], border: Rounded, title: Text(\"Status\")",
     );
 
     assert!(rows[17].starts_with("╭Status"), "{rows:#?}");
@@ -157,7 +157,11 @@ fn the_status_bar_can_be_boxed_with_a_title() {
 
 #[test]
 fn frames_do_not_leak_between_components() {
-    let rows = screen_with("(border: Double)", "(border: Thick)", "(border: Rounded)");
+    let rows = screen_with(
+        "border: Double",
+        "border: Thick",
+        "sides: [All], border: Rounded",
+    );
 
     assert_eq!(first_char(&rows[0]), '╔');
     assert_eq!(first_char(&rows[6]), ' ', "tab bar row: {rows:#?}");
@@ -167,12 +171,12 @@ fn frames_do_not_leak_between_components() {
 
 #[test]
 fn a_tiny_terminal_with_every_kind_of_frame_does_not_panic() {
-    for explorer in ["()", "(border: Off, title: Hidden)", "(border: Double)"] {
+    for explorer in ["", "sides: [], title: Hidden", "border: Double"] {
         let source = format!(
-            "Split(direction: Vertical, children: [
-                (size: Fixed(6), node: Framed(component: Explorer, frame: {explorer})),
-                (size: Fill, node: Framed(component: Editor, frame: (border: Rounded, title: Name))),
-                (size: Fixed(3), node: Framed(component: StatusBar, frame: (border: Thick))),
+            "Col([
+                Fixed(6, Pane(view: Explorer, {explorer})),
+                Pane(view: Editor, border: Rounded, title: Name),
+                Fixed(3, Pane(view: StatusBar, sides: [All], border: Thick)),
             ])"
         );
         let mut state = AppState::default();

@@ -515,7 +515,6 @@ impl AppState {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn set_layout(&mut self, layout: LayoutTree) {
         self.layout = layout;
     }
