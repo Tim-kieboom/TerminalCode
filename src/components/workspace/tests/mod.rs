@@ -1,3 +1,4 @@
+mod bulk_tests;
 mod follow_tests;
 mod mouse_tests;
 mod pane_tests;

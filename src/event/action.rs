@@ -77,6 +77,14 @@ pub(crate) enum Action {
     ToggleMouse,
     NewFile,
     CloseTab,
+    /// Closes every other tab of the focused pane.
+    CloseOtherTabs,
+    /// Closes every tab of every pane.
+    CloseAllTabs,
+    /// Opens the file of the tab closed last, with the cursor where it was.
+    ReopenClosedTab,
+    /// Saves every modified file.
+    SaveAll,
     NextTab,
     PreviousTab,
     SplitRight,
@@ -95,6 +103,9 @@ impl Action {
         matches!(
             self,
             Self::NewFile
+                | Self::CloseOtherTabs
+                | Self::CloseAllTabs
+                | Self::ReopenClosedTab
                 | Self::OpenConfig(_)
                 | Self::ToggleTerminal
                 | Self::TerminalNewTab
@@ -134,6 +145,10 @@ impl Action {
                 | Self::UseTheme(_)
                 | Self::ToggleMouse
                 | Self::NewFile
+                | Self::CloseOtherTabs
+                | Self::CloseAllTabs
+                | Self::ReopenClosedTab
+                | Self::SaveAll
                 | Self::CloseTab
                 | Self::NextTab
                 | Self::PreviousTab
@@ -183,6 +198,10 @@ impl Action {
             Self::UseTheme(ThemeVariant::Light) => "Theme: Light",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
+            Self::SaveAll => "File: Save All",
+            Self::CloseOtherTabs => "Tab: Close Others",
+            Self::CloseAllTabs => "Tab: Close All",
+            Self::ReopenClosedTab => "Tab: Reopen Closed",
             Self::NewFile => "File: New",
             Self::CloseTab => "Tab: Close",
             Self::NextTab => "Tab: Next",
@@ -251,6 +270,10 @@ impl Action {
             Self::UseTheme(ThemeVariant::Dark),
             Self::UseTheme(ThemeVariant::Light),
             Self::Save,
+            Self::SaveAll,
+            Self::CloseOtherTabs,
+            Self::CloseAllTabs,
+            Self::ReopenClosedTab,
             Self::NewFile,
             Self::CloseTab,
             Self::NextTab,

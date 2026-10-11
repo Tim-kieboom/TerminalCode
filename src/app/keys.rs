@@ -6,6 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use super::App;
 use crate::app::state::{Focus, Popup};
+use crate::components::workspace::CloseScope;
 use crate::entries::EntryKind;
 use crate::error::IdeResult;
 use crate::event::action::Action;
@@ -249,6 +250,10 @@ impl App {
             Action::Select(motion) => self.state.edit(|editor| editor.select(motion))?,
             Action::NewFile => self.state.workspace_mut().new_file(),
             Action::CloseTab => self.close_tab(),
+            Action::CloseOtherTabs => self.close_tabs(CloseScope::Others),
+            Action::CloseAllTabs => self.close_tabs(CloseScope::All),
+            Action::ReopenClosedTab => self.reopen_closed_tab(),
+            Action::SaveAll => self.save_all(),
             Action::NextTab => self.state.workspace_mut().next_tab(),
             Action::PreviousTab => self.state.workspace_mut().previous_tab(),
             Action::SplitRight => self.state.workspace_mut().split(Axis::Horizontal),

@@ -25,9 +25,12 @@ use crate::syntax::worker::Key as SyntaxKey;
 use crate::syntax::{DocumentSyntax, MAX_RANGES, Output, SyntaxWorker, merge_ranges};
 use crate::ui::layout::Axis;
 
+use bulk::ClosedTab;
+pub(crate) use bulk::{CloseMany, CloseScope};
 pub(crate) use disk::{DiskEvent, SaveOutcome};
 use tree::Node;
 
+mod bulk;
 mod disk;
 mod render;
 #[cfg(test)]
@@ -93,6 +96,11 @@ struct Pane {
     area: Rect,
     tab_bar: Rect,
     tab_rects: Vec<Rect>,
+    /// The "‹3" and "2›" that say how many tabs are scrolled out of the bar on
+    /// each side; empty when none are.
+    overflow: (Rect, Rect),
+    /// How many tabs are out of the bar before the first and after the last.
+    hidden: (usize, usize),
     editor_area: Rect,
     /// The row of the find bar; empty when there is none.
     find_bar: Rect,
@@ -107,6 +115,8 @@ pub(crate) struct Workspace {
     focused: PaneId,
     next_id: u32,
     confirm_close: Option<ViewId>,
+    /// The bulk close that asked for confirmation; doing it again confirms.
+    confirm_bulk: Option<CloseScope>,
     /// The document whose save was refused because its file changed on disk;
     /// saving it again overwrites the file.
     confirm_overwrite: Option<DocumentId>,
@@ -114,6 +124,8 @@ pub(crate) struct Workspace {
     docs_version: u64,
     /// Syntax keys of closed documents, for the worker to drop what it keeps.
     forgotten: Vec<SyntaxKey>,
+    /// Tabs closed lately, the latest last, for reopening them.
+    closed: Vec<ClosedTab>,
     /// Whether the focused pane has a row reserved for the find bar.
     find_bar: bool,
     /// Stands in for the active editor while the only pane has no tabs.
@@ -137,6 +149,8 @@ impl Workspace {
             focused: pane,
             next_id: 1,
             confirm_close: None,
+            confirm_bulk: None,
+            closed: Vec::new(),
             confirm_overwrite: None,
             docs_version: 0,
             forgotten: Vec::new(),
@@ -368,6 +382,7 @@ impl Workspace {
     /// other action in between cancels them.
     fn reset_confirmations(&mut self) {
         self.confirm_close = None;
+        self.confirm_bulk = None;
         self.confirm_overwrite = None;
     }
 
@@ -463,7 +478,7 @@ impl Workspace {
             return CloseResult::Unsaved(display_name(&doc.buffer));
         }
 
-        self.remove_tab(index, tab_index);
+        self.close_remembering(index, tab_index);
         CloseResult::Closed
     }
 
@@ -580,6 +595,13 @@ impl Workspace {
             return Ok(());
         };
         self.focused = self.panes[index].id;
+
+        // A marker for hidden tabs goes to the nearest hidden one on its side.
+        if let Some(tab) = self.panes[index].hidden_tab_at(column, row) {
+            self.reset_confirmations();
+            self.panes[index].active = tab;
+            return Ok(());
+        }
 
         let pane = &self.panes[index];
         if let Some(tab) = pane.tab_at(column, row) {
@@ -854,6 +876,21 @@ impl Pane {
     /// The tab drawn at a screen cell, going by the last layout pass. Tabs can
     /// have been closed since, so a rectangle left over from the last frame
     /// does not count if its tab is gone.
+    /// The tab a click on an overflow marker goes to: the one just before the
+    /// first tab in view, or just after the last.
+    fn hidden_tab_at(&self, column: u16, row: u16) -> Option<usize> {
+        let visible = |rect: &Rect| rect.width > 0;
+        let (before, after) = self.overflow;
+        if self.hidden.0 > 0 && contains(before, column, row) {
+            return self.tab_rects.iter().position(visible)?.checked_sub(1);
+        }
+        if self.hidden.1 > 0 && contains(after, column, row) {
+            let next = self.tab_rects.iter().rposition(visible)? + 1;
+            return (next < self.tabs.len()).then_some(next);
+        }
+        None
+    }
+
     fn tab_at(&self, column: u16, row: u16) -> Option<usize> {
         let tab = self
             .tab_rects
@@ -871,6 +908,8 @@ impl Pane {
             area: Rect::default(),
             tab_bar: Rect::default(),
             tab_rects: Vec::new(),
+            overflow: (Rect::default(), Rect::default()),
+            hidden: (0, 0),
             editor_area: Rect::default(),
             find_bar: Rect::default(),
         }

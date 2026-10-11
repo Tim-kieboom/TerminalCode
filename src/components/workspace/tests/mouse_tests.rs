@@ -276,3 +276,88 @@ fn closing_an_unfocused_pane_keeps_the_focused_one_focused() {
     assert_eq!(focused_after.height, focused_before.height);
     assert_eq!(focused_after.y, focused_before.y);
 }
+
+// ---- clicking an overflow marker
+
+fn crowded(count: usize) -> Workspace {
+    let mut workspace = Workspace::new(Editor::new(Buffer::from_text("1")));
+    for number in 2..=count {
+        let mut buffer = Buffer::from_text("x");
+        buffer.set_path(std::path::PathBuf::from(format!("file{number}.txt")));
+        workspace.open_buffer(buffer);
+    }
+    workspace
+}
+
+/// Lays the workspace out in a bar of `width` and finds `marker` in the first row.
+fn marker_cell(workspace: &mut Workspace, width: u16, marker: char) -> u16 {
+    marker_cell_if_any(workspace, width, marker)
+        .unwrap_or_else(|| panic!("no {marker} in the first row"))
+}
+
+fn marker_cell_if_any(workspace: &mut Workspace, width: u16, marker: char) -> Option<u16> {
+    workspace.prepare(&Placement::new(
+        ComponentKind::Editor,
+        Rect::new(0, 0, width, 20),
+    ));
+    let mut terminal =
+        ratatui::Terminal::new(ratatui::backend::TestBackend::new(width, 20)).unwrap();
+    let state = crate::app::state::AppState::default();
+    terminal
+        .draw(|frame| {
+            let placement = Placement::new(ComponentKind::Editor, frame.area());
+            workspace.prepare(&placement);
+            workspace.render(frame, &state, &placement);
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    (0..width).find(|&x| buffer[(x, 0)].symbol() == marker.to_string())
+}
+
+#[test]
+fn clicking_the_marker_on_the_right_goes_to_the_next_hidden_tab() {
+    let mut workspace = crowded(12);
+    workspace.activate_tab(0);
+    let column = marker_cell(&mut workspace, 50, '›');
+    let active = workspace.tab_names().1;
+
+    workspace
+        .mouse_press(column, 0, false, Clicks::Single)
+        .unwrap();
+
+    let after = workspace.tab_names().1;
+    assert!(after > active + 1, "{active} -> {after}");
+}
+
+#[test]
+fn clicking_the_marker_on_the_left_goes_to_the_tab_just_before_the_first_in_view() {
+    let mut workspace = crowded(12);
+    workspace.activate_tab(11);
+    let column = marker_cell(&mut workspace, 50, '‹');
+    let active = workspace.tab_names().1;
+
+    workspace
+        .mouse_press(column, 0, false, Clicks::Single)
+        .unwrap();
+
+    assert!(workspace.tab_names().1 < active - 1);
+}
+
+#[test]
+fn repeated_marker_clicks_walk_through_every_tab() {
+    let mut workspace = crowded(12);
+    workspace.activate_tab(0);
+    let mut seen = vec![0];
+    for _ in 0..30 {
+        let Some(column) = marker_cell_if_any(&mut workspace, 50, '›') else {
+            break;
+        };
+        workspace
+            .mouse_press(column, 0, false, Clicks::Single)
+            .unwrap();
+        seen.push(workspace.tab_names().1);
+    }
+
+    assert_eq!(*seen.last().unwrap(), 11);
+    assert!(seen.windows(2).all(|pair| pair[1] > pair[0]), "{seen:?}");
+}

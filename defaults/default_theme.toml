@@ -102,6 +102,9 @@ modifiers = ["bold"]
 ["tab.inactive"]
 text = "@dim"
 
+["tab.overflow"]
+text = "@dim"
+
 ["tab.add"]
 text = "@green"
 modifiers = ["bold"]

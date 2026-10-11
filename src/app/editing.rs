@@ -3,7 +3,7 @@
 use super::App;
 use super::keys::NO_FILE_MESSAGE;
 use crate::clipboard::{Notice, Register};
-use crate::components::workspace::{CloseResult, SaveOutcome};
+use crate::components::workspace::{CloseMany, CloseResult, CloseScope, SaveOutcome};
 use crate::error::IdeResult;
 
 impl App {
@@ -85,4 +85,57 @@ impl App {
 /// What saving says when the file changed on disk since it was read.
 pub(super) fn overwrite_warning(name: &str) -> String {
     format!("{name} changed on disk since you opened it; save again to overwrite it")
+}
+
+impl App {
+    /// Closes the other tabs of the focused pane, or every tab. Unsaved changes
+    /// are asked about first: nothing is closed until the same action is run
+    /// again.
+    pub(super) fn close_tabs(&mut self, scope: CloseScope) {
+        match self.state.workspace_mut().close_tabs(scope) {
+            CloseMany::Closed(_) => {}
+            CloseMany::Unsaved(names) => self.state.notify(format!(
+                "{} would lose unsaved changes; do this again to discard them",
+                names.join(", ")
+            )),
+        }
+    }
+
+    /// Opens the file of the tab closed last.
+    pub(super) fn reopen_closed_tab(&mut self) {
+        match self.state.workspace_mut().reopen_closed_tab() {
+            Some(Ok(_)) => {}
+            Some(Err(error)) => self.state.notify_error(error.to_string()),
+            None => self.state.notify("no closed tab to reopen"),
+        }
+    }
+
+    /// Saves every modified file, and says what it left alone.
+    pub(super) fn save_all(&mut self) {
+        let report = self.state.workspace_mut().save_all();
+        for name in &report.changed_on_disk {
+            self.state.notify_error(format!(
+                "{name} changed on disk since you opened it; save it on its own to overwrite it"
+            ));
+        }
+        for (name, why) in &report.failed {
+            self.state
+                .notify_error(format!("could not save {name}: {why}"));
+        }
+        if !report.untitled.is_empty() {
+            self.state.notify(format!(
+                "{} not saved: it has no file yet",
+                report.untitled.join(", ")
+            ));
+        }
+        let skipped = report.changed_on_disk.len() + report.failed.len() + report.untitled.len();
+        let message = match (report.saved, skipped) {
+            (0, 0) => "nothing to save".to_owned(),
+            (1, 0) => "saved 1 file".to_owned(),
+            (saved, 0) => format!("saved {saved} files"),
+            (0, _) => return,
+            (saved, _) => format!("saved {saved} of {} modified files", saved + skipped),
+        };
+        self.state.notify(message);
+    }
 }
