@@ -61,7 +61,7 @@ green       = "#b5cea8"   # numbers
 teal        = "#4ec9b0"   # types
 cyan        = "#9cdcfe"   # properties, parameters
 blue        = "#569cd6"   # keywords
-purple      = "#c586c0"   # control-flow keywords; the grammars do not tell them apart yet
+purple      = "#c586c0"   # control-flow keywords
 pink        = "#d16969"
 gold        = "#d7ba7d"   # escapes
 comment     = "#6a9955"
@@ -150,6 +150,15 @@ background = "@surface"
 # here; a capture with none of them is not colored.
 ["syntax.keyword"]
 text = "@blue"
+
+["syntax.keyword.control"]
+text = "@purple"
+
+["syntax.variable"]
+text = "@cyan"
+
+["syntax.namespace"]
+text = "@teal"
 
 ["syntax.function"]
 text = "@yellow"

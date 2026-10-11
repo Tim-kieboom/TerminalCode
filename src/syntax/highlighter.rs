@@ -68,11 +68,13 @@ impl Highlighter {
                 language: name,
                 source,
             })?;
+
         let query =
-            Query::new(&grammar, language.highlights()).map_err(|source| SyntaxError::Query {
+            Query::new(&grammar, &language.highlights()).map_err(|source| SyntaxError::Query {
                 language: name,
                 source,
             })?;
+
         let styles = styles_of(&query, theme);
         let inner = language
             .inner()
@@ -91,6 +93,7 @@ impl Highlighter {
                 })
             })
             .transpose()?;
+
         Ok(Self {
             language,
             parser,

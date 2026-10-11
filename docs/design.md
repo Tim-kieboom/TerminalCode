@@ -639,3 +639,16 @@ the embedded `defaults/default_theme.toml`; there is no user theme file.
   the layout is replaced and the keyboard goes back to the editor if the focused component is not in it; the keymap
   is replaced and a half-typed sequence dropped; the syntax worker is started again with the new theme and every
   document asks it for its colors afresh. Nothing is bound to it by default.
+
+## Extra highlight patterns (built)
+- The grammar's own highlight query is not enough for a VS Code look, so `Language::highlights` wraps it with the
+  editor's patterns: `before` the grammar's, which win where both capture exactly the same text (the first pattern
+  wins a tie), and `after`, which only fill in what the grammar leaves uncolored. Only Rust has any so far
+  (`RUST_BEFORE`, `RUST_AFTER` in `src/syntax/language.rs`).
+- Before: a called method (`x.foo()`, `x.foo::<T>()`) is `@function.method`, because the grammar captures the same text as `@property` first and wins the tie; `if else match loop while for in break continue return yield` are `@keyword.control` (the grammar has one
+  `@keyword` for all of them), and integer and float literals are `@number` (the grammar calls them
+  `@constant.builtin`). After: a path segment is `@namespace` (the grammar already takes capitalized ones for
+  types), and any identifier nothing else captured is `@variable`.
+- Theme slots `syntax.keyword.control` (purple), `syntax.namespace` (teal), `syntax.variable` (light blue) and the
+  existing `syntax.number`; a capture whose slots are missing falls back to its parent (`syntax.keyword`) or is left
+  plain, as before. Nix already had a `@variable` capture, which the new slot now colors.

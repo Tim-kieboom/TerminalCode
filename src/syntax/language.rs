@@ -2,6 +2,28 @@ use std::path::Path;
 
 use tree_sitter::Language as Grammar;
 
+/// Rust: control flow apart from the other keywords, numbers as numbers (the
+/// grammar calls them constants), and a called method as a method: the grammar
+/// has the same text as a property first, which wins the tie.
+const RUST_BEFORE: &str = r#"
+["break" "continue" "else" "for" "if" "in" "loop" "match" "return" "while" "yield"] @keyword.control
+(integer_literal) @number
+(float_literal) @number
+(call_expression function: (field_expression field: (field_identifier) @function.method))
+(generic_function function: (field_expression field: (field_identifier) @function.method))
+"#;
+
+/// Rust: the grammar leaves module names and plain variables uncolored. A path
+/// segment is a namespace (the grammar already takes the capitalized ones for
+/// types), and any identifier it has no capture for is a variable.
+const RUST_AFTER: &str = r#"
+(scoped_identifier path: (identifier) @namespace)
+(scoped_identifier path: (scoped_identifier name: (identifier) @namespace))
+(scoped_use_list path: (identifier) @namespace)
+(scoped_use_list path: (scoped_identifier name: (identifier) @namespace))
+(identifier) @variable
+"#;
+
 /// A language the editor can highlight; its grammar is compiled in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Language {
@@ -45,14 +67,28 @@ impl Language {
         }
     }
 
-    /// The tree-sitter query that names the highlightable parts of the tree.
-    pub(super) fn highlights(self) -> &'static str {
-        match self {
+    /// The tree-sitter query that names the highlightable parts of the tree: the
+    /// grammar's own, with the editor's patterns before and after it.
+    pub(super) fn highlights(self) -> String {
+        let grammar = match self {
             Self::Rust => tree_sitter_rust::HIGHLIGHTS_QUERY,
             Self::Toml => tree_sitter_toml_ng::HIGHLIGHTS_QUERY,
             Self::Json => tree_sitter_json::HIGHLIGHTS_QUERY,
             Self::Markdown => tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
             Self::Nix => tree_sitter_nix::HIGHLIGHTS_QUERY,
+        };
+        let (before, after) = self.extra_highlights();
+        format!("{before}\n{grammar}\n{after}")
+    }
+
+    /// Patterns the editor adds to a grammar's query: `(before, after)`. Where
+    /// two patterns capture exactly the same text the earlier one wins, so what
+    /// comes `before` overrides the grammar (keywords it lumps together) and
+    /// what comes `after` only fills in what the grammar leaves uncolored.
+    fn extra_highlights(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Rust => (RUST_BEFORE, RUST_AFTER),
+            _ => ("", ""),
         }
     }
 

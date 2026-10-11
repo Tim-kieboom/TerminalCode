@@ -121,6 +121,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Step 4 (done; `config::load_theme`, loaded in `lib.rs` before the terminal background is queried), user file `theme.toml` in the keymap/layout config directory (`config::load_theme`, `config::user_theme_path`): missing is silent; unreadable or invalid (parse error, unknown `@name`, bad color) falls back to the whole default theme with one `notify_error` that names the file; the embedded theme failing stays a startup panic
 - [x] Palette action `Config: Open Theme / Keymap / Layout` (F1): opens the user's file, making it from the built-in default if it is missing (`config::ConfigFile`, `App::open_config`)
 - [x] Palette action `Config: Reload`: reads theme, layout and keymap again and applies them (`App::reload`); plugins are restarted by it once they exist
+- [x] Rust highlighting: control-flow keywords, numbers, namespaces and variables (`RUST_BEFORE` and `RUST_AFTER` in `src/syntax/language.rs`); other languages have none yet
 - [ ] Reload automatically when one of the three files is saved (watch the config directory)
 
 ## Post-0.1.0 backlog

@@ -213,3 +213,132 @@ fn the_default_theme_colors_ordinary_rust() {
         );
     }
 }
+
+// ---- what the editor adds to the Rust grammar's query
+
+const EXTRAS: &str = r##"
+["syntax.keyword"]
+text = "red"
+["syntax.keyword.control"]
+text = "magenta"
+["syntax.variable"]
+text = "cyan"
+["syntax.namespace"]
+text = "yellow"
+["syntax.function"]
+text = "blue"
+["syntax.type"]
+text = "green"
+["syntax.number"]
+text = "white"
+["syntax.constant"]
+text = "gray"
+"##;
+
+/// The color each piece of `source` gets, by its text, left to right.
+fn colors(source: &str) -> Vec<(String, Option<Color>)> {
+    let (highlighter, text) = parsed(source, &theme(EXTRAS));
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
+    painted(&text, &spans)
+}
+
+fn color_of(source: &str, piece: &str) -> Option<Color> {
+    colors(source)
+        .into_iter()
+        .find(|(text, _)| text == piece)
+        .unwrap_or_else(|| panic!("no span `{piece}` in {:?}", colors(source)))
+        .1
+}
+
+const MAIN: &str = "fn main() {\n    let paths = parse();\n    if paths.is_empty() { return; }\n    terminal::init(paths);\n}\n";
+
+#[test]
+fn a_plain_variable_is_a_variable() {
+    assert_eq!(color_of(MAIN, "paths"), Some(Color::Cyan));
+}
+
+#[test]
+fn control_flow_keywords_are_apart_from_the_other_keywords() {
+    assert_eq!(color_of(MAIN, "if"), Some(Color::Magenta));
+    assert_eq!(color_of(MAIN, "return"), Some(Color::Magenta));
+    assert_eq!(color_of(MAIN, "fn"), Some(Color::Red));
+    assert_eq!(color_of(MAIN, "let"), Some(Color::Red));
+}
+
+#[test]
+fn what_the_grammar_already_colors_keeps_its_color() {
+    // `main` and `parse` are functions, not variables, though they are identifiers too.
+    assert_eq!(color_of(MAIN, "main"), Some(Color::Blue));
+    assert_eq!(color_of(MAIN, "parse"), Some(Color::Blue));
+    assert_eq!(color_of(MAIN, "init"), Some(Color::Blue));
+}
+
+#[test]
+fn a_module_in_a_path_is_a_namespace_not_a_variable() {
+    assert_eq!(color_of(MAIN, "terminal"), Some(Color::Yellow));
+}
+
+#[test]
+fn a_capitalized_path_segment_is_still_a_type() {
+    let source = "fn f() { Vec::new(); }";
+
+    assert_eq!(color_of(source, "Vec"), Some(Color::Green));
+}
+
+#[test]
+fn numbers_are_numbers_not_constants() {
+    let source = "fn f() { let a = 1; let b = 2.5; }";
+
+    assert_eq!(color_of(source, "1"), Some(Color::White));
+    assert_eq!(color_of(source, "2.5"), Some(Color::White));
+}
+
+#[test]
+fn the_new_captures_fall_back_when_the_theme_lacks_their_slot() {
+    // Only `syntax.keyword` is styled: control flow takes it, and a variable
+    // (which has no slot to fall back to) is left plain.
+    let theme = theme("[\"syntax.keyword\"]\ntext = \"red\"\n");
+    let (highlighter, text) = parsed(MAIN, &theme);
+
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
+
+    let colored = painted(&text, &spans);
+    assert!(colored.contains(&("if".to_owned(), Some(Color::Red))));
+    assert!(!colored.iter().any(|(piece, _)| piece == "paths"));
+}
+
+#[test]
+fn the_extra_patterns_are_part_of_a_valid_query_for_every_language() {
+    for language in [
+        Language::Rust,
+        Language::Toml,
+        Language::Json,
+        Language::Markdown,
+        Language::Nix,
+    ] {
+        assert!(
+            Highlighter::new(language, &Theme::default()).is_ok(),
+            "{language:?}"
+        );
+    }
+}
+
+#[test]
+fn a_called_method_is_a_function_but_a_field_is_still_a_property() {
+    let theme =
+        theme("[\"syntax.function\"]\ntext = \"blue\"\n[\"syntax.property\"]\ntext = \"cyan\"\n");
+    let source = "fn f(p: P) { p.is_empty(); p.len; p.iter::<u8>(); }";
+    let (highlighter, text) = parsed(source, &theme);
+
+    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
+
+    let colored = painted(&text, &spans);
+    let color_of = |piece: &str| colored.iter().find(|(text, _)| text == piece).unwrap().1;
+    assert_eq!(color_of("is_empty"), Some(Color::Blue));
+    assert_eq!(
+        color_of("iter"),
+        Some(Color::Blue),
+        "a call with generics too"
+    );
+    assert_eq!(color_of("len"), Some(Color::Cyan), "a field is not a call");
+}
