@@ -42,15 +42,18 @@ fn the_palette_lists_the_three_config_files() {
 }
 
 #[test]
-fn a_missing_file_is_made_from_the_default_and_opened() {
+fn a_missing_theme_file_is_made_from_the_template_and_opened() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_with_config_dir(dir.path());
 
     run_from_palette(&mut app, "Open Theme");
 
     let path = dir.path().join("theme.toml");
-    assert_eq!(fs::read_to_string(&path).unwrap(), DEFAULT_THEME_TOML);
-    assert_eq!(editor_text(&app), DEFAULT_THEME_TOML);
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        crate::config::THEME_OVERLAY_TEMPLATE
+    );
+    assert_eq!(editor_text(&app), crate::config::THEME_OVERLAY_TEMPLATE);
     assert_eq!(app.state().editor().buffer().path(), Some(path.as_path()));
 }
 
@@ -907,24 +910,19 @@ fn open_theme_with_a_built_in_theme_opens_the_overlay() {
 }
 
 #[test]
-fn a_new_overlay_starts_from_the_built_in_theme_that_is_chosen() {
+fn a_new_overlay_does_not_hide_the_built_in_theme_that_is_chosen() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_with_config_dir(dir.path());
     run_from_palette(&mut app, "Theme: Light");
 
     run_from_palette(&mut app, "Open Theme");
 
-    assert_eq!(editor_text(&app), crate::ui::theme::LIGHT_THEME_TOML);
-}
-
-#[test]
-fn a_new_overlay_with_the_dark_theme_starts_from_the_dark_one() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-
-    run_from_palette(&mut app, "Open Theme");
-
-    assert_eq!(editor_text(&app), DEFAULT_THEME_TOML);
+    let overlay = editor_text(&app);
+    assert_eq!(overlay, crate::config::THEME_OVERLAY_TEMPLATE);
+    assert!(
+        crate::ui::theme::Theme::layered_over(ThemeVariant::Light, &overlay).unwrap()
+            == Theme::built_in(ThemeVariant::Light)
+    );
 }
 
 #[test]
@@ -953,4 +951,66 @@ fn an_installed_theme_whose_file_vanished_falls_back_to_the_overlay() {
     run_from_palette(&mut app, "Open Theme");
 
     assert_eq!(editor_text(&app), "# mine\n");
+}
+
+// ---- an overlay must not undo the choice of theme
+
+#[test]
+fn switching_themes_works_after_open_theme_made_the_overlay() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Open Theme");
+
+    run_from_palette(&mut app, "Theme: Light");
+
+    assert_eq!(*app.state().theme(), Theme::built_in(ThemeVariant::Light));
+}
+
+#[test]
+fn an_overlay_that_is_a_copy_of_the_dark_theme_does_not_pin_it() {
+    // What older versions of Open Theme wrote.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "theme.toml", DEFAULT_THEME_TOML);
+    let mut app = app_with_config_dir(dir.path());
+
+    run_from_palette(&mut app, "Theme: Light");
+
+    assert_eq!(*app.state().theme(), Theme::built_in(ThemeVariant::Light));
+}
+
+#[test]
+fn a_copy_of_the_dark_theme_does_not_hide_an_installed_theme_either() {
+    let dir = tempfile::tempdir().unwrap();
+    install(dir.path(), "solar", GREEN_ACCENT);
+    write(dir.path(), "theme.toml", DEFAULT_THEME_TOML);
+    let mut app = app_with_config_dir(dir.path());
+
+    run_from_palette(&mut app, "Theme: solar");
+
+    assert_eq!(accent(&app), Some(Color::Rgb(0, 255, 0)));
+}
+
+#[test]
+fn an_overlay_that_changes_something_is_still_applied_over_the_light_theme() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "theme.toml",
+        &format!("{DEFAULT_THEME_TOML}\n# edited\n[\"my.slot\"]\ntext = \"red\"\n"),
+    );
+    let mut app = app_with_config_dir(dir.path());
+
+    run_from_palette(&mut app, "Theme: Light");
+
+    // A file that differs from the built-in one is the user's, and applies in full.
+    assert_eq!(app.state().theme().style("my.slot").fg, Some(Color::Red));
+    assert_ne!(*app.state().theme(), Theme::built_in(ThemeVariant::Light));
+}
+
+#[test]
+fn the_overlay_template_is_a_valid_theme_that_changes_nothing() {
+    for variant in [ThemeVariant::Dark, ThemeVariant::Light] {
+        let theme = Theme::layered_over(variant, crate::config::THEME_OVERLAY_TEMPLATE).unwrap();
+        assert_eq!(theme, Theme::built_in(variant));
+    }
 }

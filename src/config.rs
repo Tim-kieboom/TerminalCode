@@ -159,8 +159,8 @@ pub(crate) fn load_theme_for(variant: ThemeVariant, user_file: Option<&Path>) ->
     };
 
     let source = match read_user_file(path) {
-        Ok(Some(source)) => source,
-        Ok(None) => return fallback(None),
+        Ok(Some(source)) if !is_stock_copy(&source) => source,
+        Ok(_) => return fallback(None),
         Err(error) => return fallback(Some(unusable_theme(path, &error))),
     };
 
@@ -288,6 +288,7 @@ pub(crate) fn load_chosen_theme(
     for (path, kind) in [(Some(installed), "theme"), (user_file, "theme")] {
         let Some(path) = path else { continue };
         match read_user_file(path) {
+            Ok(Some(source)) if is_stock_copy(&source) => {}
             Ok(Some(source)) => {
                 let mut trial: Vec<&str> = layers.iter().map(String::as_str).collect();
                 trial.push(&source);
@@ -310,3 +311,27 @@ pub(crate) fn load_chosen_theme(
 fn unusable_layer(path: &Path, kind: &str, error: &dyn std::fmt::Display) -> String {
     format!("{}: {error}; leaving that {kind} out", path.display())
 }
+
+/// Whether a theme file is only a copy of a built-in theme, as the file made
+/// by older versions of "Config: Open Theme" was. Laid over the chosen theme it
+/// would give every slot back its value in the built-in theme and so undo the
+/// choice, so it counts as no overlay at all.
+fn is_stock_copy(source: &str) -> bool {
+    [ThemeVariant::Dark, ThemeVariant::Light]
+        .iter()
+        .any(|variant| variant.source().trim() == source.trim())
+}
+
+/// What a new `theme.toml` starts with: nothing that would hide the theme in
+/// use, and a hint at what to write.
+pub(crate) const THEME_OVERLAY_TEMPLATE: &str = "\
+# Your changes to the theme in use (choose one with \"Theme: Choose...\").
+# Whatever is written here is laid over that theme, so only write what differs.
+# Slots and colors are described at the top of the built-in themes. For example:
+#
+# [palette]
+# accent = \"#00ff00\"
+#
+# [\"editor.selection\"]
+# background = \"#334455\"
+";

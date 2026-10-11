@@ -30,8 +30,10 @@ impl App {
         }
 
         let path = file.path_in(dir);
+        // A new theme file holds only what the user changes, not a copy of a
+        // built-in theme, which would hide whichever theme is chosen.
         let content = match file {
-            ConfigFile::Theme => self.theme_variant.source(),
+            ConfigFile::Theme => config::THEME_OVERLAY_TEMPLATE,
             _ => file.default_content(),
         };
         let created = file
