@@ -216,6 +216,7 @@ impl App {
             Action::Rename => self.rename_selected(),
             Action::MoveEntry => self.move_selected(),
             Action::ContextMenu => self.open_context_menu(),
+            Action::RevealActiveFile => self.reveal_active_file(),
             Action::OpenConfig(file) => self.open_config(file)?,
             Action::Reload => self.reload(),
             Action::UseTheme(variant) => self.use_theme(variant),

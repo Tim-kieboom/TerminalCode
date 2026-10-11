@@ -120,6 +120,10 @@ modifiers = ["bold"]
 ["explorer.file"]
 text = "@text"
 
+["explorer.active"]
+text = "@accent_text"
+modifiers = ["bold"]
+
 ["explorer.selected"]
 background = "@accent_bg"
 

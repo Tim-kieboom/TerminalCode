@@ -34,6 +34,9 @@ pub(super) struct Node {
     path: PathBuf,
     kind: NodeKind,
     expanded: bool,
+    /// A link to a folder that holds the link itself: opening it would list the
+    /// same entries again, level after level.
+    looped: bool,
     /// `None` until the directory is first opened.
     children: Option<Vec<Node>>,
 }
@@ -64,6 +67,8 @@ pub(crate) struct Row {
     pub(crate) path: PathBuf,
     pub(crate) kind: NodeKind,
     pub(crate) expanded: bool,
+    /// See [`Node`]; such a folder cannot be opened.
+    pub(crate) looped: bool,
 }
 
 impl Node {
@@ -78,6 +83,7 @@ impl Node {
             path: path.to_path_buf(),
             kind: NodeKind::Dir,
             expanded: false,
+            looped: false,
             children: None,
         };
         root.expand()?;
@@ -100,10 +106,12 @@ impl Node {
     }
 
     fn entry(path: PathBuf) -> Self {
-        let kind = match path.is_dir() {
+        let is_dir = path.is_dir();
+        let kind = match is_dir {
             true => NodeKind::Dir,
             false => NodeKind::File,
         };
+        let looped = is_dir && is_loop(&path);
         let name = path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -113,6 +121,7 @@ impl Node {
             path,
             kind,
             expanded: false,
+            looped,
             children: None,
         }
     }
@@ -121,7 +130,7 @@ impl Node {
     /// watched, so what was listed when it was closed may be out of date. What
     /// was open inside it stays open. Nothing changes if the read fails.
     fn expand(&mut self) -> Result<(), ExplorerError> {
-        if self.kind != NodeKind::Dir {
+        if self.kind != NodeKind::Dir || self.looped {
             return Ok(());
         }
         let fresh = read_children(&self.path)?;
@@ -199,20 +208,26 @@ impl Node {
         }
         merged
     }
-    /// Appends this node and, if it is open, everything below it.
-    pub(super) fn push_rows(&self, depth: usize, rows: &mut Vec<Row>) {
+    /// Appends this node and, if it is open, everything below it. Names that
+    /// start with a dot are left out when `hide_dotfiles` is set (the root is
+    /// always listed).
+    pub(super) fn push_rows(&self, depth: usize, hide_dotfiles: bool, rows: &mut Vec<Row>) {
         rows.push(Row {
             depth,
             name: self.name.clone(),
             path: self.path.clone(),
             kind: self.kind,
             expanded: self.expanded,
+            looped: self.looped,
         });
         if !self.expanded {
             return;
         }
         for child in self.children.iter().flatten() {
-            child.push_rows(depth + 1, rows);
+            if hide_dotfiles && child.name.starts_with('.') {
+                continue;
+            }
+            child.push_rows(depth + 1, hide_dotfiles, rows);
         }
     }
 }
@@ -246,4 +261,17 @@ fn read_children(dir: &Path) -> Result<Vec<Node>, ExplorerError> {
         )
     });
     Ok(children)
+}
+
+/// Whether `path`, a link, points at a folder that contains the link: opening
+/// it would show the folder it is in, again and again.
+fn is_loop(path: &Path) -> bool {
+    let is_link = std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_symlink());
+    if !is_link {
+        return false;
+    }
+    let Some(parent) = path.parent() else {
+        return false;
+    };
+    canonical(parent).starts_with(canonical(path))
 }

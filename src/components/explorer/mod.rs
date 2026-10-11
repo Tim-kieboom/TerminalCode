@@ -34,6 +34,8 @@ pub(crate) enum ExplorerCommand {
     Open,
     /// Reads the open directories again.
     Refresh,
+    /// Shows or hides the entries whose names start with a dot.
+    ToggleHidden,
 }
 
 #[derive(Debug, Default)]
@@ -45,6 +47,8 @@ pub(crate) struct Explorer {
     /// Whether the next draw scrolls to keep the selection in view; the wheel
     /// turns it off so scrolling does not snap back.
     follow_selection: bool,
+    /// Entries whose names start with a dot are left out of the rows.
+    hide_dotfiles: bool,
     /// Changes whenever the rows are rebuilt, i.e. when directories open or close.
     version: u64,
     /// Screen areas as of the last layout pass.
@@ -142,6 +146,7 @@ impl Explorer {
             ExplorerCommand::Collapse => self.collapse_selected(),
             ExplorerCommand::Open => return self.open_selected(),
             ExplorerCommand::Refresh => self.refresh()?,
+            ExplorerCommand::ToggleHidden => self.toggle_hidden(),
         }
         Ok(None)
     }
@@ -224,6 +229,18 @@ impl Explorer {
             .min(self.max_scroll());
     }
 
+    /// Hides or shows the dot entries, keeping the selection on its entry when
+    /// that is still listed.
+    fn toggle_hidden(&mut self) {
+        self.hide_dotfiles = !self.hide_dotfiles;
+        self.rebuild_keeping_selection();
+    }
+
+    /// Whether the dot entries are left out.
+    pub(crate) fn hides_dotfiles(&self) -> bool {
+        self.hide_dotfiles
+    }
+
     fn max_scroll(&self) -> usize {
         self.rows
             .len()
@@ -234,7 +251,7 @@ impl Explorer {
         let Some(row) = self.selected_row().cloned() else {
             return Ok(());
         };
-        if row.kind != NodeKind::Dir {
+        if row.kind != NodeKind::Dir || row.looped {
             return Ok(());
         }
         if row.expanded {
@@ -342,7 +359,7 @@ impl Explorer {
         self.version += 1;
         self.rows.clear();
         if let Some(root) = &self.root {
-            root.push_rows(0, &mut self.rows);
+            root.push_rows(0, self.hide_dotfiles, &mut self.rows);
         }
     }
 }

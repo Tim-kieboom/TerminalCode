@@ -49,6 +49,8 @@ pub(crate) enum Action {
     MoveEntry,
     /// Opens the context menu on the explorer's selected row.
     ContextMenu,
+    /// Shows the file of the active tab in the explorer and selects it.
+    RevealActiveFile,
     /// Reads the theme, layout and keymap files again and applies them.
     Reload,
     /// Switches to a built-in theme (the user's theme file stays laid over it).
@@ -173,6 +175,8 @@ impl Action {
             Self::Rename => "Explorer: Rename",
             Self::MoveEntry => "Explorer: Move",
             Self::ContextMenu => "Explorer: Context Menu",
+            Self::RevealActiveFile => "Explorer: Reveal Active File",
+            Self::Explorer(ExplorerCommand::ToggleHidden) => "Explorer: Toggle Hidden Files",
             Self::OpenConfig(ConfigFile::Theme) => "Config: Open Theme",
             Self::OpenConfig(ConfigFile::Keymap) => "Config: Open Keymap",
             Self::OpenConfig(ConfigFile::Layout) => "Config: Open Layout",
@@ -240,6 +244,8 @@ impl Action {
             Self::Rename,
             Self::MoveEntry,
             Self::ContextMenu,
+            Self::RevealActiveFile,
+            Self::Explorer(ExplorerCommand::ToggleHidden),
             Self::OpenConfig(ConfigFile::Theme),
             Self::OpenConfig(ConfigFile::Keymap),
             Self::OpenConfig(ConfigFile::Layout),

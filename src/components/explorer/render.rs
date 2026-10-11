@@ -44,21 +44,26 @@ impl Render for Explorer {
             return;
         }
 
+        let active_path = state.editor().buffer().path();
         let lines: Vec<Line> = self
             .rows()
             .iter()
             .enumerate()
             .skip(self.scroll)
             .take(usize::from(inner.height))
-            .map(|(index, row)| line(row, index == self.selected, focused, theme))
+            .map(|(index, row)| {
+                let active = active_path.is_some_and(|path| path == row.path);
+                line(row, index == self.selected, active, focused, theme)
+            })
             .collect();
 
         frame.render_widget(Paragraph::new(lines), inner);
     }
 }
 
-fn line<'a>(row: &Row, selected: bool, focused: bool, theme: &Theme) -> Line<'a> {
+fn line<'a>(row: &Row, selected: bool, active: bool, focused: bool, theme: &Theme) -> Line<'a> {
     let marker = match (row.kind, row.expanded) {
+        (NodeKind::Dir, _) if row.looped => "↻ ",
         (NodeKind::Dir, true) => "▾ ",
         (NodeKind::Dir, false) => "▸ ",
         (NodeKind::File, _) => "  ",
@@ -69,9 +74,14 @@ fn line<'a>(row: &Row, selected: bool, focused: bool, theme: &Theme) -> Line<'a>
         NodeKind::Dir => "explorer.dir",
         NodeKind::File => "explorer.file",
     };
+    // The file open in the editor stands out from the rest.
+    let mut name_style = theme.style(kind_slot);
+    if active {
+        name_style = name_style.patch(theme.style("explorer.active"));
+    }
     let line = Line::from(vec![
         Span::styled(guides, theme.style("explorer.guide")),
-        Span::styled(text, theme.style(kind_slot)),
+        Span::styled(text, name_style),
     ]);
     if !selected {
         return line;

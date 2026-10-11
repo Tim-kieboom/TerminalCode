@@ -120,3 +120,17 @@ fn the_root_row_has_no_line() {
     let inside_border: String = root.trim_start_matches('"').chars().skip(1).collect();
     assert!(inside_border.starts_with('▾'), "{screen}");
 }
+
+#[cfg(unix)]
+#[test]
+fn a_link_that_loops_gets_its_own_marker() {
+    let dir = tempfile::tempdir().unwrap();
+    std::os::unix::fs::symlink(".", dir.path().join("here")).unwrap();
+    std::fs::create_dir(dir.path().join("real")).unwrap();
+    let mut explorer = Explorer::open(dir.path()).unwrap();
+
+    let screen = draw(&mut explorer, 30, 6);
+
+    assert!(screen.contains("↻ here"), "{screen}");
+    assert!(screen.contains("▸ real"), "{screen}");
+}

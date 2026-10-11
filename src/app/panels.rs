@@ -1,13 +1,16 @@
 //! The explorer and the other panels that can be shown, hidden or given the
 //! keyboard.
 
+use std::path::Path;
+
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
 use crate::app::state::Focus;
-use crate::components::explorer::ExplorerCommand;
+use crate::components::explorer::{Explorer, ExplorerCommand};
 use crate::components::{ComponentKind, PluginViewId};
 use crate::error::IdeResult;
+use crate::paths::canonical;
 
 impl App {
     /// Moves the keyboard to the explorer (showing it if it was hidden), or
@@ -42,6 +45,40 @@ impl App {
                 self.state.set_focus(Focus::Explorer);
             }
         }
+    }
+
+    /// Shows the active tab's file in the explorer, selects it and gives the
+    /// explorer the keyboard.
+    pub(super) fn reveal_active_file(&mut self) {
+        let Some(path) = self.state.editor().buffer().path().map(Path::to_path_buf) else {
+            self.state.notify("this file has no path yet");
+            return;
+        };
+        if !self.state.layout().contains(&ComponentKind::Explorer) {
+            self.state.notify("the layout has no explorer");
+            return;
+        }
+        self.state.show_explorer();
+
+        // The path may be spelled relative to where the editor was started.
+        let listed =
+            |explorer: &Explorer, path: &Path| explorer.rows().iter().any(|row| row.path == path);
+        let mut shown = path.clone();
+        if let Err(error) = self.state.explorer_mut().reveal(&shown) {
+            self.state.notify_error(error.to_string());
+        }
+        if !listed(self.state.explorer(), &shown) {
+            shown = canonical(&path);
+            if let Err(error) = self.state.explorer_mut().reveal(&shown) {
+                self.state.notify_error(error.to_string());
+            }
+        }
+        if !listed(self.state.explorer(), &shown) {
+            self.state
+                .notify(format!("{} is not in the project", path.display()));
+            return;
+        }
+        self.state.set_focus(Focus::Explorer);
     }
 
     pub(super) fn toggle_plugin_view(&mut self, id: &str) {

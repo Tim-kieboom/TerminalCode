@@ -428,3 +428,169 @@ fn running_focus_from_the_palette_moves_the_keyboard() {
 
     assert_eq!(app.state().focus(), Focus::Explorer);
 }
+
+// ---- hidden entries, the active file
+
+fn row_names(app: &App) -> Vec<String> {
+    app.state()
+        .explorer()
+        .rows()
+        .iter()
+        .map(|row| row.name.clone())
+        .collect()
+}
+
+/// Runs the palette entry named by `query`.
+fn run_from_palette(app: &mut App, query: &str) {
+    press(app, KeyCode::F(1));
+    type_str(app, query);
+    press(app, KeyCode::Enter);
+}
+
+#[test]
+fn the_dot_key_hides_and_shows_dot_entries() {
+    let dir = project();
+    fs::write(dir.path().join(".env"), "").unwrap();
+    let mut app = app_in(dir.path());
+    ctrl(&mut app, 'b');
+    assert!(row_names(&app).contains(&".env".to_owned()));
+
+    press(&mut app, KeyCode::Char('.'));
+    assert!(!row_names(&app).contains(&".env".to_owned()));
+
+    press(&mut app, KeyCode::Char('.'));
+    assert!(row_names(&app).contains(&".env".to_owned()));
+}
+
+#[test]
+fn the_dot_key_types_a_dot_in_the_editor() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+
+    press(&mut app, KeyCode::Char('.'));
+
+    assert_eq!(editor_text(&app), ".");
+}
+
+#[test]
+fn the_palette_toggles_hidden_files() {
+    let dir = project();
+    fs::write(dir.path().join(".env"), "").unwrap();
+    let mut app = app_in(dir.path());
+
+    run_from_palette(&mut app, "Toggle Hidden");
+
+    assert!(!row_names(&app).contains(&".env".to_owned()));
+}
+
+#[test]
+fn reveal_active_file_opens_the_folders_and_selects_the_file() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&dir.path().join("src/main.rs"))
+        .unwrap();
+    assert!(!row_names(&app).contains(&"main.rs".to_owned()));
+
+    run_from_palette(&mut app, "Reveal Active");
+
+    assert_eq!(
+        app.state().explorer().selected_row().unwrap().name,
+        "main.rs"
+    );
+    assert_eq!(app.state().focus(), Focus::Explorer);
+}
+
+#[test]
+fn reveal_active_file_shows_a_hidden_explorer() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&dir.path().join("a.txt"))
+        .unwrap();
+    app.state_mut().hide_explorer();
+
+    run_from_palette(&mut app, "Reveal Active");
+
+    assert!(app.state().is_visible(&ComponentKind::Explorer));
+    assert_eq!(app.state().explorer().selected_row().unwrap().name, "a.txt");
+}
+
+#[test]
+fn reveal_active_file_for_a_file_outside_the_project_says_so() {
+    let dir = project();
+    let outside = project();
+    let mut app = app_in(dir.path());
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&outside.path().join("a.txt"))
+        .unwrap();
+
+    run_from_palette(&mut app, "Reveal Active");
+
+    assert!(
+        app.state()
+            .notifications()
+            .texts()
+            .iter()
+            .any(|text| text.contains("not in the project"))
+    );
+    assert_eq!(app.state().focus(), Focus::Editor);
+}
+
+#[test]
+fn reveal_active_file_for_a_file_without_a_path_says_so() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+    ctrl(&mut app, 'n');
+
+    run_from_palette(&mut app, "Reveal Active");
+
+    assert!(
+        app.state()
+            .notifications()
+            .texts()
+            .iter()
+            .any(|text| text.contains("no path"))
+    );
+}
+
+#[test]
+fn the_file_open_in_the_editor_is_drawn_with_the_active_style() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&dir.path().join("b.txt"))
+        .unwrap();
+    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+
+    let buffer = terminal.backend().buffer().clone();
+    let theme = app.state().theme();
+    let style_of = |text: &str| {
+        let area = buffer.area;
+        for y in 0..area.height {
+            // Only the explorer, which is the left part of the screen.
+            let line: String = (0..area.width.min(24))
+                .map(|x| buffer[(x, y)].symbol())
+                .collect();
+            if let Some(column) = line.find(text) {
+                let x = line[..column].chars().count() as u16;
+                return buffer[(x, y)].style();
+            }
+        }
+        panic!("{text} is not on the screen");
+    };
+
+    assert_eq!(
+        style_of("b.txt").fg,
+        theme.style("explorer.active").fg,
+        "the open file is marked"
+    );
+    assert_ne!(style_of("a.txt").fg, theme.style("explorer.active").fg);
+}
