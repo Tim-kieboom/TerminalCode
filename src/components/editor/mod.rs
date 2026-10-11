@@ -58,6 +58,25 @@ impl<'a> EditorRef<'a> {
         self.view.selections()
     }
 
+    /// The screen cell of the cursor, as of the last layout pass; `None` when it
+    /// is scrolled out of view or the editor has not been drawn.
+    pub(crate) fn cursor_cell(&self) -> Option<ratatui::layout::Position> {
+        let area = self.view.text_area()?;
+        let head = self.view.selections().primary().head();
+        let content = self.buffer.line_content(head.line).ok()?;
+        let column = text_layout::display_column(&content, head.column);
+        let scroll = self.view.scroll();
+        let row = head.line.checked_sub(scroll.top)?;
+        let column = column.checked_sub(scroll.left)?;
+        if row >= usize::from(area.height) || column >= usize::from(area.width) {
+            return None;
+        }
+        Some(ratatui::layout::Position::new(
+            area.x + column as u16,
+            area.y + row as u16,
+        ))
+    }
+
     #[cfg(test)]
     pub(crate) fn scroll(&self) -> Scroll {
         self.view.scroll()

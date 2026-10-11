@@ -595,6 +595,45 @@ impl Workspace {
         })
     }
 
+    /// A right button press: focuses the pane under the pointer and, if that is
+    /// on the text, puts the cursor there (unless it is inside the selection).
+    /// Returns whether the press was on text, where a context menu belongs.
+    pub(crate) fn context_press(
+        &mut self,
+        column: u16,
+        row: u16,
+    ) -> Result<bool, crate::buffer::BufferError> {
+        let Some(index) = self.pane_at(column, row) else {
+            return Ok(false);
+        };
+        self.focused = self.panes[index].id;
+        if self.panes[index].tabs.is_empty()
+            || !contains(self.panes[index].editor_area, column, row)
+        {
+            return Ok(false);
+        }
+        self.with_editor_in(index, |editor| editor.mouse_context(column, row))
+    }
+
+    /// A middle button press on the text of a pane: focuses it and puts the
+    /// cursor there. Returns whether it was on text.
+    pub(crate) fn place_cursor_at(
+        &mut self,
+        column: u16,
+        row: u16,
+    ) -> Result<bool, crate::buffer::BufferError> {
+        let Some(index) = self.pane_at(column, row) else {
+            return Ok(false);
+        };
+        self.focused = self.panes[index].id;
+        if self.panes[index].tabs.is_empty()
+            || !contains(self.panes[index].editor_area, column, row)
+        {
+            return Ok(false);
+        }
+        self.with_editor_in(index, |editor| editor.mouse_place_cursor(column, row))
+    }
+
     /// Runs `f` on the editor of the pane under a screen cell, if any,
     /// without moving focus (the wheel scrolls what it is over).
     pub(crate) fn with_editor_at<R>(

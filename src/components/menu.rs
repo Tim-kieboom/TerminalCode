@@ -68,14 +68,24 @@ pub(crate) struct Menu {
     /// The screen cell the menu hangs from: the row it was opened on. The menu
     /// opens just below it, or just above when there is no room below.
     anchor: Position,
-    /// What the menu was opened on.
-    target: PathBuf,
+    /// The file or folder the menu was opened on; `None` for a menu on the
+    /// editor, whose actions work on what the editor has selected.
+    target: Option<PathBuf>,
     /// Where it was last placed on screen; empty until the first draw.
     area: Rect,
 }
 
 impl Menu {
     pub(crate) fn new(entries: Vec<Entry>, anchor: Position, target: PathBuf) -> Self {
+        Self::with_target(entries, anchor, Some(target))
+    }
+
+    /// A menu on the editor text rather than on a path.
+    pub(crate) fn on_editor(entries: Vec<Entry>, anchor: Position) -> Self {
+        Self::with_target(entries, anchor, None)
+    }
+
+    fn with_target(entries: Vec<Entry>, anchor: Position, target: Option<PathBuf>) -> Self {
         let selected = entries
             .iter()
             .position(|entry| matches!(entry, Entry::Item { .. }))
@@ -99,8 +109,8 @@ impl Menu {
         self.selected
     }
 
-    pub(crate) fn target(&self) -> &Path {
-        &self.target
+    pub(crate) fn target(&self) -> Option<&Path> {
+        self.target.as_deref()
     }
 
     /// The action of the selected item.

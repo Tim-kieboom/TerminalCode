@@ -101,7 +101,6 @@ impl Action {
                 | Self::TerminalNextTab
                 | Self::TerminalPreviousTab
                 | Self::TerminalCloseTab
-                | Self::ContextMenu
                 | Self::CloseTab
                 | Self::NextTab
                 | Self::PreviousTab

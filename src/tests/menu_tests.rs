@@ -99,7 +99,7 @@ fn shift_f10_opens_a_menu_on_the_selected_row() {
     open_menu(&mut app);
 
     let menu = app.state().menu().unwrap();
-    assert_eq!(menu.target(), dir.path().join("a.txt"));
+    assert_eq!(menu.target(), Some(dir.path().join("a.txt").as_path()));
     assert_eq!(
         labels(&app),
         ["New File", "New Folder", "Rename", "---", "Delete"]
@@ -303,7 +303,12 @@ fn cell_of(terminal: &Terminal<TestBackend>, text: &str) -> (u16, u16) {
 
 fn target_name(app: &App) -> String {
     let menu = app.state().menu().unwrap();
-    menu.target().file_name().unwrap().to_string_lossy().into()
+    menu.target()
+        .unwrap()
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into()
 }
 
 #[test]
@@ -329,7 +334,7 @@ fn a_right_click_on_empty_space_opens_the_menu_on_the_project_folder() {
     right_click(&mut app, (body.x + 2, body.bottom() - 2));
     draw(&mut app, &mut terminal);
 
-    assert_eq!(app.state().menu().unwrap().target(), dir.path());
+    assert_eq!(app.state().menu().unwrap().target(), Some(dir.path()));
     assert_eq!(labels(&app), ["New File", "New Folder"]);
 }
 

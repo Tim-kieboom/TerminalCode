@@ -41,7 +41,8 @@ impl Editor {
     }
 
     /// A left button press at a screen cell. `extend` (Shift) moves the head
-    /// of the selection instead of starting a new one.
+    /// of the selection instead of starting a new one. A press on a line
+    /// number selects the line, and a drag from there goes on by whole lines.
     pub(crate) fn mouse_press(
         &mut self,
         column: u16,
@@ -50,6 +51,10 @@ impl Editor {
         clicks: Clicks,
     ) -> Result<(), BufferError> {
         self.view.drag_anchor = None;
+        self.view.drag_lines = None;
+        if let Some(line) = self.gutter_line_at(column, row) {
+            return self.press_line_number(line, extend);
+        }
         let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
             return Ok(());
         };
@@ -68,9 +73,35 @@ impl Editor {
         Ok(())
     }
 
+    /// The line whose number is at a screen cell, if the cell is on one.
+    fn gutter_line_at(&self, column: u16, row: u16) -> Option<usize> {
+        let (gutter, text) = (self.view.gutter?, self.view.text_area?);
+        if !gutter.contains(ScreenPosition::new(column, row)) {
+            return None;
+        }
+        let line = self.view.scroll.top + usize::from(row - text.y);
+        (line < self.buffer.len_lines()).then_some(line)
+    }
+
+    fn press_line_number(&mut self, line: usize, extend: bool) -> Result<(), BufferError> {
+        self.view.last_edit = None;
+        let whole = self.line_at(line)?;
+        let selection = match extend {
+            // Shift keeps the old anchor and takes the line in.
+            true => Selection::new(self.view.selections.primary().anchor(), whole.head()),
+            false => whole,
+        };
+        self.view.drag_lines = Some(selection.anchor().line.min(line));
+        self.view.selections = Selections::single(selection);
+        Ok(())
+    }
+
     /// The mouse moved with the button held: extends the selection from where
     /// the press started. Dragging outside the text selects up to its edge.
     pub(crate) fn mouse_drag(&mut self, column: u16, row: u16) -> Result<(), BufferError> {
+        if let Some(first) = self.view.drag_lines {
+            return self.drag_lines_to(first, column, row);
+        }
         let Some(anchor) = self.view.drag_anchor else {
             return Ok(());
         };
@@ -81,8 +112,56 @@ impl Editor {
         Ok(())
     }
 
+    /// Selects whole lines from `first` to the line under the pointer.
+    fn drag_lines_to(&mut self, first: usize, column: u16, row: u16) -> Result<(), BufferError> {
+        let Some(position) = self.position_at(column, row, Outside::Clamp)? else {
+            return Ok(());
+        };
+        let (start, end) = (self.line_at(first)?, self.line_at(position.line)?);
+        let selection = if position.line >= first {
+            Selection::new(start.start(), end.end())
+        } else {
+            Selection::new(start.end(), end.start())
+        };
+        self.view.selections = Selections::single(selection);
+        Ok(())
+    }
+
     pub(crate) fn mouse_release(&mut self) {
         self.view.drag_anchor = None;
+        self.view.drag_lines = None;
+    }
+
+    /// A right button press at a screen cell: the cursor goes there unless the
+    /// press is inside the selection, which a context menu is about. False when
+    /// the cell is not in the text.
+    pub(crate) fn mouse_context(&mut self, column: u16, row: u16) -> Result<bool, BufferError> {
+        let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
+            return Ok(false);
+        };
+        let selection = *self.view.selections.primary();
+        let inside =
+            !selection.is_empty() && selection.start() <= position && position < selection.end();
+        if !inside {
+            self.view.last_edit = None;
+            self.view.selections = Selections::single(Selection::cursor(position));
+        }
+        Ok(true)
+    }
+
+    /// A middle button press at a screen cell: puts the cursor there. False
+    /// when the cell is not in the text.
+    pub(crate) fn mouse_place_cursor(
+        &mut self,
+        column: u16,
+        row: u16,
+    ) -> Result<bool, BufferError> {
+        let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
+            return Ok(false);
+        };
+        self.view.last_edit = None;
+        self.view.selections = Selections::single(Selection::cursor(position));
+        Ok(true)
     }
 
     /// Scrolls by wheel notches (positive is down). The cursor stays where it

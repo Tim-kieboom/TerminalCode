@@ -13,7 +13,11 @@ pub(crate) struct ViewState {
     pub(super) scroll: Scroll,
     pub(super) viewport_height: usize,
     pub(super) text_area: Option<Rect>,
+    /// Where the line numbers are, left of the text.
+    pub(super) gutter: Option<Rect>,
     pub(super) drag_anchor: Option<Position>,
+    /// The line a drag that started on a line number began on.
+    pub(super) drag_lines: Option<usize>,
     pub(super) seen_view: Option<(Position, u64, Rect)>,
     pub(super) indent: IndentStyle,
     pub(super) last_edit: Option<EditKind>,
@@ -40,7 +44,6 @@ impl ViewState {
         self.viewport_height
     }
 
-    #[cfg(test)]
     pub(crate) fn text_area(&self) -> Option<Rect> {
         self.text_area
     }
@@ -59,7 +62,9 @@ impl ViewState {
     pub(crate) fn duplicate(&self) -> Self {
         Self {
             text_area: None,
+            gutter: None,
             drag_anchor: None,
+            drag_lines: None,
             seen_view: None,
             last_edit: None,
             ..self.clone()
@@ -102,6 +107,11 @@ impl ViewState {
     pub(crate) fn set_viewport(&mut self, text_area: Rect) {
         self.text_area = Some(text_area);
         self.viewport_height = usize::from(text_area.height);
+    }
+
+    /// Where the line numbers are on screen, as last drawn.
+    pub(crate) fn set_gutter(&mut self, gutter: Rect) {
+        self.gutter = Some(gutter);
     }
 
     /// Whether the cursor, the buffer (by `version`) or the viewport changed

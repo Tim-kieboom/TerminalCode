@@ -28,6 +28,7 @@ const MIN_GUTTER_DIGITS: usize = 3;
 pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect, frame: &PaneFrame) {
     let geometry = Geometry::new(frame.inner(area), buffer.len_lines());
     view.set_viewport(geometry.text);
+    view.set_gutter(geometry.gutter);
     view.clamp_scroll(buffer.len_lines());
     if view.take_view_change(buffer.version()) {
         keep_cursor_visible(buffer, view, &geometry);

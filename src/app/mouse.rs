@@ -56,6 +56,20 @@ impl App {
         self.mouse.take_change()
     }
 
+    /// A middle click on the text: the cursor goes there and the clipboard is
+    /// pasted, as many terminals do with their primary selection.
+    fn paste_at(&mut self, column: u16, row: u16) {
+        match self.state.workspace_mut().place_cursor_at(column, row) {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(error) => return self.state.notify_error(error.to_string()),
+        }
+        self.state.set_focus(crate::app::state::Focus::Editor);
+        if let Err(error) = self.paste() {
+            self.state.notify_error(error.to_string());
+        }
+    }
+
     pub(super) fn toggle_mouse(&mut self) {
         let message = match self.mouse.toggle() {
             true => "mouse on (hold shift to select text in the terminal)",
@@ -92,11 +106,19 @@ impl App {
             return;
         }
 
+        // A right click on the text opens the editor's menu; elsewhere it does nothing.
+        if event.kind == MouseEventKind::Down(MouseButton::Right) {
+            self.right_click_editor(event.column, event.row);
+            self.needs_redraw = true;
+            return;
+        }
+
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
         let sideways = extend;
         let (column, row) = (event.column, event.row);
         let workspace = self.state.workspace_mut();
         let mut closed = None;
+        let mut paste_at = None;
 
         // The wheel scrolls the pane under the pointer; everything else acts
         // on the focused pane (a press also moves focus).
@@ -108,9 +130,10 @@ impl App {
             MouseEventKind::Drag(MouseButton::Left) => {
                 workspace.with_editor(|editor| editor.mouse_drag(column, row))
             }
-            // Middle-clicking a tab closes it.
+            // Middle-clicking a tab closes it; on the text it pastes there.
             MouseEventKind::Down(MouseButton::Middle) => {
                 closed = workspace.middle_press(column, row);
+                paste_at = closed.is_none().then_some((column, row));
                 Ok(())
             }
             MouseEventKind::Up(MouseButton::Left) => {
@@ -146,6 +169,10 @@ impl App {
 
         if let Some(result) = closed {
             self.warn_if_unsaved(result);
+        }
+
+        if let Some((column, row)) = paste_at {
+            self.paste_at(column, row);
         }
 
         if let Err(error) = result {

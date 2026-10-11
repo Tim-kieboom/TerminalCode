@@ -754,12 +754,12 @@ fn mouse_movement_without_a_button_does_not_redraw() {
 }
 
 #[test]
-fn other_buttons_are_ignored() {
+fn releasing_the_right_or_middle_button_is_ignored() {
     let mut app = app_with_text("hello");
     let area = draw(&mut app);
 
     app.handle_input(mouse(
-        MouseEventKind::Down(MouseButton::Right),
+        MouseEventKind::Up(MouseButton::Right),
         area.x + 3,
         area.y,
         KeyModifiers::NONE,

@@ -5,6 +5,7 @@ mod create_tests;
 mod delete_tests;
 mod disk_tests;
 mod drag_tests;
+mod editor_mouse_tests;
 mod explorer_tests;
 mod find_tests;
 mod finder_tests;

@@ -8,16 +8,48 @@ use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::Position;
 
 use crate::app::App;
-use crate::app::keys::EXPLORER_CONTEXTS;
+use crate::app::keys::{EDITOR_CONTEXTS, EXPLORER_CONTEXTS};
 use crate::app::state::Focus;
 use crate::components::menu::{self, Entry, Menu};
 use crate::event::action::Action;
 
 impl App {
-    /// Opens the menu on the explorer's selected row, just below it.
+    /// Opens the menu on what has the keyboard: the explorer's selected row,
+    /// just below it, or the editor's cursor.
     pub(in crate::app) fn open_context_menu(&mut self) {
-        let anchor = self.state.explorer().selected_cell();
-        self.open_menu_at(anchor);
+        if self.state.focus() == Focus::Explorer {
+            let anchor = self.state.explorer().selected_cell();
+            self.open_menu_at(anchor);
+            return;
+        }
+        let Some(anchor) = self.state.editor().cursor_cell() else {
+            self.state.notify("the cursor is not on screen");
+            return;
+        };
+        self.state.set_focus(Focus::Editor);
+        self.open_editor_menu(anchor);
+    }
+
+    /// A right click on the editor text: moves the cursor there (unless it is in
+    /// the selection) and opens the menu. Returns whether the click was on text.
+    pub(in crate::app) fn right_click_editor(&mut self, column: u16, row: u16) -> bool {
+        self.state.set_focus(Focus::Editor);
+        match self.state.workspace_mut().context_press(column, row) {
+            Ok(true) => {
+                self.open_editor_menu(Position::new(column, row));
+                true
+            }
+            Ok(false) => false,
+            Err(error) => {
+                self.state.notify_error(error.to_string());
+                true
+            }
+        }
+    }
+
+    fn open_editor_menu(&mut self, anchor: Position) {
+        self.state
+            .open_menu(Menu::on_editor(self.editor_entries(), anchor));
     }
 
     /// A right click in the explorer: selects the row under the pointer (the
@@ -55,7 +87,7 @@ impl App {
             menu::Command::Cancel => return,
             menu::Command::Run => {
                 if let Some(action) = menu.selected_action().cloned() {
-                    self.run_on_target(menu.target(), action);
+                    self.run_menu_action(menu.target(), action);
                 }
                 return;
             }
@@ -79,7 +111,7 @@ impl App {
             | MouseEventKind::ScrollRight => {}
             MouseEventKind::Down(MouseButton::Left) => {
                 if let Some(action) = menu.action_at(position).cloned() {
-                    self.run_on_target(menu.target(), action);
+                    self.run_menu_action(menu.target(), action);
                 } else {
                     self.state.open_menu(menu);
                 }
@@ -87,6 +119,18 @@ impl App {
             _ => self.state.open_menu(menu),
         }
         true
+    }
+
+    /// Runs a menu item: on the path the menu was opened on, or, for a menu on
+    /// the editor, on the editor.
+    fn run_menu_action(&mut self, target: Option<&Path>, action: Action) {
+        match target {
+            Some(target) => self.run_on_target(target, action),
+            None => {
+                self.state.set_focus(Focus::Editor);
+                self.run_action(action);
+            }
+        }
     }
 
     /// Runs `action` on `target`, which the menu was opened on. The actions
@@ -109,6 +153,30 @@ impl App {
             return;
         }
         self.run_action(action);
+    }
+}
+
+/// What the menu on the editor text offers, with the keys each item has there.
+impl App {
+    fn editor_entries(&self) -> Vec<Entry> {
+        let item = |label, action: Action| {
+            let keys = self.keyboard.keys_for(&action, &EDITOR_CONTEXTS);
+            Entry::Item {
+                label,
+                action,
+                keys,
+            }
+        };
+        vec![
+            item("Cut", Action::Cut),
+            item("Copy", Action::Copy),
+            item("Paste", Action::Paste),
+            Entry::Separator,
+            item("Select All", Action::SelectAll),
+            Entry::Separator,
+            item("Find in File", Action::FindInFile),
+            item("Save", Action::Save),
+        ]
     }
 }
 
