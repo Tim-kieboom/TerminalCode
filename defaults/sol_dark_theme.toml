@@ -1,0 +1,233 @@
+# SolDark: built-in theme with the Sol colors for the interface. The syntax colors and the
+# slots are those of default_theme.toml (see there for the format).
+
+[background]
+color = "transparent"
+
+[palette]
+# UI roles
+text        = "#cdd6f4"   # ordinary text
+dim         = "#d9d3c9"   # secondary text (inactive tabs)
+muted       = "#6c7086"   # hints, borders, directories
+faint       = "#45475a"   # line numbers, tree guides
+surface     = "#1e1e2e"   # status and find bars
+accent      = "#d1c88f"   # the focused pane's border
+accent_bg   = "#282e1e"   # active tab and selected row
+accent_text = "#d5de8f"   # the current line number
+on_accent   = "#d9d3c9"   # text drawn on accent_bg
+selection   = "#313244"   # selected text
+info        = "#b3bdde"
+error       = "#d96981"
+warning     = "#d1c88f"   # search matches
+# Syntax hues
+red         = "#f44747"
+orange      = "#ce9178"   # strings
+yellow      = "#dcdcaa"   # functions
+green       = "#b5cea8"   # numbers
+teal        = "#4ec9b0"   # types
+cyan        = "#9cdcfe"   # properties, parameters
+blue        = "#569cd6"   # keywords
+purple      = "#c586c0"   # control-flow keywords
+pink        = "#d16969"
+gold        = "#d7ba7d"   # escapes
+comment     = "#6a9955"
+punctuation = "#d4d4d4"   # operators and punctuation
+
+["pane.border"]
+text = "@muted"
+
+["pane.title"]
+modifiers = ["bold"]
+
+["list.selected"]
+modifiers = ["reversed"]
+
+["editor.line_number"]
+text = "@faint"
+
+["editor.line_number.current"]
+text = "@accent_text"
+
+["editor.selection"]
+background = "@selection"
+
+["status.bar"]
+text = "@text"
+background = "@surface"
+
+["pane.border.focused"]
+text = "@accent"
+
+["tab.bar"]
+
+["tab.active"]
+text = "@on_accent"
+background = "@accent_bg"
+modifiers = ["bold"]
+
+["tab.inactive"]
+text = "@dim"
+
+["tab.overflow"]
+text = "@dim"
+
+["tab.add"]
+text = "@green"
+modifiers = ["bold"]
+
+["notification.info"]
+text = "@info"
+
+["notification.more"]
+text = "@dim"
+
+["notification.error"]
+text = "@error"
+modifiers = ["bold"]
+
+["explorer.dir"]
+text = "@muted"
+modifiers = ["bold"]
+
+["explorer.file"]
+text = "@text"
+
+["explorer.active"]
+text = "@accent_text"
+modifiers = ["bold"]
+
+["explorer.drop"]
+text = "@on_accent"
+background = "@accent"
+modifiers = ["bold"]
+
+["explorer.selected"]
+background = "@accent_bg"
+
+["explorer.selected.inactive"]
+background = "@accent_bg"
+modifiers = ["bold"]
+
+["explorer.hint"]
+text = "@muted"
+
+["explorer.guide"]
+text = "@faint"
+
+["search.match"]
+text = "@warning"
+modifiers = ["bold"]
+
+["editor.match"]
+text = "black"
+background = "@warning"
+
+["finder.match"]
+text = "@accent_text"
+modifiers = ["bold"]
+
+["find.bar"]
+text = "@text"
+background = "@surface"
+
+["find.hint"]
+text = "@muted"
+background = "@surface"
+
+# Syntax highlighting. A highlight capture such as `function.macro` uses the most
+# specific of `syntax.function.macro`, `syntax.function` and `syntax` that exists
+# here; a capture with none of them is not colored.
+["syntax.keyword"]
+text = "@blue"
+
+["syntax.keyword.control"]
+text = "@purple"
+
+["syntax.variable"]
+text = "@cyan"
+
+["syntax.namespace"]
+text = "@teal"
+
+["syntax.function"]
+text = "@yellow"
+
+["syntax.function.macro"]
+text = "@yellow"
+
+["syntax.type"]
+text = "@teal"
+
+["syntax.constructor"]
+text = "@teal"
+
+["syntax.string"]
+text = "@orange"
+
+["syntax.escape"]
+text = "@gold"
+
+["syntax.constant"]
+text = "@blue"
+
+["syntax.comment"]
+text = "@comment"
+
+["syntax.operator"]
+text = "@punctuation"
+
+["syntax.punctuation"]
+text = "@punctuation"
+
+["syntax.property"]
+text = "@cyan"
+
+["syntax.attribute"]
+text = "@teal"
+
+["syntax.label"]
+text = "@blue"
+
+["syntax.variable.parameter"]
+text = "@cyan"
+
+["syntax.variable.builtin"]
+text = "@blue"
+
+["syntax.number"]
+text = "@green"
+
+["syntax.float"]
+text = "@green"
+
+["syntax.boolean"]
+text = "@blue"
+
+["syntax.character"]
+text = "@orange"
+
+["syntax.string.escape"]
+text = "@gold"
+
+["syntax.string.special.key"]
+text = "@cyan"
+
+["syntax.text.title"]
+text = "@blue"
+modifiers = ["bold"]
+
+["syntax.text.literal"]
+text = "@orange"
+
+["syntax.text.uri"]
+text = "@blue"
+modifiers = ["underlined"]
+
+["syntax.text.reference"]
+text = "@blue"
+
+["syntax.text.strong"]
+modifiers = ["bold"]
+
+["syntax.text.emphasis"]
+modifiers = ["italic"]

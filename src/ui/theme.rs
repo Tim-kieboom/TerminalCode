@@ -20,6 +20,18 @@ pub(crate) const LIGHT_THEME_TOML: &str = include_str!(concat!(
     "/defaults/light_theme.toml"
 ));
 
+/// Built-in dark theme with the Sol colors for the interface.
+pub(crate) const SOL_DARK_THEME_TOML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/defaults/sol_dark_theme.toml"
+));
+
+/// Built-in light theme with the Sol colors for the interface.
+pub(crate) const SOL_LIGHT_THEME_TOML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/defaults/sol_light_theme.toml"
+));
+
 /// Which built-in theme the user's `theme.toml` is laid over.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -27,20 +39,40 @@ pub(crate) enum ThemeVariant {
     #[default]
     Dark,
     Light,
+    SolDark,
+    SolLight,
 }
 
 impl ThemeVariant {
+    /// Every built-in theme.
+    pub(crate) const ALL: [Self; 4] = [Self::Dark, Self::Light, Self::SolDark, Self::SolLight];
+
     pub(crate) fn source(self) -> &'static str {
         match self {
             Self::Dark => DEFAULT_THEME_TOML,
             Self::Light => LIGHT_THEME_TOML,
+            Self::SolDark => SOL_DARK_THEME_TOML,
+            Self::SolLight => SOL_LIGHT_THEME_TOML,
         }
     }
 
+    /// The name for messages and for the file of a copy of the theme.
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Dark => "dark",
             Self::Light => "light",
+            Self::SolDark => "soldark",
+            Self::SolLight => "sollight",
+        }
+    }
+
+    /// The name the palette shows.
+    pub(crate) fn title(self) -> &'static str {
+        match self {
+            Self::Dark => "Dark",
+            Self::Light => "Light",
+            Self::SolDark => "SolDark",
+            Self::SolLight => "SolLight",
         }
     }
 }

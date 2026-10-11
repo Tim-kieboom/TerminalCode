@@ -322,7 +322,7 @@ fn unusable_layer(path: &Path, kind: &str, error: &dyn std::fmt::Display) -> Str
 /// would give every slot back its value in the built-in theme and so undo the
 /// choice, so it counts as no overlay at all.
 fn is_stock_copy(source: &str) -> bool {
-    [ThemeVariant::Dark, ThemeVariant::Light]
+    ThemeVariant::ALL
         .iter()
         .any(|variant| variant.source().trim() == source.trim())
 }
@@ -330,10 +330,12 @@ fn is_stock_copy(source: &str) -> bool {
 /// What a new theme starts as: the text of the template called `name`, which is
 /// `Dark` or `Light` for the built-in themes, else an installed theme.
 pub(crate) fn theme_template(config_dir: &Path, name: &str) -> Option<String> {
-    match name {
-        "Dark" => Some(ThemeVariant::Dark.source().to_owned()),
-        "Light" => Some(ThemeVariant::Light.source().to_owned()),
-        _ => fs::read_to_string(installed_theme_path(config_dir, name)?).ok(),
+    match ThemeVariant::ALL
+        .iter()
+        .find(|variant| variant.title() == name)
+    {
+        Some(variant) => Some(variant.source().to_owned()),
+        None => fs::read_to_string(installed_theme_path(config_dir, name)?).ok(),
     }
 }
 
@@ -341,13 +343,17 @@ pub(crate) fn theme_template(config_dir: &Path, name: &str) -> Option<String> {
 /// installed ones (leaving out the copies of the built-in ones the editor made,
 /// which are the same as the built-in ones until edited).
 pub(crate) fn theme_templates(config_dir: Option<&Path>) -> Vec<String> {
-    let mut names = vec!["Dark".to_owned(), "Light".to_owned()];
+    let mut names: Vec<String> = ThemeVariant::ALL
+        .iter()
+        .map(|variant| variant.title().to_owned())
+        .collect();
     if let Some(dir) = config_dir {
-        names.extend(
-            installed_themes(dir)
-                .into_iter()
-                .filter(|name| !matches!(name.to_lowercase().as_str(), "dark" | "light")),
-        );
+        names.extend(installed_themes(dir).into_iter().filter(|name| {
+            let lower = name.to_lowercase();
+            !ThemeVariant::ALL
+                .iter()
+                .any(|variant| variant.name() == lower)
+        }));
     }
     names
 }
