@@ -1,5 +1,6 @@
 mod flood_tests;
 mod keys_tests;
+mod mouse_tests;
 mod queue_tests;
 mod scrollback_tests;
 mod session_tests;

@@ -2,25 +2,55 @@ use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::widgets::Paragraph;
+use unicode_width::UnicodeWidthStr;
 
+use super::TerminalPane;
 use crate::app::state::{AppState, Focus};
-use crate::pty::Session;
 use crate::ui::layout::Placement;
 
-/// Draws the frame and, inside it, the shell's screen.
+/// Draws the frame, the tab bar when there is more than one tab, and the
+/// active shell's screen.
 pub(super) fn draw(
     frame: &mut Frame,
     state: &AppState,
     placement: &Placement,
-    session: Option<&Session>,
+    pane: &TerminalPane,
 ) {
+    let theme = state.theme();
     let title = placement.frame.title_text(placement.kind.title());
     let focused = state.focus() == Focus::Terminal;
-    let block = placement.frame.block(state.theme(), title, focused);
-    let inner = block.inner(placement.area);
-
+    let block = placement.frame.block(theme, title, focused);
     frame.render_widget(block, placement.area);
-    if let Some(session) = session {
+
+    if pane.tab_bar.height > 0 {
+        frame.render_widget(
+            Paragraph::new("").style(theme.style("tab.bar")),
+            pane.tab_bar,
+        );
+        for (index, (label, rect)) in pane.labels().iter().zip(&pane.tab_rects).enumerate() {
+            if rect.width == 0 {
+                continue;
+            }
+            let slot = if index == pane.active {
+                "tab.active"
+            } else {
+                "tab.inactive"
+            };
+            let text = truncate(label, usize::from(rect.width));
+            frame.render_widget(Paragraph::new(text).style(theme.style(slot)), *rect);
+        }
+    }
+
+    if pane.add_button.width > 0 {
+        frame.render_widget(
+            Paragraph::new(" + ").style(theme.style("tab.bar").patch(theme.style("tab.add"))),
+            pane.add_button,
+        );
+    }
+
+    let inner = pane.text_area;
+    if let Some(session) = pane.session() {
         let cursor = session.with_screen(|screen| {
             draw_screen(frame.buffer_mut(), inner, screen);
             draw_scroll_indicator(frame.buffer_mut(), inner, screen.scrollback());
@@ -35,6 +65,38 @@ pub(super) fn draw(
             frame.set_cursor_position((inner.x + column, inner.y + row));
         }
     }
+}
+
+/// Where each tab's label goes in the bar, one after the other from the left.
+/// Labels that do not fit get an empty rectangle (or are cut at the edge).
+pub(super) fn tab_rects(labels: &[String], bar: Rect) -> Vec<Rect> {
+    let end = bar.right();
+    let mut x = bar.x;
+    labels
+        .iter()
+        .map(|label| {
+            let width = u16::try_from(label.width()).unwrap_or(u16::MAX);
+            let width = width.min(end.saturating_sub(x));
+            let rect = Rect { x, width, ..bar };
+            x += width;
+            rect
+        })
+        .collect()
+}
+
+/// `text` cut to at most `width` display columns.
+fn truncate(text: &str, width: usize) -> String {
+    let mut used = 0;
+    let mut out = String::new();
+    for c in text.chars() {
+        let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
+        if used + w > width {
+            break;
+        }
+        used += w;
+        out.push(c);
+    }
+    out
 }
 
 /// Copies the cells of `screen` into `buffer` inside `area`. A screen larger

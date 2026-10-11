@@ -22,6 +22,12 @@ pub(crate) enum Action {
     ToggleStatusBar,
     /// Shows the terminal pane (starting the shell the first time), or hides it.
     ToggleTerminal,
+    /// Opens another shell in a new tab of the terminal pane.
+    TerminalNewTab,
+    TerminalNextTab,
+    TerminalPreviousTab,
+    /// Closes the active terminal tab and stops its shell.
+    TerminalCloseTab,
     /// Shows or hides the view of the plugin with this id.
     TogglePluginView(Box<str>),
     /// Opens the file finder.
@@ -86,6 +92,10 @@ impl Action {
             Self::NewFile
                 | Self::OpenConfig(_)
                 | Self::ToggleTerminal
+                | Self::TerminalNewTab
+                | Self::TerminalNextTab
+                | Self::TerminalPreviousTab
+                | Self::TerminalCloseTab
                 | Self::ContextMenu
                 | Self::CloseTab
                 | Self::NextTab
@@ -145,6 +155,10 @@ impl Action {
             Self::ToggleExplorer => "View: Toggle Explorer",
             Self::ToggleStatusBar => "View: Toggle Status Bar",
             Self::ToggleTerminal => "View: Toggle Terminal",
+            Self::TerminalNewTab => "Terminal: New Tab",
+            Self::TerminalNextTab => "Terminal: Next Tab",
+            Self::TerminalPreviousTab => "Terminal: Previous Tab",
+            Self::TerminalCloseTab => "Terminal: Close Tab",
             Self::FindFile => "File: Go to File",
             Self::FindInProject => "Search: Find in Project",
             Self::FindInFile => "Search: Find in File",
@@ -209,6 +223,10 @@ impl Action {
             Self::ToggleExplorer,
             Self::ToggleStatusBar,
             Self::ToggleTerminal,
+            Self::TerminalNewTab,
+            Self::TerminalNextTab,
+            Self::TerminalPreviousTab,
+            Self::TerminalCloseTab,
             Self::Explorer(ExplorerCommand::Refresh),
             Self::DeleteSelected,
             Self::CreateFile,

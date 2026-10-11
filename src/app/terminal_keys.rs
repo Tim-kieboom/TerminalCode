@@ -84,7 +84,7 @@ impl App {
         self.needs_redraw = true;
     }
 
-    fn send_to_shell(&mut self, bytes: &[u8]) {
+    pub(super) fn send_to_shell(&mut self, bytes: &[u8]) {
         let Some(session) = self.state.terminal().session() else {
             return;
         };
@@ -126,6 +126,13 @@ impl App {
             Some('e') => self.state.set_focus(Focus::Editor),
             Some('x') => self.focus_explorer_shown(),
             Some('t') => self.toggle_terminal(),
+            Some('c') => self.new_terminal_tab(),
+            Some('n') => self.step_terminal_tab(1),
+            Some('p') => self.step_terminal_tab(-1),
+            Some('w') => self.close_terminal_tab(),
+            Some(digit @ '1'..='9') => {
+                self.select_terminal_tab(digit as usize - '0' as usize);
+            }
             _ => self.run_through_keymap(chord),
         }
     }

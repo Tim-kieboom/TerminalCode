@@ -669,3 +669,21 @@ the embedded `defaults/default_theme.toml`; there is no user theme file.
   alone is bound to `toggle_terminal` (`Keyboard::action_for`), so a rebound key works the same, and calls
   `toggle_terminal` directly (going through `run_action` would first move the focus to the editor and turn the
   hide into a re-focus). `ctrl+b t` still does the same. The tests' rig presses `` ctrl+` `` to toggle.
+- Step E is done. Mouse reporting: when the program asked for the mouse (`vt100` tracks `?1000h`, `?1002h`, `?1003h`
+  and the encodings `?1006h` SGR and `?1005h` UTF-8), mouse events over the pane's text are sent to it as xterm
+  reports (`pty/mouse.rs`: `ESC [ < b ; x ; y M` / `m` for SGR, `ESC [ M` plus three bytes otherwise; positions
+  count from the text area's top left; wheel notches are buttons 64..67; motion is only sent as far as the mode
+  asked; the default encoding drops positions past 223) instead of acting on the pane, and shift keeps the
+  event for the editor (the usual escape hatch). Without a request a click gives the pane the keyboard and the wheel
+  scrolls the history, and every other mouse event over the pane is kept away from the editor (a drag that started in
+  the pane used to select text in it). Tabs: `TerminalPane` holds up to 16 tabs, each a shell, and a tab bar
+  (`tab.bar` / `tab.active` / `tab.inactive`) takes the top row of the pane's text; all shells get the text area's size. Behind the prefix `c` opens a tab, `n` / `p` step through them,
+  `1`..`9` pick one, `w` closes the active one (the last one hides the pane); a click on a tab picks it and a middle
+  click closes it; palette: Terminal: New / Next / Previous / Close Tab. A shell that ended stays as a tab marked
+  `(ended)` until it is closed, each one reported once with its number; showing the pane when every shell has ended
+  drops them and starts one.
+- The tab bar is always shown while the pane has a tab (it took a row only from the second tab on at first, which
+  left the " + " button with nowhere noticeable to be). A green, bold " + " (theme slot `tab.add`, over `tab.bar`) sits
+  right after the last tab, or at the end of the bar when the tabs fill it; a left click on it is the same as
+  `ctrl+b c`: a new tab, with the keyboard. Every shell therefore has one row less than the pane's inner height from
+  the start, and opening a second tab no longer resizes the first.

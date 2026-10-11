@@ -102,6 +102,10 @@ modifiers = ["bold"]
 ["tab.inactive"]
 text = "@dim"
 
+["tab.add"]
+text = "@green"
+modifiers = ["bold"]
+
 ["notification.info"]
 text = "@info"
 

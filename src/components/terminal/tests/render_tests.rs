@@ -129,3 +129,34 @@ fn no_indicator_is_drawn_at_the_present_or_where_it_does_not_fit() {
 
     assert!(buffer.content.iter().all(|cell| cell.symbol() == " "));
 }
+
+#[test]
+fn tab_labels_sit_one_after_the_other_and_are_cut_at_the_edge() {
+    use crate::components::terminal::render::tab_rects;
+    let labels = vec![
+        " 1: sh ".to_owned(),
+        " 2: bash ".to_owned(),
+        " 3: zsh ".to_owned(),
+    ];
+
+    let rects = tab_rects(&labels, Rect::new(2, 5, 20, 1));
+
+    assert_eq!(rects[0], Rect::new(2, 5, 7, 1));
+    assert_eq!(rects[1], Rect::new(9, 5, 9, 1));
+    assert_eq!(
+        rects[2],
+        Rect::new(18, 5, 4, 1),
+        "cut at the end of the bar"
+    );
+}
+
+#[test]
+fn labels_past_the_end_of_the_bar_have_no_room() {
+    use crate::components::terminal::render::tab_rects;
+    let labels = vec![" 1: a very long name ".to_owned(), " 2: sh ".to_owned()];
+
+    let rects = tab_rects(&labels, Rect::new(0, 0, 10, 1));
+
+    assert_eq!(rects[0].width, 10);
+    assert_eq!(rects[1].width, 0);
+}

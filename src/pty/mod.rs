@@ -4,11 +4,13 @@
 
 pub(crate) use error::PtyError;
 pub(crate) use keys::{encode_key, encode_paste};
+pub(crate) use mouse::encode_mouse;
 pub(crate) use session::{Session, SpawnConfig};
 pub(crate) use shell::Shell;
 
 mod error;
 mod keys;
+mod mouse;
 mod queue;
 mod session;
 mod shell;

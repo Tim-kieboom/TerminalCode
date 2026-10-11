@@ -7,9 +7,6 @@ use std::time::Instant;
 use super::App;
 use crate::event::mouse::{ClickTracker, Clicks};
 
-/// How many lines the wheel moves the terminal's history by one notch.
-const WHEEL_LINES: isize = 3;
-
 /// Whether the mouse is on, and what counts as a double or triple click.
 #[derive(Debug)]
 pub(super) struct MouseInput {
@@ -77,35 +74,10 @@ impl App {
             return;
         }
 
-        if matches!(event.kind, MouseEventKind::Down(MouseButton::Left))
-            && !self.modal_open()
-            && self
-                .state
-                .is_visible(&crate::components::ComponentKind::Terminal)
-            && self.state.terminal().contains(event.column, event.row)
-        {
-            self.state.set_focus(crate::app::state::Focus::Terminal);
+        if self.handle_terminal_mouse(event) {
             self.needs_redraw = true;
             return;
         }
-
-        let wheel = match event.kind {
-            MouseEventKind::ScrollUp => Some(WHEEL_LINES),
-            MouseEventKind::ScrollDown => Some(-WHEEL_LINES),
-            _ => None,
-        };
-
-        if let Some(lines) = wheel
-            && !self.modal_open()
-            && self
-                .state
-                .is_visible(&crate::components::ComponentKind::Terminal)
-            && self.state.terminal().contains(event.column, event.row)
-        {
-            self.scroll_terminal(lines);
-            return;
-        }
-
         if self.handle_menu_mouse(event) {
             self.needs_redraw = true;
             return;
