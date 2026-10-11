@@ -10,9 +10,11 @@ use tokio::sync::mpsc;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::prepare_and_render;
+use crate::components::{ComponentKind, prepare_and_render};
 use crate::event::Event;
+use crate::keymap::Keymap;
 use crate::pty::Shell;
+use crate::terminal::KeyboardSupport;
 
 /// An app wired to an event channel, as in the real app, with a script as the
 /// terminal's shell.
@@ -52,16 +54,10 @@ impl Rig {
             .unwrap();
     }
 
-    /// The chord that toggles the pane: `ctrl+k t` from the editor, `ctrl+b t`
-    /// from inside the terminal.
+    /// The chord that toggles the pane, `` ctrl+` ``, from the editor or from
+    /// inside the terminal.
     fn toggle(&mut self) {
-        let prefix = if self.app.state().focus() == Focus::Terminal {
-            'b'
-        } else {
-            'k'
-        };
-        self.press(KeyCode::Char(prefix), KeyModifiers::CONTROL);
-        self.press(KeyCode::Char('t'), KeyModifiers::NONE);
+        self.press(KeyCode::Char('`'), KeyModifiers::CONTROL);
         self.draw();
     }
 
@@ -242,12 +238,10 @@ fn without_an_event_loop_there_is_no_shell_and_a_message_says_so() {
     let mut app = App::new(AppState::default());
     let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
 
-    for (code, modifiers) in [
-        (KeyCode::Char('k'), KeyModifiers::CONTROL),
-        (KeyCode::Char('t'), KeyModifiers::NONE),
-    ] {
-        app.handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
-    }
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('`'),
+        KeyModifiers::CONTROL,
+    )));
     terminal
         .draw(|frame| prepare_and_render(frame, app.state_mut()))
         .unwrap();
@@ -637,4 +631,78 @@ fn typing_after_the_shell_ended_says_so_instead_of_failing_silently() {
         "{}",
         rig.notifications()
     );
+}
+
+// ---- the toggle chord closes the pane again
+
+#[test]
+fn the_chord_that_opened_the_terminal_closes_it_and_the_editor_has_the_keyboard() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+
+    rig.toggle();
+
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+    assert!(!rig.app.state().is_visible(&ComponentKind::Terminal));
+    assert!(!rig.screen().contains("Terminal"), "{}", rig.screen());
+}
+
+#[test]
+fn the_toggle_chord_does_not_reach_the_shell() {
+    let (mut rig, _dir) = rig("cat");
+    rig.toggle();
+    rig.type_text("ab");
+    rig.wait_for_text("ab");
+
+    rig.toggle();
+    rig.toggle();
+
+    // Had the chord gone to the shell it would have been echoed or have changed
+    // the line; the shell still shows exactly what was typed before.
+    assert!(rig.screen().contains("ab"), "{}", rig.screen());
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+}
+
+#[test]
+fn from_the_editor_the_chord_gives_a_shown_pane_the_keyboard_without_hiding_it() {
+    let (mut rig, _dir) = rig("sleep 30");
+    rig.toggle();
+    rig.press(KeyCode::Char('b'), KeyModifiers::CONTROL);
+    rig.press(KeyCode::Char('e'), KeyModifiers::NONE);
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+
+    rig.toggle();
+
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+    assert!(rig.app.state().is_visible(&ComponentKind::Terminal));
+}
+
+#[test]
+fn a_rebound_toggle_chord_closes_the_pane_too() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut state = AppState::default();
+    state.open_project(dir.path()).unwrap();
+    let mut keymap = Keymap::defaults(KeyboardSupport::Enhanced);
+    keymap
+        .apply_toml("[[binding]]\nkeys = \"f9\"\naction = \"toggle_terminal\"\n")
+        .unwrap();
+    let (tx, events) = mpsc::channel(1024);
+    let app = App::with_keymap(state, keymap)
+        .with_events(tx)
+        .with_terminal_shell(Shell::script("sleep 30"));
+    let mut rig = Rig {
+        app,
+        events,
+        terminal: Terminal::new(TestBackend::new(100, 30)).unwrap(),
+    };
+    rig.draw();
+
+    rig.press(KeyCode::F(9), KeyModifiers::NONE);
+    rig.draw();
+    assert_eq!(rig.app.state().focus(), Focus::Terminal);
+    rig.press(KeyCode::F(9), KeyModifiers::NONE);
+
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+    assert!(!rig.app.state().is_visible(&ComponentKind::Terminal));
 }

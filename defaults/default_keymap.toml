@@ -467,5 +467,5 @@ keys = "ctrl+k s"
 action = "toggle_status_bar"
 
 [[binding]]
-keys = "ctrl+k t"
+keys = "ctrl+`"
 action = "toggle_terminal"

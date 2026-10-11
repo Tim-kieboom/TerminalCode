@@ -9,7 +9,7 @@ use crate::app::state::{Focus, Popup};
 use crate::entries::EntryKind;
 use crate::error::IdeResult;
 use crate::event::action::Action;
-use crate::keymap::{Context, Expiry, KeyChord, Keymap, Outcome, Resolution, Resolver};
+use crate::keymap::{Context, Expiry, KeyChord, Keymap, Lookup, Outcome, Resolution, Resolver};
 use crate::ui::layout::Axis;
 
 /// Shown when an editing action arrives while every tab is closed.
@@ -62,6 +62,14 @@ impl Keyboard {
     /// When the half-typed key sequence, if any, gives up waiting.
     pub(super) fn pending_deadline(&self) -> Option<Instant> {
         self.pending_deadline
+    }
+
+    /// The action that `chord` alone is bound to in `contexts`, if any.
+    pub(super) fn action_for(&self, contexts: &[Context], chord: KeyChord) -> Option<&Action> {
+        match self.keymap.find(contexts, &[chord]) {
+            Lookup::Found { action, .. } => action,
+            Lookup::NotFound => None,
+        }
     }
 
     /// Whether a key sequence is half typed, so the next key belongs to it.

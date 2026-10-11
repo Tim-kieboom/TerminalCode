@@ -530,7 +530,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   dropped; drawing, further keys and the child's output stay live). The probe was checked against a deliberately
   bad reader that holds the screen lock for 80 ms now and then: the frame limit fails at 83 ms.
 - Step B is done. The terminal pane (`components/terminal`, `TerminalPane`) is hidden by default (`Hideable::new_hidden`)
-  and toggled with `ctrl+k t` (`toggle_terminal`, "View: Toggle Terminal" in the palette). Showing it starts the
+  and toggled with `` ctrl+` `` (`toggle_terminal`, "View: Toggle Terminal" in the palette). Showing it starts the
   shell if there is none or it ended: in the project root, with the size the pane has when shown, worked out from
   the layout and the screen as of the last draw (`AppState::terminal_size_now`), so a shell that asks for its size
   straight away already gets the right one. Each frame `prepare` takes the dirty flag (the next change wakes the
@@ -540,7 +540,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   the frame buffer: colors (default/indexed/RGB), bold/dim/italic/underline/inverse, wide characters take two
   cells, combining marks stay with their letter. The pane only draws so far: no focus, no keys (step C), no
   cursor, no scrollback (step D).
-- Step C is done. `Focus::Terminal`: `ctrl+k t` shows the pane and gives it the keyboard, gives the keyboard to a pane
+- Step C is done. `Focus::Terminal`: `` ctrl+` `` shows the pane and gives it the keyboard, gives the keyboard to a pane
   that is shown but not focused, and hides a focused pane (the keyboard goes back to the editor); a click in the
   pane focuses it, a click elsewhere takes the keyboard away; the focused pane has the focused border and the shell's
   cursor. While it has the keyboard `handle_key` sends everything to `pty::encode_key` (xterm bytes: control
@@ -652,3 +652,10 @@ the embedded `defaults/default_theme.toml`; there is no user theme file.
 - Theme slots `syntax.keyword.control` (purple), `syntax.namespace` (teal), `syntax.variable` (light blue) and the
   existing `syntax.number`; a capture whose slots are missing falls back to its parent (`syntax.keyword`) or is left
   plain, as before. Nix already had a `@variable` capture, which the new slot now colors.
+- The toggle chord (`` ctrl+` `` by default, bound to `toggle_terminal`) is the second chord the terminal keeps for the
+  editor, besides `ctrl+b`. From the editor it shows the pane and gives it the keyboard (or only gives the keyboard
+  to a pane that is already shown); with the keyboard in the pane, the same chord hides the pane and puts the
+  keyboard back in the editor, and the shell never sees it. `handle_terminal_key` asks the keymap whether the chord
+  alone is bound to `toggle_terminal` (`Keyboard::action_for`), so a rebound key works the same, and calls
+  `toggle_terminal` directly (going through `run_action` would first move the focus to the editor and turn the
+  hide into a re-focus). `ctrl+b t` still does the same. The tests' rig presses `` ctrl+` `` to toggle.

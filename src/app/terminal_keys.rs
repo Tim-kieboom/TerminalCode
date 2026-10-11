@@ -1,5 +1,6 @@
 //! Keys while the terminal pane has the keyboard: everything goes to the
-//! shell except `ctrl+b`, which is the one chord the editor keeps.
+//! shell except `ctrl+b`, which is the chord the editor keeps, and the chord
+//! that toggles the pane (`` ctrl+` `` by default), which hides it again.
 //!
 //! After `ctrl+b`: `ctrl+b` again sends a literal `ctrl+b`; `e`, `x` and `t`
 //! move the keyboard (editor, explorer) or hide the pane; `esc` cancels;
@@ -14,6 +15,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::app::App;
 use crate::app::keys::EDITOR_CONTEXTS;
 use crate::app::state::Focus;
+use crate::event::action::Action;
 use crate::keymap::{KeyChord, Outcome};
 use crate::pty::{encode_key, encode_paste};
 
@@ -41,6 +43,16 @@ impl App {
             self.needs_redraw = true;
             return;
         }
+
+        // The chord that shows the pane also closes it: pressing it again hides
+        // the pane and puts the keyboard back in the editor. What it is comes
+        // from the keymap, so a rebound key works the same.
+        if self.keyboard.action_for(&EDITOR_CONTEXTS, chord) == Some(&Action::ToggleTerminal) {
+            self.toggle_terminal();
+            self.needs_redraw = true;
+            return;
+        }
+
         let Some(session) = self.state.terminal().session() else {
             return;
         };
