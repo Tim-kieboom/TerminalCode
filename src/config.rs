@@ -188,6 +188,9 @@ pub(crate) enum ConfigFile {
 }
 
 impl ConfigFile {
+    /// Every file, for looking through them.
+    pub(crate) const ALL: [Self; 3] = [Self::Theme, Self::Keymap, Self::Layout];
+
     fn file_name(self) -> &'static str {
         match self {
             Self::Theme => THEME_FILE,

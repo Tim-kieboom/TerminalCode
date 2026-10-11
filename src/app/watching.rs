@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use super::App;
 use crate::components::workspace::DiskEvent;
+use crate::config::ConfigFile;
 use crate::paths::canonical;
 use crate::watcher::{FsWatcher, WatchError};
 
@@ -86,6 +87,13 @@ impl App {
             self.state.workspace().documents_version(),
         );
         let state = &self.state;
+        // The folder of the theme, keymap and layout files, to notice them being
+        // saved by another program.
+        let config = self
+            .config_dir
+            .as_deref()
+            .filter(|dir| dir.is_dir())
+            .map(canonical);
         let wanted = || -> BTreeSet<PathBuf> {
             state
                 .explorer()
@@ -93,6 +101,7 @@ impl App {
                 .iter()
                 .map(|dir| canonical(dir))
                 .chain(state.workspace().directories())
+                .chain(config.clone())
                 .collect()
         };
         if let Some(error) = self.watching.sync(versions, wanted) {
@@ -108,10 +117,27 @@ impl App {
     /// the explorer.
     pub(super) fn files_changed(&mut self, paths: &[PathBuf]) {
         self.rewatch_replaced(paths);
+        if self.config_file_among(paths) {
+            self.reload();
+        }
         let events = self.state.workspace_mut().check_disk(paths);
         self.report_disk_events(events);
         self.refresh_explorer_for(paths);
         self.needs_redraw = true;
+    }
+
+    /// Whether `paths` has the theme, the keymap or the layout file, which are
+    /// read again when they are saved.
+    fn config_file_among(&self, paths: &[PathBuf]) -> bool {
+        let Some(dir) = self.config_dir.as_deref() else {
+            return false;
+        };
+        let dir = canonical(dir);
+        paths.iter().any(|path| {
+            ConfigFile::ALL
+                .iter()
+                .any(|file| canonical(path) == file.path_in(&dir))
+        })
     }
 
     /// Says what was done about the documents whose files changed.
