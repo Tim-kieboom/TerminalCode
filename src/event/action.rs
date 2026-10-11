@@ -35,6 +35,10 @@ pub(crate) enum Action {
     FindFile,
     /// Opens the project search.
     FindInProject,
+    /// Goes to the next result of the last project search.
+    NextSearchResult,
+    /// Goes to the previous result of the last project search.
+    PreviousSearchResult,
     /// Opens the find bar for the open file.
     FindInFile,
     /// Opens the find bar with the row for replacing.
@@ -51,6 +55,8 @@ pub(crate) enum Action {
     MoveEntry,
     /// Opens the context menu on the explorer's selected row.
     ContextMenu,
+    /// Asks for a line of the open file to go to.
+    GoToLine,
     /// Shows the file of the active tab in the explorer and selects it.
     RevealActiveFile,
     /// Reads the theme, layout and keymap files again and applies them.
@@ -136,6 +142,8 @@ impl Action {
                 | Self::TogglePluginView(_)
                 | Self::FindFile
                 | Self::FindInProject
+                | Self::NextSearchResult
+                | Self::PreviousSearchResult
                 | Self::Explorer(_)
                 | Self::DeleteSelected
                 | Self::CreateFile
@@ -182,6 +190,8 @@ impl Action {
             Self::TerminalCloseTab => "Terminal: Close Tab",
             Self::FindFile => "File: Go to File",
             Self::FindInProject => "Search: Find in Project",
+            Self::NextSearchResult => "Search: Next Result",
+            Self::PreviousSearchResult => "Search: Previous Result",
             Self::FindInFile => "Search: Find in File",
             Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
@@ -191,6 +201,7 @@ impl Action {
             Self::Rename => "Explorer: Rename",
             Self::MoveEntry => "Explorer: Move",
             Self::ContextMenu => "Explorer: Context Menu",
+            Self::GoToLine => "Cursor: Go to Line",
             Self::RevealActiveFile => "Explorer: Reveal Active File",
             Self::Explorer(ExplorerCommand::ToggleHidden) => "Explorer: Toggle Hidden Files",
             Self::OpenConfig(ConfigFile::Theme) => "Config: Open Theme",
@@ -248,6 +259,8 @@ impl Action {
             Self::CommandPalette,
             Self::FindFile,
             Self::FindInProject,
+            Self::NextSearchResult,
+            Self::PreviousSearchResult,
             Self::FindInFile,
             Self::ReplaceInFile,
             Self::FocusExplorer,
@@ -265,6 +278,7 @@ impl Action {
             Self::Rename,
             Self::MoveEntry,
             Self::ContextMenu,
+            Self::GoToLine,
             Self::RevealActiveFile,
             Self::Explorer(ExplorerCommand::ToggleHidden),
             Self::OpenConfig(ConfigFile::Theme),

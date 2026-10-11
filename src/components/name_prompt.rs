@@ -50,6 +50,10 @@ pub(crate) enum Purpose {
     Rename(PathBuf),
     /// Moves this entry to a path from the project root.
     Move(PathBuf),
+    /// A line, and perhaps a column, of the open file, which has this many lines.
+    GoToLine {
+        lines: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +102,16 @@ impl NamePrompt {
         }
     }
 
+    /// Asks for a line (`42`) or a line and column (`42:7`) of a file with `lines`
+    /// lines.
+    pub(crate) fn go_to_line(lines: usize) -> Self {
+        Self {
+            purpose: Purpose::GoToLine { lines },
+            dir: PathBuf::new(),
+            name: String::new(),
+        }
+    }
+
     pub(crate) fn purpose(&self) -> &Purpose {
         &self.purpose
     }
@@ -141,6 +155,7 @@ impl NamePrompt {
             Purpose::Create(EntryKind::Folder) => format!(" New folder in {folder} "),
             Purpose::Rename(_) => format!(" Rename in {folder} "),
             Purpose::Move(_) => format!(" Move within {folder} "),
+            Purpose::GoToLine { lines } => format!(" Go to line (1-{lines}, or line:column) "),
         };
         let block = Block::new()
             .borders(Borders::ALL)
@@ -176,4 +191,20 @@ fn tail_fitting(text: &str, width: usize) -> &str {
         start = index;
     }
     &text[start..]
+}
+
+/// A line and an optional column from what was typed: `42`, `42:7`, `:7` is
+/// not one. Both count from 1; a 0 is taken as 1.
+pub(crate) fn parse_place(text: &str) -> Option<(usize, Option<usize>)> {
+    let number = |part: &str| -> Option<usize> {
+        let part = part.trim();
+        if part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        part.parse::<usize>().ok().map(|n| n.max(1))
+    };
+    match text.split_once(':') {
+        None => Some((number(text)?, None)),
+        Some((line, column)) => Some((number(line)?, Some(number(column)?))),
+    }
 }

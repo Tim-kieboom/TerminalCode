@@ -733,3 +733,141 @@ fn a_paste_with_no_popup_still_goes_into_the_editor() {
 
     assert_eq!(app.state().editor().buffer().text(), "pasted");
 }
+
+// ---- go to line
+
+fn goto_app(text: &str) -> App {
+    let mut app = App::default();
+    app.handle_input(InputEvent::Paste(text.to_owned()));
+    app
+}
+
+fn head(app: &App) -> (usize, usize) {
+    let head = app.state().editor().selections().primary().head();
+    (head.line, head.column)
+}
+
+fn ctrl_g(app: &mut App) {
+    app.handle_input(key(KeyCode::Char('g'), KeyModifiers::CONTROL));
+}
+
+const FIVE_LINES: &str = "one\ntwo\nthree three\nfour\nfive";
+
+#[test]
+fn ctrl_g_asks_for_a_line_and_enter_goes_there() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+    assert!(app.state().name_prompt().is_some());
+
+    type_str(&mut app, "3");
+    app.handle_input(press(KeyCode::Enter));
+
+    assert!(app.state().name_prompt().is_none());
+    assert_eq!(head(&app), (2, 0));
+}
+
+#[test]
+fn a_column_after_a_colon_is_used() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+
+    type_str(&mut app, "3:7");
+    app.handle_input(press(KeyCode::Enter));
+
+    assert_eq!(head(&app), (2, 6));
+}
+
+#[test]
+fn a_line_past_the_end_goes_to_the_last_line_and_a_column_past_the_end_to_its_end() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+    type_str(&mut app, "99:99");
+    app.handle_input(press(KeyCode::Enter));
+
+    assert_eq!(head(&app), (4, 4));
+}
+
+#[test]
+fn zero_goes_to_the_first_line() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+    type_str(&mut app, "0");
+    app.handle_input(press(KeyCode::Enter));
+
+    assert_eq!(head(&app), (0, 0));
+}
+
+#[test]
+fn something_that_is_not_a_number_says_so_and_keeps_the_prompt() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+    type_str(&mut app, "abc");
+
+    app.handle_input(press(KeyCode::Enter));
+
+    assert!(app.state().name_prompt().is_some());
+    assert!(app.state().notifications().has_errors());
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("abc is not a line number")
+    );
+}
+
+#[test]
+fn a_bad_number_can_be_corrected_in_the_prompt() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+    type_str(&mut app, "x");
+    app.handle_input(press(KeyCode::Enter));
+
+    app.handle_input(press(KeyCode::Backspace));
+    type_str(&mut app, "2");
+    app.handle_input(press(KeyCode::Enter));
+
+    assert_eq!(head(&app), (1, 0));
+}
+
+#[test]
+fn escape_leaves_the_cursor_alone() {
+    let mut app = goto_app(FIVE_LINES);
+    let before = head(&app);
+    ctrl_g(&mut app);
+    type_str(&mut app, "1");
+
+    app.handle_input(press(KeyCode::Esc));
+
+    assert_eq!(head(&app), before);
+    assert!(app.state().name_prompt().is_none());
+}
+
+#[test]
+fn the_prompt_says_how_many_lines_there_are() {
+    let mut app = goto_app(FIVE_LINES);
+    ctrl_g(&mut app);
+
+    let screen = draw(&mut app);
+
+    assert!(screen.contains("Go to line (1-5"), "{screen}");
+}
+
+#[test]
+fn go_to_line_is_in_the_palette() {
+    let mut app = goto_app(FIVE_LINES);
+    run(&mut app, "Go to Line");
+
+    assert!(app.state().name_prompt().is_some());
+}
+
+#[test]
+fn going_to_a_line_selects_nothing() {
+    let mut app = goto_app(FIVE_LINES);
+    app.handle_input(key(KeyCode::Char('a'), KeyModifiers::CONTROL));
+    ctrl_g(&mut app);
+    type_str(&mut app, "2");
+    app.handle_input(press(KeyCode::Enter));
+
+    let selection = *app.state().editor().selections().primary();
+    assert!(selection.is_empty());
+}

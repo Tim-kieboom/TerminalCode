@@ -3,7 +3,7 @@
 //! the one that was open (see [`Popup`](crate::state::Popup)).
 
 use super::App;
-use crate::components::search::Options as SearchOptions;
+use crate::components::search::{Hit, Options as SearchOptions};
 
 pub(super) use delete::Removal;
 
@@ -35,11 +35,23 @@ impl SavedQuery {
     }
 }
 
+/// The results of the last project search, for stepping through them.
+#[derive(Debug)]
+pub(super) struct SavedResults {
+    root: std::path::PathBuf,
+    hits: Vec<Hit>,
+    /// The one last looked at, or the one highlighted when the search closed.
+    index: usize,
+    /// Whether `index` was opened.
+    visited: bool,
+}
+
 /// The last project search and the last find in a file.
 #[derive(Debug, Default)]
 pub(super) struct Remembered {
     search: SavedQuery,
     find: SavedQuery,
+    results: Option<SavedResults>,
 }
 
 impl App {

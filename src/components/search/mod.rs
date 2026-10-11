@@ -141,6 +141,11 @@ impl Search {
         &self.hits
     }
 
+    /// The results found so far and the one the selection is on.
+    pub(crate) fn results(&self) -> (&[Hit], usize) {
+        (&self.hits, self.selected)
+    }
+
     #[cfg(test)]
     pub(crate) fn selected(&self) -> usize {
         self.selected

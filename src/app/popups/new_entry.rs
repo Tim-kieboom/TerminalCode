@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::app::App;
 use crate::app::state::Focus;
+use crate::buffer::Position;
 use crate::components::explorer::{ExplorerCommand, NodeKind};
 use crate::components::name_prompt::{self, NamePrompt, Purpose};
 use crate::components::workspace::DocumentId;
@@ -103,6 +104,11 @@ impl App {
                 let to = entries::move_to(from, prompt.dir(), prompt.name())?;
                 self.renamed(from, &to, open);
             }
+            Purpose::GoToLine { .. } => {
+                let place = name_prompt::parse_place(prompt.name())
+                    .ok_or_else(|| EntryError::NotAPlace(prompt.name().trim().to_owned()))?;
+                self.go_to_place(place);
+            }
         }
         Ok(())
     }
@@ -168,5 +174,25 @@ impl App {
         if let Err(error) = result {
             self.state.notify_error(error.to_string());
         }
+    }
+}
+
+impl App {
+    /// Asks for a line to go to in the open file.
+    pub(in crate::app) fn open_go_to_line(&mut self) {
+        let lines = self.state.editor().buffer().len_lines();
+        self.state.set_focus(Focus::Editor);
+        self.state.open_name_prompt(NamePrompt::go_to_line(lines));
+    }
+
+    /// Puts the cursor on `line` (and `column`), counted from 1 and held to
+    /// what the file has.
+    fn go_to_place(&mut self, (line, column): (usize, Option<usize>)) {
+        self.state.set_focus(Focus::Editor);
+        self.state.edit(|editor| {
+            let at = Position::new(line - 1, column.map_or(0, |column| column - 1));
+            let at = editor.buffer().clamp_position(at);
+            editor.go_to(at);
+        });
     }
 }

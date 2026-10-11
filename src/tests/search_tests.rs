@@ -389,3 +389,236 @@ fn opening_a_result_for_a_file_that_is_already_open_switches_to_it() {
         Position::new(1, 0)
     );
 }
+
+// ---- stepping through the results without opening the search
+
+fn f4(app: &mut App) {
+    press(app, KeyCode::F(4));
+}
+
+fn shift_f4(app: &mut App) {
+    app.handle_input(key(KeyCode::F(4), KeyModifiers::SHIFT));
+}
+
+/// Searches for `hello` and closes the search with escape.
+fn searched_and_closed() -> (App, tempfile::TempDir) {
+    let dir = project();
+    let (mut app, mut rx) = app_in(dir.path());
+    open(&mut app);
+    type_str(&mut app, "hello");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Esc);
+    (app, dir)
+}
+
+fn place(app: &App) -> (String, usize) {
+    let name = app.state().editor().display_name();
+    (
+        name,
+        app.state().editor().selections().primary().head().line,
+    )
+}
+
+#[test]
+fn f4_goes_to_the_first_result_after_closing_the_search() {
+    let (mut app, _dir) = searched_and_closed();
+
+    f4(&mut app);
+
+    // The results are in path order: src/lib.rs line 1 comes first.
+    assert_eq!(place(&app), ("lib.rs".to_owned(), 0));
+}
+
+#[test]
+fn f4_goes_on_to_the_next_result_and_wraps() {
+    let (mut app, _dir) = searched_and_closed();
+
+    f4(&mut app);
+    let first = place(&app);
+    f4(&mut app);
+    let second = place(&app);
+    f4(&mut app);
+    let third = place(&app);
+    f4(&mut app);
+
+    assert_ne!(first, second);
+    assert_ne!(second, third);
+    assert_eq!(place(&app), first, "three results, then back to the first");
+}
+
+#[test]
+fn shift_f4_goes_back() {
+    let (mut app, _dir) = searched_and_closed();
+    f4(&mut app);
+    f4(&mut app);
+    let second = place(&app);
+    f4(&mut app);
+
+    shift_f4(&mut app);
+
+    assert_eq!(place(&app), second);
+}
+
+#[test]
+fn shift_f4_from_the_start_wraps_to_the_last_result() {
+    let (mut app, _dir) = searched_and_closed();
+    f4(&mut app);
+    let first = place(&app);
+
+    shift_f4(&mut app);
+
+    assert_ne!(place(&app), first);
+    f4(&mut app);
+    assert_eq!(place(&app), first);
+}
+
+#[test]
+fn stepping_says_which_result_it_is_on() {
+    let (mut app, _dir) = searched_and_closed();
+
+    f4(&mut app);
+
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("result 1 of 3")
+    );
+    f4(&mut app);
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("result 2 of 3")
+    );
+}
+
+#[test]
+fn stepping_starts_after_the_result_that_was_chosen() {
+    let dir = project();
+    let (mut app, mut rx) = app_in(dir.path());
+    open(&mut app);
+    type_str(&mut app, "hello");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    let chosen = place(&app);
+
+    f4(&mut app);
+
+    assert_ne!(place(&app), chosen);
+    shift_f4(&mut app);
+    assert_eq!(place(&app), chosen);
+}
+
+#[test]
+fn without_a_search_there_is_nothing_to_step_through() {
+    let mut app = App::default();
+
+    f4(&mut app);
+
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("no search results")
+    );
+}
+
+#[test]
+fn a_search_that_found_nothing_says_so() {
+    let dir = project();
+    let (mut app, mut rx) = app_in(dir.path());
+    open(&mut app);
+    type_str(&mut app, "zzzzz");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Esc);
+
+    f4(&mut app);
+
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("found nothing")
+    );
+}
+
+#[test]
+fn a_result_whose_file_is_gone_is_an_error_not_a_crash() {
+    let (mut app, dir) = searched_and_closed();
+    fs::remove_file(dir.path().join("src/lib.rs")).unwrap();
+
+    f4(&mut app);
+
+    assert!(app.state().notifications().has_errors());
+}
+
+#[test]
+fn the_palette_offers_the_steps() {
+    use crate::event::action::Action;
+    let actions = Action::palette_actions();
+    assert!(actions.contains(&Action::NextSearchResult));
+    assert!(actions.contains(&Action::PreviousSearchResult));
+}
+
+#[test]
+fn stepping_gives_the_keyboard_to_the_editor() {
+    let (mut app, _dir) = searched_and_closed();
+    app.state_mut().set_focus(Focus::Explorer);
+
+    f4(&mut app);
+
+    assert_eq!(app.state().focus(), Focus::Editor);
+}
+
+#[test]
+fn a_new_search_replaces_the_remembered_results() {
+    let dir = project();
+    let (mut app, mut rx) = app_in(dir.path());
+    open(&mut app);
+    type_str(&mut app, "hello");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Esc);
+    open(&mut app);
+    for _ in 0.."hello".len() {
+        press(&mut app, KeyCode::Backspace);
+    }
+    type_str(&mut app, "nothing");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Esc);
+
+    f4(&mut app);
+
+    assert_eq!(place(&app), ("notes.md".to_owned(), 0));
+}
+
+#[test]
+fn after_escape_the_highlighted_result_is_the_next_one() {
+    let dir = project();
+    let (mut app, mut rx) = app_in(dir.path());
+    open(&mut app);
+    type_str(&mut app, "hello");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Esc);
+
+    f4(&mut app);
+
+    assert_eq!(place(&app), ("lib.rs".to_owned(), 1), "the second result");
+}
+
+#[test]
+fn after_escape_shift_f4_goes_to_the_result_before_the_highlighted_one() {
+    let dir = project();
+    let (mut app, mut rx) = app_in(dir.path());
+    open(&mut app);
+    type_str(&mut app, "hello");
+    finish(&mut app, &mut rx);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Esc);
+
+    shift_f4(&mut app);
+
+    assert_eq!(place(&app), ("lib.rs".to_owned(), 0), "the first result");
+}

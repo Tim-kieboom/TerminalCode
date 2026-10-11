@@ -16,6 +16,8 @@ pub(crate) enum EntryError {
     Exists(String),
     #[error("a folder cannot be moved into itself ({0})")]
     IntoItself(String),
+    #[error("{0} is not a line number (use 42 or 42:7)")]
+    NotAPlace(String),
     #[error("{name}: {source}")]
     Io { name: String, source: io::Error },
 }
