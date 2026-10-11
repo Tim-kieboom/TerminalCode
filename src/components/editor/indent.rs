@@ -1,9 +1,12 @@
 //! Indentation: detecting a file's style, Tab/Shift+Tab, and Enter's
 //! auto-indent.
 
+use std::ops::Range;
+
 use crate::buffer::{Buffer, BufferError, Edit, Position, Selection, Selections};
 
-use super::{EditKind, Editor};
+use super::smart_indent::{Dialect, is_closer};
+use super::{EditKind, Editor, Motion};
 
 /// Lines looked at when detecting a file's indentation.
 const SAMPLE_LINES: usize = 2000;
@@ -159,18 +162,69 @@ impl Editor {
     }
 
     /// Enter: a line break followed by the leading whitespace of the current
-    /// line, as far as it lies left of the cursor.
+    /// line, as far as it lies left of the cursor. After an opening bracket
+    /// (in a language that has them, see [`Dialect`]) the new line is one level
+    /// deeper, and a closing bracket right after the cursor goes to a line of
+    /// its own below.
     pub(crate) fn insert_newline_indented(&mut self) -> Result<(), BufferError> {
-        let start = self.view.selections.primary().start();
+        let selection = *self.view.selections.primary();
+        let start = selection.start();
         let content = self.buffer.line_content(start.line)?;
         let indent: String = content
             .chars()
             .take_while(|c| matches!(c, ' ' | '\t'))
             .take(start.column)
             .collect();
+        let line_break = self.buffer.line_ending().as_str();
 
-        let text = format!("{}{indent}", self.buffer.line_ending().as_str());
-        self.insert_text(&text)
+        let cursor = self.buffer.position_to_byte(start)?;
+        let line_start = self.buffer.position_to_byte(Position::new(start.line, 0))?;
+        let (before, after) = content.split_at(cursor - line_start);
+        let closer =
+            Dialect::of_buffer(&self.buffer).and_then(|dialect| dialect.closer_to_add(before));
+        let Some(closer) = closer else {
+            let text = format!("{line_break}{indent}");
+            return self.insert_text(&text);
+        };
+
+        let deeper = format!("{indent}{}", self.view.indent.unit());
+        if selection.is_empty() && after.starts_with(closer) {
+            let text = format!("{line_break}{deeper}{line_break}{indent}");
+            self.insert_text(&text)?;
+            // The cursor goes to the empty line in the middle.
+            self.move_cursor(Motion::Up)?;
+            return self.move_cursor(Motion::LineEnd);
+        }
+        self.insert_text(&format!("{line_break}{deeper}"))
+    }
+
+    /// Typing a closing bracket on a line that holds only indentation takes one
+    /// level of it away first, so the bracket lines up with what opened it.
+    /// `None` when `text` is something else, or there is nothing to take away.
+    pub(super) fn closer_dedent(&self, text: &str) -> Result<Option<Range<usize>>, BufferError> {
+        let selection = self.view.selections.primary();
+        if !selection.is_empty() || !is_closer(text) || Dialect::of_buffer(&self.buffer).is_none() {
+            return Ok(None);
+        }
+        let at = selection.head();
+        let content = self.buffer.line_content(at.line)?;
+        let cursor = self.buffer.position_to_byte(at)?;
+        let line_start = self.buffer.position_to_byte(Position::new(at.line, 0))?;
+        let before = &content[..cursor - line_start];
+        if before.is_empty() || !before.chars().all(|c| matches!(c, ' ' | '\t')) {
+            return Ok(None);
+        }
+
+        let take = match self.view.indent {
+            IndentStyle::Tabs => before.ends_with('\t').then_some(1),
+            IndentStyle::Spaces(width) => {
+                let spaces = before.len() - before.trim_end_matches(' ').len();
+                let remainder = spaces % width;
+                let take = if remainder == 0 { width } else { remainder };
+                (spaces >= take).then_some(take)
+            }
+        };
+        Ok(take.map(|take| cursor - take..cursor))
     }
 
     fn indent_lines(&mut self, selection: &Selection) -> Result<(), BufferError> {

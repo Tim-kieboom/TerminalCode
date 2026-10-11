@@ -14,6 +14,7 @@ mod indent;
 mod motion;
 mod mouse_ops;
 pub(crate) mod render;
+mod smart_indent;
 #[cfg(test)]
 mod tests;
 mod text_layout;
@@ -208,6 +209,10 @@ impl Editor {
         if range.is_empty() && text.is_empty() {
             return Ok(());
         }
+        let range = match self.closer_dedent(text)? {
+            Some(dedent) => dedent.start..range.end,
+            None => range,
+        };
 
         let continues_typing = range.is_empty() && !text.contains(['\n', '\r']);
         let kind = continues_typing.then_some(EditKind::Typing);

@@ -75,7 +75,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] tree-sitter integration, grammars compiled into the binary: Rust, TOML (`tree-sitter-toml-ng`), JSON, Markdown (`tree-sitter-md`, block and inline grammars), Nix. Binary 8.3 MB → 10.7 MB (release, Linux). If the binary size or the Windows build starts to hurt, drop in this order: TOML, JSON. RON was tried and dropped (its crate pulls in a second, incompatible tree-sitter runtime; see `docs/design.md`). Not done: fenced code blocks in Markdown are not highlighted in their own language, the Windows build is untested
 - [x] Parse worker (done; a keystroke costs the UI ≈ 4 µs, the worker answers a 7 MB Rust file in ≈ 0.12 s, the first parse takes ≈ 0.9 s; why the incremental parse still takes 0.12 s is worth a benchmark): at most one parse pending, always started from the newest text (coalescing); any result is accepted and its highlights are mapped forward through the edits made since the text it parsed, so a steady typist on a big file still sees colors; `version` only guards against results arriving out of order. Until a result arrives the old highlights are mapped through each `Edit
 - [x] Incremental reparse from `Edit`
-- [ ] Smart indent: add a level after an opening token (`{`, `(`, `[`, `:`) and dedent on a closing one, using the syntax tree to skip strings and comments (Enter copies indentation verbatim until then)
+- [x] Smart indent (done, text-based: `components/editor/smart_indent.rs`): Enter after `{`, `(` or `[` goes one level deeper and a closer right after the cursor drops to its own line; typing a closer on an indent-only line takes a level away; Rust, JSON, TOML and Nix files that have a path; strings and a trailing line comment on the cursor line are skipped. Not done: `:` (no supported language needs it), comments and strings that span lines (would need the syntax tree), files without a path
 - [ ] Highlight theme as data; a light theme (the default one has the `syntax.*` slots; `syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span)
 
 ## M6 — Integrated terminal
@@ -127,7 +127,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 
 ## Pre-M6 leftovers (triaged; the follow-up bullets above stay as the record, this is the plan)
 Group 1, built now (each stands alone, no `settings.json` needed):
-- [ ] M5: smart indent; a light theme
+- [ ] M5: a light theme (smart indent is done)
 - [ ] Explorer: drag and drop move; rename that only changes case; highlight and reveal the active tab's file; hidden-file toggle; `alt+h` into the explorer; symlink loops
 - [ ] Editor mouse: click in the gutter selects the line; middle-click paste; right-click menu in the editor
 - [ ] Tabs: open an already-open path by switching to it; close other / close all tabs; save all; reopen closed tab; overflow markers in a crowded tab bar
