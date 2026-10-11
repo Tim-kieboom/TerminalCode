@@ -42,19 +42,20 @@ fn the_palette_lists_the_three_config_files() {
 }
 
 #[test]
-fn a_missing_theme_file_is_made_from_the_template_and_opened() {
+fn open_theme_makes_the_themes_folder_and_a_copy_of_the_built_in_theme() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_with_config_dir(dir.path());
 
     run_from_palette(&mut app, "Open Theme");
 
-    let path = dir.path().join("theme.toml");
-    assert_eq!(
-        fs::read_to_string(&path).unwrap(),
-        crate::config::THEME_OVERLAY_TEMPLATE
-    );
-    assert_eq!(editor_text(&app), crate::config::THEME_OVERLAY_TEMPLATE);
+    let path = dir.path().join("themes/dark.toml");
+    assert_eq!(fs::read_to_string(&path).unwrap(), DEFAULT_THEME_TOML);
+    assert_eq!(editor_text(&app), DEFAULT_THEME_TOML);
     assert_eq!(app.state().editor().buffer().path(), Some(path.as_path()));
+    assert!(
+        !dir.path().join("theme.toml").exists(),
+        "no overlay is made"
+    );
 }
 
 #[test]
@@ -75,20 +76,16 @@ fn each_file_starts_from_its_own_default() {
 }
 
 #[test]
-fn an_existing_file_is_opened_as_it_is() {
+fn an_existing_theme_file_is_opened_as_it_is() {
     let dir = tempfile::tempdir().unwrap();
-    fs::write(
-        dir.path().join("theme.toml"),
-        "[palette]\naccent = \"red\"\n",
-    )
-    .unwrap();
+    install(dir.path(), "dark", "[palette]\naccent = \"red\"\n");
     let mut app = app_with_config_dir(dir.path());
 
     run_from_palette(&mut app, "Open Theme");
 
     assert_eq!(editor_text(&app), "[palette]\naccent = \"red\"\n");
     assert_eq!(
-        fs::read_to_string(dir.path().join("theme.toml")).unwrap(),
+        fs::read_to_string(dir.path().join("themes/dark.toml")).unwrap(),
         "[palette]\naccent = \"red\"\n"
     );
 }
@@ -105,15 +102,16 @@ fn the_config_directory_is_made_when_it_is_missing() {
 }
 
 #[test]
-fn making_a_file_says_so() {
+fn making_a_theme_file_says_so() {
     let dir = tempfile::tempdir().unwrap();
     let mut app = app_with_config_dir(dir.path());
 
     run_from_palette(&mut app, "Open Theme");
 
     let message = app.state().latest_notification().unwrap();
-    assert!(message.contains("theme.toml"), "{message}");
-    assert!(message.contains("defaults"), "{message}");
+    assert!(message.contains("themes"), "{message}");
+    assert!(message.contains("dark.toml"), "{message}");
+    assert!(message.contains("built-in"), "{message}");
 }
 
 #[test]
@@ -899,58 +897,17 @@ fn open_theme_opens_the_installed_theme_that_was_chosen() {
 }
 
 #[test]
-fn open_theme_with_a_built_in_theme_opens_the_overlay() {
-    let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "theme.toml", "# mine\n");
-    let mut app = app_with_config_dir(dir.path());
-
-    run_from_palette(&mut app, "Open Theme");
-
-    assert_eq!(editor_text(&app), "# mine\n");
-}
-
-#[test]
-fn a_new_overlay_does_not_hide_the_built_in_theme_that_is_chosen() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-    run_from_palette(&mut app, "Theme: Light");
-
-    run_from_palette(&mut app, "Open Theme");
-
-    let overlay = editor_text(&app);
-    assert_eq!(overlay, crate::config::THEME_OVERLAY_TEMPLATE);
-    assert!(
-        crate::ui::theme::Theme::layered_over(ThemeVariant::Light, &overlay).unwrap()
-            == Theme::built_in(ThemeVariant::Light)
-    );
-}
-
-#[test]
-fn after_going_back_to_a_built_in_theme_open_theme_opens_the_overlay_again() {
+fn an_installed_theme_whose_file_vanished_is_made_again() {
     let dir = tempfile::tempdir().unwrap();
     install(dir.path(), "solar", GREEN_ACCENT);
-    write(dir.path(), "theme.toml", "# mine\n");
-    let mut app = app_with_config_dir(dir.path());
-    run_from_palette(&mut app, "Theme: solar");
-    run_from_palette(&mut app, "Theme: Dark");
-
-    run_from_palette(&mut app, "Open Theme");
-
-    assert_eq!(editor_text(&app), "# mine\n");
-}
-
-#[test]
-fn an_installed_theme_whose_file_vanished_falls_back_to_the_overlay() {
-    let dir = tempfile::tempdir().unwrap();
-    install(dir.path(), "solar", GREEN_ACCENT);
-    write(dir.path(), "theme.toml", "# mine\n");
     let mut app = app_with_config_dir(dir.path());
     run_from_palette(&mut app, "Theme: solar");
     fs::remove_file(dir.path().join("themes/solar.toml")).unwrap();
 
     run_from_palette(&mut app, "Open Theme");
 
-    assert_eq!(editor_text(&app), "# mine\n");
+    assert_eq!(editor_text(&app), DEFAULT_THEME_TOML);
+    assert!(dir.path().join("themes/solar.toml").is_file());
 }
 
 // ---- an overlay must not undo the choice of theme
@@ -1007,10 +964,75 @@ fn an_overlay_that_changes_something_is_still_applied_over_the_light_theme() {
     assert_ne!(*app.state().theme(), Theme::built_in(ThemeVariant::Light));
 }
 
+// ---- Open Theme makes themes/NAME.toml and chooses it
+
 #[test]
-fn the_overlay_template_is_a_valid_theme_that_changes_nothing() {
-    for variant in [ThemeVariant::Dark, ThemeVariant::Light] {
-        let theme = Theme::layered_over(variant, crate::config::THEME_OVERLAY_TEMPLATE).unwrap();
-        assert_eq!(theme, Theme::built_in(variant));
-    }
+fn the_copy_made_for_a_built_in_theme_is_chosen_so_its_edits_show() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Open Theme");
+    write(
+        dir.path(),
+        "themes/dark.toml",
+        &format!("{DEFAULT_THEME_TOML}\n[\"my.slot\"]\ntext = \"red\"\n"),
+    );
+
+    saved(&mut app, &dir.path().join("themes/dark.toml"));
+
+    assert_eq!(app.state().theme().style("my.slot").fg, Some(Color::Red));
+}
+
+#[test]
+fn open_theme_after_choosing_light_makes_light_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Theme: Light");
+
+    run_from_palette(&mut app, "Open Theme");
+
+    let path = dir.path().join("themes/light.toml");
+    assert_eq!(
+        fs::read_to_string(path).unwrap(),
+        crate::ui::theme::LIGHT_THEME_TOML
+    );
+    assert_eq!(*app.state().theme(), Theme::built_in(ThemeVariant::Light));
+}
+
+#[test]
+fn the_new_copy_shows_up_as_an_installed_theme() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(crate::config::installed_themes(dir.path()), ["dark"]);
+}
+
+#[test]
+fn an_existing_copy_that_is_not_chosen_yet_is_chosen_when_opened() {
+    let dir = tempfile::tempdir().unwrap();
+    install(dir.path(), "dark", GREEN_ACCENT);
+    let mut app = app_with_config_dir(dir.path());
+    assert_ne!(accent(&app), Some(Color::Rgb(0, 255, 0)));
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(accent(&app), Some(Color::Rgb(0, 255, 0)));
+}
+
+#[test]
+fn opening_the_theme_twice_shows_one_tab_and_makes_the_copy_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Open Theme");
+    let tabs = app.state().workspace().tab_names().0.len();
+    let messages = app.state().notifications().len();
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(app.state().workspace().tab_names().0.len(), tabs);
+    assert_eq!(
+        app.state().notifications().len(),
+        messages,
+        "nothing was made, so nothing is said"
+    );
 }

@@ -285,10 +285,15 @@ pub(crate) fn load_chosen_theme(
     let floor = ThemeVariant::Dark.source();
     let mut warnings = Vec::new();
     let mut layers = vec![floor.to_owned()];
-    for (path, kind) in [(Some(installed), "theme"), (user_file, "theme")] {
+    // An unchanged copy of a built-in theme is the theme itself when it is the
+    // installed one, but nothing when it is the overlay (it would undo the choice).
+    for (path, kind, is_overlay) in [
+        (Some(installed), "theme", false),
+        (user_file, "theme", true),
+    ] {
         let Some(path) = path else { continue };
         match read_user_file(path) {
-            Ok(Some(source)) if is_stock_copy(&source) => {}
+            Ok(Some(source)) if is_overlay && is_stock_copy(&source) => {}
             Ok(Some(source)) => {
                 let mut trial: Vec<&str> = layers.iter().map(String::as_str).collect();
                 trial.push(&source);
@@ -321,17 +326,3 @@ fn is_stock_copy(source: &str) -> bool {
         .iter()
         .any(|variant| variant.source().trim() == source.trim())
 }
-
-/// What a new `theme.toml` starts with: nothing that would hide the theme in
-/// use, and a hint at what to write.
-pub(crate) const THEME_OVERLAY_TEMPLATE: &str = "\
-# Your changes to the theme in use (choose one with \"Theme: Choose...\").
-# Whatever is written here is laid over that theme, so only write what differs.
-# Slots and colors are described at the top of the built-in themes. For example:
-#
-# [palette]
-# accent = \"#00ff00\"
-#
-# [\"editor.selection\"]
-# background = \"#334455\"
-";

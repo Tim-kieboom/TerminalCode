@@ -11,9 +11,12 @@ use super::App;
 impl App {
     /// Opens `file` in a tab. A file that does not exist yet is made first from
     /// the built-in default, so there is something to edit; one that does is
-    /// left as it is. The theme file opened is the one in use: the installed
-    /// theme that was chosen, else `theme.toml`, which is started from the
-    /// built-in theme that was chosen. A change applies when the file is saved.
+    /// left as it is.
+    ///
+    /// The theme opened is the one in use, as `themes/NAME.toml`: an installed
+    /// theme is opened as it is, and for a built-in one a copy of it is made
+    /// there first, named after it, and chosen, so what is edited is what shows.
+    /// A change applies when the file is saved.
     pub(super) fn open_config(&mut self, file: ConfigFile) -> IdeResult {
         let Some(dir) = &self.config_dir else {
             self.state
@@ -21,23 +24,13 @@ impl App {
             return Ok(());
         };
 
-        if file == ConfigFile::Theme
-            && let Some(installed) = self.installed_theme_path()
-            && installed.is_file()
-        {
-            self.state.workspace_mut().open_path(&installed)?;
-            return Ok(());
+        if file == ConfigFile::Theme {
+            return self.open_theme_in_use();
         }
 
         let path = file.path_in(dir);
-        // A new theme file holds only what the user changes, not a copy of a
-        // built-in theme, which would hide whichever theme is chosen.
-        let content = match file {
-            ConfigFile::Theme => config::THEME_OVERLAY_TEMPLATE,
-            _ => file.default_content(),
-        };
         let created = file
-            .create_with(&path, content)
+            .create_from_default(&path)
             .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
 
         self.state.workspace_mut().open_path(&path)?;
@@ -45,6 +38,42 @@ impl App {
             self.state.notify(format!(
                 "made {} from the defaults; changes apply when it is saved",
                 path.display()
+            ));
+        }
+        Ok(())
+    }
+}
+
+impl App {
+    /// Opens the file of the theme in use in the themes folder, making the folder
+    /// and, for a built-in theme or an installed one whose file is gone, the file.
+    fn open_theme_in_use(&mut self) -> IdeResult {
+        let Some(dir) = self.config_dir.clone() else {
+            return Ok(());
+        };
+        let name = match &self.installed_theme {
+            Some(name) => name.clone(),
+            None => self.theme_variant.name().to_owned(),
+        };
+        let Some(path) = config::installed_theme_path(&dir, &name) else {
+            self.state
+                .notify_error(format!("{name} is not a usable theme name"));
+            return Ok(());
+        };
+        let created = ConfigFile::Theme
+            .create_with(&path, self.theme_variant.source())
+            .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
+        if self.installed_theme.as_deref() != Some(name.as_str()) {
+            // The file is the theme in use from now on, so editing it shows.
+            self.installed_theme = Some(name.clone());
+            self.apply_chosen_theme(&name);
+        }
+        self.state.workspace_mut().open_path(&path)?;
+        if created {
+            self.state.notify(format!(
+                "made {} from the built-in {} theme and chose it; changes apply when it is saved",
+                path.display(),
+                self.theme_variant.name()
             ));
         }
         Ok(())
