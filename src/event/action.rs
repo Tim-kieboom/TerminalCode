@@ -37,6 +37,8 @@ pub(crate) enum Action {
     FindInProject,
     /// Opens the find bar for the open file.
     FindInFile,
+    /// Opens the find bar with the row for replacing.
+    ReplaceInFile,
     /// Deletes the explorer's selected file or folder, to the trash.
     DeleteSelected,
     /// Asks for the name of a new file in the explorer's selected folder.
@@ -181,6 +183,7 @@ impl Action {
             Self::FindFile => "File: Go to File",
             Self::FindInProject => "Search: Find in Project",
             Self::FindInFile => "Search: Find in File",
+            Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
             Self::DeleteSelected => "Explorer: Delete Selected",
             Self::CreateFile => "Explorer: New File",
@@ -246,6 +249,7 @@ impl Action {
             Self::FindFile,
             Self::FindInProject,
             Self::FindInFile,
+            Self::ReplaceInFile,
             Self::FocusExplorer,
             Self::ToggleExplorer,
             Self::ToggleStatusBar,

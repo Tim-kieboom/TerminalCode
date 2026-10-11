@@ -34,6 +34,9 @@ const PAGE: usize = 10;
 pub(crate) struct Options {
     pub(crate) case_sensitive: bool,
     pub(crate) regex: bool,
+    /// Only matches that are whole words: not touching a letter, digit or
+    /// underscore on either side.
+    pub(crate) whole_word: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,6 +60,7 @@ pub(crate) enum Command {
     ClearQuery,
     ToggleCase,
     ToggleRegex,
+    ToggleWord,
     Previous,
     Next,
     PageUp,
@@ -83,6 +87,7 @@ impl Command {
             (KeyCode::Char('u'), true, false) => Self::ClearQuery,
             (KeyCode::Char('c'), false, true) => Self::ToggleCase,
             (KeyCode::Char('r'), false, true) => Self::ToggleRegex,
+            (KeyCode::Char('w'), false, true) => Self::ToggleWord,
             (KeyCode::Char(c), false, false) => Self::Insert(c),
             _ => return None,
         })
@@ -168,6 +173,10 @@ impl Search {
 
     pub(crate) fn toggle_regex(&mut self) {
         self.options.regex = !self.options.regex;
+    }
+
+    pub(crate) fn toggle_word(&mut self) {
+        self.options.whole_word = !self.options.whole_word;
     }
 
     pub(crate) fn select_previous(&mut self) {
@@ -285,8 +294,9 @@ impl Search {
     fn options_line(&self) -> String {
         let mark = |on: bool| if on { "x" } else { " " };
         format!(
-            " [{}] match case (alt+c)   [{}] regex (alt+r)",
+            " [{}] match case (alt+c)   [{}] whole word (alt+w)   [{}] regex (alt+r)",
             mark(self.options.case_sensitive),
+            mark(self.options.whole_word),
             mark(self.options.regex)
         )
     }

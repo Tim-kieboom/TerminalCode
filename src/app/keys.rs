@@ -208,6 +208,7 @@ impl App {
             Action::FindFile => self.open_finder(),
             Action::FindInProject => self.open_search(),
             Action::FindInFile => self.open_find(),
+            Action::ReplaceInFile => self.open_replace(),
             Action::FocusExplorer => self.toggle_explorer_focus(),
             Action::ToggleExplorer => self.toggle_explorer(),
             Action::ToggleStatusBar => self.state.toggle_status_bar(),

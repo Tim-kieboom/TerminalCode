@@ -292,7 +292,7 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> Option<Command> {
 fn keys_map_to_commands() {
     let none = KeyModifiers::NONE;
     assert_eq!(key(KeyCode::Char('x'), none), Some(Command::Insert('x')));
-    assert_eq!(key(KeyCode::Enter, none), Some(Command::Next));
+    assert_eq!(key(KeyCode::Enter, none), Some(Command::Confirm));
     assert_eq!(
         key(KeyCode::Enter, KeyModifiers::SHIFT),
         Some(Command::Previous)
@@ -327,4 +327,289 @@ fn other_modified_keys_and_releases_are_not_commands() {
     let mut release = KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE);
     release.kind = KeyEventKind::Release;
     assert_eq!(Command::from_key(release), None);
+}
+
+// ---- whole words
+
+fn word_options() -> Options {
+    Options {
+        whole_word: true,
+        ..Options::default()
+    }
+}
+
+fn find_in(text: &str, query: &str, options: Options) -> Find {
+    Find::open(
+        &Buffer::from_text(text),
+        Position::default(),
+        query.to_owned(),
+        options,
+    )
+}
+
+#[test]
+fn whole_word_leaves_out_matches_inside_longer_words() {
+    let find = find_in("cat concat cat_x cat. (cat)", "cat", word_options());
+
+    assert_eq!(find.matches(), [at(0, 0, 3), at(0, 17, 20), at(0, 23, 26)]);
+}
+
+#[test]
+fn without_whole_word_every_occurrence_counts() {
+    let find = find_in("cat concat cat_x", "cat", Options::default());
+
+    assert_eq!(find.matches().len(), 3);
+}
+
+#[test]
+fn whole_word_works_for_a_query_that_starts_or_ends_in_punctuation() {
+    // Like ripgrep's -w: the character before the match must not be a word
+    // character, even when the match itself starts with a paren.
+    let find = find_in("call(foo) (foo) recall(foo)", "(foo)", word_options());
+    assert_eq!(find.matches(), [at(0, 10, 15)]);
+
+    let find = find_in("x foo() foox()", "foo(", word_options());
+    assert_eq!(find.matches(), [at(0, 2, 6)]);
+}
+
+#[test]
+fn whole_word_with_a_pattern_wraps_the_whole_pattern() {
+    let options = Options {
+        regex: true,
+        whole_word: true,
+        ..Options::default()
+    };
+
+    let find = find_in("ab abc a abcd", "ab|abc", options);
+
+    assert_eq!(find.matches(), [at(0, 0, 2), at(0, 3, 6)]);
+}
+
+#[test]
+fn whole_word_is_toggled_and_matches_are_found_again() {
+    let buffer = Buffer::from_text("cat concat");
+    let mut find = Find::open(
+        &buffer,
+        Position::default(),
+        "cat".into(),
+        Options::default(),
+    );
+    assert_eq!(find.matches().len(), 2);
+
+    find.toggle_word(&buffer);
+    assert_eq!(find.matches().len(), 1);
+    assert!(find.options().whole_word);
+
+    find.toggle_word(&buffer);
+    assert_eq!(find.matches().len(), 2);
+}
+
+#[test]
+fn whole_word_counts_words_with_non_ascii_letters() {
+    let find = find_in("été étés", "été", word_options());
+
+    assert_eq!(find.matches(), [at(0, 0, 3)]);
+}
+
+#[test]
+fn alt_w_toggles_whole_word() {
+    assert_eq!(
+        key(KeyCode::Char('w'), KeyModifiers::ALT),
+        Some(Command::ToggleWord)
+    );
+}
+
+// ---- replacing
+
+fn with_replacement(
+    text: &str,
+    query: &str,
+    replacement: &str,
+    options: Options,
+) -> (Buffer, Find) {
+    let buffer = Buffer::from_text(text);
+    let mut find = Find::open(&buffer, Position::default(), query.to_owned(), options);
+    find.set_replacement(replacement.to_owned());
+    (buffer, find)
+}
+
+fn texts(replacements: &[crate::components::editor::Replacement]) -> Vec<&str> {
+    replacements.iter().map(|r| r.text.as_str()).collect()
+}
+
+#[test]
+fn a_literal_replacement_is_taken_as_it_is() {
+    let (buffer, find) = with_replacement("a.c a.c", "a.c", "$1\\n", Options::default());
+
+    assert_eq!(texts(&find.all_replacements(&buffer)), ["$1\\n", "$1\\n"]);
+}
+
+#[test]
+fn replacements_know_where_they_go() {
+    let (buffer, find) = with_replacement("one two\ntwo", "two", "2", Options::default());
+
+    let all = find.all_replacements(&buffer);
+
+    assert_eq!(all.len(), 2);
+    assert_eq!(
+        (all[0].start, all[0].end),
+        (Position::new(0, 4), Position::new(0, 7))
+    );
+    assert_eq!(
+        (all[1].start, all[1].end),
+        (Position::new(1, 0), Position::new(1, 3))
+    );
+}
+
+#[test]
+fn the_current_replacement_is_the_one_for_the_current_match() {
+    let (buffer, mut find) = with_replacement("one two\ntwo", "two", "2", Options::default());
+    find.next();
+
+    let current = find.current_replacement(&buffer).unwrap();
+
+    assert_eq!(current.start, Position::new(1, 0));
+    assert_eq!(current.text, "2");
+}
+
+#[test]
+fn with_regex_the_groups_of_a_match_can_be_used() {
+    let options = Options {
+        regex: true,
+        ..Options::default()
+    };
+    let (buffer, find) = with_replacement(
+        "john smith\nada lovelace",
+        r"(\w+) (\w+)",
+        "$2, $1",
+        options,
+    );
+
+    assert_eq!(
+        texts(&find.all_replacements(&buffer)),
+        ["smith, john", "lovelace, ada"]
+    );
+}
+
+#[test]
+fn named_groups_and_a_missing_group_work() {
+    let options = Options {
+        regex: true,
+        ..Options::default()
+    };
+    let (buffer, find) = with_replacement("k=v", r"(?P<key>\w)=(\w)", "${key}:$2:[$3]", options);
+
+    assert_eq!(texts(&find.all_replacements(&buffer)), ["k:v:[]"]);
+}
+
+#[test]
+fn matches_in_a_line_with_several_are_each_replaced_in_place() {
+    let (buffer, find) = with_replacement("aXa aXa", "X", "--", Options::default());
+
+    let all = find.all_replacements(&buffer);
+
+    assert_eq!(all.len(), 2);
+    assert_eq!(all[1].start, Position::new(0, 5));
+}
+
+#[test]
+fn graphemes_are_counted_not_bytes() {
+    let (buffer, find) = with_replacement("é é", "é", "e", Options::default());
+
+    let all = find.all_replacements(&buffer);
+
+    assert_eq!(all[1].start, Position::new(0, 2));
+    assert_eq!(all[1].end, Position::new(0, 3));
+}
+
+#[test]
+fn with_no_match_there_is_nothing_to_replace() {
+    let (buffer, find) = with_replacement("abc", "zzz", "x", Options::default());
+
+    assert!(find.all_replacements(&buffer).is_empty());
+    assert!(find.current_replacement(&buffer).is_none());
+}
+
+#[test]
+fn an_invalid_pattern_has_nothing_to_replace() {
+    let options = Options {
+        regex: true,
+        ..Options::default()
+    };
+    let (buffer, find) = with_replacement("abc", "(", "x", options);
+
+    assert!(find.all_replacements(&buffer).is_empty());
+}
+
+#[test]
+fn the_replacement_row_is_shown_hidden_and_switched_to() {
+    let mut find = find("two");
+    assert!(!find.replace_open());
+    assert_eq!(find.bar_rows(), 1);
+
+    find.toggle_replace();
+    assert!(find.replace_open());
+    assert!(find.replacing(), "the row gets the typing");
+    assert_eq!(find.bar_rows(), 2);
+
+    find.switch_field();
+    assert!(!find.replacing());
+    find.switch_field();
+    assert!(find.replacing());
+
+    find.toggle_replace();
+    assert!(!find.replace_open());
+    assert!(!find.replacing());
+}
+
+#[test]
+fn switching_fields_does_nothing_with_the_row_hidden() {
+    let mut find = find("two");
+
+    find.switch_field();
+
+    assert!(!find.replacing());
+}
+
+#[test]
+fn typing_goes_to_the_field_that_has_it() {
+    let buffer = buffer();
+    let mut find = find("two");
+    find.toggle_replace();
+
+    find.insert(&buffer, 'X');
+    find.insert(&buffer, 'Y');
+
+    assert_eq!(find.replacement(), "XY");
+    assert_eq!(find.query(), "two");
+    find.backspace(&buffer);
+    assert_eq!(find.replacement(), "X");
+    find.clear_query(&buffer);
+    assert_eq!(find.replacement(), "");
+    assert_eq!(find.query(), "two");
+    assert_eq!(find.matches().len(), 4, "the matches did not change");
+
+    find.switch_field();
+    find.insert(&buffer, 's');
+    assert_eq!(find.query(), "twos");
+}
+
+#[test]
+fn the_keys_for_replacing() {
+    assert_eq!(
+        key(KeyCode::Char('r'), KeyModifiers::CONTROL),
+        Some(Command::ToggleReplace)
+    );
+    assert_eq!(
+        key(KeyCode::Tab, KeyModifiers::NONE),
+        Some(Command::SwitchField)
+    );
+    assert_eq!(
+        key(KeyCode::BackTab, KeyModifiers::SHIFT),
+        Some(Command::SwitchField)
+    );
+    assert_eq!(
+        key(KeyCode::Char('a'), KeyModifiers::ALT),
+        Some(Command::ReplaceAll)
+    );
 }

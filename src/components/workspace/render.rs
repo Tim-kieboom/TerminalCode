@@ -92,7 +92,10 @@ impl Workspace {
             .map(|tab| format!(" {} ", display_name(&self.documents[&tab.document].buffer)))
             .collect();
 
-        let reserve_find_bar = self.find_bar && self.panes[index].id == self.focused;
+        let find_rows = match self.panes[index].id == self.focused {
+            true => self.find_bar,
+            false => 0,
+        };
         let pane = &mut self.panes[index];
         pane.area = area;
         pane.tab_bar = Rect {
@@ -104,15 +107,17 @@ impl Workspace {
             height: area.height - pane.tab_bar.height,
             ..area
         };
-        (pane.editor_area, pane.find_bar) = match reserve_find_bar && body.height > 1 {
+        // The bar leaves at least one row of text.
+        let rows = find_rows.min(body.height.saturating_sub(1));
+        (pane.editor_area, pane.find_bar) = match rows > 0 {
             true => (
                 Rect {
-                    height: body.height - 1,
+                    height: body.height - rows,
                     ..body
                 },
                 Rect {
-                    y: body.bottom() - 1,
-                    height: 1,
+                    y: body.bottom() - rows,
+                    height: rows,
                     ..body
                 },
             ),

@@ -56,6 +56,7 @@ impl App {
             search::Command::ClearQuery => search.clear_query(),
             search::Command::ToggleCase => search.toggle_case(),
             search::Command::ToggleRegex => search.toggle_regex(),
+            search::Command::ToggleWord => search.toggle_word(),
             search::Command::Previous => (changed, _) = (false, search.select_previous()),
             search::Command::Next => (changed, _) = (false, search.select_next()),
             search::Command::PageUp => (changed, _) = (false, search.page_up()),

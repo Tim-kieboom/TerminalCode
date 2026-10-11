@@ -14,6 +14,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::buffer::{Buffer, Position};
+use crate::components::editor::Replacement;
 use crate::components::search::Options;
 use crate::ui::theme::Theme;
 
@@ -52,8 +53,17 @@ pub(crate) enum Command {
     ClearQuery,
     ToggleCase,
     ToggleRegex,
+    ToggleWord,
+    /// Enter: the next match in the query field, replacing the current one in the
+    /// replacement field.
+    Confirm,
     Next,
     Previous,
+    /// Shows or hides the row for the replacement.
+    ToggleReplace,
+    /// Moves between the query and the replacement.
+    SwitchField,
+    ReplaceAll,
     Close,
 }
 
@@ -67,7 +77,7 @@ impl Command {
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
         Some(match (key.code, ctrl, alt, shift) {
             (KeyCode::Esc, false, false, _) => Self::Close,
-            (KeyCode::Enter, false, false, false) => Self::Next,
+            (KeyCode::Enter, false, false, false) => Self::Confirm,
             (KeyCode::Enter, false, false, true) => Self::Previous,
             (KeyCode::Down, false, false, _) => Self::Next,
             (KeyCode::Up, false, false, _) => Self::Previous,
@@ -77,10 +87,21 @@ impl Command {
             (KeyCode::Char('u'), true, false, _) => Self::ClearQuery,
             (KeyCode::Char('c'), false, true, _) => Self::ToggleCase,
             (KeyCode::Char('r'), false, true, _) => Self::ToggleRegex,
+            (KeyCode::Char('w'), false, true, _) => Self::ToggleWord,
+            (KeyCode::Char('a'), false, true, _) => Self::ReplaceAll,
+            (KeyCode::Char('r'), true, false, _) => Self::ToggleReplace,
+            (KeyCode::Tab | KeyCode::BackTab, false, false, _) => Self::SwitchField,
             (KeyCode::Char(c), false, false, _) => Self::Insert(c),
             _ => return None,
         })
     }
+}
+
+/// Which text the typing goes to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Field {
+    Query,
+    Replacement,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,6 +124,12 @@ pub(crate) struct Find {
     origin: Position,
     /// The buffer version the matches belong to.
     version: u64,
+    /// What a match is replaced with; with regex on, `$1` and `${name}` stand
+    /// for the groups of the match.
+    replacement: String,
+    /// Whether the row for the replacement is shown.
+    replace_open: bool,
+    field: Field,
 }
 
 impl Find {
@@ -117,6 +144,9 @@ impl Find {
             problem: None,
             origin,
             version: buffer.version(),
+            replacement: String::new(),
+            replace_open: false,
+            field: Field::Query,
         };
         find.recompute(buffer);
         find
@@ -175,18 +205,36 @@ impl Find {
     }
 
     pub(crate) fn insert(&mut self, buffer: &Buffer, c: char) {
-        self.query.push(c);
-        self.recompute(buffer);
+        match self.field {
+            Field::Query => {
+                self.query.push(c);
+                self.recompute(buffer);
+            }
+            Field::Replacement => self.replacement.push(c),
+        }
     }
 
     pub(crate) fn backspace(&mut self, buffer: &Buffer) {
-        self.query.pop();
-        self.recompute(buffer);
+        match self.field {
+            Field::Query => {
+                self.query.pop();
+                self.recompute(buffer);
+            }
+            Field::Replacement => {
+                self.replacement.pop();
+            }
+        }
     }
 
+    /// Empties the text being typed.
     pub(crate) fn clear_query(&mut self, buffer: &Buffer) {
-        self.query.clear();
-        self.recompute(buffer);
+        match self.field {
+            Field::Query => {
+                self.query.clear();
+                self.recompute(buffer);
+            }
+            Field::Replacement => self.replacement.clear(),
+        }
     }
 
     pub(crate) fn toggle_case(&mut self, buffer: &Buffer) {
@@ -196,6 +244,138 @@ impl Find {
 
     pub(crate) fn toggle_regex(&mut self, buffer: &Buffer) {
         self.options.regex = !self.options.regex;
+        self.recompute(buffer);
+    }
+
+    pub(crate) fn toggle_word(&mut self, buffer: &Buffer) {
+        self.options.whole_word = !self.options.whole_word;
+        self.recompute(buffer);
+    }
+
+    pub(crate) fn replacement(&self) -> &str {
+        &self.replacement
+    }
+
+    pub(crate) fn set_replacement(&mut self, text: String) {
+        self.replacement = text;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn replace_open(&self) -> bool {
+        self.replace_open
+    }
+
+    /// Whether typing goes to the replacement, which Enter then puts in.
+    pub(crate) fn replacing(&self) -> bool {
+        self.replace_open && self.field == Field::Replacement
+    }
+
+    /// The rows the bar takes.
+    pub(crate) fn bar_rows(&self) -> u16 {
+        match self.replace_open {
+            true => 2,
+            false => 1,
+        }
+    }
+
+    /// Shows the replacement row and gives it the typing, or hides it again.
+    pub(crate) fn toggle_replace(&mut self) {
+        self.replace_open = !self.replace_open;
+        self.field = match self.replace_open {
+            true => Field::Replacement,
+            false => Field::Query,
+        };
+    }
+
+    /// Moves the typing between the query and the replacement, if both are shown.
+    pub(crate) fn switch_field(&mut self) {
+        if !self.replace_open {
+            return;
+        }
+        self.field = match self.field {
+            Field::Query => Field::Replacement,
+            Field::Replacement => Field::Query,
+        };
+    }
+
+    /// What replacing the current match would put in its place.
+    pub(crate) fn current_replacement(&self, buffer: &Buffer) -> Option<Replacement> {
+        let found = self.current()?;
+        let content = buffer.line_content(found.line).ok()?;
+        let regex = build(&self.query, self.options).ok()?;
+        let on_line = self.line_replacements(&regex, &content);
+        let (start, end, text) = on_line
+            .into_iter()
+            .find(|(start, end, _)| (*start, *end) == (found.start, found.end))?;
+        Some(Replacement {
+            start: Position::new(found.line, start),
+            end: Position::new(found.line, end),
+            text,
+        })
+    }
+
+    /// What replacing every match would put in their places, in text order.
+    pub(crate) fn all_replacements(&self, buffer: &Buffer) -> Vec<Replacement> {
+        let Ok(regex) = build(&self.query, self.options) else {
+            return Vec::new();
+        };
+        let mut out = Vec::with_capacity(self.matches.len());
+        let mut line = None;
+        let mut on_line = Vec::new();
+        for found in &self.matches {
+            if line != Some(found.line) {
+                line = Some(found.line);
+                let Ok(content) = buffer.line_content(found.line) else {
+                    on_line.clear();
+                    continue;
+                };
+                on_line = self.line_replacements(&regex, &content);
+            }
+            if let Some((start, end, text)) = on_line
+                .iter()
+                .find(|(start, end, _)| (*start, *end) == (found.start, found.end))
+            {
+                out.push(Replacement {
+                    start: Position::new(found.line, *start),
+                    end: Position::new(found.line, *end),
+                    text: text.clone(),
+                });
+            }
+        }
+        out
+    }
+
+    /// How many matches there are, and whether more were left out.
+    pub(crate) fn match_count(&self) -> (usize, bool) {
+        (self.matches.len(), self.capped)
+    }
+
+    /// The matches of `regex` on one line, as grapheme columns with the text
+    /// that replaces each. Without regex the replacement is taken as it is.
+    fn line_replacements(&self, regex: &Regex, content: &str) -> Vec<(usize, usize, String)> {
+        regex
+            .captures_iter(content)
+            .filter_map(|caps| {
+                let whole = caps.get(0).filter(|whole| !whole.is_empty())?;
+                let start = content[..whole.start()].graphemes(true).count();
+                let end = start + whole.as_str().graphemes(true).count();
+                let text = match self.options.regex {
+                    true => {
+                        let mut text = String::new();
+                        caps.expand(&self.replacement, &mut text);
+                        text
+                    }
+                    false => self.replacement.clone(),
+                };
+                Some((start, end, text))
+            })
+            .collect()
+    }
+
+    /// After a replacement the next match is looked for from `origin`, which is
+    /// where the replaced text ends.
+    pub(crate) fn continue_from(&mut self, buffer: &Buffer, origin: Position) {
+        self.origin = origin;
         self.recompute(buffer);
     }
 
@@ -261,22 +441,19 @@ impl Find {
         };
     }
 
-    /// Draws the bar into `area` (one row), with the terminal cursor after
-    /// the query.
+    /// Draws the bar into `area` (one row, or two with the replacement), with
+    /// the terminal cursor after the text being typed.
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme, area: Rect) {
         if area.height == 0 || area.width == 0 {
             return;
         }
         let bar = theme.style("find.bar");
         let dim = theme.style("find.hint");
+        let first = Rect { height: 1, ..area };
         let prompt = format!(" Find: {}", self.query);
         let status = self.status_text();
-        let mark = |on: bool| if on { "x" } else { " " };
-        let options = format!(
-            "  [{}] case (alt+c)  [{}] regex (alt+r) ",
-            mark(self.options.case_sensitive),
-            mark(self.options.regex)
-        );
+        let room = usize::from(area.width).saturating_sub(prompt.width() + status.width() + 1);
+        let options = self.options_text(room);
 
         let used = prompt.width() + status.width() + options.width();
         let gap = usize::from(area.width).saturating_sub(used).max(1);
@@ -290,10 +467,54 @@ impl Find {
             Span::styled(status, status_style),
             Span::styled(options, dim),
         ]);
-        frame.render_widget(Paragraph::new(line).style(bar), area);
+        frame.render_widget(Paragraph::new(line).style(bar), first);
 
-        let cursor_x = area.x + prompt.width().min(usize::from(area.width) - 1) as u16;
-        frame.set_cursor_position(ScreenPosition::new(cursor_x, area.y));
+        let mut cursor = (first.y, prompt.width());
+        if self.replace_open && area.height > 1 {
+            let second = Rect {
+                y: area.y + 1,
+                height: 1,
+                ..area
+            };
+            let prompt = format!(" Replace: {}", self.replacement);
+            let hint = "enter replaces, alt+a replaces all, tab switches ";
+            let gap = usize::from(area.width)
+                .saturating_sub(prompt.width() + hint.width())
+                .max(1);
+            let line = Line::from(vec![
+                Span::styled(prompt.clone(), bar),
+                Span::styled(" ".repeat(gap), bar),
+                Span::styled(hint, dim),
+            ]);
+            frame.render_widget(Paragraph::new(line).style(bar), second);
+            if self.field == Field::Replacement {
+                cursor = (second.y, prompt.width());
+            }
+        }
+
+        let cursor_x = area.x + cursor.1.min(usize::from(area.width) - 1) as u16;
+        frame.set_cursor_position(ScreenPosition::new(cursor_x, cursor.0));
+    }
+
+    /// The three switches, in the longest form that fits in `room` cells: with
+    /// their keys, then without them, then just the letters.
+    fn options_text(&self, room: usize) -> String {
+        let mark = |on: bool| if on { "x" } else { " " };
+        let [case, word, regex] = [
+            mark(self.options.case_sensitive),
+            mark(self.options.whole_word),
+            mark(self.options.regex),
+        ];
+        let forms = [
+            format!("  [{case}] case (alt+c)  [{word}] word (alt+w)  [{regex}] regex (alt+r) "),
+            format!("  [{case}] case  [{word}] word  [{regex}] regex "),
+            format!(" [{case}]c [{word}]w [{regex}]r "),
+        ];
+        let [full, plain, short] = forms;
+        [full, plain]
+            .into_iter()
+            .find(|form| form.width() <= room)
+            .unwrap_or(short)
     }
 
     fn status_text(&self) -> String {
@@ -316,6 +537,12 @@ fn build(query: &str, options: Options) -> Result<Regex, String> {
     let pattern = match options.regex {
         true => query.to_owned(),
         false => regex::escape(query),
+    };
+    // Whole words: nothing word-like touches the match on either side, which
+    // is also true for a match that starts or ends in punctuation.
+    let pattern = match options.whole_word {
+        true => format!(r"\b{{start-half}}(?:{pattern})\b{{end-half}}"),
+        false => pattern,
     };
     RegexBuilder::new(&pattern)
         .case_insensitive(!options.case_sensitive)

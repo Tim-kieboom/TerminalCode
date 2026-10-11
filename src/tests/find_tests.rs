@@ -177,7 +177,7 @@ fn the_bar_takes_a_row_from_the_editor_and_shows_the_count() {
     ctrl(&mut app, 'f');
     type_str(&mut app, "beta");
 
-    let screen = screen(&mut app, 100, 20);
+    let screen = screen(&mut app, 120, 20);
 
     assert!(screen.contains("Find: beta"), "{screen}");
     assert!(screen.contains("1 of 3"), "{screen}");
@@ -310,4 +310,336 @@ fn a_tiny_terminal_does_not_panic() {
     for (width, height) in [(1, 1), (5, 2), (20, 3), (40, 4)] {
         screen(&mut app, width, height);
     }
+}
+
+// ---- whole words and replacing
+
+fn open_replace(app: &mut App) {
+    ctrl(app, 'r');
+}
+
+/// The bar open with `query` typed, then `replacement` in the row below.
+fn replace_bar(app: &mut App, query: &str, replacement: &str) {
+    ctrl(app, 'f');
+    type_str(app, query);
+    // Opens the replacement row and moves the typing to it.
+    ctrl(app, 'r');
+    type_str(app, replacement);
+}
+
+#[test]
+fn alt_w_switches_whole_word_and_the_bar_shows_it() {
+    let mut app = app_with("cat concat cat_x\n");
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "cat");
+    assert!(screen(&mut app, 120, 20).contains("1 of 3"));
+
+    alt(&mut app, 'w');
+
+    let screen = screen(&mut app, 120, 20);
+    assert!(screen.contains("1 of 1"), "{screen}");
+    assert!(screen.contains("[x] word (alt+w)"), "{screen}");
+}
+
+#[test]
+fn a_narrow_bar_shows_the_switches_in_a_shorter_form() {
+    let mut app = app_with("cat\n");
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "cat");
+    alt(&mut app, 'w');
+
+    let screen = screen(&mut app, 70, 20);
+
+    assert!(
+        screen.contains("[x] word") || screen.contains("[x]w"),
+        "{screen}"
+    );
+    assert!(screen.contains("1 of 1"), "{screen}");
+}
+
+#[test]
+fn ctrl_r_opens_the_bar_with_a_row_for_the_replacement() {
+    let mut app = app_with(TEXT);
+
+    open_replace(&mut app);
+
+    let screen = screen(&mut app, 120, 20);
+    assert!(screen.contains("Find:"), "{screen}");
+    assert!(screen.contains("Replace:"), "{screen}");
+}
+
+#[test]
+fn typing_after_ctrl_r_goes_to_the_replacement_and_tab_goes_back_to_the_query() {
+    let mut app = app_with(TEXT);
+    open_replace(&mut app);
+
+    type_str(&mut app, "new");
+    press(&mut app, KeyCode::Tab);
+    type_str(&mut app, "beta");
+
+    let screen = screen(&mut app, 120, 20);
+    assert!(screen.contains("Replace: new"), "{screen}");
+    assert!(screen.contains("Find: beta"), "{screen}");
+}
+
+#[test]
+fn enter_in_the_replacement_replaces_the_current_match_and_selects_the_next() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "beta", "BETA");
+
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(text(&app), "alpha BETA\nBeta gamma\ndelta beta\n");
+    assert_eq!(
+        selection(&app),
+        (Position::new(1, 0), Position::new(1, 4)),
+        "on the next match"
+    );
+}
+
+#[test]
+fn enter_in_the_replacement_goes_through_every_match_and_wraps() {
+    let mut app = app_with("a a a\n");
+    replace_bar(&mut app, "a", "b");
+
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Enter);
+    }
+
+    assert_eq!(text(&app), "b b b\n");
+    // Nothing is left to find, so there is nothing to replace.
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(text(&app), "b b b\n");
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("nothing to replace")
+    );
+}
+
+#[test]
+fn a_replacement_that_holds_the_query_does_not_go_on_forever() {
+    let mut app = app_with("a a\n");
+    replace_bar(&mut app, "a", "aa");
+
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(text(&app), "aa aa\n");
+}
+
+#[test]
+fn enter_in_the_query_still_just_goes_to_the_next_match() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "beta", "X");
+    press(&mut app, KeyCode::Tab);
+
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(text(&app), TEXT);
+    assert_eq!(selection(&app).0, Position::new(1, 0));
+}
+
+#[test]
+fn alt_a_replaces_every_match_at_once() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "beta", "B");
+
+    alt(&mut app, 'a');
+
+    assert_eq!(text(&app), "alpha B\nB gamma\ndelta B\n");
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("replaced 3 occurrences")
+    );
+}
+
+#[test]
+fn replace_all_is_one_step_to_undo() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "beta", "B");
+    alt(&mut app, 'a');
+    press(&mut app, KeyCode::Esc);
+
+    ctrl(&mut app, 'z');
+
+    assert_eq!(text(&app), TEXT);
+}
+
+#[test]
+fn a_single_replacement_is_undone_alone() {
+    let mut app = app_with("a a\n");
+    replace_bar(&mut app, "a", "b");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Esc);
+
+    ctrl(&mut app, 'z');
+
+    assert_eq!(text(&app), "b a\n");
+}
+
+#[test]
+fn replace_all_puts_the_cursor_at_the_first_replacement() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "beta", "B");
+
+    alt(&mut app, 'a');
+
+    assert_eq!(selection(&app), (Position::new(0, 6), Position::new(0, 6)));
+}
+
+#[test]
+fn replace_all_with_one_match_says_occurrence_not_occurrences() {
+    let mut app = app_with("one two\n");
+    replace_bar(&mut app, "two", "2");
+
+    alt(&mut app, 'a');
+
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("replaced 1 occurrence")
+    );
+    assert!(
+        !app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("occurrences")
+    );
+}
+
+#[test]
+fn replace_all_with_no_match_says_so_and_changes_nothing() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "zzz", "B");
+
+    alt(&mut app, 'a');
+
+    assert_eq!(text(&app), TEXT);
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("nothing to replace")
+    );
+}
+
+#[test]
+fn an_empty_replacement_deletes_the_matches() {
+    let mut app = app_with("a-b-c\n");
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "-");
+    ctrl(&mut app, 'r');
+
+    alt(&mut app, 'a');
+
+    assert_eq!(text(&app), "abc\n");
+}
+
+#[test]
+fn with_regex_on_the_groups_can_be_used_in_the_replacement() {
+    let mut app = app_with("john smith\nada lovelace\n");
+    ctrl(&mut app, 'f');
+    alt(&mut app, 'r');
+    type_str(&mut app, r"(\w+) (\w+)");
+    ctrl(&mut app, 'r');
+    type_str(&mut app, "$2, $1");
+
+    alt(&mut app, 'a');
+
+    assert_eq!(text(&app), "smith, john\nlovelace, ada\n");
+}
+
+#[test]
+fn whole_word_applies_to_replacing_too() {
+    let mut app = app_with("cat concat cat\n");
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "cat");
+    alt(&mut app, 'w');
+    ctrl(&mut app, 'r');
+    type_str(&mut app, "dog");
+
+    alt(&mut app, 'a');
+
+    assert_eq!(text(&app), "dog concat dog\n");
+}
+
+#[test]
+fn the_counts_follow_the_replacing() {
+    let mut app = app_with("a a a\n");
+    replace_bar(&mut app, "a", "b");
+
+    press(&mut app, KeyCode::Enter);
+
+    assert!(screen(&mut app, 120, 20).contains("1 of 2"));
+}
+
+#[test]
+fn the_replacement_is_remembered_for_the_next_time() {
+    let mut app = app_with(TEXT);
+    replace_bar(&mut app, "beta", "BETA");
+    press(&mut app, KeyCode::Esc);
+
+    open_replace(&mut app);
+
+    let screen = screen(&mut app, 120, 20);
+    assert!(screen.contains("Replace: BETA"), "{screen}");
+}
+
+#[test]
+fn escape_closes_the_bar_and_gives_both_rows_back() {
+    let mut app = app_with(TEXT);
+    let _ = screen(&mut app, 120, 20);
+    let rows_before = app.state().editor().text_area().unwrap().height;
+    open_replace(&mut app);
+    let _ = screen(&mut app, 120, 20);
+    assert_eq!(
+        app.state().editor().text_area().unwrap().height,
+        rows_before - 2
+    );
+
+    press(&mut app, KeyCode::Esc);
+    let _ = screen(&mut app, 120, 20);
+
+    assert_eq!(
+        app.state().editor().text_area().unwrap().height,
+        rows_before
+    );
+}
+
+#[test]
+fn ctrl_r_inside_the_bar_hides_the_replacement_row_again() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    ctrl(&mut app, 'r');
+    assert!(screen(&mut app, 120, 20).contains("Replace:"));
+
+    ctrl(&mut app, 'r');
+
+    let screen = screen(&mut app, 120, 20);
+    assert!(!screen.contains("Replace:"), "{screen}");
+    assert!(screen.contains("Find:"), "{screen}");
+}
+
+#[test]
+fn the_palette_has_replace_in_file() {
+    use crate::event::action::Action;
+    assert!(Action::palette_actions().contains(&Action::ReplaceInFile));
+    assert!(Action::ReplaceInFile.title().is_some());
+}
+
+#[test]
+fn replacing_with_an_emoji_counts_by_graphemes_so_the_next_match_is_found() {
+    let mut app = app_with("a a a\n");
+    replace_bar(&mut app, "a", "🙂");
+
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(text(&app), "🙂 🙂 a\n");
 }

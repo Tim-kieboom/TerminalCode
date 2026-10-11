@@ -128,8 +128,9 @@ pub(crate) struct Workspace {
     closed: Vec<ClosedTab>,
     /// Files opened lately, the latest first.
     recent: Vec<PathBuf>,
-    /// Whether the focused pane has a row reserved for the find bar.
-    find_bar: bool,
+    /// How many rows the focused pane has reserved at its bottom for the find
+    /// bar: none, the find row, or that and the replace row.
+    find_bar: u16,
     /// Stands in for the active editor while the only pane has no tabs.
     empty: (Buffer, ViewState),
 }
@@ -157,7 +158,7 @@ impl Workspace {
             confirm_overwrite: None,
             docs_version: 0,
             forgotten: Vec::new(),
-            find_bar: false,
+            find_bar: 0,
             empty: (Buffer::default(), ViewState::default()),
         };
         let (view, buffer) = editor.into_parts();
@@ -246,10 +247,10 @@ impl Workspace {
         EditorRef::new(&self.documents[&tab.document].buffer, &tab.view)
     }
 
-    /// Reserves (or gives back) a row at the bottom of the focused pane for
-    /// the find bar.
-    pub(crate) fn set_find_bar(&mut self, shown: bool) {
-        self.find_bar = shown;
+    /// Reserves (or gives back) rows at the bottom of the focused pane for the
+    /// find bar: 0 for none, 1 for the find row, 2 with the replace row.
+    pub(crate) fn set_find_bar_rows(&mut self, rows: u16) {
+        self.find_bar = rows;
     }
 
     /// Whether the focused pane has a tab. After the last tab is closed the

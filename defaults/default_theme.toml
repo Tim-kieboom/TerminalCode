@@ -32,7 +32,8 @@
 # of whatever is underneath, so `text` would end up as the block color.
 
 [background]
-color = "transparent"
+# color = "transparent"
+color = "#1f1f1f"
 
 # Named colors. A slot (or [background]) writes "@name" to use one, so a color is
 # written once and a theme is restyled by changing its entries; a slot can still

@@ -4,7 +4,7 @@
 #          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
 # context: "global" (default), "editor" or "explorer". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
-# Actions: "quit", "command_palette", "find_file", "find_in_project", "find_in_file", "save", "undo", "redo", "insert_newline", "delete_backward",
+# Actions: "quit", "command_palette", "find_file", "find_in_project", "find_in_file", "replace_in_file", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_all_tabs", "reopen_closed_tab", "save_all", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
@@ -457,6 +457,11 @@ action = "find_in_project"
 keys = "ctrl+f"
 context = "editor"
 action = "find_in_file"
+
+[[binding]]
+keys = "ctrl+r"
+context = "editor"
+action = "replace_in_file"
 
 # Hide and show parts of the screen. A hidden part takes no space.
 [[binding]]

@@ -7,6 +7,7 @@ use crate::buffer::{Buffer, BufferError, Edit, Position, Selection, Selections};
 
 pub(crate) use indent::IndentStyle;
 pub(crate) use motion::Motion;
+pub(crate) use replace::Replacement;
 pub(crate) use view_state::ViewState;
 
 mod clipboard_ops;
@@ -14,6 +15,7 @@ mod indent;
 mod motion;
 mod mouse_ops;
 pub(crate) mod render;
+mod replace;
 mod smart_indent;
 #[cfg(test)]
 mod tests;

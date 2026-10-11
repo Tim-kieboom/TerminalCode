@@ -21,6 +21,8 @@ mod search;
 pub(super) struct SavedQuery {
     query: String,
     options: SearchOptions,
+    /// What the find bar replaces with; not used by the project search.
+    replacement: String,
 }
 
 impl SavedQuery {
@@ -28,6 +30,7 @@ impl SavedQuery {
         Self {
             query: query.to_owned(),
             options,
+            replacement: String::new(),
         }
     }
 }

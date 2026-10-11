@@ -71,6 +71,7 @@ pub(crate) fn start(
     let matcher = RegexMatcherBuilder::new()
         .case_insensitive(!options.case_sensitive)
         .fixed_strings(!options.regex)
+        .word(options.whole_word)
         .build(query)
         .map_err(|error| SearchError::Pattern(short_message(&error.to_string())))?;
 

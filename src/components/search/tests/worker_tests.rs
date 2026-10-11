@@ -295,3 +295,27 @@ fn a_regex_anchored_at_the_start_of_the_line_matches_after_a_windows_line_ending
     assert_eq!(lines(&outcome), ["crlf.txt:2"]);
     assert_eq!(outcome.hits[0].text, "bar");
 }
+
+#[test]
+fn whole_word_leaves_out_matches_inside_longer_words() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "a.txt", "cat\nconcat\ncat_x\n(cat)\n");
+    let options = Options {
+        whole_word: true,
+        ..Options::default()
+    };
+
+    let outcome = run(dir.path(), "cat", options);
+
+    assert_eq!(lines(&outcome), ["a.txt:1", "a.txt:4"]);
+}
+
+#[test]
+fn without_whole_word_all_of_them_match() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "a.txt", "cat\nconcat\ncat_x\n(cat)\n");
+
+    let outcome = run(dir.path(), "cat", Options::default());
+
+    assert_eq!(lines(&outcome).len(), 4);
+}

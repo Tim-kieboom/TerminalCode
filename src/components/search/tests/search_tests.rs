@@ -31,6 +31,7 @@ fn a_new_search_is_idle_with_what_was_typed_last_time() {
         Options {
             case_sensitive: true,
             regex: false,
+            ..Options::default()
         },
     );
 
@@ -134,7 +135,8 @@ fn the_options_toggle_and_the_query_edits() {
         search.options(),
         Options {
             case_sensitive: true,
-            regex: true
+            regex: true,
+            whole_word: false,
         }
     );
     search.toggle_case();
