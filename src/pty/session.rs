@@ -178,6 +178,32 @@ impl Session {
         let _ = self.input.push_within(Message::Resize, Duration::ZERO);
     }
 
+    /// Moves the view into the history by `rows` (negative moves it back toward
+    /// the present), as far as there is history. Output that arrives while the
+    /// view is back does not move it.
+    pub(crate) fn scroll_by(&self, rows: isize) {
+        let mut parser = self.lock_screen();
+        let current = parser.screen().scrollback();
+        parser
+            .screen_mut()
+            .set_scrollback(current.saturating_add_signed(rows));
+    }
+
+    /// Shows the oldest history the screen has.
+    pub(crate) fn scroll_to_top(&self) {
+        self.lock_screen().screen_mut().set_scrollback(usize::MAX);
+    }
+
+    /// Shows the present again.
+    pub(crate) fn scroll_to_bottom(&self) {
+        self.lock_screen().screen_mut().set_scrollback(0);
+    }
+
+    /// How many lines back the view is; 0 when it shows the present.
+    pub(crate) fn scrollback_offset(&self) -> usize {
+        self.with_screen(|screen| screen.scrollback())
+    }
+
     /// Whether the screen changed since the last call, and says the next
     /// change should wake the app again. Call it before drawing.
     pub(crate) fn take_dirty(&self) -> bool {

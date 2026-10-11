@@ -23,7 +23,9 @@ pub(super) fn draw(
     if let Some(session) = session {
         let cursor = session.with_screen(|screen| {
             draw_screen(frame.buffer_mut(), inner, screen);
-            (!screen.hide_cursor()).then(|| screen.cursor_position())
+            draw_scroll_indicator(frame.buffer_mut(), inner, screen.scrollback());
+            // The cursor belongs to the present; it is not where the history is.
+            (!screen.hide_cursor() && screen.scrollback() == 0).then(|| screen.cursor_position())
         });
 
         if let (true, Some((row, column))) = (focused, cursor)
@@ -81,5 +83,27 @@ fn color_of(color: vt100::Color) -> Color {
         vt100::Color::Default => Color::Reset,
         vt100::Color::Idx(index) => Color::Indexed(index),
         vt100::Color::Rgb(r, g, b) => Color::Rgb(r, g, b),
+    }
+}
+
+/// Says in the bottom right corner how far back the view is, if it is.
+pub(super) fn draw_scroll_indicator(buffer: &mut Buffer, area: Rect, offset: usize) {
+    if offset == 0 || area.height == 0 {
+        return;
+    }
+
+    let label = format!(" ↑{offset} ");
+    let width = label.chars().count() as u16;
+    if width > area.width {
+        return;
+    }
+
+    let y = area.bottom() - 1;
+    let start = area.right() - width;
+    for (index, c) in label.chars().enumerate() {
+        if let Some(cell) = buffer.cell_mut((start + index as u16, y)) {
+            cell.set_char(c);
+            cell.set_style(Style::default().add_modifier(Modifier::REVERSED));
+        }
     }
 }

@@ -554,6 +554,16 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   marker inside the text removed) when the program asked for it, otherwise with line breaks as carriage returns;
   a write that does not fit says how many bytes went through. A shell that has ended says so when typed at.
   The 16 key tests, 19 app tests: keys reach the shell, `ctrl+q` / `ctrl+p` / `ctrl+s` go to the shell instead of the
+  editor, the prefix, the status bar, pastes, mouse focus, and the cursor position.
+- Step D is done. Scrollback comes from `vt100` (10,000 lines, the normal screen only): `Session::scroll_by`,
+  `scroll_to_top`, `scroll_to_bottom` and `scrollback_offset` move the view through the history (clamped at both
+  ends); `vt100` keeps the view on the same lines when output arrives, so a scrolled view does not jump. In the pane,
+  `shift+pageup` / `shift+pagedown` move a page less one line, `shift+home` / `shift+end` jump to the oldest line and
+  the present, and the wheel over the pane moves three lines a notch; typing or pasting brings the view back to the
+  present, new output does not. A scrolled view shows ` ↑N ` (reversed) in the bottom right corner and hides the
+  cursor. The alternate screen (`ESC [ ? 1049 h`, what vim, less and htop use) is a screen of its own without
+  history: the scroll keys go to the program as `ESC [ 5 ; 2 ~` and so on, the wheel does nothing there (until mouse
+  passthrough, step E), and the normal screen and its history come back untouched when the program leaves it.
 
 ## Layout syntax v2 (plan, decided before building)
 Goal: less nesting to read. The tree shape is the thing to see, so the file says only what differs from the default.

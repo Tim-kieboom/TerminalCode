@@ -101,3 +101,31 @@ fn combining_marks_stay_with_their_letter() {
     assert_eq!(at(&buffer, 0, 0).symbol(), "e\u{301}");
     assert_eq!(at(&buffer, 1, 0).symbol(), "x");
 }
+
+#[test]
+fn the_scroll_indicator_sits_in_the_bottom_right_corner() {
+    use crate::components::terminal::render::draw_scroll_indicator;
+    let mut buffer = Buffer::empty(Rect::new(0, 0, 20, 5));
+
+    draw_scroll_indicator(&mut buffer, Rect::new(2, 1, 12, 3), 42);
+
+    // " ↑42 " is five cells wide and ends at the right edge of the area.
+    let row: String = (9..14)
+        .map(|x| at(&buffer, x, 3).symbol().to_owned())
+        .collect();
+    assert_eq!(row, " ↑42 ");
+    assert!(at(&buffer, 10, 3).modifier.contains(Modifier::REVERSED));
+    assert_eq!(at(&buffer, 8, 3).symbol(), " ", "nothing further left");
+    assert_eq!(at(&buffer, 14, 3).symbol(), " ", "nothing outside the area");
+}
+
+#[test]
+fn no_indicator_is_drawn_at_the_present_or_where_it_does_not_fit() {
+    use crate::components::terminal::render::draw_scroll_indicator;
+    let mut buffer = Buffer::empty(Rect::new(0, 0, 20, 5));
+
+    draw_scroll_indicator(&mut buffer, Rect::new(0, 0, 20, 5), 0);
+    draw_scroll_indicator(&mut buffer, Rect::new(0, 0, 3, 5), 7);
+
+    assert!(buffer.content.iter().all(|cell| cell.symbol() == " "));
+}

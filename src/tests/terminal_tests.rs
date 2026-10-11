@@ -54,8 +54,8 @@ impl Rig {
             .unwrap();
     }
 
-    /// The chord that toggles the pane, `` ctrl+` ``, from the editor or from
-    /// inside the terminal.
+    /// The chord that toggles the pane, `ctrl+``, from the editor or from inside
+    /// the terminal.
     fn toggle(&mut self) {
         self.press(KeyCode::Char('`'), KeyModifiers::CONTROL);
         self.draw();
@@ -631,6 +631,184 @@ fn typing_after_the_shell_ended_says_so_instead_of_failing_silently() {
         "{}",
         rig.notifications()
     );
+}
+
+/// A shell that has printed 100 numbers and then shows the bytes it gets.
+const HISTORY_THEN_BYTES: &str = "seq 1 100; stty raw -echo; cat -v";
+
+fn rig_with_history() -> (Rig, tempfile::TempDir) {
+    let (mut rig, dir) = rig(HISTORY_THEN_BYTES);
+    rig.toggle();
+    rig.wait_for_text("100");
+    std::thread::sleep(Duration::from_millis(200));
+    (rig, dir)
+}
+
+#[test]
+fn shift_page_up_scrolls_into_the_history_and_says_how_far() {
+    let (mut rig, _dir) = rig_with_history();
+    assert!(!rig.screen().contains('↑'));
+
+    rig.press(KeyCode::PageUp, KeyModifiers::SHIFT);
+    rig.draw();
+
+    let (rows, _) = rig.app.state().terminal().size().unwrap();
+    assert!(
+        rig.screen().contains(&format!("↑{}", rows - 1)),
+        "{}",
+        rig.screen()
+    );
+    assert!(!rig.screen().contains("100"), "the last line scrolled off");
+}
+
+#[test]
+fn shift_page_down_comes_back_and_the_indicator_goes() {
+    let (mut rig, _dir) = rig_with_history();
+    rig.press(KeyCode::PageUp, KeyModifiers::SHIFT);
+
+    rig.press(KeyCode::PageDown, KeyModifiers::SHIFT);
+    rig.draw();
+
+    assert!(!rig.screen().contains('↑'), "{}", rig.screen());
+    assert!(rig.screen().contains("100"));
+}
+
+#[test]
+fn shift_home_and_shift_end_jump_to_the_ends() {
+    let (mut rig, _dir) = rig_with_history();
+
+    rig.press(KeyCode::Home, KeyModifiers::SHIFT);
+    rig.draw();
+    assert!(rig.screen().contains('↑'), "{}", rig.screen());
+    assert!(
+        rig.screen().contains("\n") && rig.screen().contains(" 1 "),
+        "{}",
+        rig.screen()
+    );
+
+    rig.press(KeyCode::End, KeyModifiers::SHIFT);
+    rig.draw();
+    assert!(!rig.screen().contains('↑'));
+}
+
+#[test]
+fn the_scroll_keys_are_not_sent_to_the_shell() {
+    let (mut rig, _dir) = rig_with_history();
+
+    rig.press(KeyCode::PageUp, KeyModifiers::SHIFT);
+    rig.press(KeyCode::Char('c'), KeyModifiers::CONTROL);
+    rig.wait_for_text("^C");
+
+    assert!(!rig.screen().contains("^[[5;2~"));
+}
+
+#[test]
+fn typing_brings_the_view_back_to_the_present() {
+    let (mut rig, _dir) = rig_with_history();
+    rig.press(KeyCode::Home, KeyModifiers::SHIFT);
+
+    rig.press(KeyCode::Char('x'), KeyModifiers::CONTROL);
+
+    rig.wait_for_text("^X");
+    assert!(!rig.screen().contains('↑'), "{}", rig.screen());
+}
+
+#[test]
+fn a_paste_brings_the_view_back_too() {
+    let (mut rig, _dir) = rig_with_history();
+    rig.press(KeyCode::Home, KeyModifiers::SHIFT);
+
+    rig.app.handle_input(InputEvent::Paste("pasted".to_owned()));
+
+    rig.wait_for_text("pasted");
+    assert!(!rig.screen().contains('↑'));
+}
+
+#[test]
+fn the_wheel_over_the_pane_scrolls_the_history_three_lines_a_notch() {
+    use crossterm::event::{MouseEvent, MouseEventKind};
+    let (mut rig, _dir) = rig_with_history();
+    let screen = rig.screen();
+    let (row, line) = screen
+        .lines()
+        .enumerate()
+        .find(|(_, line)| line.contains("100"))
+        .unwrap();
+    let column = line.chars().position(|c| c == '1').unwrap() as u16;
+    let wheel = |kind| {
+        InputEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row: row as u16,
+            modifiers: KeyModifiers::NONE,
+        })
+    };
+
+    rig.app.handle_input(wheel(MouseEventKind::ScrollUp));
+    rig.app.handle_input(wheel(MouseEventKind::ScrollUp));
+    rig.draw();
+    assert!(rig.screen().contains("↑6"), "{}", rig.screen());
+
+    rig.app.handle_input(wheel(MouseEventKind::ScrollDown));
+    rig.draw();
+    assert!(rig.screen().contains("↑3"), "{}", rig.screen());
+}
+
+#[test]
+fn the_wheel_elsewhere_does_not_scroll_the_terminal() {
+    use crossterm::event::{MouseEvent, MouseEventKind};
+    let (mut rig, _dir) = rig_with_history();
+
+    rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::ScrollUp,
+        column: 70,
+        row: 2,
+        modifiers: KeyModifiers::NONE,
+    }));
+    rig.draw();
+
+    assert!(!rig.screen().contains('↑'), "{}", rig.screen());
+}
+
+#[test]
+fn new_output_does_not_pull_a_scrolled_view_back() {
+    let (mut rig, _dir) = rig("seq 1 60; sleep 1; seq 61 70; sleep 30");
+    rig.toggle();
+    rig.wait_for_text("60");
+    rig.press(KeyCode::PageUp, KeyModifiers::SHIFT);
+    let received = rig
+        .app
+        .state()
+        .terminal()
+        .session()
+        .unwrap()
+        .bytes_received();
+
+    rig.wait_for("more output", |rig| {
+        rig.app
+            .state()
+            .terminal()
+            .session()
+            .unwrap()
+            .bytes_received()
+            > received
+    });
+    rig.draw();
+
+    assert!(rig.screen().contains('↑'), "{}", rig.screen());
+}
+
+#[test]
+fn a_full_screen_program_gets_the_scroll_keys_and_has_no_indicator() {
+    let (mut rig, _dir) = rig("printf '\\033[?1049h\\033[2Jalt'; stty raw -echo; cat -v");
+    rig.toggle();
+    rig.wait_for_text("alt");
+    std::thread::sleep(Duration::from_millis(200));
+
+    rig.press(KeyCode::PageUp, KeyModifiers::SHIFT);
+
+    rig.wait_for_text("^[[5;2~");
+    assert!(!rig.screen().contains('↑'));
 }
 
 // ---- the toggle chord closes the pane again

@@ -7,6 +7,9 @@ use std::time::Instant;
 use super::App;
 use crate::event::mouse::{ClickTracker, Clicks};
 
+/// How many lines the wheel moves the terminal's history by one notch.
+const WHEEL_LINES: isize = 3;
+
 /// Whether the mouse is on, and what counts as a double or triple click.
 #[derive(Debug)]
 pub(super) struct MouseInput {
@@ -61,6 +64,7 @@ impl App {
             true => "mouse on (hold shift to select text in the terminal)",
             false => "mouse off",
         };
+
         self.state.notify(message);
     }
 
@@ -68,9 +72,11 @@ impl App {
         if matches!(event.kind, MouseEventKind::Down(_)) && self.state.dismiss_errors() {
             self.needs_redraw = true;
         }
+
         if !self.mouse.is_enabled() {
             return;
         }
+
         if matches!(event.kind, MouseEventKind::Down(MouseButton::Left))
             && !self.modal_open()
             && self
@@ -82,17 +88,38 @@ impl App {
             self.needs_redraw = true;
             return;
         }
+
+        let wheel = match event.kind {
+            MouseEventKind::ScrollUp => Some(WHEEL_LINES),
+            MouseEventKind::ScrollDown => Some(-WHEEL_LINES),
+            _ => None,
+        };
+
+        if let Some(lines) = wheel
+            && !self.modal_open()
+            && self
+                .state
+                .is_visible(&crate::components::ComponentKind::Terminal)
+            && self.state.terminal().contains(event.column, event.row)
+        {
+            self.scroll_terminal(lines);
+            return;
+        }
+
         if self.handle_menu_mouse(event) {
             self.needs_redraw = true;
             return;
         }
+
         if self.modal_open() {
             return;
         }
+
         if self.handle_explorer_mouse(event) {
             self.needs_redraw = true;
             return;
         }
+
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
         let sideways = extend;
         let (column, row) = (event.column, event.row);
@@ -148,9 +175,11 @@ impl App {
         if let Some(result) = closed {
             self.warn_if_unsaved(result);
         }
+
         if let Err(error) = result {
             self.state.notify_error(error.to_string());
         }
+
         self.needs_redraw = true;
     }
 }
