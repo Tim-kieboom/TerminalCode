@@ -212,10 +212,12 @@ impl ConfigFile {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
+
         let created = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(path);
+
         match created {
             Ok(mut file) => {
                 io::Write::write_all(&mut file, self.default_content().as_bytes())?;

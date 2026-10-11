@@ -18,11 +18,12 @@ impl App {
                 .notify_error("there is no config directory on this system");
             return Ok(());
         };
-        let path = file.path_in(dir);
 
+        let path = file.path_in(dir);
         let created = file
             .create_from_default(&path)
             .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
+
         self.state.workspace_mut().open_path(&path)?;
         if created {
             self.state.notify(format!(
