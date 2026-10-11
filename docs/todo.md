@@ -125,6 +125,22 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Rust highlighting: control-flow keywords, numbers, namespaces and variables (`RUST_BEFORE` and `RUST_AFTER` in `src/syntax/language.rs`); other languages have none yet
 - [ ] Reload automatically when one of the three files is saved (watch the config directory)
 
+## Pre-M6 leftovers (triaged; the follow-up bullets above stay as the record, this is the plan)
+Group 1, built now (each stands alone, no `settings.json` needed):
+- [ ] M5: smart indent; a light theme
+- [ ] Explorer: drag and drop move; rename that only changes case; highlight and reveal the active tab's file; hidden-file toggle; `alt+h` into the explorer; symlink loops
+- [ ] Editor mouse: click in the gutter selects the line; middle-click paste; right-click menu in the editor
+- [ ] Tabs: open an already-open path by switching to it; close other / close all tabs; save all; reopen closed tab; overflow markers in a crowded tab bar
+- [ ] Notifications: `[+N more]` when the stack does not fit; click to dismiss
+- [ ] Palette: a palette entry per plugin view; recently used first; paste into the query; mouse selection
+- [ ] Finder: recently opened first; highlight matched characters; open in a split; `file:line`
+- [ ] Find and search: whole-word toggle (both); replace and replace all (find); `ctrl+g` go to line; next/previous search result without reopening
+- [ ] Watcher: check the file when its tab is switched to or the editor regains focus; show "changed on disk" in the tab
+
+Group 2, moved to M8 (needs `settings.json`): `mouse` setting; remember what is hidden between runs; notification lifetime; dim ignored files instead of hiding them; layout file starting with something hidden.
+
+Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a repeating timer); alt+click to extend; move a tab between panes, resize panes, close a pane without closing its tabs, per-pane tab history; message history; read directories off the UI thread; diff-based document reload that keeps undo; inotify fallback to polling; project-wide watch for collapsed directories; rename/move handling in the watcher; a results pane for search; group results under file headers; multi-line patterns; search within the selection or a folder, include/exclude globs, search unsaved buffers; the 1M-file fallback scan; a scrollbar-style match overview; match counts across panes; a thin strip for a hidden pane; palette argument prompts and save as.
+
 ## Post-0.1.0 backlog
 - [ ] Load tree-sitter grammars at runtime from shared libraries (`.so` / `.dll`), so languages can be added without a rebuild; needs a place to find them, a version check against the `tree-sitter` ABI, and per-platform shipping
 - [ ] adding usefull keybinds like (move line `alt+up/down` cursor go back `alt+left/right` multicursor `ctrl+alt+up/down`)
