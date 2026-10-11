@@ -5,6 +5,7 @@
 # need other colors here.
 
 [background]
+# color = "transparent"
 color = "#fafafa"
 
 [palette]
@@ -34,7 +35,7 @@ purple      = "#af00db"   # control-flow keywords
 pink        = "#c2185b"
 gold        = "#ee0000"   # escapes
 comment     = "#008000"
-punctuation = "#383a42"   # operators and punctuation
+punctuation = "#1e1e28"   # operators and punctuation
 
 ["pane.border"]
 text = "@muted"
