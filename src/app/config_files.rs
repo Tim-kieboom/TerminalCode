@@ -43,6 +43,7 @@ impl App {
     /// replaced by the built-in one, exactly as at startup. Open files, tabs
     /// and the terminal are left alone.
     pub(super) fn reload(&mut self) {
+        self.config_applied = self.config_hash();
         let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
 
         let theme = config::load_theme_for(self.theme_variant, path(ConfigFile::Theme).as_deref());
@@ -90,6 +91,19 @@ impl App {
             Some(warning) => self.state.notify_error(warning),
             None => self.state.notify(format!("theme: {}", variant.name())),
         }
+    }
+
+    /// A hash of what the three config files say now (a missing file counts as
+    /// empty), to tell a file that was saved from one that was only read: reading
+    /// can make the watcher report the file too, and reloading reads it again.
+    pub(super) fn config_hash(&self) -> Option<u64> {
+        use std::hash::{Hash, Hasher};
+        let dir = self.config_dir.as_deref()?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for file in ConfigFile::ALL {
+            std::fs::read(file.path_in(dir)).ok().hash(&mut hasher);
+        }
+        Some(hasher.finish())
     }
 
     /// A new layout may not have the component that has the keyboard; it goes

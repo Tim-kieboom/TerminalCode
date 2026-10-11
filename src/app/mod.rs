@@ -72,6 +72,8 @@ pub(crate) struct App {
     keyboard_support: KeyboardSupport,
     /// The built-in theme the user's file is laid over.
     theme_variant: ThemeVariant,
+    /// What the config files said when they were last applied.
+    config_applied: Option<u64>,
     /// The tab that was in front when the last input was handled, to notice a
     /// switch to another.
     front_view: Option<crate::components::workspace::ViewId>,
@@ -193,6 +195,7 @@ impl App {
             config_dir: None,
             keyboard_support: KeyboardSupport::Enhanced,
             theme_variant: ThemeVariant::default(),
+            config_applied: None,
             front_view: None,
         }
     }
@@ -206,6 +209,7 @@ impl App {
     /// Where `Action::OpenConfig` finds and makes the user's files.
     pub(crate) fn with_config_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
         self.config_dir = dir;
+        self.config_applied = self.config_hash();
         self
     }
 

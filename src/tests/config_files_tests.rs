@@ -599,3 +599,50 @@ fn a_config_folder_that_does_not_exist_is_not_watched() {
             .any(|watched| watched.ends_with("not-there"))
     );
 }
+
+#[test]
+fn a_config_file_that_was_only_read_is_not_reloaded() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "theme.toml",
+        "[palette]\naccent = \"#00ff00\"\n",
+    );
+    let mut app = app_with_config_dir(dir.path());
+
+    // The watcher also reports a file when it is read, and a reload reads it.
+    saved(&mut app, &dir.path().join("theme.toml"));
+
+    assert!(
+        !app.state()
+            .notifications()
+            .texts()
+            .iter()
+            .any(|text| text.contains("reloaded")),
+        "nothing was saved, so nothing is reloaded"
+    );
+}
+
+#[test]
+fn reloading_does_not_cause_another_reload() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    write(
+        dir.path(),
+        "theme.toml",
+        "[palette]\naccent = \"#00ff00\"\n",
+    );
+    saved(&mut app, &dir.path().join("theme.toml"));
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("reloaded")
+    );
+    app.state_mut().dismiss_errors();
+    app.expire_notifications(std::time::Instant::now() + std::time::Duration::from_secs(60));
+
+    saved(&mut app, &dir.path().join("theme.toml"));
+
+    assert_eq!(app.state().latest_notification(), None);
+}

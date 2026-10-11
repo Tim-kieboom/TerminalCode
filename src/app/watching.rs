@@ -117,7 +117,7 @@ impl App {
     /// the explorer.
     pub(super) fn files_changed(&mut self, paths: &[PathBuf]) {
         self.rewatch_replaced(paths);
-        if self.config_file_among(paths) {
+        if self.config_file_among(paths) && self.config_hash() != self.config_applied {
             self.reload();
         }
         let events = self.state.workspace_mut().check_disk(paths);
