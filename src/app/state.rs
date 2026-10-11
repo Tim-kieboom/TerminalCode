@@ -10,7 +10,7 @@ use crate::components::find::Find;
 use crate::components::finder::Finder;
 use crate::components::menu::Menu;
 use crate::components::name_prompt::NamePrompt;
-use crate::components::notifications::{Level, Notifications};
+use crate::components::notifications::{Hit, Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
 use crate::components::search::Search;
@@ -41,6 +41,8 @@ pub(crate) struct AppState {
     layout: LayoutTree,
     components: AppComponents,
     notifications: Notifications,
+    /// Where the notifications were drawn last, for clicks on them.
+    notification_hits: Vec<(Hit, ratatui::layout::Rect)>,
     /// The size of the screen as of the last draw, for working out where
     /// something that is not drawn yet would go.
     screen: ratatui::layout::Rect,
@@ -279,6 +281,30 @@ impl AppState {
 
     pub(crate) fn notifications(&self) -> &Notifications {
         &self.notifications
+    }
+
+    pub(crate) fn set_notification_hits(&mut self, hits: Vec<(Hit, ratatui::layout::Rect)>) {
+        self.notification_hits = hits;
+    }
+
+    /// Removes what a click at a screen cell landed on, if it was on a
+    /// notification as last drawn: the message, or the info messages a "+N more"
+    /// line stands for. Returns whether the click was on one.
+    pub(crate) fn click_notification(&mut self, column: u16, row: u16) -> bool {
+        let position = ratatui::layout::Position::new(column, row);
+        let Some((hit, _)) = self
+            .notification_hits
+            .iter()
+            .find(|(_, area)| area.contains(position))
+            .cloned()
+        else {
+            return false;
+        };
+        match hit {
+            Hit::Message(id) => self.notifications.dismiss(id),
+            Hit::More(shown) => self.notifications.dismiss_hidden_info(&shown),
+        };
+        true
     }
 
     /// The text of the newest message, if any.

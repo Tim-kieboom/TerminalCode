@@ -81,6 +81,9 @@ modifiers = ["bold"]
 ["notification.info"]
 text = "@info"
 
+["notification.more"]
+text = "@dim"
+
 ["notification.error"]
 text = "@error"
 modifiers = ["bold"]

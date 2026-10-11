@@ -126,12 +126,12 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Reload automatically when one of the three files is saved (watch the config directory)
 
 ## Pre-M6 leftovers (triaged; the follow-up bullets above stay as the record, this is the plan)
-Group 1, built now (done so far: smart indent, light theme, case-only rename, the explorer, the editor mouse, tabs) (each stands alone, no `settings.json` needed):
+Group 1, built now (done so far: smart indent, light theme, case-only rename, the explorer, the editor mouse, tabs, notifications) (each stands alone, no `settings.json` needed):
 - [x] M5: smart indent and a light theme
 - [x] Explorer (done: drag and drop move; `alt+h/j/k/l` also move the keyboard between the editor panes, the explorer and the terminal by screen position, and are global bindings now; the open file is drawn with `explorer.active`, palette "Explorer: Reveal Active File", `.` or "Toggle Hidden Files" hides dot entries, a link to a folder that holds it is marked `↻` and does not open)
 - [x] Editor mouse (done: a click on a line number selects the line, shift+click extends and a drag goes on by whole lines; middle click puts the cursor there and pastes the clipboard; right click on the text opens a menu (Cut, Copy, Paste, Select All, Find in File, Save) with the keys shown, `shift+f10` opens it at the cursor; right click inside the selection keeps it)
 - [x] Tabs (done: opening an open path switches to its tab (it already did); `ctrl+k e` closes the other tabs of the pane, `ctrl+k w` every tab, asking first when changes would be lost and confirmed by running the same chord again; `ctrl+k z` reopens the tab closed last (20 remembered, with its cursor); `ctrl+k a` saves every modified file and says what it left alone; a crowded tab bar shows `‹N` and `N›` for the tabs out of view, and clicking one goes to the nearest hidden tab)
-- [ ] Notifications: `[+N more]` when the stack does not fit; click to dismiss
+- [x] Notifications (done: a "[+N more]" line above the stack counts the messages that did not fit, and clicking it removes the info messages left out (errors stay); clicking a message removes just that one and the click goes no further)
 - [ ] Palette: a palette entry per plugin view; recently used first; paste into the query; mouse selection
 - [ ] Finder: recently opened first; highlight matched characters; open in a split; `file:line`
 - [ ] Find and search: whole-word toggle (both); replace and replace all (find); `ctrl+g` go to line; next/previous search result without reopening

@@ -8,7 +8,7 @@
 use std::time::{Duration, Instant};
 
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
 use unicode_width::UnicodeWidthStr;
@@ -37,12 +37,25 @@ pub(crate) struct Notification {
     pub(crate) text: Box<str>,
     /// When an info message goes away; errors have none.
     expires: Option<Instant>,
+    /// Tells this message from the others, so a click on it after other
+    /// messages came and went still finds it.
+    id: u64,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Notifications {
     /// Oldest first.
     items: Vec<Notification>,
+    next_id: u64,
+}
+
+/// What a screen cell shown by [`Notifications::render`] belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Hit {
+    /// The message with this id.
+    Message(u64),
+    /// The "+N more" line; the ids are the messages that were shown.
+    More(Vec<u64>),
 }
 
 impl Notifications {
@@ -57,10 +70,12 @@ impl Notifications {
             Level::Info => Some(now + INFO_LIFETIME),
             Level::Error => None,
         };
+        self.next_id += 1;
         self.items.push(Notification {
             level,
             text,
             expires,
+            id: self.next_id,
         });
         if self.items.len() > MAX_STORED {
             self.evict_one();
@@ -78,6 +93,23 @@ impl Notifications {
             .position(|item| item.level == Level::Info)
             .unwrap_or(0);
         self.items.remove(victim);
+    }
+
+    /// Removes the message with `id`. Returns whether it was still there.
+    pub(crate) fn dismiss(&mut self, id: u64) -> bool {
+        let before = self.items.len();
+        self.items.retain(|item| item.id != id);
+        self.items.len() != before
+    }
+
+    /// Removes the info messages that are not among `shown`, those a "+N more"
+    /// line stands for. Errors are kept: they have to be seen first. Returns
+    /// whether any went.
+    pub(crate) fn dismiss_hidden_info(&mut self, shown: &[u64]) -> bool {
+        let before = self.items.len();
+        self.items
+            .retain(|item| item.level != Level::Info || shown.contains(&item.id));
+        self.items.len() != before
     }
 
     /// Removes every error. Returns whether there was one.
@@ -125,18 +157,33 @@ impl Notifications {
     /// Draws the messages that fit between the top of the screen and `bottom`
     /// (a row), newest nearest to it. When not all fit, the errors are drawn
     /// first, because they stay until the user acts, and the newest info
-    /// messages after them.
-    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme, bottom: u16) {
+    /// messages after them. A line "[+N more]" above the stack counts the ones
+    /// that did not fit.
+    ///
+    /// Returns where each thing drawn is, for clicks.
+    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme, bottom: u16) -> Vec<(Hit, Rect)> {
         let screen = frame.area();
         let width = WIDTH.min(screen.width);
         if width <= CHROME_WIDTH {
-            return;
+            return Vec::new();
         }
         let mut floor = bottom.min(screen.bottom());
         let available = floor.saturating_sub(screen.y);
         let text_width = usize::from(width - CHROME_WIDTH);
 
-        for (index, lines) in self.fitting(text_width, available).into_iter().rev() {
+        let mut fitting = self.fitting(text_width, available);
+        // The line that counts the rest takes a row of its own.
+        if fitting.len() < self.items.len() && available > 0 {
+            fitting = self.fitting(text_width, available - 1);
+        }
+        let hidden = self.items.len() - fitting.len();
+        let shown: Vec<u64> = fitting
+            .iter()
+            .map(|(index, _)| self.items[*index].id)
+            .collect();
+
+        let mut hits = Vec::new();
+        for (index, lines) in fitting.into_iter().rev() {
             let height = lines.len() as u16 + 2;
             floor -= height;
             let area = Rect {
@@ -145,8 +192,29 @@ impl Notifications {
                 width,
                 height,
             };
-            draw_one(frame, theme, self.items[index].level, lines, area);
+            let item = &self.items[index];
+            draw_one(frame, theme, item.level, lines, area);
+            hits.push((Hit::Message(item.id), area));
         }
+
+        if hidden > 0 && floor > screen.y {
+            let area = Rect {
+                x: screen.right() - width,
+                y: floor - 1,
+                width,
+                height: 1,
+            };
+            let text = format!("[+{hidden} more]");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .alignment(Alignment::Right)
+                    .style(theme.style("notification.more")),
+                area,
+            );
+            hits.push((Hit::More(shown), area));
+        }
+        hits
     }
 
     /// The messages that fit in `available` rows, as their index and their

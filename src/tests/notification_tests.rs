@@ -421,3 +421,217 @@ fn when_not_everything_fits_the_error_and_the_newest_infos_are_drawn_in_order() 
         "newest nearest the bottom"
     );
 }
+
+// ---- "+N more" and clicking a message
+
+/// Draws the app and finds the cell where `text` starts.
+fn cell_of(app: &mut App, width: u16, height: u16, text: &str) -> Option<(u16, u16)> {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    for y in 0..height {
+        let row: String = (0..width)
+            .map(|x| buffer[(x, y)].symbol().to_owned())
+            .collect();
+        if let Some(byte) = row.find(text) {
+            return Some((row[..byte].chars().count() as u16, y));
+        }
+    }
+    None
+}
+
+fn click_at(app: &mut App, (column, row): (u16, u16)) {
+    app.handle_input(click(column, row));
+}
+
+fn flood(app: &mut App, count: usize) {
+    for number in 0..count {
+        app.state_mut().notify(format!("info {number}"));
+    }
+}
+
+#[test]
+fn when_some_messages_do_not_fit_a_line_counts_them() {
+    let mut app = App::default();
+    flood(&mut app, 12);
+
+    // 29 rows above the status bar; one is the count, so nine messages of three
+    // rows fit and three are left out.
+    let screen = screen(&mut app, 100, 30);
+
+    assert!(screen.contains("[+3 more]"), "{screen}");
+}
+
+#[test]
+fn with_room_for_everything_there_is_no_count() {
+    let mut app = App::default();
+    flood(&mut app, 3);
+
+    let screen = screen(&mut app, 100, 30);
+
+    assert!(!screen.contains("more]"), "{screen}");
+}
+
+#[test]
+fn the_count_sits_right_above_the_stack_at_its_right_edge() {
+    let mut app = App::default();
+    flood(&mut app, 12);
+
+    let more = cell_of(&mut app, 100, 30, "[+3 more]").unwrap();
+    let top = cell_of(&mut app, 100, 30, "info 3").unwrap();
+
+    // The oldest shown message has one border row above its text.
+    assert_eq!(more.1 + 2, top.1, "{more:?} {top:?}");
+    assert_eq!(more.0 + 9, 100, "{more:?}");
+}
+
+#[test]
+fn the_count_follows_what_is_left_out() {
+    let mut app = App::default();
+    flood(&mut app, 10);
+    assert!(screen(&mut app, 100, 30).contains("[+1 more]"));
+
+    for number in 0..3 {
+        app.state_mut().notify(format!("more {number}"));
+    }
+
+    assert!(screen(&mut app, 100, 30).contains("[+4 more]"));
+}
+
+#[test]
+fn an_error_that_does_not_fit_is_counted_too() {
+    let mut app = App::default();
+    for number in 0..11 {
+        app.state_mut().notify_error(format!("error {number}"));
+    }
+
+    let screen = screen(&mut app, 100, 30);
+
+    assert!(screen.contains("[+2 more]"), "{screen}");
+}
+
+#[test]
+fn a_very_short_screen_does_not_panic_with_a_count() {
+    let mut app = App::default();
+    flood(&mut app, 5);
+    for height in 0..8 {
+        let _ = screen(&mut app, 80, height);
+    }
+}
+
+#[test]
+fn clicking_a_message_takes_that_message_away_and_only_that_one() {
+    let mut app = App::default();
+    app.state_mut().notify("first message");
+    app.state_mut().notify("second message");
+    let at = cell_of(&mut app, 100, 30, "first message").unwrap();
+
+    click_at(&mut app, at);
+
+    assert_eq!(texts(&app), ["second message"]);
+}
+
+#[test]
+fn the_click_on_a_message_does_not_reach_what_is_underneath() {
+    let mut app = App::default();
+    app.state_mut().notify("a message");
+    let before = app.state().editor().selections().primary().head();
+    let at = cell_of(&mut app, 100, 30, "a message").unwrap();
+
+    click_at(&mut app, at);
+
+    assert_eq!(app.state().editor().selections().primary().head(), before);
+    assert!(app.needs_redraw());
+}
+
+#[test]
+fn clicking_an_error_takes_it_away_but_not_the_other_errors() {
+    let mut app = App::default();
+    app.state_mut().notify_error("error one");
+    app.state_mut().notify_error("error two");
+    let at = cell_of(&mut app, 100, 30, "error one").unwrap();
+
+    click_at(&mut app, at);
+
+    assert_eq!(texts(&app), ["error two"]);
+}
+
+#[test]
+fn clicking_elsewhere_still_dismisses_every_error() {
+    let mut app = App::default();
+    app.state_mut().notify_error("error one");
+    app.state_mut().notify_error("error two");
+    let _ = screen(&mut app, 100, 30);
+
+    click_at(&mut app, (2, 2));
+
+    assert!(texts(&app).is_empty());
+}
+
+#[test]
+fn clicking_the_count_takes_away_the_info_messages_that_were_left_out() {
+    let mut app = App::default();
+    flood(&mut app, 12);
+    let at = cell_of(&mut app, 100, 30, "[+3 more]").unwrap();
+
+    click_at(&mut app, at);
+
+    let remaining = texts(&app);
+    assert_eq!(remaining.len(), 9, "{remaining:?}");
+    assert!(!remaining.contains(&"info 0".to_owned()));
+    assert!(remaining.contains(&"info 11".to_owned()));
+    assert!(!screen(&mut app, 100, 30).contains("more]"));
+}
+
+#[test]
+fn clicking_the_count_keeps_errors_that_were_left_out() {
+    let mut app = App::default();
+    for number in 0..12 {
+        app.state_mut().notify_error(format!("error {number}"));
+    }
+    let at = cell_of(&mut app, 100, 30, "more]").unwrap();
+
+    click_at(&mut app, at);
+
+    assert_eq!(texts(&app).len(), 12);
+}
+
+#[test]
+fn a_click_on_a_message_that_already_went_is_harmless() {
+    let mut app = App::default();
+    app.state_mut().notify("short lived");
+    let at = cell_of(&mut app, 100, 30, "short lived").unwrap();
+    app.expire_notifications(Instant::now() + INFO_LIFETIME * 2);
+
+    click_at(&mut app, at);
+
+    assert!(texts(&app).is_empty());
+}
+
+#[test]
+fn before_the_first_draw_a_click_finds_no_message() {
+    let mut app = App::default();
+    app.state_mut().notify("a message");
+
+    click_at(&mut app, (90, 20));
+
+    assert_eq!(texts(&app), ["a message"]);
+}
+
+#[test]
+fn a_right_click_on_a_message_does_nothing_to_it() {
+    let mut app = App::default();
+    app.state_mut().notify("a message");
+    let at = cell_of(&mut app, 100, 30, "a message").unwrap();
+
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Right),
+        column: at.0,
+        row: at.1,
+        modifiers: KeyModifiers::NONE,
+    }));
+
+    assert_eq!(texts(&app), ["a message"]);
+}

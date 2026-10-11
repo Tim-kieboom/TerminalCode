@@ -34,7 +34,8 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         .find(|placement| placement.kind == ComponentKind::StatusBar)
         .map_or(frame.area().bottom(), |placement| placement.area.y);
 
-    state.notifications().render(frame, state.theme(), bottom);
+    let hits = state.notifications().render(frame, state.theme(), bottom);
+    state.set_notification_hits(hits);
 
     let screen = frame.area();
     if let Some(menu) = state.menu_mut() {

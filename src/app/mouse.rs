@@ -80,6 +80,14 @@ impl App {
     }
 
     pub(super) fn handle_mouse(&mut self, event: MouseEvent) {
+        // A click on a message takes that message away and goes no further.
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && self.state.click_notification(event.column, event.row)
+        {
+            self.needs_redraw = true;
+            return;
+        }
+
         if matches!(event.kind, MouseEventKind::Down(_)) && self.state.dismiss_errors() {
             self.needs_redraw = true;
         }
