@@ -112,9 +112,8 @@ used `anyhow` everywhere instead of typed errors.
   operators + motions + text objects, counts, `.` repeat, registers, `/` search. Visual-block, macros
   and ex commands beyond `:w :q :wq :e` are post-0.1.0 unless time allows.
 - **Terminal focus:** when the integrated terminal is focused, all keys go to the shell except the IDE
-  prefix chord, which makes the next key an IDE shortcut. Default prefix: `ctrl+g` (readline barely uses it;
-  zellij uses it too). It is just a binding in a `terminal` context that starts a sequence, so it is
-  rebindable; it is added with the terminal pane in M6.
+  prefix chord, which makes the next key an IDE shortcut. The prefix that shipped is `ctrl+b` (see "Terminal keys" below), not the `ctrl+g` first
+  planned here; `ctrl+g` goes to a line of the open file.
 - All keybinds are redesigned from scratch (the old `keybind_defaults.json` is discarded). User keymap
   file overrides defaults.
 
