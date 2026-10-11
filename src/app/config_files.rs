@@ -11,8 +11,9 @@ use super::App;
 impl App {
     /// Opens `file` in a tab. A file that does not exist yet is made first from
     /// the built-in default, so there is something to edit; one that does is
-    /// left as it is. The files are read at startup, so a change applies the
-    /// next time the editor starts.
+    /// left as it is. The theme file opened is the one in use: the installed
+    /// theme that was chosen, else `theme.toml`, which is started from the
+    /// built-in theme that was chosen. A change applies when the file is saved.
     pub(super) fn open_config(&mut self, file: ConfigFile) -> IdeResult {
         let Some(dir) = &self.config_dir else {
             self.state
@@ -20,15 +21,27 @@ impl App {
             return Ok(());
         };
 
+        if file == ConfigFile::Theme
+            && let Some(installed) = self.installed_theme_path()
+            && installed.is_file()
+        {
+            self.state.workspace_mut().open_path(&installed)?;
+            return Ok(());
+        }
+
         let path = file.path_in(dir);
+        let content = match file {
+            ConfigFile::Theme => self.theme_variant.source(),
+            _ => file.default_content(),
+        };
         let created = file
-            .create_from_default(&path)
+            .create_with(&path, content)
             .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
 
         self.state.workspace_mut().open_path(&path)?;
         if created {
             self.state.notify(format!(
-                "made {} from the defaults; changes apply on the next start or reload",
+                "made {} from the defaults; changes apply when it is saved",
                 path.display()
             ));
         }

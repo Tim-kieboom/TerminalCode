@@ -876,3 +876,81 @@ fn the_themes_folder_is_watched_so_a_theme_dropped_in_shows_up_on_reopening() {
             .contains(&canonical(&dir.path().join("themes")))
     );
 }
+
+// ---- Config: Open Theme opens the theme in use
+
+#[test]
+fn open_theme_opens_the_installed_theme_that_was_chosen() {
+    let dir = tempfile::tempdir().unwrap();
+    install(dir.path(), "solar", GREEN_ACCENT);
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Theme: solar");
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), GREEN_ACCENT);
+    assert!(
+        !dir.path().join("theme.toml").exists(),
+        "no overlay was made"
+    );
+}
+
+#[test]
+fn open_theme_with_a_built_in_theme_opens_the_overlay() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "theme.toml", "# mine\n");
+    let mut app = app_with_config_dir(dir.path());
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), "# mine\n");
+}
+
+#[test]
+fn a_new_overlay_starts_from_the_built_in_theme_that_is_chosen() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Theme: Light");
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), crate::ui::theme::LIGHT_THEME_TOML);
+}
+
+#[test]
+fn a_new_overlay_with_the_dark_theme_starts_from_the_dark_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut app = app_with_config_dir(dir.path());
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), DEFAULT_THEME_TOML);
+}
+
+#[test]
+fn after_going_back_to_a_built_in_theme_open_theme_opens_the_overlay_again() {
+    let dir = tempfile::tempdir().unwrap();
+    install(dir.path(), "solar", GREEN_ACCENT);
+    write(dir.path(), "theme.toml", "# mine\n");
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Theme: solar");
+    run_from_palette(&mut app, "Theme: Dark");
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), "# mine\n");
+}
+
+#[test]
+fn an_installed_theme_whose_file_vanished_falls_back_to_the_overlay() {
+    let dir = tempfile::tempdir().unwrap();
+    install(dir.path(), "solar", GREEN_ACCENT);
+    write(dir.path(), "theme.toml", "# mine\n");
+    let mut app = app_with_config_dir(dir.path());
+    run_from_palette(&mut app, "Theme: solar");
+    fs::remove_file(dir.path().join("themes/solar.toml")).unwrap();
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), "# mine\n");
+}

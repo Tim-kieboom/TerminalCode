@@ -200,7 +200,7 @@ impl ConfigFile {
     }
 
     /// The text of the built-in default, which a new file starts from.
-    fn default_content(self) -> &'static str {
+    pub(crate) fn default_content(self) -> &'static str {
         match self {
             Self::Theme => DEFAULT_THEME_TOML,
             Self::Keymap => DEFAULT_KEYMAP_TOML,
@@ -217,6 +217,11 @@ impl ConfigFile {
     /// making the directory too; an existing file is never touched. Returns
     /// whether the file was created.
     pub(crate) fn create_from_default(self, path: &Path) -> io::Result<bool> {
+        self.create_with(path, self.default_content())
+    }
+
+    /// Like [`ConfigFile::create_from_default`], starting the new file from `content`.
+    pub(crate) fn create_with(self, path: &Path, content: &str) -> io::Result<bool> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -228,7 +233,7 @@ impl ConfigFile {
 
         match created {
             Ok(mut file) => {
-                io::Write::write_all(&mut file, self.default_content().as_bytes())?;
+                io::Write::write_all(&mut file, content.as_bytes())?;
                 Ok(true)
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),

@@ -16,8 +16,9 @@ impl Render for StatusBar {
         } else if state.workspace().has_tabs() {
             let editor = state.editor();
             let head = editor.selections().primary().head();
+            state.
             format!(
-                " {}  Ln {}, Col {} -- quit: Ctr+Q, showKeybinds: ?",
+                " {}  Ln {}, Col {} -- quit: Ctr+Q, commandPallet: f1",
                 editor.display_name(),
                 head.line + 1,
                 head.column + 1
