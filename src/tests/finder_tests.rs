@@ -404,3 +404,225 @@ mod unusual_names {
         assert!(!app.state().notifications().has_errors());
     }
 }
+
+// ---- a place in the file, a split, recent files, highlighted matches
+
+fn long_project() -> tempfile::TempDir {
+    let dir = project();
+    fs::write(
+        dir.path().join("src/main.rs"),
+        "line one\nline two\nline three, longer\nline four\n",
+    )
+    .unwrap();
+    dir
+}
+
+fn finder_ready(dir: &Path) -> (App, mpsc::Receiver<Event>) {
+    let (mut app, mut rx) = app_in(dir);
+    ctrl(&mut app, 'p');
+    finish_walk(&mut app, &mut rx);
+    (app, rx)
+}
+
+fn head(app: &App) -> (usize, usize) {
+    let head = app.state().editor().selections().primary().head();
+    (head.line, head.column)
+}
+
+#[test]
+fn a_line_after_the_name_opens_the_file_at_that_line() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+
+    type_str(&mut app, "main.rs:3");
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(app.state().editor().display_name(), "main.rs");
+    assert_eq!(head(&app), (2, 0));
+}
+
+#[test]
+fn a_column_puts_the_cursor_there() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+
+    type_str(&mut app, "main.rs:3:6");
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(head(&app), (2, 5));
+}
+
+#[test]
+fn a_line_past_the_end_goes_to_the_last_line() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+
+    type_str(&mut app, "main.rs:999:999");
+    press(&mut app, KeyCode::Enter);
+
+    let (line, _) = head(&app);
+    assert_eq!(line, app.state().editor().buffer().len_lines() - 1);
+}
+
+#[test]
+fn a_file_that_is_already_open_is_moved_to_the_line() {
+    let dir = long_project();
+    let (mut app, mut rx) = finder_ready(dir.path());
+    type_str(&mut app, "main.rs:4");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(head(&app), (3, 0));
+    let tabs = app.state().workspace().tab_names().0.len();
+
+    ctrl(&mut app, 'p');
+    finish_walk(&mut app, &mut rx);
+    type_str(&mut app, "main.rs:2");
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(app.state().workspace().tab_names().0.len(), tabs);
+    assert_eq!(head(&app), (1, 0));
+}
+
+#[test]
+fn the_footer_says_where_the_file_will_open() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+
+    type_str(&mut app, "main.rs:3:2");
+
+    assert!(
+        screen(&mut app).contains("line 3, column 2"),
+        "{}",
+        screen(&mut app)
+    );
+}
+
+#[test]
+fn alt_enter_opens_the_file_in_a_new_pane() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+    let panes = app.state().workspace().pane_count();
+    type_str(&mut app, "lib");
+
+    app.handle_input(key(KeyCode::Enter, KeyModifiers::ALT));
+
+    assert_eq!(app.state().workspace().pane_count(), panes + 1);
+    assert_eq!(app.state().editor().display_name(), "lib.rs");
+    assert_eq!(app.state().workspace().tab_names().0, ["lib.rs"]);
+    assert_eq!(app.state().focus(), Focus::Editor);
+    assert!(app.state().finder().is_none());
+}
+
+#[test]
+fn the_pane_the_split_came_from_is_left_as_it_was() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+    let before = app.state().workspace().tab_names();
+    type_str(&mut app, "lib");
+    app.handle_input(key(KeyCode::Enter, KeyModifiers::ALT));
+
+    app.state_mut().workspace_mut().focus_next_pane();
+
+    assert_eq!(app.state().workspace().tab_names(), before);
+}
+
+#[test]
+fn alt_enter_with_a_place_goes_there_in_the_new_pane() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+    type_str(&mut app, "main.rs:2:3");
+
+    app.handle_input(key(KeyCode::Enter, KeyModifiers::ALT));
+
+    assert_eq!(app.state().editor().display_name(), "main.rs");
+    assert_eq!(head(&app), (1, 2));
+}
+
+#[test]
+fn alt_enter_on_a_file_that_is_already_open_shows_it_in_the_new_pane_too() {
+    let dir = long_project();
+    let (mut app, mut rx) = finder_ready(dir.path());
+    type_str(&mut app, "lib");
+    press(&mut app, KeyCode::Enter);
+    let documents = app.state().workspace().document_count();
+    ctrl(&mut app, 'p');
+    finish_walk(&mut app, &mut rx);
+    type_str(&mut app, "lib");
+
+    app.handle_input(key(KeyCode::Enter, KeyModifiers::ALT));
+
+    assert_eq!(app.state().workspace().document_count(), documents);
+    assert_eq!(app.state().workspace().pane_count(), 2);
+    assert_eq!(app.state().editor().display_name(), "lib.rs");
+}
+
+#[test]
+fn alt_enter_on_a_file_that_cannot_be_read_changes_no_pane() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+    fs::remove_file(dir.path().join("src/lib.rs")).unwrap();
+    type_str(&mut app, "lib");
+
+    app.handle_input(key(KeyCode::Enter, KeyModifiers::ALT));
+
+    assert_eq!(app.state().workspace().pane_count(), 1);
+    assert!(app.state().notifications().has_errors());
+}
+
+#[test]
+fn a_file_opened_lately_comes_first_the_next_time() {
+    let dir = long_project();
+    let (mut app, mut rx) = finder_ready(dir.path());
+    type_str(&mut app, "design");
+    press(&mut app, KeyCode::Enter);
+
+    ctrl(&mut app, 'p');
+    finish_walk(&mut app, &mut rx);
+
+    assert_eq!(results(&app)[0], "docs/design.md");
+}
+
+#[test]
+fn files_opened_from_the_explorer_count_as_recent_too() {
+    let dir = long_project();
+    let (mut app, mut rx) = app_in(dir.path());
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&dir.path().join("src/lib.rs"))
+        .unwrap();
+
+    ctrl(&mut app, 'p');
+    finish_walk(&mut app, &mut rx);
+
+    assert_eq!(results(&app)[0], "src/lib.rs");
+}
+
+#[test]
+fn the_matched_characters_are_drawn_differently() {
+    let dir = long_project();
+    let (mut app, _rx) = finder_ready(dir.path());
+    type_str(&mut app, "mn");
+
+    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    let theme = app.state().theme();
+    let hit = theme.style("finder.match");
+    let mut found = false;
+    for y in 0..30 {
+        let row: String = (0..100)
+            .map(|x| buffer[(x, y)].symbol().to_owned())
+            .collect();
+        let Some(byte) = row.find("main.rs") else {
+            continue;
+        };
+        let x = row[..byte].chars().count() as u16;
+        // `m` and `n` are matched; `a` and `i` are not.
+        assert_eq!(buffer[(x, y)].style().fg, hit.fg, "m");
+        assert_eq!(buffer[(x + 3, y)].style().fg, hit.fg, "n");
+        assert_ne!(buffer[(x + 1, y)].style().fg, hit.fg, "a");
+        found = true;
+    }
+    assert!(found, "{}", terminal.backend());
+}

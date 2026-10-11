@@ -1,10 +1,12 @@
 //! Closing several tabs at once, remembering closed ones, and saving every
 //! modified file.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use super::{DocumentId, SaveOutcome, ViewId, Workspace, display_name};
-use crate::buffer::{FileError, Position};
+use super::{DocumentId, SaveOutcome, ViewId, ViewState, Workspace, display_name};
+use crate::buffer::{Buffer, FileError, Position};
+use crate::paths::canonical;
+use crate::ui::layout::Axis;
 
 /// How many closed tabs are remembered.
 const REMEMBERED_TABS: usize = 20;
@@ -185,5 +187,52 @@ impl Workspace {
         // not leave that armed for a file the user has not looked at.
         self.confirm_overwrite = None;
         report
+    }
+}
+
+/// How many recently opened files are remembered.
+const REMEMBERED_FILES: usize = 20;
+
+impl Workspace {
+    /// Notes that the file at `path` was opened, for [`Workspace::recent_paths`].
+    pub(super) fn remember_recent(&mut self, path: &Path) {
+        self.recent.retain(|known| known != path);
+        self.recent.insert(0, path.to_path_buf());
+        self.recent.truncate(REMEMBERED_FILES);
+    }
+
+    /// The files opened lately, the latest first, as they were opened.
+    pub(crate) fn recent_paths(&self) -> &[PathBuf] {
+        &self.recent
+    }
+
+    /// Shows the file at `path` in a new pane beside or below the focused one,
+    /// which gets the keyboard. A file that cannot be read changes nothing. With
+    /// no tab to split, it opens like any other.
+    pub(crate) fn open_path_in_split(&mut self, path: &Path, axis: Axis) -> Result<(), FileError> {
+        if !self.has_tabs() {
+            return self.open_path(path);
+        }
+        // A file not open yet is read before the split, so a failure leaves the
+        // panes as they were.
+        let wanted = canonical(path);
+        let open = self.documents.iter().find_map(|(id, doc)| {
+            let own = doc.buffer.path()?;
+            (canonical(own) == wanted).then_some(*id)
+        });
+        let document = match open {
+            Some(document) => document,
+            None => self.add_document(Buffer::open(path)?),
+        };
+
+        // The split starts with a copy of the active tab; the file takes its place.
+        self.split(axis);
+        let pane = self.focused_index();
+        let tab = self.new_tab(document, ViewState::default());
+        self.panes[pane].tabs.push(tab);
+        self.panes[pane].active = self.panes[pane].tabs.len() - 1;
+        self.remove_tab(pane, 0);
+        self.remember_recent(path);
+        Ok(())
     }
 }

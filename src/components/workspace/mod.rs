@@ -126,6 +126,8 @@ pub(crate) struct Workspace {
     forgotten: Vec<SyntaxKey>,
     /// Tabs closed lately, the latest last, for reopening them.
     closed: Vec<ClosedTab>,
+    /// Files opened lately, the latest first.
+    recent: Vec<PathBuf>,
     /// Whether the focused pane has a row reserved for the find bar.
     find_bar: bool,
     /// Stands in for the active editor while the only pane has no tabs.
@@ -151,6 +153,7 @@ impl Workspace {
             confirm_close: None,
             confirm_bulk: None,
             closed: Vec::new(),
+            recent: Vec::new(),
             confirm_overwrite: None,
             docs_version: 0,
             forgotten: Vec::new(),
@@ -408,9 +411,11 @@ impl Workspace {
         });
         let Some(document) = open else {
             self.open_buffer(Buffer::open(path)?);
+            self.remember_recent(path);
             return Ok(());
         };
         self.show_document(document);
+        self.remember_recent(path);
         Ok(())
     }
 

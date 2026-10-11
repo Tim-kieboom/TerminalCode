@@ -493,3 +493,131 @@ fn file_in(dir: &Path, name: &str) -> PathBuf {
     fs::write(&path, "x").unwrap();
     path
 }
+
+// ---- recent files and opening in a split
+
+#[test]
+fn opened_files_are_remembered_latest_first_without_repeats() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = (file(&dir, "a.txt", "a"), file(&dir, "b.txt", "b"));
+    let mut workspace = Workspace::new(Editor::default());
+
+    for path in [&a, &b, &a] {
+        workspace.open_path(path).unwrap();
+    }
+
+    assert_eq!(workspace.recent_paths(), [a, b]);
+}
+
+#[test]
+fn a_file_that_could_not_be_opened_is_not_remembered() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut workspace = Workspace::new(Editor::default());
+
+    assert!(
+        workspace
+            .open_path(&dir.path().join("missing.txt"))
+            .is_err()
+    );
+
+    assert!(workspace.recent_paths().is_empty());
+}
+
+#[test]
+fn only_the_last_twenty_opened_files_are_remembered() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut workspace = Workspace::new(Editor::default());
+    for number in 0..25 {
+        let path = file(&dir, &format!("f{number}.txt"), "x");
+        workspace.open_path(&path).unwrap();
+    }
+
+    assert_eq!(workspace.recent_paths().len(), 20);
+    assert_eq!(workspace.recent_paths()[0], dir.path().join("f24.txt"));
+}
+
+#[test]
+fn opening_in_a_split_puts_the_file_alone_in_a_new_focused_pane() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = file(&dir, "a.txt", "a");
+    let b = file(&dir, "b.txt", "b");
+    let mut workspace = Workspace::new(Editor::default());
+    workspace.open_path(&a).unwrap();
+
+    workspace.open_path_in_split(&b, Axis::Horizontal).unwrap();
+
+    assert_eq!(workspace.pane_count(), 2);
+    assert_eq!(names(&workspace), ["b.txt"]);
+    assert_eq!(text(&workspace), "b");
+    workspace.focus_next_pane();
+    assert!(names(&workspace).contains(&"a.txt".to_owned()));
+}
+
+#[test]
+fn opening_in_a_split_a_file_that_is_open_shares_the_document() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = file(&dir, "a.txt", "a");
+    let mut workspace = Workspace::new(Editor::default());
+    workspace.open_path(&a).unwrap();
+    let documents = workspace.document_count();
+
+    workspace.open_path_in_split(&a, Axis::Horizontal).unwrap();
+
+    assert_eq!(workspace.document_count(), documents);
+    assert_eq!(names(&workspace), ["a.txt"]);
+    type_in(&mut workspace, "x");
+    workspace.focus_next_pane();
+    assert!(
+        text(&workspace).contains('x'),
+        "the two panes show one buffer"
+    );
+}
+
+#[test]
+fn opening_in_a_split_a_file_that_cannot_be_read_changes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = file(&dir, "a.txt", "a");
+    let mut workspace = Workspace::new(Editor::default());
+    workspace.open_path(&a).unwrap();
+
+    let result = workspace.open_path_in_split(&dir.path().join("gone.txt"), Axis::Horizontal);
+
+    assert!(result.is_err());
+    assert_eq!(workspace.pane_count(), 1);
+    assert_eq!(
+        workspace.document_count(),
+        2,
+        "the empty first tab and a.txt"
+    );
+}
+
+#[test]
+fn opening_in_a_split_with_no_tab_just_opens() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = file(&dir, "a.txt", "a");
+    let mut workspace = Workspace::new(Editor::default());
+    workspace.close_tabs(CloseScope::All);
+
+    workspace.open_path_in_split(&a, Axis::Horizontal).unwrap();
+
+    assert_eq!(workspace.pane_count(), 1);
+    assert_eq!(names(&workspace), ["a.txt"]);
+}
+
+#[test]
+fn opening_in_a_split_a_second_time_makes_a_third_pane() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b, c) = (
+        file(&dir, "a.txt", "a"),
+        file(&dir, "b.txt", "b"),
+        file(&dir, "c.txt", "c"),
+    );
+    let mut workspace = Workspace::new(Editor::default());
+    workspace.open_path(&a).unwrap();
+
+    workspace.open_path_in_split(&b, Axis::Horizontal).unwrap();
+    workspace.open_path_in_split(&c, Axis::Horizontal).unwrap();
+
+    assert_eq!(workspace.pane_count(), 3);
+    assert_eq!(names(&workspace), ["c.txt"]);
+}

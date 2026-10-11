@@ -5,6 +5,7 @@
 //! shown at once and re-ranked as more files arrive.
 
 use std::cmp::Reverse;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use ratatui::Frame;
@@ -20,6 +21,7 @@ use crate::ui::theme::Theme;
 pub(crate) use scan::{ScanHandle, start as start_scan};
 
 mod scan;
+pub(crate) mod target;
 #[cfg(test)]
 mod tests;
 
@@ -30,6 +32,8 @@ const MAX_ROWS: u16 = 12;
 /// Extra score for a query that also matches the file's own name, so
 /// `main` finds `src/main.rs` before `domain/mapping.rs`.
 const NAME_BONUS: i32 = 40;
+/// Extra score for the file opened last; each one before it gets one point less.
+const RECENT_BONUS: i32 = 30;
 
 /// Whether the walk is still going.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +97,29 @@ impl File {
         &self.shown[..self.name_start]
     }
 
+    /// Which characters of the name and of the directory (counted in characters)
+    /// `query` matched, for drawing them differently. A match in the name alone
+    /// is shown there; otherwise the match across the whole path is split
+    /// between the two.
+    fn highlights(&self, query: &Query) -> (Vec<usize>, Vec<usize>) {
+        if let Some(in_name) = query.positions(self.name()) {
+            return (in_name, Vec::new());
+        }
+        let Some(in_path) = query.positions(&self.shown) else {
+            return (Vec::new(), Vec::new());
+        };
+        let directory_len = self.directory().chars().count();
+        let (directory, name): (Vec<usize>, Vec<usize>) = in_path
+            .into_iter()
+            .partition(|&index| index < directory_len);
+        (
+            name.into_iter()
+                .map(|index| index - directory_len)
+                .collect(),
+            directory,
+        )
+    }
+
     /// How well `query` matches, or `None`.
     fn rank(&self, query: &Query) -> Option<i32> {
         let by_path = query.score(&self.shown)?;
@@ -126,6 +153,13 @@ pub(crate) struct Finder {
     /// The best of the candidates, best first.
     matches: Vec<Match>,
     selected: usize,
+    /// The files opened lately by their shown path, with how long ago: 0 is the
+    /// latest.
+    recent: HashMap<String, usize>,
+    /// The line and column the query asks for, if it names one.
+    place: Option<(usize, Option<usize>)>,
+    /// The part of the query the files are matched against.
+    matched_text: String,
 }
 
 impl Finder {
@@ -141,7 +175,22 @@ impl Finder {
             candidates: Vec::new(),
             matches: Vec::new(),
             selected: 0,
+            recent: HashMap::new(),
+            place: None,
+            matched_text: String::new(),
         }
+    }
+
+    /// Lists the files in `recent` (paths under the project root, latest first)
+    /// ahead of equal matches, and first while nothing is typed.
+    pub(crate) fn with_recent(mut self, recent: &[PathBuf]) -> Self {
+        self.recent = recent
+            .iter()
+            .filter_map(|path| path.strip_prefix(&self.root).ok())
+            .enumerate()
+            .map(|(rank, relative)| (File::new(relative).shown, rank))
+            .collect();
+        self
     }
 
     /// Files found so far.
@@ -180,6 +229,27 @@ impl Finder {
         Some(self.files[found.index].path_in(&self.root))
     }
 
+    /// How well file `index` matches the query, with the bonus for having been
+    /// opened lately.
+    fn rank(&self, index: usize) -> Option<i32> {
+        let file = &self.files[index];
+        let score = file.rank(&self.prepared)?;
+        let bonus = self.recent.get(&file.shown).map_or(0, |&ago| {
+            (RECENT_BONUS - i32::try_from(ago).unwrap_or(RECENT_BONUS)).max(1)
+        });
+        Some(score + bonus)
+    }
+
+    /// What the selection asks for: the file, and the place in it the query names.
+    pub(crate) fn selected_target(&self) -> Option<Target> {
+        let path = self.selected_path()?;
+        let (line, column) = match self.place {
+            Some((line, column)) => (Some(line), column),
+            None => (None, None),
+        };
+        Some(Target { path, line, column })
+    }
+
     /// Takes a batch of files from the walk. A batch from another walk is
     /// ignored. The selection stays on the same file if it is still among the
     /// best matches.
@@ -192,7 +262,7 @@ impl Finder {
 
         let kept = self.matches.get(self.selected).map(|found| found.index);
         for index in first_new..self.files.len() {
-            if let Some(score) = self.files[index].rank(&self.prepared) {
+            if let Some(score) = self.rank(index) {
                 self.candidates.push(index);
                 self.matches.push(Match { index, score });
             }
@@ -212,8 +282,7 @@ impl Finder {
 
     pub(crate) fn insert(&mut self, c: char) {
         self.query.push(c);
-        // Whatever matches the longer query matches the shorter one too.
-        self.refilter(Narrowing::FromCandidates);
+        self.refilter_after_typing();
     }
 
     pub(crate) fn backspace(&mut self) {
@@ -226,6 +295,21 @@ impl Finder {
         self.refilter(Narrowing::FromAllFiles);
     }
 
+    /// Whatever matches a longer text matches the shorter one too, so only the
+    /// files that matched before are looked at again, unless the text matched
+    /// against did not just grow (the typed `:` and digits after a name are a
+    /// place, not part of it).
+    fn refilter_after_typing(&mut self) {
+        let grew = target::parse(&self.query)
+            .text
+            .starts_with(self.matched_text.as_str());
+        let from = match grew {
+            true => Narrowing::FromCandidates,
+            false => Narrowing::FromAllFiles,
+        };
+        self.refilter(from);
+    }
+
     pub(crate) fn select_previous(&mut self) {
         self.selected = self.selected.saturating_sub(1);
     }
@@ -236,7 +320,10 @@ impl Finder {
 
     /// Ranks the files again for the new query and goes back to the top.
     fn refilter(&mut self, from: Narrowing) {
-        self.prepared = Query::new(&self.query);
+        let parsed = target::parse(&self.query);
+        self.place = parsed.line.map(|line| (line, parsed.column));
+        self.matched_text = parsed.text.to_owned();
+        self.prepared = Query::new(parsed.text);
         let looked_at: Vec<usize> = match from {
             Narrowing::FromCandidates => std::mem::take(&mut self.candidates),
             Narrowing::FromAllFiles => (0..self.files.len()).collect(),
@@ -244,7 +331,7 @@ impl Finder {
         self.candidates.clear();
         self.matches.clear();
         for index in looked_at {
-            if let Some(score) = self.files[index].rank(&self.prepared) {
+            if let Some(score) = self.rank(index) {
                 self.candidates.push(index);
                 self.matches.push(Match { index, score });
             }
@@ -315,22 +402,30 @@ impl Finder {
             frame.render_widget(Paragraph::new(message).style(dim), list_area);
             return;
         }
-        let rows = self
-            .matches
-            .iter()
-            .map(|found| row(&self.files[found.index], dim));
+        let hit = theme.style("finder.match");
+        let rows = self.matches.iter().map(|found| {
+            let file = &self.files[found.index];
+            row(file, file.highlights(&self.prepared), dim, hit)
+        });
         let mut state = ListState::default().with_selected(Some(self.selected));
         let list = List::new(rows).highlight_style(theme.style("list.selected"));
         frame.render_stateful_widget(list, list_area, &mut state);
     }
 
     fn footer(&self) -> String {
-        match self.walk {
+        let counts = match self.walk {
             Walk::Running => format!(" indexing... {} files", self.files.len()),
             Walk::Done { unreadable: 0 } => format!(" {} files", self.files.len()),
             Walk::Done { unreadable } => {
                 format!(" {} files, {unreadable} unreadable", self.files.len())
             }
+        };
+        match self.place {
+            Some((line, Some(column))) => {
+                format!("{counts}  \u{2192} line {line}, column {column}")
+            }
+            Some((line, None)) => format!("{counts}  \u{2192} line {line}"),
+            None => counts,
         }
     }
 
@@ -348,11 +443,50 @@ impl Finder {
     }
 }
 
-/// A row: the file's name, then its directory dimmed.
-fn row<'a>(file: &File, dim: Style) -> ListItem<'a> {
-    let mut spans = vec![Span::raw(format!(" {}", file.name()))];
+/// A row: the file's name, then its directory dimmed, with the characters the
+/// query matched drawn in the `hit` style.
+fn row<'a>(
+    file: &File,
+    (in_name, in_directory): (Vec<usize>, Vec<usize>),
+    dim: Style,
+    hit: Style,
+) -> ListItem<'a> {
+    let mut spans = vec![Span::raw(" ")];
+    spans.extend(marked(file.name(), &in_name, Style::default(), hit));
     if !file.directory().is_empty() {
-        spans.push(Span::styled(format!("  {}", file.directory()), dim));
+        spans.push(Span::raw("  "));
+        spans.extend(marked(file.directory(), &in_directory, dim, dim.patch(hit)));
     }
     ListItem::new(Line::from(spans))
+}
+
+/// `text` in pieces: the characters at `marked` (by position) in the `hit`
+/// style, the rest in `base`.
+fn marked<'a>(text: &str, marked: &[usize], base: Style, hit: Style) -> Vec<Span<'a>> {
+    let mut spans: Vec<Span<'a>> = Vec::new();
+    let mut run = String::new();
+    let mut run_marked = false;
+    for (index, c) in text.chars().enumerate() {
+        let is_marked = marked.contains(&index);
+        if is_marked != run_marked && !run.is_empty() {
+            let style = if run_marked { hit } else { base };
+            spans.push(Span::styled(std::mem::take(&mut run), style));
+        }
+        run_marked = is_marked;
+        run.push(c);
+    }
+    if !run.is_empty() {
+        spans.push(Span::styled(run, if run_marked { hit } else { base }));
+    }
+    spans
+}
+
+/// What the finder was asked to open: a file, and perhaps where in it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Target {
+    pub(crate) path: PathBuf,
+    /// The line, counted from 1.
+    pub(crate) line: Option<usize>,
+    /// The column, counted from 1.
+    pub(crate) column: Option<usize>,
 }

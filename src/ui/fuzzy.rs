@@ -58,6 +58,24 @@ impl Query {
     }
 }
 
+impl Query {
+    /// The character positions (counted in characters, from 0) of `text` that the
+    /// match uses, in order: the same ones [`Query::score`] counts. `None` when
+    /// the query does not match; empty for an empty query.
+    pub(crate) fn positions(&self, text: &str) -> Option<Vec<usize>> {
+        let mut wanted = self.wanted.iter().peekable();
+        let mut found = Vec::with_capacity(self.wanted.len());
+        for (index, c) in text.chars().enumerate() {
+            let Some(&&next) = wanted.peek() else { break };
+            if lowercase(c) == next {
+                wanted.next();
+                found.push(index);
+            }
+        }
+        wanted.peek().is_none().then_some(found)
+    }
+}
+
 /// The lowercase form of `c`; for the rare character whose lowercase is
 /// several characters, the first of them.
 fn lowercase(c: char) -> char {

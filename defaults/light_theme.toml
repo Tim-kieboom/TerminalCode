@@ -125,6 +125,10 @@ modifiers = ["bold"]
 text = "black"
 background = "@warning"
 
+["finder.match"]
+text = "@accent_text"
+modifiers = ["bold"]
+
 ["find.bar"]
 text = "@text"
 background = "@surface"
