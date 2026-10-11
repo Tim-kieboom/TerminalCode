@@ -108,7 +108,6 @@ impl Action {
                 | Self::SplitRight
                 | Self::SplitDown
                 | Self::FocusNextPane
-                | Self::FocusPane(_)
         )
     }
 

@@ -319,22 +319,18 @@ action = "focus_next_pane"
 
 [[binding]]
 keys = "alt+h"
-context = "editor"
 action = { focus_pane = "left" }
 
 [[binding]]
 keys = "alt+j"
-context = "editor"
 action = { focus_pane = "down" }
 
 [[binding]]
 keys = "alt+k"
-context = "editor"
 action = { focus_pane = "up" }
 
 [[binding]]
 keys = "alt+l"
-context = "editor"
 action = { focus_pane = "right" }
 
 # Command palette. ctrl+shift+p is avoided on purpose: kitty and Windows Terminal keep it for

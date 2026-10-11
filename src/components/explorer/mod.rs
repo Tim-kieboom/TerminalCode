@@ -121,6 +121,11 @@ impl Explorer {
     }
 
     /// Whether a screen cell is inside the explorer.
+    /// Where the explorer is on screen, as of the last layout pass.
+    pub(crate) fn area(&self) -> Rect {
+        self.area
+    }
+
     pub(crate) fn contains(&self, column: u16, row: u16) -> bool {
         self.area
             .contains(ratatui::layout::Position::new(column, row))
@@ -237,6 +242,7 @@ impl Explorer {
     }
 
     /// Whether the dot entries are left out.
+    #[cfg(test)]
     pub(crate) fn hides_dotfiles(&self) -> bool {
         self.hide_dotfiles
     }

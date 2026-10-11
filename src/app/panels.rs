@@ -8,9 +8,11 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use super::App;
 use crate::app::state::Focus;
 use crate::components::explorer::{Explorer, ExplorerCommand};
+use crate::components::workspace::{FocusDirection, PaneId, neighbor_score};
 use crate::components::{ComponentKind, PluginViewId};
 use crate::error::IdeResult;
 use crate::paths::canonical;
+use ratatui::layout::Rect;
 
 impl App {
     /// Moves the keyboard to the explorer (showing it if it was hidden), or
@@ -143,6 +145,63 @@ impl App {
                 true
             }
             _ => false,
+        }
+    }
+}
+
+/// Where `focus_toward` can send the keyboard.
+#[derive(Debug, Clone, Copy)]
+enum Target {
+    Pane(PaneId),
+    Explorer,
+    Terminal,
+}
+
+impl App {
+    /// Moves the keyboard to the nearest editor pane, the explorer or the
+    /// terminal in `direction` from where it is, going by the screen areas of
+    /// the last layout pass. Stays where it is when nothing is that way.
+    pub(super) fn focus_toward(&mut self, direction: FocusDirection) {
+        let focus = self.state.focus();
+        let from = match focus {
+            Focus::Editor => self.state.workspace().focused_area(),
+            Focus::Explorer => self.state.explorer().area(),
+            Focus::Terminal => self.state.terminal().area(),
+        };
+
+        let mut best = self
+            .state
+            .workspace()
+            .nearest_pane(from, direction)
+            .map(|(id, score)| (Target::Pane(id), score));
+        let mut consider = |target: Target, area: Rect| {
+            let Some(score) = neighbor_score(from, area, direction) else {
+                return;
+            };
+            if area.width > 0 && area.height > 0 && best.is_none_or(|(_, nearest)| score < nearest)
+            {
+                best = Some((target, score));
+            }
+        };
+        if focus != Focus::Explorer && self.state.is_visible(&ComponentKind::Explorer) {
+            consider(Target::Explorer, self.state.explorer().area());
+        }
+        let shell_there = self.state.terminal().tab_count() > 0;
+        if focus != Focus::Terminal
+            && shell_there
+            && self.state.is_visible(&ComponentKind::Terminal)
+        {
+            consider(Target::Terminal, self.state.terminal().area());
+        }
+
+        match best {
+            Some((Target::Pane(id), _)) => {
+                self.state.workspace_mut().focus_pane(id);
+                self.state.set_focus(Focus::Editor);
+            }
+            Some((Target::Explorer, _)) => self.state.set_focus(Focus::Explorer),
+            Some((Target::Terminal, _)) => self.state.set_focus(Focus::Terminal),
+            None => {}
         }
     }
 }

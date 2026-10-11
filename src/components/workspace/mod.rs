@@ -253,7 +253,7 @@ impl Workspace {
         self.panes.iter().map(|pane| pane.area).collect()
     }
 
-    #[cfg(test)]
+    /// The screen area of the focused pane, as of the last layout pass.
     pub(crate) fn focused_area(&self) -> Rect {
         self.focused_pane().area
     }
@@ -534,18 +534,35 @@ impl Workspace {
         self.focused = order[(position + 1) % order.len()];
     }
 
-    /// Moves focus to the nearest pane in `direction`, if there is one. Uses
-    /// the screen areas of the last layout pass.
-    pub(crate) fn focus_direction(&mut self, direction: FocusDirection) {
-        self.reset_confirmations();
-        let from = self.focused_pane().area;
-        let best = self
-            .panes
+    /// The pane nearest to the area `from` in `direction`, with how near it is
+    /// (smaller is nearer; see [`neighbor_score`]), going by the screen areas of
+    /// the last layout pass. The focused pane is left out when `from` is its
+    /// own area.
+    pub(crate) fn nearest_pane(
+        &self,
+        from: Rect,
+        direction: FocusDirection,
+    ) -> Option<(PaneId, (u32, u32))> {
+        self.panes
             .iter()
-            .filter(|pane| pane.id != self.focused)
+            .filter(|pane| pane.area != from)
             .filter_map(|pane| Some((pane.id, neighbor_score(from, pane.area, direction)?)))
-            .min_by_key(|(_, score)| *score);
-        if let Some((id, _)) = best {
+            .min_by_key(|(_, score)| *score)
+    }
+
+    /// Moves focus to the nearest pane in `direction`, if there is one.
+    #[cfg(test)]
+    pub(crate) fn focus_direction(&mut self, direction: FocusDirection) {
+        let from = self.focused_pane().area;
+        if let Some((id, _)) = self.nearest_pane(from, direction) {
+            self.focus_pane(id);
+        }
+    }
+
+    /// Gives the focus to the pane `id`, if there is one.
+    pub(crate) fn focus_pane(&mut self, id: PaneId) {
+        self.reset_confirmations();
+        if self.panes.iter().any(|pane| pane.id == id) {
             self.focused = id;
         }
     }
@@ -837,7 +854,11 @@ fn contains(area: Rect, column: u16, row: u16) -> bool {
 /// How good a neighbor `other` is for moving from `from` in `direction`:
 /// smaller is nearer, and `None` if it is not in that direction or does not
 /// overlap `from` on the other axis.
-fn neighbor_score(from: Rect, other: Rect, direction: FocusDirection) -> Option<(u32, u32)> {
+pub(crate) fn neighbor_score(
+    from: Rect,
+    other: Rect,
+    direction: FocusDirection,
+) -> Option<(u32, u32)> {
     let (gap, overlap_start, overlap_end, center_gap) = match direction {
         FocusDirection::Left => (
             i32::from(from.x) - i32::from(other.x + other.width),

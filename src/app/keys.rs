@@ -247,7 +247,7 @@ impl App {
             Action::SplitRight => self.state.workspace_mut().split(Axis::Horizontal),
             Action::SplitDown => self.state.workspace_mut().split(Axis::Vertical),
             Action::FocusNextPane => self.state.workspace_mut().focus_next_pane(),
-            Action::FocusPane(direction) => self.state.workspace_mut().focus_direction(direction),
+            Action::FocusPane(direction) => self.focus_toward(direction),
             // Plugin actions need the plugin runtime, which is post-0.1.0.
             Action::Plugin(_) => {}
         }

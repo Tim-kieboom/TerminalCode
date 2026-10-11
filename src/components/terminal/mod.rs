@@ -152,6 +152,11 @@ impl TerminalPane {
         self.add_button.width > 0 && self.add_button.contains(Position::new(column, row))
     }
 
+    /// Where the pane is on screen, as of the last layout pass.
+    pub(crate) fn area(&self) -> Rect {
+        self.area
+    }
+
     /// Whether a screen cell is inside the pane, as of the last layout pass.
     pub(crate) fn contains(&self, column: u16, row: u16) -> bool {
         self.area.contains(Position::new(column, row))

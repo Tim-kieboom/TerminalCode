@@ -128,7 +128,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 ## Pre-M6 leftovers (triaged; the follow-up bullets above stay as the record, this is the plan)
 Group 1, built now (done so far: smart indent, light theme, case-only rename, most of the explorer) (each stands alone, no `settings.json` needed):
 - [x] M5: smart indent and a light theme
-- [ ] Explorer: drag and drop move; `alt+h` into the explorer (done: the open file is drawn with `explorer.active`, palette "Explorer: Reveal Active File", `.` or "Toggle Hidden Files" hides dot entries, a link to a folder that holds it is marked `↻` and does not open)
+- [ ] Explorer: drag and drop move (done: `alt+h/j/k/l` also move the keyboard between the editor panes, the explorer and the terminal by screen position, and are global bindings now; the open file is drawn with `explorer.active`, palette "Explorer: Reveal Active File", `.` or "Toggle Hidden Files" hides dot entries, a link to a folder that holds it is marked `↻` and does not open)
 - [ ] Editor mouse: click in the gutter selects the line; middle-click paste; right-click menu in the editor
 - [ ] Tabs: open an already-open path by switching to it; close other / close all tabs; save all; reopen closed tab; overflow markers in a crowded tab bar
 - [ ] Notifications: `[+N more]` when the stack does not fit; click to dismiss
