@@ -108,7 +108,15 @@ impl App {
     /// the explorer.
     pub(super) fn files_changed(&mut self, paths: &[PathBuf]) {
         self.rewatch_replaced(paths);
-        for event in self.state.workspace_mut().check_disk(paths) {
+        let events = self.state.workspace_mut().check_disk(paths);
+        self.report_disk_events(events);
+        self.refresh_explorer_for(paths);
+        self.needs_redraw = true;
+    }
+
+    /// Says what was done about the documents whose files changed.
+    fn report_disk_events(&mut self, events: Vec<DiskEvent>) {
+        for event in events {
             match event {
                 DiskEvent::Reloaded(name) => {
                     self.state
@@ -123,8 +131,31 @@ impl App {
                 DiskEvent::Unreadable(message) => self.state.notify_error(message),
             }
         }
-        self.refresh_explorer_for(paths);
-        self.needs_redraw = true;
+    }
+
+    /// Looks at the file of every open document, for a change no report told
+    /// about (the watcher can miss one, and nothing watches while the editor is
+    /// out of sight).
+    pub(super) fn check_files_on_disk(&mut self) {
+        let events = self.state.workspace_mut().check_all_disk();
+        if !events.is_empty() {
+            self.report_disk_events(events);
+            self.needs_redraw = true;
+        }
+    }
+
+    /// When another tab came to the front, looks at its file: the change may
+    /// have happened while it was out of sight.
+    pub(super) fn notice_tab_switch(&mut self) {
+        let front = self.state.workspace().active_view();
+        if front == self.front_view {
+            return;
+        }
+        self.front_view = front;
+        if let Some(event) = self.state.workspace_mut().check_active_disk() {
+            self.report_disk_events(vec![event]);
+            self.needs_redraw = true;
+        }
     }
 
     /// Re-reads the explorer's directories that `paths` are in, and only those.

@@ -4,8 +4,9 @@ use std::io::stdout;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{
-    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use crossterm::execute;
 use crossterm::terminal::supports_keyboard_enhancement;
@@ -33,6 +34,7 @@ pub struct Capabilities {
 static KEYBOARD_ENHANCED: AtomicBool = AtomicBool::new(false);
 static BRACKETED_PASTE: AtomicBool = AtomicBool::new(false);
 static MOUSE_CAPTURED: AtomicBool = AtomicBool::new(false);
+static FOCUS_REPORTED: AtomicBool = AtomicBool::new(false);
 
 /// Enters raw mode and the alternate screen, and enables the kitty keyboard
 /// protocol when the terminal supports it.
@@ -40,6 +42,10 @@ pub fn init() -> (DefaultTerminal, Capabilities) {
     let terminal = ratatui::init();
     if execute!(stdout(), EnableBracketedPaste).is_ok() {
         BRACKETED_PASTE.store(true, Ordering::SeqCst);
+    }
+    // Terminals that cannot report it ignore the request.
+    if execute!(stdout(), EnableFocusChange).is_ok() {
+        FOCUS_REPORTED.store(true, Ordering::SeqCst);
     }
     set_mouse_capture(true);
     let capabilities = Capabilities {
@@ -50,6 +56,9 @@ pub fn init() -> (DefaultTerminal, Capabilities) {
 
 /// Undoes [`init`]. Safe to call more than once and from a panic hook.
 pub fn restore() {
+    if FOCUS_REPORTED.swap(false, Ordering::SeqCst) {
+        let _ = execute!(stdout(), DisableFocusChange);
+    }
     if MOUSE_CAPTURED.swap(false, Ordering::SeqCst) {
         let _ = execute!(stdout(), DisableMouseCapture);
     }

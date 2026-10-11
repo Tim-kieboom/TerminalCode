@@ -184,3 +184,36 @@ fn file_name(buffer: &Buffer) -> String {
         |name| name.to_string_lossy().into_owned(),
     )
 }
+
+impl Workspace {
+    /// Looks at the file of the active tab, which may have changed without any
+    /// report (a missed event): the same check as for a reported change.
+    pub(crate) fn check_active_disk(&mut self) -> Option<DiskEvent> {
+        let id = self.active_tab()?.document;
+        self.check_document(id)
+    }
+
+    /// Looks at the file of every open document, for when the editor has been
+    /// out of sight and anything may have changed.
+    pub(crate) fn check_all_disk(&mut self) -> Vec<DiskEvent> {
+        let mut ids: Vec<DocumentId> = self.documents.keys().copied().collect();
+        ids.sort();
+        ids.into_iter()
+            .filter_map(|id| self.check_document(id))
+            .collect()
+    }
+
+    /// What the active tab is, for noticing that another one came to the front.
+    pub(crate) fn active_view(&self) -> Option<super::ViewId> {
+        self.active_tab().map(|tab| tab.id)
+    }
+
+    /// How a document's tab says its file changed under it: nothing, or a word.
+    pub(super) fn disk_note(&self, id: DocumentId) -> &'static str {
+        match self.documents.get(&id).and_then(|doc| doc.warned) {
+            Some(DiskChange::Deleted) => " [deleted]",
+            Some(DiskChange::Modified(_)) => " [changed]",
+            None => "",
+        }
+    }
+}

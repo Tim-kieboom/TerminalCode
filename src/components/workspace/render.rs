@@ -50,8 +50,10 @@ impl Render for Workspace {
                     continue;
                 }
 
-                let name = display_name(&self.documents[&tab.document].buffer);
-                let label = truncate(&format!(" {name} "), usize::from(rect.width));
+                let label = truncate(
+                    &format!(" {} ", self.tab_title(tab.document)),
+                    usize::from(rect.width),
+                );
                 let slot = if index == pane.active {
                     "tab.active"
                 } else {
@@ -85,11 +87,18 @@ impl Render for Workspace {
 }
 
 impl Workspace {
+    /// What a tab says: the file name, a mark for unsaved changes and a note
+    /// when the file changed on disk under them.
+    fn tab_title(&self, document: super::DocumentId) -> String {
+        let buffer = &self.documents[&document].buffer;
+        format!("{}{}", display_name(buffer), self.disk_note(document))
+    }
+
     fn layout_pane(&mut self, index: usize, area: Rect, frame: &PaneFrame) {
         let labels: Vec<String> = self.panes[index]
             .tabs
             .iter()
-            .map(|tab| format!(" {} ", display_name(&self.documents[&tab.document].buffer)))
+            .map(|tab| format!(" {} ", self.tab_title(tab.document)))
             .collect();
 
         let find_rows = match self.panes[index].id == self.focused {

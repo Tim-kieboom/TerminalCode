@@ -72,6 +72,9 @@ pub(crate) struct App {
     keyboard_support: KeyboardSupport,
     /// The built-in theme the user's file is laid over.
     theme_variant: ThemeVariant,
+    /// The tab that was in front when the last input was handled, to notice a
+    /// switch to another.
+    front_view: Option<crate::components::workspace::ViewId>,
 }
 
 /// Everything that can wake the app loop.
@@ -190,6 +193,7 @@ impl App {
             config_dir: None,
             keyboard_support: KeyboardSupport::Enhanced,
             theme_variant: ThemeVariant::default(),
+            front_view: None,
         }
     }
 
@@ -302,8 +306,11 @@ impl App {
             InputEvent::Paste(text) => self.paste_from_terminal(text),
             InputEvent::Mouse(event) => self.handle_mouse(event),
             InputEvent::Resize(..) => self.needs_redraw = true,
+            // Back from another window: whatever was open may have changed.
+            InputEvent::FocusGained => self.check_files_on_disk(),
             _ => {}
         }
+        self.notice_tab_switch();
     }
 
     pub(crate) fn handle_event(&mut self, event: Event) {
