@@ -17,11 +17,15 @@ use crate::components::search::Search;
 use crate::components::status_view::StatusBar;
 use crate::components::terminal::TerminalPane;
 use crate::components::workspace::Workspace;
+use crate::event::action::Action;
 use crate::syntax::SyntaxWorker;
 use crate::ui::Hideable;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
+
+/// How many palette actions are remembered as recent.
+const RECENT_PALETTE_ACTIONS: usize = 8;
 
 /// Which component the keyboard goes to.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -41,6 +45,8 @@ pub(crate) struct AppState {
     layout: LayoutTree,
     components: AppComponents,
     notifications: Notifications,
+    /// The actions run from the palette lately, the latest first.
+    palette_recent: Vec<Action>,
     /// Where the notifications were drawn last, for clicks on them.
     notification_hits: Vec<(Hit, ratatui::layout::Rect)>,
     /// The size of the screen as of the last draw, for working out where
@@ -564,6 +570,30 @@ impl AppState {
 
     pub(crate) fn theme(&self) -> &Theme {
         &self.theme
+    }
+
+    /// The ids of the plugin views that exist, in name order.
+    pub(crate) fn plugin_view_ids(&self) -> Vec<PluginViewId> {
+        let mut ids: Vec<_> = self.components.plugin_views.keys().cloned().collect();
+        ids.sort_by(|a, b| a.as_str().cmp(b.as_str()));
+        ids
+    }
+
+    /// The screen as of the last draw.
+    pub(crate) fn screen(&self) -> ratatui::layout::Rect {
+        self.screen
+    }
+
+    /// Notes that the palette ran `action`, so it is offered first next time.
+    pub(crate) fn remember_palette_action(&mut self, action: Action) {
+        self.palette_recent.retain(|known| *known != action);
+        self.palette_recent.insert(0, action);
+        self.palette_recent.truncate(RECENT_PALETTE_ACTIONS);
+    }
+
+    /// The actions the palette ran lately, the latest first.
+    pub(crate) fn palette_recent(&self) -> &[Action] {
+        &self.palette_recent
     }
 
     pub(crate) fn plugin_view(&self, id: &PluginViewId) -> Option<&PluginView> {

@@ -24,12 +24,12 @@ fn open(app: &mut App) {
     app.handle_input(press(KeyCode::F(1)));
 }
 
-fn titles(app: &App) -> Vec<&'static str> {
+fn titles(app: &App) -> Vec<&str> {
     app.state()
         .palette()
         .unwrap()
         .visible()
-        .map(|entry| entry.title)
+        .map(|entry| entry.title.as_str())
         .collect()
 }
 
@@ -213,4 +213,523 @@ fn the_palette_is_drawn_over_the_editor() {
     assert!(screen.contains("> save"), "{screen}");
     assert!(screen.contains("File: Save"), "{screen}");
     assert!(screen.contains("ctrl+s"), "{screen}");
+}
+
+// ---- recent actions, plugin views, the mouse and pasting
+
+use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+use crate::app::state::AppState;
+use crate::components::{ComponentKind, PluginViewId};
+use crate::ui::layout::LayoutTree;
+use crate::ui::view::{ViewLine, ViewNode};
+
+/// Opens the palette, types `query` and runs the first match.
+fn run(app: &mut App, query: &str) {
+    open(app);
+    type_str(app, query);
+    app.handle_input(press(KeyCode::Enter));
+}
+
+fn first_title(app: &App) -> String {
+    app.state()
+        .palette()
+        .unwrap()
+        .visible()
+        .next()
+        .unwrap()
+        .title
+        .clone()
+}
+
+#[test]
+fn an_action_that_was_run_comes_first_next_time() {
+    let mut app = App::default();
+    run(&mut app, "Toggle Status");
+
+    open(&mut app);
+
+    assert_eq!(first_title(&app), "View: Toggle Status Bar");
+}
+
+#[test]
+fn the_latest_comes_before_the_one_before() {
+    let mut app = App::default();
+    run(&mut app, "Toggle Status");
+    run(&mut app, "Theme: Light");
+
+    open(&mut app);
+
+    let titles = titles(&app);
+    assert_eq!(&titles[..2], ["Theme: Light", "View: Toggle Status Bar"]);
+}
+
+#[test]
+fn running_the_same_action_again_does_not_list_it_twice() {
+    let mut app = App::default();
+    run(&mut app, "Toggle Status");
+    run(&mut app, "Toggle Status");
+
+    open(&mut app);
+
+    let count = titles(&app)
+        .iter()
+        .filter(|title| **title == "View: Toggle Status Bar")
+        .count();
+    assert_eq!(count, 1);
+}
+
+#[test]
+fn among_equal_matches_the_recent_one_wins() {
+    let mut app = App::default();
+    run(&mut app, "Tab: Previous");
+
+    open(&mut app);
+    type_str(&mut app, "tab:");
+
+    assert_eq!(first_title(&app), "Tab: Previous");
+}
+
+#[test]
+fn a_better_match_still_beats_a_recent_one() {
+    let mut app = App::default();
+    run(&mut app, "Theme: Light");
+
+    open(&mut app);
+    type_str(&mut app, "quit");
+
+    assert_eq!(first_title(&app), "Application: Quit");
+}
+
+#[test]
+fn closing_the_palette_without_running_remembers_nothing() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Theme: Light");
+    app.handle_input(press(KeyCode::Esc));
+
+    open(&mut app);
+
+    assert_ne!(first_title(&app), "Theme: Light");
+}
+
+#[test]
+fn only_the_last_eight_actions_are_remembered() {
+    let mut app = App::default();
+    let queries = [
+        "Theme: Light",
+        "Theme: Dark",
+        "Toggle Status",
+        "Tab: Next",
+        "Tab: Previous",
+        "Pane: Focus Next",
+        "Pane: Split Right",
+        "Pane: Split Down",
+        "Edit: Undo",
+        "Selection: Select All",
+    ];
+    for query in queries {
+        run(&mut app, query);
+    }
+
+    open(&mut app);
+
+    let first_eight: Vec<String> = titles(&app).iter().take(8).map(|t| t.to_string()).collect();
+    assert!(
+        !first_eight.contains(&"Theme: Light".to_owned()),
+        "{first_eight:?}"
+    );
+    assert!(
+        first_eight.iter().any(|t| t.contains("Split Down")),
+        "{first_eight:?}"
+    );
+}
+
+fn app_with_plugin_views(ids: &[&str]) -> App {
+    let layout = r#"Row([
+    Pane(view: Editor),
+    Fixed(20, Pane(view: Plugin("b.view"))),
+])"#;
+    let mut state = AppState::default();
+    state.set_layout(LayoutTree::from_ron(layout).unwrap());
+    let mut app = App::new(state);
+    for id in ids {
+        app.state_mut().set_plugin_view(
+            PluginViewId::new(*id),
+            ViewNode::Lines(vec![ViewLine {
+                text: format!("text of {id}").into(),
+                slot: "none".into(),
+            }]),
+        );
+    }
+    app
+}
+
+fn draw(app: &mut App) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    terminal.backend().to_string()
+}
+
+#[test]
+fn every_plugin_view_gets_an_entry_to_show_or_hide_it() {
+    let mut app = app_with_plugin_views(&["b.view", "a.view"]);
+
+    open(&mut app);
+    type_str(&mut app, "view:");
+
+    let titles = titles(&app);
+    assert!(titles.contains(&"View: Toggle a.view"), "{titles:?}");
+    assert!(titles.contains(&"View: Toggle b.view"), "{titles:?}");
+}
+
+#[test]
+fn the_plugin_entries_come_after_the_built_in_ones_in_name_order() {
+    let mut app = app_with_plugin_views(&["b.view", "a.view"]);
+
+    open(&mut app);
+
+    let titles = titles(&app);
+    let a = titles
+        .iter()
+        .position(|t| *t == "View: Toggle a.view")
+        .unwrap();
+    let b = titles
+        .iter()
+        .position(|t| *t == "View: Toggle b.view")
+        .unwrap();
+    let last_built_in = titles
+        .iter()
+        .position(|t| *t == "Tab: Reopen Closed")
+        .unwrap();
+    assert!(a < b);
+    assert!(last_built_in < a);
+}
+
+#[test]
+fn running_a_plugin_entry_hides_the_view() {
+    let mut app = app_with_plugin_views(&["b.view"]);
+    assert!(draw(&mut app).contains("text of b.view"));
+
+    run(&mut app, "Toggle b.view");
+
+    assert!(!draw(&mut app).contains("text of b.view"));
+    assert!(
+        app.state()
+            .plugin_view(&PluginViewId::new("b.view"))
+            .is_some()
+    );
+}
+
+#[test]
+fn a_plugin_entry_shows_a_hidden_view_again() {
+    let mut app = app_with_plugin_views(&["b.view"]);
+    run(&mut app, "Toggle b.view");
+
+    run(&mut app, "Toggle b.view");
+
+    assert!(draw(&mut app).contains("text of b.view"));
+}
+
+#[test]
+fn without_plugin_views_there_is_no_such_entry() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Toggle b.view");
+
+    assert!(titles(&app).is_empty() || !titles(&app).iter().any(|t| t.contains("b.view")));
+    assert!(
+        !ComponentKind::Plugin(PluginViewId::new("x"))
+            .title()
+            .is_empty()
+    );
+}
+
+fn mouse(app: &mut App, kind: MouseEventKind, (column, row): (u16, u16)) {
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+}
+
+/// Draws the app and finds the cell where `text` starts.
+fn cell_of(app: &mut App, text: &str) -> (u16, u16) {
+    cell_of_nth(app, text, 0)
+}
+
+/// Like [`cell_of`], for the `skip`-th place on the screen that has `text`,
+/// reading from the top.
+fn cell_of_nth(app: &mut App, text: &str, skip: usize) -> (u16, u16) {
+    let mut skip = skip;
+    let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    let buffer = terminal.backend().buffer().clone();
+    for y in 0..30 {
+        let row: String = (0..100)
+            .map(|x| buffer[(x, y)].symbol().to_owned())
+            .collect();
+        if let Some(byte) = row.find(text) {
+            if skip == 0 {
+                return (row[..byte].chars().count() as u16, y);
+            }
+            skip -= 1;
+        }
+    }
+    panic!("{text} is not on the screen");
+}
+
+#[test]
+fn clicking_an_entry_runs_it() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Theme: Light");
+    // The first is the query as typed; the entry is the second.
+    let at = cell_of_nth(&mut app, "Theme: Light", 1);
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
+
+    assert!(app.state().palette().is_none());
+    assert_eq!(
+        *app.state().theme(),
+        crate::ui::theme::Theme::built_in(crate::ui::theme::ThemeVariant::Light)
+    );
+}
+
+#[test]
+fn a_clicked_entry_is_remembered_too() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Theme: Light");
+    // The first is the query as typed; the entry is the second.
+    let at = cell_of_nth(&mut app, "Theme: Light", 1);
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
+
+    open(&mut app);
+
+    assert_eq!(first_title(&app), "Theme: Light");
+}
+
+#[test]
+fn clicking_outside_the_palette_closes_it_and_runs_nothing() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Theme: Light");
+    let _ = draw(&mut app);
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (0, 29));
+
+    assert!(app.state().palette().is_none());
+    assert_eq!(*app.state().theme(), crate::ui::theme::Theme::default());
+}
+
+#[test]
+fn clicking_the_query_line_leaves_the_palette_open() {
+    let mut app = App::default();
+    open(&mut app);
+    let (column, row) = cell_of(&mut app, "> ");
+
+    mouse(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        (column + 5, row),
+    );
+
+    assert!(app.state().palette().is_some());
+}
+
+#[test]
+fn the_wheel_moves_the_selection() {
+    let mut app = App::default();
+    open(&mut app);
+    let _ = draw(&mut app);
+
+    mouse(&mut app, MouseEventKind::ScrollDown, (50, 10));
+    mouse(&mut app, MouseEventKind::ScrollDown, (50, 10));
+    assert_eq!(app.state().palette().unwrap().selected(), 2);
+
+    mouse(&mut app, MouseEventKind::ScrollUp, (50, 10));
+    assert_eq!(app.state().palette().unwrap().selected(), 1);
+
+    for _ in 0..5 {
+        mouse(&mut app, MouseEventKind::ScrollUp, (50, 10));
+    }
+    assert_eq!(app.state().palette().unwrap().selected(), 0);
+}
+
+#[test]
+fn a_click_after_scrolling_picks_the_row_that_is_drawn_there() {
+    let mut app = App::default();
+    open(&mut app);
+    let _ = draw(&mut app);
+    for _ in 0..30 {
+        mouse(&mut app, MouseEventKind::ScrollDown, (50, 10));
+    }
+    let selected = app.state().palette().unwrap().selected();
+    let title = app
+        .state()
+        .palette()
+        .unwrap()
+        .selected_entry()
+        .unwrap()
+        .title
+        .clone();
+    let at = cell_of(&mut app, &title);
+    assert!(selected >= 12);
+
+    // The selected row is the last one drawn; the one above it is the one before.
+    mouse(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        (at.0, at.1 - 1),
+    );
+
+    assert!(app.state().palette().is_none());
+}
+
+#[test]
+fn other_buttons_and_movement_leave_the_palette_alone() {
+    let mut app = App::default();
+    open(&mut app);
+    let _ = draw(&mut app);
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Right), (50, 5));
+    mouse(&mut app, MouseEventKind::Moved, (50, 6));
+
+    assert!(app.state().palette().is_some());
+}
+
+#[test]
+fn the_mouse_does_nothing_to_the_palette_when_it_is_not_open() {
+    let mut app = App::default();
+    let _ = draw(&mut app);
+
+    mouse(&mut app, MouseEventKind::ScrollDown, (50, 10));
+
+    assert!(app.state().palette().is_none());
+}
+
+// ---- pasting
+
+#[test]
+fn pasted_text_goes_into_the_query() {
+    let mut app = App::default();
+    open(&mut app);
+
+    app.handle_input(InputEvent::Paste("toggle status".to_owned()));
+
+    assert_eq!(app.state().palette().unwrap().query(), "toggle status");
+    assert_eq!(first_title(&app), "View: Toggle Status Bar");
+}
+
+#[test]
+fn only_the_first_line_of_a_paste_is_used() {
+    let mut app = App::default();
+    open(&mut app);
+
+    app.handle_input(InputEvent::Paste("theme\r\nsecond line".to_owned()));
+
+    assert_eq!(app.state().palette().unwrap().query(), "theme");
+}
+
+#[test]
+fn control_characters_in_a_paste_are_dropped() {
+    let mut app = App::default();
+    open(&mut app);
+
+    app.handle_input(InputEvent::Paste("th\u{7}em\u{1b}e".to_owned()));
+
+    assert_eq!(app.state().palette().unwrap().query(), "theme");
+}
+
+#[test]
+fn a_huge_paste_is_cut_short() {
+    let mut app = App::default();
+    open(&mut app);
+
+    app.handle_input(InputEvent::Paste("a".repeat(10_000)));
+
+    assert_eq!(app.state().palette().unwrap().query().len(), 200);
+}
+
+#[test]
+fn a_paste_adds_to_what_was_typed() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "tab");
+
+    app.handle_input(InputEvent::Paste(": next".to_owned()));
+
+    assert_eq!(app.state().palette().unwrap().query(), "tab: next");
+}
+
+/// An app with a project and an event channel, which the finder and the search
+/// need for their background work (the receiver is kept so sending works).
+fn app_in_project(
+    root: &std::path::Path,
+) -> (App, tokio::sync::mpsc::Receiver<crate::event::Event>) {
+    let mut state = AppState::default();
+    state.open_project(root).unwrap();
+    let (tx, rx) = tokio::sync::mpsc::channel(64);
+    (App::new(state).with_events(tx), rx)
+}
+
+#[test]
+fn a_paste_into_the_find_bar_goes_into_its_query() {
+    let mut app = App::default();
+    app.handle_input(key(KeyCode::Char('f'), KeyModifiers::CONTROL));
+
+    app.handle_input(InputEvent::Paste("needle".to_owned()));
+
+    assert_eq!(app.state().find().unwrap().query(), "needle");
+}
+
+#[test]
+fn a_paste_into_the_project_search_goes_into_its_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut app, _events) = app_in_project(dir.path());
+    app.handle_input(key(KeyCode::Char('f'), KeyModifiers::ALT));
+
+    app.handle_input(InputEvent::Paste("needle".to_owned()));
+
+    assert_eq!(app.state().search().unwrap().query(), "needle");
+}
+
+#[test]
+fn a_paste_into_the_file_finder_goes_into_its_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut app, _events) = app_in_project(dir.path());
+    app.handle_input(key(KeyCode::Char('p'), KeyModifiers::CONTROL));
+
+    app.handle_input(InputEvent::Paste("main".to_owned()));
+
+    assert_eq!(app.state().finder().unwrap().query(), "main");
+}
+
+#[test]
+fn a_paste_while_a_menu_is_open_does_nothing() {
+    let mut app = App::default();
+    let _ = draw(&mut app);
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Right), (60, 5));
+    assert!(app.state().menu().is_some());
+    let text = app.state().editor().buffer().text();
+
+    app.handle_input(InputEvent::Paste("y\ny".to_owned()));
+
+    assert_eq!(app.state().editor().buffer().text(), text);
+    assert!(app.state().menu().is_some());
+}
+
+#[test]
+fn a_paste_with_no_popup_still_goes_into_the_editor() {
+    let mut app = App::default();
+
+    app.handle_input(InputEvent::Paste("pasted".to_owned()));
+
+    assert_eq!(app.state().editor().buffer().text(), "pasted");
 }

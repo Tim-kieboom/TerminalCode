@@ -425,7 +425,7 @@ fn the_palette_lists_the_explorer_actions_with_their_keys() {
         .palette()
         .unwrap()
         .visible()
-        .map(|entry| (entry.title, entry.keys.clone()))
+        .map(|entry| (entry.title.as_str(), entry.keys.clone()))
         .collect();
     assert!(
         entries.contains(&("Explorer: Focus", Some("ctrl+b".to_owned()))),

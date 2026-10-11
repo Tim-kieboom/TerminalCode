@@ -36,6 +36,9 @@ impl App {
     /// click). Goes straight into the editor; it neither reads nor changes the
     /// clipboard.
     pub(super) fn paste_from_terminal(&mut self, text: String) {
+        if self.paste_into_popup(&text) {
+            return;
+        }
         if self.modal_open() {
             return;
         }

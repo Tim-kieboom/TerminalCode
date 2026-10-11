@@ -179,7 +179,7 @@ fn the_palette_lists_both_toggles_with_their_keys() {
         .palette()
         .unwrap()
         .visible()
-        .map(|entry| (entry.title, entry.keys.clone()))
+        .map(|entry| (entry.title.as_str(), entry.keys.clone()))
         .collect();
     assert!(
         entries.contains(&("View: Toggle Explorer", Some("ctrl+k b".to_owned()))),

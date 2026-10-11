@@ -22,7 +22,7 @@ const NO_MATCH: &str = " no matching command";
 /// One action in the palette.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Entry {
-    pub(crate) title: &'static str,
+    pub(crate) title: String,
     pub(crate) action: Action,
     /// The keys bound to the action, if any, such as `ctrl+s`.
     pub(crate) keys: Option<String>,
@@ -66,15 +66,30 @@ pub(crate) struct Palette {
     /// Indices into `entries` that match the query, best first.
     matches: Vec<usize>,
     selected: usize,
+    /// How recently each entry was run, parallel to `entries`: 0 is the latest.
+    /// `None` for one that was not run lately.
+    recent: Vec<Option<usize>>,
 }
 
 impl Palette {
+    #[cfg(test)]
     pub(crate) fn new(entries: Vec<Entry>) -> Self {
+        Self::with_recent(entries, &[])
+    }
+
+    /// A palette that lists the actions in `recent` (latest first) before the
+    /// others while the query is empty, and puts them first among equal matches.
+    pub(crate) fn with_recent(entries: Vec<Entry>, recent: &[Action]) -> Self {
+        let recent = entries
+            .iter()
+            .map(|entry| recent.iter().position(|action| *action == entry.action))
+            .collect();
         let mut palette = Self {
             entries,
             query: String::new(),
             matches: Vec::new(),
             selected: 0,
+            recent,
         };
         palette.refilter();
         palette
@@ -124,16 +139,18 @@ impl Palette {
         self.selected = (self.selected + 1).min(self.matches.len().saturating_sub(1));
     }
 
-    /// Recomputes the matches, best first; equal scores keep the order of the
-    /// full list. The selection goes back to the best match.
+    /// Recomputes the matches, best first. Equal scores go by how recently the
+    /// action was run, then keep the order of the full list; with no query the
+    /// recent ones come first. The selection goes back to the best match.
     fn refilter(&mut self) {
         let mut scored: Vec<(i32, usize)> = self
             .entries
             .iter()
             .enumerate()
-            .filter_map(|(index, entry)| Some((fuzzy::score(&self.query, entry.title)?, index)))
+            .filter_map(|(index, entry)| Some((fuzzy::score(&self.query, &entry.title)?, index)))
             .collect();
-        scored.sort_by_key(|&(score, index)| (std::cmp::Reverse(score), index));
+        let rank = |index: usize| self.recent[index].unwrap_or(usize::MAX);
+        scored.sort_by_key(|&(score, index)| (std::cmp::Reverse(score), rank(index), index));
         self.matches = scored.into_iter().map(|(_, index)| index).collect();
         self.selected = 0;
     }
@@ -172,9 +189,49 @@ impl Palette {
             return;
         }
         let rows = self.visible().map(|entry| row(entry, inner.width, theme));
-        let mut state = ListState::default().with_selected(Some(self.selected));
+        let mut state = ListState::default()
+            .with_selected(Some(self.selected))
+            .with_offset(self.first_row(usize::from(list_area.height)));
         let list = List::new(rows).highlight_style(theme.style("list.selected"));
         frame.render_stateful_widget(list, list_area, &mut state);
+    }
+
+    /// The index of the first row shown when `rows` fit: the selected one is
+    /// the last row once it is past the first screenful.
+    fn first_row(&self, rows: usize) -> usize {
+        self.selected.saturating_sub(rows.saturating_sub(1))
+    }
+
+    /// Where the matches are listed on `screen`.
+    fn list_area(&self, screen: Rect) -> Rect {
+        let inner = Block::new().borders(Borders::ALL).inner(self.area(screen));
+        Rect {
+            y: inner.y + 1,
+            height: inner.height.saturating_sub(1),
+            ..inner
+        }
+    }
+
+    /// Whether a screen cell is inside the palette's box.
+    pub(crate) fn contains(&self, screen: Rect, column: u16, row: u16) -> bool {
+        self.area(screen).contains(Position::new(column, row))
+    }
+
+    /// The match under a screen cell, as an index into [`Palette::visible`].
+    pub(crate) fn row_at(&self, screen: Rect, column: u16, row: u16) -> Option<usize> {
+        let list = self.list_area(screen);
+        if !list.contains(Position::new(column, row)) {
+            return None;
+        }
+        let index = self.first_row(usize::from(list.height)) + usize::from(row - list.y);
+        (index < self.matches.len()).then_some(index)
+    }
+
+    /// Selects the match at `index` into [`Palette::visible`], if there is one.
+    pub(crate) fn select(&mut self, index: usize) {
+        if index < self.matches.len() {
+            self.selected = index;
+        }
     }
 
     /// The palette's box: horizontally centered, near the top.
