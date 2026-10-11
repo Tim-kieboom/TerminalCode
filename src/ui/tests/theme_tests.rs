@@ -736,3 +736,94 @@ fn a_user_can_retint_the_built_in_theme_with_one_palette_entry() {
         "only what uses orange changes"
     );
 }
+
+// ---- the light theme
+
+const LIGHT_THEME_FILE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/defaults/light_theme.toml"
+));
+
+/// The names a theme file defines: its slots and its palette entries.
+fn names_in(
+    source: &str,
+) -> (
+    std::collections::BTreeSet<String>,
+    std::collections::BTreeSet<String>,
+) {
+    let file: toml::Table = toml::from_str(source).unwrap();
+    let palette = file["palette"]
+        .as_table()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    let slots = file
+        .keys()
+        .filter(|name| !matches!(name.as_str(), "palette" | "background"))
+        .cloned()
+        .collect();
+    (slots, palette)
+}
+
+#[test]
+fn the_light_theme_parses() {
+    assert!(Theme::from_toml(LIGHT_THEME_FILE).is_ok());
+}
+
+#[test]
+fn the_light_theme_has_the_slots_and_palette_names_of_the_dark_one() {
+    let (dark_slots, dark_palette) = names_in(DEFAULT_THEME_FILE);
+    let (light_slots, light_palette) = names_in(LIGHT_THEME_FILE);
+
+    assert_eq!(light_slots, dark_slots);
+    assert_eq!(light_palette, dark_palette);
+}
+
+#[test]
+fn the_light_theme_paints_a_light_background() {
+    let file: toml::Table = toml::from_str(LIGHT_THEME_FILE).unwrap();
+    let color = file["background"]["color"].as_str().unwrap();
+    // Hex, so a light text color from a dark terminal never shows through.
+    let value = u32::from_str_radix(color.trim_start_matches('#'), 16).unwrap();
+    let (r, g, b) = (value >> 16, (value >> 8) & 0xff, value & 0xff);
+    assert!(r + g + b > 3 * 200, "{color}");
+}
+
+#[test]
+fn the_light_theme_text_is_darker_than_its_background() {
+    let theme = Theme::from_toml(LIGHT_THEME_FILE).unwrap();
+    let luma = |color: Option<Color>| match color {
+        Some(Color::Rgb(r, g, b)) => 299 * u32::from(r) + 587 * u32::from(g) + 114 * u32::from(b),
+        other => panic!("not a hex color: {other:?}"),
+    };
+    let background = luma(Some(Color::Rgb(0xfa, 0xfa, 0xfa)));
+    for slot in [
+        "syntax.keyword",
+        "syntax.string",
+        "syntax.function",
+        "syntax.comment",
+        "status.bar",
+    ] {
+        let text = theme.style(slot).fg;
+        assert!(luma(text) < background / 2, "{slot}: {text:?}");
+    }
+}
+
+#[test]
+fn the_light_theme_has_no_literal_colors_in_its_slots_either() {
+    let after = LIGHT_THEME_FILE.split_once("[palette]").unwrap().1;
+    let slots = after.split_once("\n[\"").unwrap().1;
+    let literals: Vec<_> = slots
+        .lines()
+        .filter_map(|line| {
+            let (key, value) = line.split_once('=')?;
+            let value = value.trim().trim_matches('"');
+            (matches!(key.trim(), "text" | "background")
+                && !value.starts_with('@')
+                && value != "black")
+                .then_some(value)
+        })
+        .collect();
+    assert!(literals.is_empty(), "{literals:?}");
+}

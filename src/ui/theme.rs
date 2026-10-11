@@ -14,6 +14,37 @@ pub(crate) const DEFAULT_THEME_TOML: &str = include_str!(concat!(
     "/defaults/default_theme.toml"
 ));
 
+/// Built-in light theme, embedded at compile time.
+pub(crate) const LIGHT_THEME_TOML: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/defaults/light_theme.toml"
+));
+
+/// Which built-in theme the user's `theme.toml` is laid over.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ThemeVariant {
+    #[default]
+    Dark,
+    Light,
+}
+
+impl ThemeVariant {
+    pub(crate) fn source(self) -> &'static str {
+        match self {
+            Self::Dark => DEFAULT_THEME_TOML,
+            Self::Light => LIGHT_THEME_TOML,
+        }
+    }
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Dark => "dark",
+            Self::Light => "light",
+        }
+    }
+}
+
 /// Named style slots such as `"pane.border"`. Components ask for a slot, never
 /// for a concrete color, so a theme file can restyle everything. Unknown slots
 /// fall back to the default style, which lets plugins use slots a theme does
@@ -303,9 +334,16 @@ impl Theme {
         })
     }
 
-    /// A user theme file laid over the built-in theme; see [`Theme::layered`].
-    pub(crate) fn layered_over_default(user: &str) -> Result<Self, ThemeError> {
-        Self::layered(DEFAULT_THEME_TOML, user)
+    /// A user theme file laid over a built-in theme; see [`Theme::layered`].
+    pub(crate) fn layered_over(variant: ThemeVariant, user: &str) -> Result<Self, ThemeError> {
+        Self::layered(variant.source(), user)
+    }
+
+    /// A built-in theme as it is, with no user file.
+    pub(crate) fn built_in(variant: ThemeVariant) -> Self {
+        Self::from_toml(variant.source()).unwrap_or_else(|err| {
+            panic!("while parsing the built-in {} theme: {err}", variant.name())
+        })
     }
 
     /// Whether painting the background needs the terminal's own background

@@ -168,7 +168,7 @@ struct Wrapper {
 
 use crate::app::state::Focus;
 use crate::components::ComponentKind;
-use crate::ui::theme::{Rgb, Theme};
+use crate::ui::theme::{Rgb, Theme, ThemeVariant};
 use ratatui::style::Color;
 
 fn write(dir: &Path, name: &str, text: &str) {
@@ -330,4 +330,120 @@ fn reload_with_a_syntax_worker_running_starts_a_new_one_without_trouble() {
     assert!(app.state_mut().refresh_highlights().is_empty());
     let message = app.state().latest_notification().unwrap();
     assert!(message.contains("reloaded"), "{message}");
+}
+
+// ---- built-in themes
+
+fn use_theme(app: &mut App, query: &str) {
+    run_from_palette(app, query);
+}
+
+#[test]
+fn the_palette_lists_both_built_in_themes() {
+    let actions = Action::palette_actions();
+    for variant in [ThemeVariant::Dark, ThemeVariant::Light] {
+        assert!(actions.contains(&Action::UseTheme(variant)), "{variant:?}");
+        assert!(Action::UseTheme(variant).title().is_some());
+    }
+}
+
+#[test]
+fn choosing_the_light_theme_restyles_the_editor() {
+    let mut app = App::default();
+    let before = app.state().theme().syntax_style("keyword");
+
+    use_theme(&mut app, "Theme: Light");
+
+    let after = app.state().theme().syntax_style("keyword");
+    assert_ne!(after, before);
+    assert_eq!(
+        after,
+        Theme::built_in(ThemeVariant::Light).syntax_style("keyword")
+    );
+}
+
+#[test]
+fn choosing_the_dark_theme_goes_back() {
+    let mut app = App::default();
+    use_theme(&mut app, "Theme: Light");
+
+    use_theme(&mut app, "Theme: Dark");
+
+    assert_eq!(*app.state().theme(), Theme::default());
+}
+
+#[test]
+fn a_theme_change_says_which_theme_it_is() {
+    let mut app = App::default();
+    use_theme(&mut app, "Theme: Light");
+    assert!(
+        app.state()
+            .notifications()
+            .texts()
+            .contains(&"theme: light")
+    );
+}
+
+#[test]
+fn the_user_theme_file_is_laid_over_the_chosen_theme() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        dir.path(),
+        "theme.toml",
+        "[palette]\naccent = \"#00ff00\"\n",
+    );
+    let mut app = app_with_config_dir(dir.path());
+
+    use_theme(&mut app, "Theme: Light");
+
+    let focused = app.state().theme().style("pane.border.focused");
+    assert_eq!(focused.fg, Some(Color::Rgb(0, 255, 0)));
+    // Everything the file leaves alone is the light theme's.
+    assert_eq!(
+        app.state().theme().style("status.bar"),
+        Theme::built_in(ThemeVariant::Light).style("status.bar")
+    );
+}
+
+#[test]
+fn a_broken_user_theme_leaves_the_chosen_built_in_theme_and_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "theme.toml", "[palette\n");
+    let mut app = app_with_config_dir(dir.path());
+
+    use_theme(&mut app, "Theme: Light");
+
+    assert_eq!(
+        app.state().theme().style("status.bar"),
+        Theme::built_in(ThemeVariant::Light).style("status.bar")
+    );
+    assert!(app.state().notifications().has_errors());
+}
+
+#[test]
+fn reload_keeps_the_chosen_theme() {
+    let mut app = App::default();
+    use_theme(&mut app, "Theme: Light");
+
+    reload(&mut app);
+
+    assert_eq!(
+        app.state().theme().style("status.bar"),
+        Theme::built_in(ThemeVariant::Light).style("status.bar")
+    );
+}
+
+#[test]
+fn a_theme_change_keeps_the_terminal_background() {
+    let mut app = App::default();
+    let mut theme = Theme::default();
+    theme.set_terminal_background(Some(Rgb { r: 1, g: 2, b: 3 }));
+    app.state_mut().set_theme(theme);
+
+    use_theme(&mut app, "Theme: Light");
+
+    assert_eq!(
+        app.state().theme().terminal_background(),
+        Some(Rgb { r: 1, g: 2, b: 3 })
+    );
 }

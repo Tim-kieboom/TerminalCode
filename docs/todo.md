@@ -76,7 +76,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Parse worker (done; a keystroke costs the UI ≈ 4 µs, the worker answers a 7 MB Rust file in ≈ 0.12 s, the first parse takes ≈ 0.9 s; why the incremental parse still takes 0.12 s is worth a benchmark): at most one parse pending, always started from the newest text (coalescing); any result is accepted and its highlights are mapped forward through the edits made since the text it parsed, so a steady typist on a big file still sees colors; `version` only guards against results arriving out of order. Until a result arrives the old highlights are mapped through each `Edit
 - [x] Incremental reparse from `Edit`
 - [x] Smart indent (done, text-based: `components/editor/smart_indent.rs`): Enter after `{`, `(` or `[` goes one level deeper and a closer right after the cursor drops to its own line; typing a closer on an indent-only line takes a level away; Rust, JSON, TOML and Nix files that have a path; strings and a trailing line comment on the cursor line are skipped. Not done: `:` (no supported language needs it), comments and strings that span lines (would need the syntax tree), files without a path
-- [ ] Highlight theme as data; a light theme (the default one has the `syntax.*` slots; `syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span)
+- [x] Light theme (done: `defaults/light_theme.toml`, palette actions "Theme: Light" / "Theme: Dark" switch for the session and survive a reload; a saved choice waits for the `theme` setting in M8; Highlight theme as data: the default one has the `syntax.*` slots; `syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span)
 
 ## M6 — Integrated terminal
 - [x] (Step A done: `src/pty`, `Session` with reader and writer threads, tested with scripted `sh -c`; Windows untested) `portable-pty` spawn (Unix + ConPTY), shell selection; the terminal pane is toggled (hidden by default), the shell starts on first show in the project root and keeps its last size while hidden
@@ -127,7 +127,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 
 ## Pre-M6 leftovers (triaged; the follow-up bullets above stay as the record, this is the plan)
 Group 1, built now (each stands alone, no `settings.json` needed):
-- [ ] M5: a light theme (smart indent is done)
+- [x] M5: smart indent and a light theme
 - [ ] Explorer: drag and drop move; rename that only changes case; highlight and reveal the active tab's file; hidden-file toggle; `alt+h` into the explorer; symlink loops
 - [ ] Editor mouse: click in the gutter selects the line; middle-click paste; right-click menu in the editor
 - [ ] Tabs: open an already-open path by switching to it; close other / close all tabs; save all; reopen closed tab; overflow markers in a crowded tab bar

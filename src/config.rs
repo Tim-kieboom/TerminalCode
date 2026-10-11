@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::keymap::{DEFAULT_KEYMAP_TOML, Keymap};
 use crate::terminal::KeyboardSupport;
 use crate::ui::layout::{DEFAULT_LAYOUT_RON, LayoutTree};
-use crate::ui::theme::{DEFAULT_THEME_TOML, Theme};
+use crate::ui::theme::{DEFAULT_THEME_TOML, Theme, ThemeVariant};
 
 const CONFIG_DIR: &str = "terminalcode";
 const KEYMAP_FILE: &str = "keymap.toml";
@@ -145,8 +145,13 @@ pub(crate) fn user_theme_path() -> Option<PathBuf> {
 /// built-in theme is used, not a half-applied one. The built-in theme itself
 /// is not allowed to fail: it panics.
 pub(crate) fn load_theme(user_file: Option<&Path>) -> LoadedTheme {
+    load_theme_for(ThemeVariant::Dark, user_file)
+}
+
+/// Like [`load_theme`], over the built-in theme `variant` instead of the dark one.
+pub(crate) fn load_theme_for(variant: ThemeVariant, user_file: Option<&Path>) -> LoadedTheme {
     let fallback = |warning| LoadedTheme {
-        theme: Theme::default(),
+        theme: Theme::built_in(variant),
         warning,
     };
     let Some(path) = user_file else {
@@ -159,7 +164,7 @@ pub(crate) fn load_theme(user_file: Option<&Path>) -> LoadedTheme {
         Err(error) => return fallback(Some(unusable_theme(path, &error))),
     };
 
-    match Theme::layered_over_default(&source) {
+    match Theme::layered_over(variant, &source) {
         Ok(theme) => LoadedTheme {
             theme,
             warning: None,

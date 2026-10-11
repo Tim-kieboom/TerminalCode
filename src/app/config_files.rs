@@ -4,6 +4,7 @@ use crate::app::state::Focus;
 use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile};
 use crate::error::{IdeError, IdeResult};
+use crate::ui::theme::ThemeVariant;
 
 use super::App;
 
@@ -44,7 +45,7 @@ impl App {
     pub(super) fn reload(&mut self) {
         let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
 
-        let theme = config::load_theme(path(ConfigFile::Theme).as_deref());
+        let theme = config::load_theme_for(self.theme_variant, path(ConfigFile::Theme).as_deref());
         let layout = config::load_layout(path(ConfigFile::Layout).as_deref());
         let keymap =
             config::load_keymap(path(ConfigFile::Keymap).as_deref(), self.keyboard_support);
@@ -67,6 +68,27 @@ impl App {
         }
         if failed == 0 {
             self.state.notify("reloaded the theme, layout and keymap");
+        }
+    }
+
+    /// Switches to a built-in theme, with the user's theme file laid over it,
+    /// and keeps it across reloads. The choice is not saved for the next start.
+    pub(super) fn use_theme(&mut self, variant: ThemeVariant) {
+        self.theme_variant = variant;
+        let path = self
+            .config_dir
+            .as_deref()
+            .map(|dir| ConfigFile::Theme.path_in(dir));
+        let loaded = config::load_theme_for(variant, path.as_deref());
+
+        let mut theme = loaded.theme;
+        theme.set_terminal_background(self.state.theme().terminal_background());
+        self.state.set_theme(theme);
+        self.start_syntax_worker();
+
+        match loaded.warning {
+            Some(warning) => self.state.notify_error(warning),
+            None => self.state.notify(format!("theme: {}", variant.name())),
         }
     }
 

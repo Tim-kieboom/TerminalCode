@@ -4,6 +4,7 @@ use crate::components::editor::Motion;
 use crate::components::explorer::ExplorerCommand;
 use crate::components::workspace::FocusDirection;
 use crate::config::ConfigFile;
+use crate::ui::theme::ThemeVariant;
 
 /// Everything a key, menu or plugin can ask the editor to do. Keymaps bind
 /// keys to these, and the command palette lists them.
@@ -50,6 +51,8 @@ pub(crate) enum Action {
     ContextMenu,
     /// Reads the theme, layout and keymap files again and applies them.
     Reload,
+    /// Switches to a built-in theme (the user's theme file stays laid over it).
+    UseTheme(ThemeVariant),
     /// Opens one of the user's config files, first making it from the built-in
     /// default if there is none yet.
     OpenConfig(ConfigFile),
@@ -128,6 +131,7 @@ impl Action {
                 | Self::MoveEntry
                 | Self::OpenConfig(_)
                 | Self::Reload
+                | Self::UseTheme(_)
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseTab
@@ -173,6 +177,8 @@ impl Action {
             Self::OpenConfig(ConfigFile::Keymap) => "Config: Open Keymap",
             Self::OpenConfig(ConfigFile::Layout) => "Config: Open Layout",
             Self::Reload => "Config: Reload",
+            Self::UseTheme(ThemeVariant::Dark) => "Theme: Dark",
+            Self::UseTheme(ThemeVariant::Light) => "Theme: Light",
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::NewFile => "File: New",
@@ -238,6 +244,8 @@ impl Action {
             Self::OpenConfig(ConfigFile::Keymap),
             Self::OpenConfig(ConfigFile::Layout),
             Self::Reload,
+            Self::UseTheme(ThemeVariant::Dark),
+            Self::UseTheme(ThemeVariant::Light),
             Self::Save,
             Self::NewFile,
             Self::CloseTab,

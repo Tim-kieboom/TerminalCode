@@ -4,7 +4,7 @@ use ratatui::style::Color;
 use ropey::Rope;
 
 use crate::syntax::{Highlighter, Language};
-use crate::ui::theme::Theme;
+use crate::ui::theme::{Theme, ThemeVariant};
 
 /// A theme that gives every kind of token a color of its own.
 const THEME: &str = r##"
@@ -80,7 +80,7 @@ fn the_language_comes_from_the_extension() {
 }
 
 #[test]
-fn every_language_sets_up_with_the_default_theme() {
+fn every_language_sets_up_with_each_built_in_theme() {
     for language in [
         Language::Rust,
         Language::Toml,
@@ -91,6 +91,11 @@ fn every_language_sets_up_with_the_default_theme() {
         assert!(
             Highlighter::new(language, &Theme::default()).is_ok(),
             "{}",
+            language.name()
+        );
+        assert!(
+            Highlighter::new(language, &Theme::built_in(ThemeVariant::Light)).is_ok(),
+            "light {}",
             language.name()
         );
     }

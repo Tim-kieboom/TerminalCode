@@ -218,6 +218,7 @@ impl App {
             Action::ContextMenu => self.open_context_menu(),
             Action::OpenConfig(file) => self.open_config(file)?,
             Action::Reload => self.reload(),
+            Action::UseTheme(variant) => self.use_theme(variant),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,

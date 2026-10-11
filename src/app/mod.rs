@@ -20,6 +20,7 @@ use crate::keymap::Keymap;
 use crate::pty::Shell;
 use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
+use crate::ui::theme::ThemeVariant;
 
 mod background;
 mod config_files;
@@ -69,6 +70,8 @@ pub(crate) struct App {
     config_dir: Option<std::path::PathBuf>,
     /// What the terminal can do with keys, which decides the keymap's fallbacks.
     keyboard_support: KeyboardSupport,
+    /// The built-in theme the user's file is laid over.
+    theme_variant: ThemeVariant,
 }
 
 /// Everything that can wake the app loop.
@@ -186,6 +189,7 @@ impl App {
             terminal_prefix: None,
             config_dir: None,
             keyboard_support: KeyboardSupport::Enhanced,
+            theme_variant: ThemeVariant::default(),
         }
     }
 
