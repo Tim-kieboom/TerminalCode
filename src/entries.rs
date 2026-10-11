@@ -83,17 +83,27 @@ fn inside(name: &str) -> Result<PathBuf, EntryError> {
 /// may have several parts (the folders are made as needed). An entry that is
 /// already there is never replaced.
 pub(crate) fn rename(from: &Path, name: &str) -> Result<PathBuf, EntryError> {
+    rename_where(from, name, &differs_only_in_case)
+}
+
+/// Like [`rename`], with `same_entry` deciding whether a target that is already
+/// there is just `from` under another spelling (see [`differs_only_in_case`]).
+pub(crate) fn rename_where(
+    from: &Path,
+    name: &str,
+    same_entry: &dyn Fn(&Path, &Path) -> bool,
+) -> Result<PathBuf, EntryError> {
     let dir = from
         .parent()
         .ok_or_else(|| EntryError::Outside(name.trim().to_owned()))?;
-    relocate(from, dir, name, false)
+    relocate(from, dir, name, false, same_entry)
 }
 
 /// Moves `from` to the path `name`, which is relative to `root`. Like `mv`, a
 /// `name` that is an existing folder means "into it". Missing folders are made
 /// and an entry that is already there is never replaced.
 pub(crate) fn move_to(from: &Path, root: &Path, name: &str) -> Result<PathBuf, EntryError> {
-    relocate(from, root, name, true)
+    relocate(from, root, name, true, &differs_only_in_case)
 }
 
 fn relocate(
@@ -101,6 +111,7 @@ fn relocate(
     dir: &Path,
     name: &str,
     into_folders: bool,
+    same_entry: &dyn Fn(&Path, &Path) -> bool,
 ) -> Result<PathBuf, EntryError> {
     let name = name.trim();
     let mut to = dir.join(inside(name)?);
@@ -124,6 +135,12 @@ fn relocate(
     if let Some(parent) = to.parent() {
         fs::create_dir_all(parent).map_err(io_error)?;
     }
+    // On a filesystem that ignores case, `Readme.md` to `README.md` finds the
+    // target taken: by the entry being renamed. That is not a collision.
+    if same_entry(from, &to) {
+        fs::rename(from, &to).map_err(io_error)?;
+        return Ok(to);
+    }
     // Where the filesystem cannot refuse atomically this checks first and
     // renames after, which a file made in between can slip through.
     match renamore::rename_exclusive_fallback(from, &to) {
@@ -133,4 +150,25 @@ fn relocate(
         }
         Err(error) => Err(io_error(error)),
     }
+}
+
+/// Whether `to`, which exists, is `from` under a spelling that differs only in
+/// case: the same folder, the same name apart from case, and the filesystem
+/// resolves both to one entry. False on a filesystem that tells them apart,
+/// where `to` is another file, and for a link at `to`, which is not `from`.
+fn differs_only_in_case(from: &Path, to: &Path) -> bool {
+    let (Some(from_name), Some(to_name)) = (from.file_name(), to.file_name()) else {
+        return false;
+    };
+    if from.parent() != to.parent()
+        || from_name == to_name
+        || from_name.to_string_lossy().to_lowercase() != to_name.to_string_lossy().to_lowercase()
+    {
+        return false;
+    }
+    let is_link = fs::symlink_metadata(to).is_ok_and(|meta| meta.file_type().is_symlink());
+    if is_link {
+        return false;
+    }
+    matches!((fs::canonicalize(from), fs::canonicalize(to)), (Ok(a), Ok(b)) if a == b)
 }

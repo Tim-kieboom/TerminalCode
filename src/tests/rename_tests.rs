@@ -327,3 +327,109 @@ fn a_name_with_folders_moves_the_file_into_them() {
     assert!(to.is_file());
     assert!(!dir.path().join("a.txt").exists());
 }
+
+// ---- a name that differs only in case
+
+fn names_in(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn renaming_to_the_same_name_in_another_case_works() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("readme.md"), "text\n").unwrap();
+
+    let to = entries::rename(&dir.path().join("readme.md"), "README.md").unwrap();
+
+    assert_eq!(to, dir.path().join("README.md"));
+    assert_eq!(names_in(dir.path()), ["README.md"]);
+    assert_eq!(fs::read_to_string(&to).unwrap(), "text\n");
+}
+
+#[test]
+fn renaming_a_folder_to_another_case_works() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("src")).unwrap();
+    fs::write(dir.path().join("src/a.rs"), "x").unwrap();
+
+    entries::rename(&dir.path().join("src"), "Src").unwrap();
+
+    assert_eq!(names_in(dir.path()), ["Src"]);
+    assert!(dir.path().join("Src/a.rs").is_file());
+}
+
+#[test]
+fn a_filesystem_that_sees_one_entry_lets_the_rename_through() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.txt"), "mine\n").unwrap();
+    fs::write(dir.path().join("A.txt"), "other\n").unwrap();
+    if names_in(dir.path()).len() < 2 {
+        // This filesystem ignores case: the real thing, covered above.
+        return;
+    }
+
+    // Stand-in for a case-insensitive filesystem, where `A.txt` is `a.txt`.
+    entries::rename_where(&dir.path().join("a.txt"), "A.txt", &|_, _| true).unwrap();
+
+    assert_eq!(names_in(dir.path()), ["A.txt"]);
+    assert_eq!(
+        fs::read_to_string(dir.path().join("A.txt")).unwrap(),
+        "mine\n"
+    );
+}
+
+#[test]
+fn another_file_that_differs_only_in_case_is_not_replaced() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.txt"), "mine\n").unwrap();
+    fs::write(dir.path().join("A.txt"), "other\n").unwrap();
+    if names_in(dir.path()).len() < 2 {
+        return;
+    }
+
+    let error = entries::rename(&dir.path().join("a.txt"), "A.txt").unwrap_err();
+
+    assert!(matches!(error, EntryError::Exists(_)), "{error:?}");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("A.txt")).unwrap(),
+        "other\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join("a.txt")).unwrap(),
+        "mine\n"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_link_that_differs_only_in_case_is_not_the_file_itself() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.txt"), "mine\n").unwrap();
+    std::os::unix::fs::symlink("a.txt", dir.path().join("A.txt")).unwrap();
+    if names_in(dir.path()).len() < 2 {
+        return;
+    }
+
+    let error = entries::rename(&dir.path().join("a.txt"), "A.txt").unwrap_err();
+
+    assert!(matches!(error, EntryError::Exists(_)), "{error:?}");
+}
+
+#[test]
+fn a_case_change_in_the_explorer_renames_and_keeps_the_tab() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+    select(&mut app, "a.txt");
+    press(&mut app, KeyCode::Enter);
+
+    rename_selected_to(&mut app, "A.txt");
+
+    assert_eq!(names_in(dir.path()), ["A.txt", "b.txt", "src"]);
+    assert!(tab_names(&app).iter().any(|name| name.contains("A.txt")));
+    assert_eq!(app.state().explorer().selected_row().unwrap().name, "A.txt");
+}
