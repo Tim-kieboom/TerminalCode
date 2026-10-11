@@ -79,8 +79,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Highlight theme as data; a light theme (the default one has the `syntax.*` slots; `syntax.*` slots with longest-prefix fallback: `syntax.function.builtin` → `syntax.function` → `syntax`; unthemed captures get no span)
 
 ## M6 — Integrated terminal
-- [ ] (Step A done: `src/pty`, `Session` with reader and writer threads, tested with scripted `sh -c`; Windows untested) `portable-pty` spawn (Unix + ConPTY), shell selection; the terminal pane is toggled (hidden by default), the shell starts on first show in the project root and keeps its last size while hidden
-- [ ] (Step B done: the pane draws the `vt100` screen, toggled with `` ctrl+` ``; no focus or keys yet; no cursor or scrollback) `vt100` screen (chosen over `alacritty_terminal`: enough for scrollback, alternate screen, bracketed paste and mouse modes, far lighter), render into Ratatui
+- [x] (Step A done: `src/pty`, `Session` with reader and writer threads, tested with scripted `sh -c`; Windows untested) `portable-pty` spawn (Unix + ConPTY), shell selection; the terminal pane is toggled (hidden by default), the shell starts on first show in the project root and keeps its last size while hidden
+- [x] (Step B done: the pane draws the `vt100` screen, toggled with `` ctrl+` ``; no focus or keys yet; no cursor or scrollback) `vt100` screen (chosen over `alacritty_terminal`: enough for scrollback, alternate screen, bracketed paste and mouse modes, far lighter), render into Ratatui
 - [x] PTY output parsed on the reader thread (parser behind a mutex, fed in slices of a few KB), one dirty wake-up per drawn frame; backpressure tests (step A2): a headless program prints 100 MB (ignored in debug, `cargo test --release -- --ignored`; 10 MB in the ordinary suite) while keys are fed, each key and frame within 50 ms; an 8 MB paste into a shell that is not reading
 - [x] Mouse reporting passthrough (shift keeps the mouse for the editor), resize, bracketed paste, scrollback and the alternate screen
 - [x] Multiple terminal tabs (up to 16; `ctrl+b c/n/p/1-9/w`, click and middle click, palette entries)
@@ -101,6 +101,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
 - [ ] Benchmarks (`criterion`): parse and highlight on a large file, mapping highlights through edits, buffer edits and undo, rope line access, explorer reload of a big directory, finder and project search on a big tree, render of a full frame; run in CI or on demand to catch regressions
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
+- [ ] Windows: run the integrated terminal on ConPTY (`portable-pty`, never run there yet): shell from `COMSPEC`, resize, key encoding, bracketed paste, mouse reports, line endings, tabs closing their shell; consider a Windows CI job for the `pty` tests
 
 ## M9 — Release 0.1.0
 - [ ] README (install, keybinds, config), license
