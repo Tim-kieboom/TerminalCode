@@ -220,3 +220,56 @@ fn the_project_folder_cannot_be_moved() {
     assert!(app.state().name_prompt().is_none());
     assert!(!app.state().notifications().texts().is_empty());
 }
+
+// ---- move_into, the move a drag makes
+
+#[test]
+fn move_into_keeps_the_name() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("docs")).unwrap();
+    fs::write(dir.path().join("a.txt"), "alpha\n").unwrap();
+
+    let to = entries::move_into(&dir.path().join("a.txt"), &dir.path().join("docs")).unwrap();
+
+    assert_eq!(to, dir.path().join("docs/a.txt"));
+    assert!(!dir.path().join("a.txt").exists());
+}
+
+#[test]
+fn move_into_never_replaces() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir(dir.path().join("docs")).unwrap();
+    fs::write(dir.path().join("a.txt"), "mine\n").unwrap();
+    fs::write(dir.path().join("docs/a.txt"), "theirs\n").unwrap();
+
+    let error =
+        entries::move_into(&dir.path().join("a.txt"), &dir.path().join("docs")).unwrap_err();
+
+    assert!(matches!(error, EntryError::Exists(_)), "{error:?}");
+    assert_eq!(
+        fs::read_to_string(dir.path().join("docs/a.txt")).unwrap(),
+        "theirs\n"
+    );
+}
+
+#[test]
+fn move_into_refuses_a_folder_inside_itself() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::create_dir_all(dir.path().join("a/b")).unwrap();
+
+    let error = entries::move_into(&dir.path().join("a"), &dir.path().join("a/b")).unwrap_err();
+
+    assert!(matches!(error, EntryError::IntoItself(_)), "{error:?}");
+    assert!(dir.path().join("a/b").is_dir());
+}
+
+#[test]
+fn move_into_its_own_folder_changes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("a.txt"), "x").unwrap();
+
+    let to = entries::move_into(&dir.path().join("a.txt"), dir.path()).unwrap();
+
+    assert_eq!(to, dir.path().join("a.txt"));
+    assert!(dir.path().join("a.txt").exists());
+}

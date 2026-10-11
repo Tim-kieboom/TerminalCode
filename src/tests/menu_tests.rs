@@ -287,6 +287,7 @@ fn right_click(app: &mut App, (column, row): (u16, u16)) {
 
 fn left_click(app: &mut App, (column, row): (u16, u16)) {
     mouse(app, MouseEventKind::Down(MouseButton::Left), column, row);
+    mouse(app, MouseEventKind::Up(MouseButton::Left), column, row);
 }
 
 /// The screen cell of the first character of `text`, as last drawn.

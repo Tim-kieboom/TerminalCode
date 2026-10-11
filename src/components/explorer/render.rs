@@ -45,6 +45,7 @@ impl Render for Explorer {
         }
 
         let active_path = state.editor().buffer().path();
+        let drop_target = self.drop_target();
         let lines: Vec<Line> = self
             .rows()
             .iter()
@@ -53,7 +54,8 @@ impl Render for Explorer {
             .take(usize::from(inner.height))
             .map(|(index, row)| {
                 let active = active_path.is_some_and(|path| path == row.path);
-                line(row, index == self.selected, active, focused, theme)
+                let drop = drop_target.is_some_and(|path| path == row.path);
+                line(row, index == self.selected, active, drop, focused, theme)
             })
             .collect();
 
@@ -61,7 +63,14 @@ impl Render for Explorer {
     }
 }
 
-fn line<'a>(row: &Row, selected: bool, active: bool, focused: bool, theme: &Theme) -> Line<'a> {
+fn line<'a>(
+    row: &Row,
+    selected: bool,
+    active: bool,
+    drop: bool,
+    focused: bool,
+    theme: &Theme,
+) -> Line<'a> {
     let marker = match (row.kind, row.expanded) {
         (NodeKind::Dir, _) if row.looped => "↻ ",
         (NodeKind::Dir, true) => "▾ ",
@@ -83,6 +92,10 @@ fn line<'a>(row: &Row, selected: bool, active: bool, focused: bool, theme: &Them
         Span::styled(guides, theme.style("explorer.guide")),
         Span::styled(text, name_style),
     ]);
+    // The folder a dragged row would go into.
+    if drop {
+        return line.style(theme.style("explorer.drop"));
+    }
     if !selected {
         return line;
     }

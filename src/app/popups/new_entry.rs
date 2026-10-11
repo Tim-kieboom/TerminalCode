@@ -107,6 +107,20 @@ impl App {
         Ok(())
     }
 
+    /// A row dropped on a folder: moves it there, as `m` would, and says so.
+    pub(in crate::app) fn move_by_drag(&mut self, from: &Path, into: &Path) {
+        let open = self.state.workspace().documents_with_suffix(from);
+        match entries::move_into(from, into) {
+            Ok(to) => {
+                self.renamed(from, &to, open);
+                let name = from.file_name().unwrap_or_default().to_string_lossy();
+                let folder = into.file_name().unwrap_or_default().to_string_lossy();
+                self.state.notify(format!("moved {name} into {folder}"));
+            }
+            Err(error) => self.state.notify_error(error.to_string()),
+        }
+    }
+
     /// Shows what was just made; a new file is opened for editing.
     fn created(&mut self, path: PathBuf, kind: EntryKind) {
         if let Err(error) = self.state.explorer_mut().reveal(&path) {

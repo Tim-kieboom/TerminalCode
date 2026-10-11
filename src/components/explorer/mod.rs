@@ -8,9 +8,12 @@ use std::path::{Path, PathBuf};
 use ratatui::layout::{Position, Rect};
 use serde::Deserialize;
 
+pub(crate) use drag::Release;
+use drag::{Drag, Press};
 pub(crate) use tree::{ExplorerError, NodeKind, Row};
 use tree::{Node, Scope};
 
+mod drag;
 mod render;
 #[cfg(test)]
 mod tests;
@@ -49,6 +52,9 @@ pub(crate) struct Explorer {
     follow_selection: bool,
     /// Entries whose names start with a dot are left out of the rows.
     hide_dotfiles: bool,
+    /// The row a button is held on, and the drag it became, if it did.
+    press: Option<Press>,
+    drag: Option<Drag>,
     /// Changes whenever the rows are rebuilt, i.e. when directories open or close.
     version: u64,
     /// Screen areas as of the last layout pass.

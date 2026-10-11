@@ -7,7 +7,7 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
 use crate::app::state::Focus;
-use crate::components::explorer::{Explorer, ExplorerCommand};
+use crate::components::explorer::{Explorer, ExplorerCommand, Release};
 use crate::components::workspace::{FocusDirection, PaneId, neighbor_score};
 use crate::components::{ComponentKind, PluginViewId};
 use crate::error::IdeResult;
@@ -104,22 +104,43 @@ impl App {
         Ok(())
     }
 
+    /// The button came up after a press on an explorer row: a click opens what
+    /// is there, a drag moves the row into the folder it was dropped on.
+    fn release_explorer(&mut self, column: u16, row: u16) {
+        let released = self.state.explorer_mut().release(column, row);
+        let result = match released {
+            Ok(Release::Nothing) => Ok(()),
+            Ok(Release::Open(path)) => self.open_from_explorer(Some(path)),
+            Ok(Release::Move { from, into }) => {
+                self.move_by_drag(&from, &into);
+                Ok(())
+            }
+            Err(error) => Err(error.into()),
+        };
+        if let Err(error) = result {
+            self.state.notify_error(error.to_string());
+        }
+    }
+
     /// Mouse input for the explorer. Returns whether it was used up.
     pub(super) fn handle_explorer_mouse(&mut self, event: MouseEvent) -> bool {
         let (column, row) = (event.column, event.row);
         let over = self.state.is_visible(&ComponentKind::Explorer)
             && self.state.explorer().contains(column, row);
         match event.kind {
+            // A press only selects; what a click does waits for the release, so a
+            // press that becomes a drag opens nothing.
             MouseEventKind::Down(MouseButton::Left) if over => {
                 self.state.set_focus(Focus::Explorer);
-                let chosen = self.state.explorer_mut().click(column, row);
-                let result = match chosen {
-                    Ok(chosen) => self.open_from_explorer(chosen),
-                    Err(error) => Err(error.into()),
-                };
-                if let Err(error) = result {
-                    self.state.notify_error(error.to_string());
-                }
+                self.state.explorer_mut().press(column, row);
+                true
+            }
+            MouseEventKind::Drag(MouseButton::Left) if self.state.explorer().is_pressed() => {
+                self.state.explorer_mut().drag_to(column, row);
+                true
+            }
+            MouseEventKind::Up(MouseButton::Left) if self.state.explorer().is_pressed() => {
+                self.release_explorer(column, row);
                 true
             }
             MouseEventKind::Down(MouseButton::Right) if over => {

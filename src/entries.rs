@@ -122,6 +122,26 @@ fn relocate(
     {
         to.push(own_name);
     }
+    place(from, to, name, same_entry)
+}
+
+/// Moves `from` into the existing folder `folder`, keeping its name. Nothing is
+/// replaced, and a folder cannot go into itself.
+pub(crate) fn move_into(from: &Path, folder: &Path) -> Result<PathBuf, EntryError> {
+    let name = from
+        .file_name()
+        .ok_or_else(|| EntryError::Outside(from.display().to_string()))?;
+    let shown = name.to_string_lossy();
+    place(from, folder.join(name), &shown, &differs_only_in_case)
+}
+
+/// Renames `from` to `to`, which is called `name` in messages.
+fn place(
+    from: &Path,
+    to: PathBuf,
+    name: &str,
+    same_entry: &dyn Fn(&Path, &Path) -> bool,
+) -> Result<PathBuf, EntryError> {
     if to == from {
         return Ok(to);
     }

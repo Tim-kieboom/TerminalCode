@@ -124,6 +124,11 @@ text = "@text"
 text = "@accent_text"
 modifiers = ["bold"]
 
+["explorer.drop"]
+text = "@on_accent"
+background = "@accent"
+modifiers = ["bold"]
+
 ["explorer.selected"]
 background = "@accent_bg"
 

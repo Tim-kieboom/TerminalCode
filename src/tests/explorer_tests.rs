@@ -40,6 +40,26 @@ fn click(column: u16, row: u16) -> InputEvent {
     })
 }
 
+fn mouse_event(kind: MouseEventKind, column: u16, row: u16) -> InputEvent {
+    InputEvent::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    })
+}
+
+/// A whole click: the button goes down and comes up. Opening what was clicked
+/// waits for the release.
+fn click_through(app: &mut App, column: u16, row: u16) {
+    app.handle_input(click(column, row));
+    app.handle_input(mouse_event(
+        MouseEventKind::Up(MouseButton::Left),
+        column,
+        row,
+    ));
+}
+
 fn project() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     fs::create_dir(dir.path().join("src")).unwrap();
@@ -329,7 +349,7 @@ fn clicking_a_file_in_the_explorer_opens_it_and_keeps_the_keyboard_there() {
         .unwrap() as u16;
 
     // The default layout hides the explorer title, so the tree starts on the first row.
-    app.handle_input(click(3, row));
+    click_through(&mut app, 3, row);
 
     assert_eq!(app.state().focus(), Focus::Explorer);
     assert_eq!(editor_text(&app), "alpha\n");

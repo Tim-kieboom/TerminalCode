@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use crossterm::event::{KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 
 use super::App;
 use crate::app::state::{Focus, Popup};
@@ -118,6 +118,13 @@ impl App {
             Popup::Finder(_) => return self.handle_finder_key(key),
             Popup::Search(_) => return self.handle_search_key(key),
             Popup::Find(_) => return self.handle_find_key(key),
+        }
+
+        // Escape gives up a row being dragged, and does nothing else then.
+        if key.code == KeyCode::Esc && self.state.explorer().is_dragging() {
+            self.state.explorer_mut().cancel_drag();
+            self.needs_redraw = true;
+            return;
         }
 
         // The terminal keeps the keyboard, except for the keys behind its prefix.
