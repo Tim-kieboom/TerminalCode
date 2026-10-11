@@ -326,3 +326,37 @@ fn is_stock_copy(source: &str) -> bool {
         .iter()
         .any(|variant| variant.source().trim() == source.trim())
 }
+
+/// What a new theme starts as: the text of the template called `name`, which is
+/// `Dark` or `Light` for the built-in themes, else an installed theme.
+pub(crate) fn theme_template(config_dir: &Path, name: &str) -> Option<String> {
+    match name {
+        "Dark" => Some(ThemeVariant::Dark.source().to_owned()),
+        "Light" => Some(ThemeVariant::Light.source().to_owned()),
+        _ => fs::read_to_string(installed_theme_path(config_dir, name)?).ok(),
+    }
+}
+
+/// The names to offer as templates for a new theme: the built-in themes, then the
+/// installed ones (leaving out the copies of the built-in ones the editor made,
+/// which are the same as the built-in ones until edited).
+pub(crate) fn theme_templates(config_dir: Option<&Path>) -> Vec<String> {
+    let mut names = vec!["Dark".to_owned(), "Light".to_owned()];
+    if let Some(dir) = config_dir {
+        names.extend(
+            installed_themes(dir)
+                .into_iter()
+                .filter(|name| !matches!(name.to_lowercase().as_str(), "dark" | "light")),
+        );
+    }
+    names
+}
+
+/// A theme name as a file stem: trimmed, without a trailing `.toml`. `None` for
+/// an empty name, one with a slash, or one that starts with a dot.
+pub(crate) fn theme_file_stem(name: &str) -> Option<String> {
+    let name = name.trim();
+    let name = name.strip_suffix(".toml").unwrap_or(name).trim();
+    let usable = !name.is_empty() && !name.contains(['/', '\\']) && !name.starts_with('.');
+    usable.then(|| name.to_owned())
+}

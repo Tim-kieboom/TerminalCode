@@ -18,6 +18,8 @@ pub(crate) enum EntryError {
     IntoItself(String),
     #[error("{0} is not a line number (use 42 or 42:7)")]
     NotAPlace(String),
+    #[error("{0} is not a usable theme name (no slashes, and not starting with a dot)")]
+    BadThemeName(String),
     #[error("{name}: {source}")]
     Io { name: String, source: io::Error },
 }

@@ -54,7 +54,8 @@ fn an_empty_query_lists_every_palette_action() {
 
     open(&mut app);
 
-    assert_eq!(titles(&app).len(), Action::palette_actions().len());
+    // Plus the two built-in themes a new theme can start from.
+    assert_eq!(titles(&app).len(), Action::palette_actions().len() + 2);
 }
 
 #[test]
@@ -99,7 +100,8 @@ fn backspace_and_ctrl_u_widen_the_list_again() {
     app.handle_input(press(KeyCode::Backspace));
     app.handle_input(press(KeyCode::Backspace));
     app.handle_input(press(KeyCode::Backspace));
-    assert_eq!(titles(&app).len(), Action::palette_actions().len());
+    // Plus the two built-in themes a new theme can start from.
+    assert_eq!(titles(&app).len(), Action::palette_actions().len() + 2);
 
     type_str(&mut app, "undo");
     app.handle_input(key(KeyCode::Char('u'), KeyModifiers::CONTROL));

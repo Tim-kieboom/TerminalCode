@@ -234,6 +234,8 @@ impl App {
             Action::UseTheme(variant) => self.use_theme(variant),
             Action::UseInstalledTheme(name) => self.use_installed_theme(&name),
             Action::ChooseTheme => self.choose_theme(),
+            Action::NewTheme => self.choose_theme_template(),
+            Action::NewThemeFrom(template) => self.ask_for_theme_name(&template),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,

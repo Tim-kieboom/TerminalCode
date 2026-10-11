@@ -109,6 +109,7 @@ impl App {
                     .ok_or_else(|| EntryError::NotAPlace(prompt.name().trim().to_owned()))?;
                 self.go_to_place(place);
             }
+            Purpose::NewTheme { template } => self.make_theme(template, prompt.name())?,
         }
         Ok(())
     }

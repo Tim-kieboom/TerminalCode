@@ -6,6 +6,7 @@ use crate::app::App;
 use crate::app::keys::PALETTE_CONTEXTS;
 use crate::components::PluginViewId;
 use crate::components::palette::{self, Entry, Palette};
+use crate::config;
 use crate::event::action::Action;
 
 /// Most characters pasted into a popup's text.
@@ -22,6 +23,12 @@ impl App {
                     .map(|name| Action::UseInstalledTheme(name.into())),
             );
         }
+        // One entry for each theme a new one can start from.
+        actions.extend(
+            config::theme_templates(self.config_dir.as_deref())
+                .into_iter()
+                .map(|name| Action::NewThemeFrom(name.into())),
+        );
         // One entry for each plugin view that exists, to show or hide it.
         actions.extend(
             self.state
@@ -61,6 +68,7 @@ impl App {
     fn palette_title(&self, action: &Action) -> Option<String> {
         match action {
             Action::UseInstalledTheme(name) => Some(format!("Theme: {name}")),
+            Action::NewThemeFrom(template) => Some(format!("Theme: New from {template}")),
             Action::TogglePluginView(id) => {
                 let known = self.state.plugin_view(&PluginViewId::new(id.as_ref()));
                 known.map(|_| format!("View: Toggle {id}"))

@@ -54,6 +54,10 @@ pub(crate) enum Purpose {
     GoToLine {
         lines: usize,
     },
+    /// The name of a new theme that starts as a copy of the template with this name.
+    NewTheme {
+        template: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +103,15 @@ impl NamePrompt {
             purpose: Purpose::Move(from),
             dir: root,
             name,
+        }
+    }
+
+    /// Asks for the name of a new theme, a copy of `template`.
+    pub(crate) fn new_theme(template: String) -> Self {
+        Self {
+            purpose: Purpose::NewTheme { template },
+            dir: PathBuf::new(),
+            name: String::new(),
         }
     }
 
@@ -156,6 +169,7 @@ impl NamePrompt {
             Purpose::Rename(_) => format!(" Rename in {folder} "),
             Purpose::Move(_) => format!(" Move within {folder} "),
             Purpose::GoToLine { lines } => format!(" Go to line (1-{lines}, or line:column) "),
+            Purpose::NewTheme { template } => format!(" New theme from {template}: name "),
         };
         let block = Block::new()
             .borders(Borders::ALL)

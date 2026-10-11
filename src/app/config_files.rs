@@ -7,6 +7,8 @@ use crate::error::{IdeError, IdeResult};
 use crate::ui::theme::ThemeVariant;
 
 use super::App;
+use crate::components::name_prompt::NamePrompt;
+use crate::entries::EntryError;
 
 impl App {
     /// Opens `file` in a tab. A file that does not exist yet is made first from
@@ -200,5 +202,65 @@ impl App {
         if missing {
             self.state.set_focus(Focus::Editor);
         }
+    }
+}
+
+impl App {
+    /// Opens the palette on "Theme: New from ...", one entry for each theme that
+    /// can be the start of a new one.
+    pub(super) fn choose_theme_template(&mut self) {
+        self.open_palette();
+        if let Some(mut palette) = self.state.take_palette() {
+            "Theme: New from ".chars().for_each(|c| palette.insert(c));
+            self.state.open_palette(palette);
+        }
+    }
+
+    /// Asks for the name of a new theme that starts as a copy of `template`.
+    pub(super) fn ask_for_theme_name(&mut self, template: &str) {
+        if self.config_dir.is_none() {
+            self.state
+                .notify_error("there is no config directory on this system");
+            return;
+        }
+        self.state
+            .open_name_prompt(NamePrompt::new_theme(template.to_owned()));
+    }
+
+    /// Makes `themes/NAME.toml` from `template`, chooses it and opens it. A name
+    /// that is taken, or cannot be a file name, makes nothing.
+    pub(super) fn make_theme(&mut self, template: &str, name: &str) -> Result<(), EntryError> {
+        let Some(dir) = self.config_dir.clone() else {
+            return Ok(());
+        };
+        let stem = config::theme_file_stem(name).ok_or_else(|| match name.trim().is_empty() {
+            true => EntryError::Empty,
+            false => EntryError::BadThemeName(name.trim().to_owned()),
+        })?;
+        let Some(path) = config::installed_theme_path(&dir, &stem) else {
+            return Err(EntryError::BadThemeName(stem));
+        };
+        let source = config::theme_template(&dir, template)
+            .ok_or_else(|| EntryError::BadThemeName(template.to_owned()))?;
+        let created = ConfigFile::Theme
+            .create_with(&path, &source)
+            .map_err(|source| EntryError::Io {
+                name: stem.clone(),
+                source,
+            })?;
+        if !created {
+            return Err(EntryError::Exists(stem));
+        }
+
+        self.installed_theme = Some(stem.clone());
+        self.apply_chosen_theme(&stem);
+        if let Err(error) = self.state.workspace_mut().open_path(&path) {
+            self.state.notify_error(error.to_string());
+        }
+        self.state.set_focus(crate::app::state::Focus::Editor);
+        self.state.notify(format!(
+            "made themes/{stem}.toml from {template} and chose it; changes apply when it is saved"
+        ));
+        Ok(())
     }
 }
