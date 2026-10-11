@@ -14,6 +14,14 @@ const MAX_PASTE: usize = 200;
 impl App {
     pub(in crate::app) fn open_palette(&mut self) {
         let mut actions = Action::palette_actions();
+        // One entry for each installed theme.
+        if let Some(dir) = self.config_dir.as_deref() {
+            actions.extend(
+                crate::config::installed_themes(dir)
+                    .into_iter()
+                    .map(|name| Action::UseInstalledTheme(name.into())),
+            );
+        }
         // One entry for each plugin view that exists, to show or hide it.
         actions.extend(
             self.state
@@ -40,9 +48,19 @@ impl App {
         self.state.open_palette(palette);
     }
 
+    /// Opens the palette on the themes: the built-in ones and the installed.
+    pub(in crate::app) fn choose_theme(&mut self) {
+        self.open_palette();
+        if let Some(mut palette) = self.state.take_palette() {
+            "Theme: ".chars().for_each(|c| palette.insert(c));
+            self.state.open_palette(palette);
+        }
+    }
+
     /// What the palette calls `action`; the view toggles are named by the view.
     fn palette_title(&self, action: &Action) -> Option<String> {
         match action {
+            Action::UseInstalledTheme(name) => Some(format!("Theme: {name}")),
             Action::TogglePluginView(id) => {
                 let known = self.state.plugin_view(&PluginViewId::new(id.as_ref()));
                 known.map(|_| format!("View: Toggle {id}"))

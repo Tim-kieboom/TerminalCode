@@ -236,3 +236,72 @@ impl ConfigFile {
         }
     }
 }
+
+/// The folder of installed themes, `themes` in the config folder.
+pub(crate) fn themes_dir(config_dir: &Path) -> PathBuf {
+    config_dir.join("themes")
+}
+
+/// The names of the installed themes (the files `NAME.toml` in the themes
+/// folder), in name order. None when the folder is missing or unreadable.
+pub(crate) fn installed_themes(config_dir: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(themes_dir(config_dir)) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file() && path.extension().is_some_and(|ext| ext == "toml"))
+        .filter_map(|path| Some(path.file_stem()?.to_str()?.to_owned()))
+        .collect();
+    names.sort();
+    names
+}
+
+/// The file of the installed theme `name`; `None` for a name that is not a
+/// plain file name, which could point outside the folder.
+pub(crate) fn installed_theme_path(config_dir: &Path, name: &str) -> Option<PathBuf> {
+    let plain = !name.is_empty() && !name.contains(['/', '\\']) && name != "." && name != "..";
+    plain.then(|| themes_dir(config_dir).join(format!("{name}.toml")))
+}
+
+/// The theme the user chose: the built-in dark theme as the floor, then the
+/// installed theme `installed` if there is one (it may leave slots out), then
+/// the user's own `theme.toml` over both. Anything unreadable or invalid is
+/// reported and left out, as for [`load_theme_for`].
+pub(crate) fn load_chosen_theme(
+    variant: ThemeVariant,
+    installed: Option<&Path>,
+    user_file: Option<&Path>,
+) -> LoadedTheme {
+    let Some(installed) = installed else {
+        return load_theme_for(variant, user_file);
+    };
+    let floor = ThemeVariant::Dark.source();
+    let mut warnings = Vec::new();
+    let mut layers = vec![floor.to_owned()];
+    for (path, kind) in [(Some(installed), "theme"), (user_file, "theme")] {
+        let Some(path) = path else { continue };
+        match read_user_file(path) {
+            Ok(Some(source)) => {
+                let mut trial: Vec<&str> = layers.iter().map(String::as_str).collect();
+                trial.push(&source);
+                match Theme::layered_many(&trial) {
+                    Ok(_) => layers.push(source),
+                    Err(error) => warnings.push(unusable_layer(path, kind, &error)),
+                }
+            }
+            Ok(None) => {}
+            Err(error) => warnings.push(unusable_layer(path, kind, &error)),
+        }
+    }
+    let sources: Vec<&str> = layers.iter().map(String::as_str).collect();
+    LoadedTheme {
+        theme: Theme::layered_many(&sources).unwrap_or_default(),
+        warning: (!warnings.is_empty()).then(|| warnings.join("; ")),
+    }
+}
+
+fn unusable_layer(path: &Path, kind: &str, error: &dyn std::fmt::Display) -> String {
+    format!("{}: {error}; leaving that {kind} out", path.display())
+}

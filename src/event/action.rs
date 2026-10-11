@@ -63,6 +63,10 @@ pub(crate) enum Action {
     Reload,
     /// Switches to a built-in theme (the user's theme file stays laid over it).
     UseTheme(ThemeVariant),
+    /// Switches to the installed theme with this name (a file in the themes folder).
+    UseInstalledTheme(Box<str>),
+    /// Lists the built-in and installed themes to choose from.
+    ChooseTheme,
     /// Opens one of the user's config files, first making it from the built-in
     /// default if there is none yet.
     OpenConfig(ConfigFile),
@@ -153,6 +157,8 @@ impl Action {
                 | Self::OpenConfig(_)
                 | Self::Reload
                 | Self::UseTheme(_)
+                | Self::UseInstalledTheme(_)
+                | Self::ChooseTheme
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseOtherTabs
@@ -210,6 +216,8 @@ impl Action {
             Self::Reload => "Config: Reload",
             Self::UseTheme(ThemeVariant::Dark) => "Theme: Dark",
             Self::UseTheme(ThemeVariant::Light) => "Theme: Light",
+            Self::ChooseTheme => "Theme: Choose...",
+            Self::UseInstalledTheme(_) => return None,
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::SaveAll => "File: Save All",
@@ -285,6 +293,7 @@ impl Action {
             Self::OpenConfig(ConfigFile::Keymap),
             Self::OpenConfig(ConfigFile::Layout),
             Self::Reload,
+            Self::ChooseTheme,
             Self::UseTheme(ThemeVariant::Dark),
             Self::UseTheme(ThemeVariant::Light),
             Self::Save,

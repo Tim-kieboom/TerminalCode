@@ -72,6 +72,8 @@ pub(crate) struct App {
     keyboard_support: KeyboardSupport,
     /// The built-in theme the user's file is laid over.
     theme_variant: ThemeVariant,
+    /// The installed theme in use, by name; the built-in `theme_variant` when none.
+    installed_theme: Option<String>,
     /// What the config files said when they were last applied.
     config_applied: Option<u64>,
     /// The tab that was in front when the last input was handled, to notice a
@@ -195,6 +197,7 @@ impl App {
             config_dir: None,
             keyboard_support: KeyboardSupport::Enhanced,
             theme_variant: ThemeVariant::default(),
+            installed_theme: None,
             config_applied: None,
             front_view: None,
         }

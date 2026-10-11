@@ -94,6 +94,12 @@ impl App {
             .as_deref()
             .filter(|dir| dir.is_dir())
             .map(canonical);
+        let themes = self
+            .config_dir
+            .as_deref()
+            .map(crate::config::themes_dir)
+            .filter(|dir| dir.is_dir())
+            .map(|dir| canonical(&dir));
         let wanted = || -> BTreeSet<PathBuf> {
             state
                 .explorer()
@@ -102,6 +108,7 @@ impl App {
                 .map(|dir| canonical(dir))
                 .chain(state.workspace().directories())
                 .chain(config.clone())
+                .chain(themes.clone())
                 .collect()
         };
         if let Some(error) = self.watching.sync(versions, wanted) {
@@ -133,10 +140,13 @@ impl App {
             return false;
         };
         let dir = canonical(dir);
+        let installed = self.installed_theme_path().map(|path| canonical(&path));
         paths.iter().any(|path| {
-            ConfigFile::ALL
-                .iter()
-                .any(|file| canonical(path) == file.path_in(&dir))
+            let path = canonical(path);
+            installed.as_ref() == Some(&path)
+                || ConfigFile::ALL
+                    .iter()
+                    .any(|file| path == file.path_in(&dir))
         })
     }
 

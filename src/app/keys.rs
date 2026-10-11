@@ -232,6 +232,8 @@ impl App {
             Action::OpenConfig(file) => self.open_config(file)?,
             Action::Reload => self.reload(),
             Action::UseTheme(variant) => self.use_theme(variant),
+            Action::UseInstalledTheme(name) => self.use_installed_theme(&name),
+            Action::ChooseTheme => self.choose_theme(),
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,

@@ -334,6 +334,22 @@ impl Theme {
         })
     }
 
+    /// Theme files laid one over the next, the first being the base; see
+    /// [`Theme::layered`], which this is for any number of them.
+    pub(crate) fn layered_many(sources: &[&str]) -> Result<Self, ThemeError> {
+        let mut files = sources
+            .iter()
+            .map(|source| toml::from_str::<ThemeFile>(source));
+        let Some(first) = files.next() else {
+            return Self::from_toml("");
+        };
+        let mut merged = first?;
+        for next in files {
+            merged = merged.merged_with(next?);
+        }
+        Self::build(merged)
+    }
+
     /// A user theme file laid over a built-in theme; see [`Theme::layered`].
     pub(crate) fn layered_over(variant: ThemeVariant, user: &str) -> Result<Self, ThemeError> {
         Self::layered(variant.source(), user)

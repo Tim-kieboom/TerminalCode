@@ -463,6 +463,13 @@ fn cell_of(app: &mut App, text: &str) -> (u16, u16) {
 
 /// Like [`cell_of`], for the `skip`-th place on the screen that has `text`,
 /// reading from the top.
+fn try_cell_of(app: &mut App, text: &str, skip: usize) -> Option<(u16, u16)> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        cell_of_nth(app, text, skip)
+    }))
+    .ok()
+}
+
 fn cell_of_nth(app: &mut App, text: &str, skip: usize) -> (u16, u16) {
     let mut skip = skip;
     let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
@@ -579,8 +586,24 @@ fn a_click_after_scrolling_picks_the_row_that_is_drawn_there() {
         .unwrap()
         .title
         .clone();
-    let at = cell_of(&mut app, &title);
+    // The selected row is the lowest one that has the title (a shorter title can
+    // also be the start of another row above it).
+    let mut at = cell_of(&mut app, &title);
+    let mut skip = 1;
+    while let Some(next) = try_cell_of(&mut app, &title, skip) {
+        at = next;
+        skip += 1;
+    }
     assert!(selected >= 12);
+    let above = app
+        .state()
+        .palette()
+        .unwrap()
+        .visible()
+        .nth(selected - 1)
+        .unwrap()
+        .action
+        .clone();
 
     // The selected row is the last one drawn; the one above it is the one before.
     mouse(
@@ -589,7 +612,8 @@ fn a_click_after_scrolling_picks_the_row_that_is_drawn_there() {
         (at.0, at.1 - 1),
     );
 
-    assert!(app.state().palette().is_none());
+    // What was run is remembered, whatever it did (it may have reopened the palette).
+    assert_eq!(app.state().palette_recent()[0], above);
 }
 
 #[test]

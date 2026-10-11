@@ -46,7 +46,12 @@ impl App {
         self.config_applied = self.config_hash();
         let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
 
-        let theme = config::load_theme_for(self.theme_variant, path(ConfigFile::Theme).as_deref());
+        let installed = self.installed_theme_path();
+        let theme = config::load_chosen_theme(
+            self.theme_variant,
+            installed.as_deref(),
+            path(ConfigFile::Theme).as_deref(),
+        );
         let layout = config::load_layout(path(ConfigFile::Layout).as_deref());
         let keymap =
             config::load_keymap(path(ConfigFile::Keymap).as_deref(), self.keyboard_support);
@@ -76,11 +81,42 @@ impl App {
     /// and keeps it across reloads. The choice is not saved for the next start.
     pub(super) fn use_theme(&mut self, variant: ThemeVariant) {
         self.theme_variant = variant;
+        self.installed_theme = None;
+        self.apply_chosen_theme(variant.name());
+    }
+
+    /// Switches to the installed theme `name` (a file in the themes folder),
+    /// with the user's theme file over it. Like [`App::use_theme`], for this run.
+    pub(super) fn use_installed_theme(&mut self, name: &str) {
+        let known = self.config_dir.as_deref().is_some_and(|dir| {
+            config::installed_themes(dir)
+                .iter()
+                .any(|known| known == name)
+        });
+        if !known {
+            self.state
+                .notify_error(format!("no installed theme called {name}"));
+            return;
+        }
+        self.installed_theme = Some(name.to_owned());
+        self.apply_chosen_theme(name);
+    }
+
+    /// The file of the installed theme in use, if one is.
+    pub(super) fn installed_theme_path(&self) -> Option<std::path::PathBuf> {
+        let name = self.installed_theme.as_deref()?;
+        config::installed_theme_path(self.config_dir.as_deref()?, name)
+    }
+
+    /// Loads the chosen theme and shows it; `name` is what the message calls it.
+    fn apply_chosen_theme(&mut self, name: &str) {
         let path = self
             .config_dir
             .as_deref()
             .map(|dir| ConfigFile::Theme.path_in(dir));
-        let loaded = config::load_theme_for(variant, path.as_deref());
+        let installed = self.installed_theme_path();
+        let loaded =
+            config::load_chosen_theme(self.theme_variant, installed.as_deref(), path.as_deref());
 
         let mut theme = loaded.theme;
         theme.set_terminal_background(self.state.theme().terminal_background());
@@ -89,7 +125,7 @@ impl App {
 
         match loaded.warning {
             Some(warning) => self.state.notify_error(warning),
-            None => self.state.notify(format!("theme: {}", variant.name())),
+            None => self.state.notify(format!("theme: {name}")),
         }
     }
 
@@ -102,6 +138,9 @@ impl App {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         for file in ConfigFile::ALL {
             std::fs::read(file.path_in(dir)).ok().hash(&mut hasher);
+        }
+        if let Some(installed) = self.installed_theme_path() {
+            std::fs::read(installed).ok().hash(&mut hasher);
         }
         Some(hasher.finish())
     }
