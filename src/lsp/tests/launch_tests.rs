@@ -171,7 +171,9 @@ fn a_program_that_floods_its_error_output_does_not_block_the_start() {
 fn a_program_that_dies_after_starting_ends_the_session() {
     let dir = tempfile::tempdir().unwrap();
 
-    let session = launch(&spec(dir.path(), &server("", "exit 0"))).unwrap();
+    // It must outlive the client's `initialized` message, or the start fails.
+    let script = server("", "IFS= read -r _initialized\nexit 0");
+    let session = launch(&spec(dir.path(), &script)).unwrap();
 
     let deadline = Instant::now() + PATIENCE;
     loop {
