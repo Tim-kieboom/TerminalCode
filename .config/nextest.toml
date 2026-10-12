@@ -1,0 +1,6 @@
+# A test that hangs (the terminal tests can, on a platform whose pseudo-terminal
+# behaves differently) is killed after a minute and reported as a failure, instead
+# of holding the whole run until the job times out.
+[profile.default]
+slow-timeout = { period = "20s", terminate-after = 3 }
+fail-fast = false

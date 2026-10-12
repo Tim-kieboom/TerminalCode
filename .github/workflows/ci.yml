@@ -12,9 +12,7 @@ jobs:
   check:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # A hung test (the terminal tests can hang on a platform) must not hold the
-    # runner for the default six hours.
-    timeout-minutes: 30
+    timeout-minutes: 20
     # macOS is best-effort: a failure there does not fail the workflow.
     continue-on-error: ${{ matrix.os == 'macos-latest' }}
     strategy:
@@ -27,17 +25,13 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
       - name: Format
         run: cargo fmt --check
       - name: Clippy
         run: cargo clippy --all-targets
+      # nextest kills a test that hangs (see .config/nextest.toml) and lists every
+      # failure at the end, so one stuck terminal test cannot hold up the run.
       - name: Test
-        timeout-minutes: 15
-        run: cargo test
-      # The terminal tests one at a time with their output, so a failing or
-      # hanging one on Windows (ConPTY) says where. Runs after a failed Test.
-      - name: Terminal tests, one at a time
-        if: ${{ failure() && matrix.os == 'windows-latest' }}
         timeout-minutes: 10
-        continue-on-error: true
-        run: "cargo test pty:: -- --test-threads=1 --nocapture"
+        run: cargo nextest run --no-fail-fast
