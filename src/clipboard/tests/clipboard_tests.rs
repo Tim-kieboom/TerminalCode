@@ -136,3 +136,28 @@ fn the_internal_only_clipboard_works_without_any_system_clipboard() {
 
     assert_eq!(text(clipboard.get()).as_deref(), Some("x"));
 }
+
+#[test]
+fn a_write_the_system_clipboard_refuses_gives_one_notice_with_the_reason() {
+    let mut clipboard = clipboard(Memory {
+        writable: false,
+        ..Memory::default()
+    });
+
+    let first = clipboard.set(Register::charwise("a"));
+    let second = clipboard.set(Register::charwise("b"));
+
+    assert!(
+        matches!(&first, Some(Notice::SystemUnwritable(reason)) if reason.contains("cannot be used")),
+        "{first:?}"
+    );
+    assert_eq!(second, None, "told once per run");
+    assert_eq!(text(clipboard.get()).as_deref(), Some("b"));
+}
+
+#[test]
+fn a_write_the_system_clipboard_takes_gives_no_notice() {
+    let mut clipboard = clipboard(Memory::default());
+
+    assert_eq!(clipboard.set(Register::charwise("a")), None);
+}

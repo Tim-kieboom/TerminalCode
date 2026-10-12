@@ -53,11 +53,14 @@ impl Register {
 }
 
 /// Something worth telling the user about a paste.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Notice {
     /// The system clipboard could not be read, so the editor's own copy was
     /// pasted. Shown once.
     SystemUnreadable,
+    /// A copy could not be written to the system clipboard, so only the editor's
+    /// own register has it. Shown once, with what went wrong.
+    SystemUnwritable(String),
 }
 
 /// What a paste should insert.
@@ -79,6 +82,7 @@ pub(crate) struct Clipboard {
     last_written: Option<String>,
     system: System,
     told_unreadable: bool,
+    told_unwritable: bool,
 }
 
 impl Clipboard {
@@ -88,6 +92,7 @@ impl Clipboard {
             last_written: None,
             system,
             told_unreadable: false,
+            told_unwritable: false,
         }
     }
 
@@ -97,12 +102,19 @@ impl Clipboard {
         Self::new(System::Unavailable)
     }
 
-    pub(crate) fn set(&mut self, register: Register) {
+    /// Returns what to tell the user when the system clipboard could not be
+    /// written: once per run, since a machine without one fails every time.
+    pub(crate) fn set(&mut self, register: Register) -> Option<Notice> {
         // Remember what we tried to write even if it failed: a read that
         // differs from it must come from somewhere else.
         self.last_written = Some(register.text().to_owned());
-        let _ = self.system.write(register.text());
+        let written = self.system.write(register.text());
         self.register = Some(register);
+        let error = written.err()?;
+        if std::mem::replace(&mut self.told_unwritable, true) {
+            return None;
+        }
+        Some(Notice::SystemUnwritable(error.to_string()))
     }
 
     pub(crate) fn get(&mut self) -> Option<Fetched> {

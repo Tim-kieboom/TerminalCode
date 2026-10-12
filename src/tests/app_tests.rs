@@ -480,6 +480,7 @@ fn an_unreadable_system_clipboard_pastes_the_register_and_explains_once() {
     ctrl(&mut app, 'a');
     ctrl(&mut app, 'c');
     press(&mut app, KeyCode::End, KeyModifiers::NONE);
+    let after_copy = app.state().notifications().len();
 
     ctrl(&mut app, 'v');
     assert_eq!(buffer_text(&app), "xx");
@@ -490,7 +491,7 @@ fn an_unreadable_system_clipboard_pastes_the_register_and_explains_once() {
     assert_eq!(buffer_text(&app), "xxx");
     assert_eq!(
         app.state().notifications().len(),
-        1,
+        after_copy + 1,
         "the explanation is only given once"
     );
 }
@@ -1073,4 +1074,63 @@ fn the_status_bar_and_editor_area_show_the_empty_state() {
     let screen = terminal.backend().to_string();
     assert!(screen.contains("No open files"), "{screen}");
     assert!(screen.contains("no open files"), "{screen}");
+}
+
+#[test]
+fn a_copy_the_system_clipboard_cannot_take_says_once_that_only_the_editor_has_it() {
+    use crate::clipboard::Memory;
+    let mut app = app_with_clipboard(Memory {
+        writable: false,
+        ..Memory::default()
+    });
+    type_str(&mut app, "x");
+    ctrl(&mut app, 'a');
+
+    ctrl(&mut app, 'c');
+
+    let notice = app.state().latest_notification().unwrap().to_owned();
+    assert!(
+        notice.contains("system clipboard") && notice.contains("only the editor's own copy"),
+        "{notice}"
+    );
+    let before = app.state().notifications().len();
+
+    ctrl(&mut app, 'c');
+    ctrl(&mut app, 'x');
+
+    assert_eq!(app.state().notifications().len(), before, "said only once");
+}
+
+#[test]
+fn a_cut_the_system_clipboard_cannot_take_says_so_too() {
+    use crate::clipboard::Memory;
+    let mut app = app_with_clipboard(Memory {
+        writable: false,
+        ..Memory::default()
+    });
+    type_str(&mut app, "x");
+    ctrl(&mut app, 'a');
+
+    ctrl(&mut app, 'x');
+
+    assert!(
+        app.state()
+            .latest_notification()
+            .unwrap()
+            .contains("only the editor's own copy"),
+    );
+    assert_eq!(buffer_text(&app), "", "the text was still cut");
+}
+
+#[test]
+fn a_copy_the_system_clipboard_takes_says_nothing() {
+    use crate::clipboard::Memory;
+    let mut app = app_with_clipboard(Memory::default());
+    type_str(&mut app, "x");
+    ctrl(&mut app, 'a');
+    let before = app.state().notifications().len();
+
+    ctrl(&mut app, 'c');
+
+    assert_eq!(app.state().notifications().len(), before);
 }

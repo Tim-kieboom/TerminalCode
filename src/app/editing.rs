@@ -9,14 +9,24 @@ use crate::error::IdeResult;
 impl App {
     pub(super) fn copy(&mut self) -> IdeResult {
         let register = self.state.edit(|editor| editor.copy())?;
-        self.clipboard.set(register);
+        self.set_register(register);
         Ok(())
     }
 
     pub(super) fn cut(&mut self) -> IdeResult {
         let register = self.state.edit(|editor| editor.cut())?;
-        self.clipboard.set(register);
+        self.set_register(register);
         Ok(())
+    }
+
+    /// Fills the clipboard, and says once when the system's could not be
+    /// written, so copies are known to stay in the editor.
+    fn set_register(&mut self, register: Register) {
+        if let Some(Notice::SystemUnwritable(error)) = self.clipboard.set(register) {
+            self.state.notify(format!(
+                "could not write the system clipboard ({error}); only the editor's own copy is used, so paste works here and nowhere else"
+            ));
+        }
     }
 
     pub(super) fn paste(&mut self) -> IdeResult {
