@@ -223,3 +223,194 @@ fn the_budgets_hold_for_ten_megabytes_of_ordinary_and_long_lines() {
         );
     }
 }
+
+// ---- trees: the finder's walk, the project search, the explorer
+
+/// `dirs` directories with `per_dir` files each, under `root`, each file with
+/// `body` in it. Returns how many files were made.
+fn make_tree(root: &Path, dirs: usize, per_dir: usize, body: &str) -> usize {
+    for dir in 0..dirs {
+        let folder = root
+            .join(format!("group{:02}", dir % 20))
+            .join(format!("dir{dir}"));
+        fs::create_dir_all(&folder).unwrap();
+        for file in 0..per_dir {
+            fs::write(folder.join(format!("file{file}.rs")), body).unwrap();
+        }
+    }
+    dirs * per_dir
+}
+
+fn time<T>(f: impl FnOnce() -> T) -> (T, Duration) {
+    let start = Instant::now();
+    let value = f();
+    (value, start.elapsed())
+}
+
+#[test]
+#[ignore = "measures; run in release"]
+fn the_finders_walk_of_fifty_thousand_files() {
+    use crate::event::Event;
+    let dir = tempfile::tempdir().unwrap();
+    let made = make_tree(dir.path(), 1000, 50, "");
+    let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+
+    let start = Instant::now();
+    let _handle = crate::components::finder::start_scan(dir.path().to_path_buf(), 1, tx);
+    let (mut first, mut found) = (None, 0);
+    let total = loop {
+        match rx.blocking_recv() {
+            Some(Event::FinderBatch { files, .. }) => {
+                first.get_or_insert(start.elapsed());
+                found += files.len();
+            }
+            Some(Event::FinderDone { .. }) => break start.elapsed(),
+            Some(_) => {}
+            None => panic!("the walk ended without saying so"),
+        }
+    };
+
+    assert_eq!(found, made);
+    eprintln!("finder walk of {made} files: first batch {first:.1?}, all {total:.1?}");
+    assert!(
+        first.unwrap() < FIRST_RESULTS_BUDGET,
+        "first batch {first:?}"
+    );
+    assert!(total < WALK_BUDGET, "the walk took {total:?}");
+}
+
+#[test]
+#[ignore = "measures; run in release"]
+fn a_project_search_over_twenty_thousand_files() {
+    use crate::components::search::{Options, start_search};
+    use crate::event::Event;
+    let dir = tempfile::tempdir().unwrap();
+    let body = "fn function() {\n    let value = compute(alpha, beta);\n}\n".repeat(20);
+    let made = make_tree(dir.path(), 400, 50, &body);
+    fs::write(
+        dir.path().join("group00/dir0/file0.rs"),
+        format!("{body}needle_in_a_haystack\n"),
+    )
+    .unwrap();
+
+    for (what, query, expected_hits) in [
+        ("a rare word", "needle_in_a_haystack", Some(1)),
+        ("a word in every file", "compute", None),
+    ] {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(64);
+        let start = Instant::now();
+        let _handle =
+            start_search(dir.path().to_path_buf(), 1, query, Options::default(), tx).unwrap();
+        let (mut first, mut hits) = (None, 0);
+        let total = loop {
+            match rx.blocking_recv() {
+                Some(Event::SearchBatch { hits: found, .. }) => {
+                    first.get_or_insert(start.elapsed());
+                    hits += found.len();
+                }
+                Some(Event::SearchDone { .. }) => break start.elapsed(),
+                Some(_) => {}
+                None => panic!("the search ended without saying so"),
+            }
+        };
+        eprintln!(
+            "search for {what} in {made} files: first hits {first:.1?}, all {total:.1?}, {hits} hits"
+        );
+        if let Some(expected) = expected_hits {
+            assert_eq!(hits, expected);
+        }
+        if let Some(first) = first {
+            assert!(first < SEARCH_FIRST_BUDGET, "{what}: first hits {first:?}");
+        }
+        assert!(total < SEARCH_BUDGET, "{what}: the search took {total:?}");
+    }
+}
+
+#[test]
+#[ignore = "measures; run in release"]
+fn the_explorer_with_fifty_thousand_entries_in_one_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    for file in 0..50_000 {
+        fs::write(dir.path().join(format!("file{file:05}.txt")), "").unwrap();
+    }
+    let mut state = crate::app::state::AppState::default();
+
+    let (result, opened) = time(|| state.open_project(dir.path()));
+    result.unwrap();
+    let (result, refreshed) = time(|| state.explorer_mut().refresh());
+    result.unwrap();
+    let mut run = Run {
+        app: App::new(state),
+        terminal: Terminal::new(TestBackend::new(120, 40)).unwrap(),
+    };
+    let first = run.frame();
+    run.press(KeyCode::Char('e'), KeyModifiers::CONTROL);
+    let slowest = run.keys_with_frames(KeyCode::Down, KeyModifiers::NONE, 100);
+
+    eprintln!(
+        "explorer, 50000 entries in one folder: open {opened:.1?}, refresh {refreshed:.1?}, first frame {first:.1?}, slowest key+frame {slowest:.1?}"
+    );
+    assert!(opened < OPEN_BUDGET, "opening took {opened:?}");
+    assert!(refreshed < OPEN_BUDGET, "refreshing took {refreshed:?}");
+    assert!(first < FRAME_BUDGET, "the first frame took {first:?}");
+    assert!(slowest < FRAME_BUDGET, "a key and frame took {slowest:?}");
+}
+
+/// What the first results of a walk or a search may take, and all of it.
+const FIRST_RESULTS_BUDGET: Duration = Duration::from_millis(300);
+const WALK_BUDGET: Duration = Duration::from_secs(2);
+const SEARCH_BUDGET: Duration = Duration::from_secs(3);
+/// The search waits a moment after the last key before it starts, so its first
+/// hits come later than a walk's first files.
+const SEARCH_FIRST_BUDGET: Duration = Duration::from_millis(500);
+
+/// With the syntax worker running, typing in the middle of 10 MB of Rust: the
+/// worker parses again after each key, and the keys and frames must not wait for it.
+#[test]
+#[ignore = "measures; run in release"]
+fn typing_in_ten_megabytes_of_rust_while_it_is_colored() {
+    let function = "fn name() {\n    let value = compute(alpha, beta);\n    value\n}\n";
+    let text = function.repeat(TEN_MEGABYTES / function.len());
+    let dir = tempfile::tempdir().unwrap();
+    let path = write_file(dir.path(), "big.rs", &text);
+    let (tx, mut events) = tokio::sync::mpsc::channel(256);
+    let app = App::new(initial_state(std::slice::from_ref(&path)).unwrap()).with_events(tx);
+    let mut run = Run {
+        app,
+        terminal: Terminal::new(TestBackend::new(120, 40)).unwrap(),
+    };
+    for _ in 0..40_000 {
+        run.press(KeyCode::Down, KeyModifiers::NONE);
+    }
+    let deadline = Instant::now() + Duration::from_secs(60);
+    while Instant::now() < deadline {
+        run.frame();
+        if !run.app.state().workspace().highlights_pending() {
+            break;
+        }
+        while let Ok(event) = events.try_recv() {
+            run.app.handle_event(event);
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+
+    let mut slowest = Duration::ZERO;
+    for _ in 0..100 {
+        let began = Instant::now();
+        run.press(KeyCode::Char('x'), KeyModifiers::NONE);
+        run.frame();
+        slowest = slowest.max(began.elapsed());
+        while let Ok(event) = events.try_recv() {
+            let answer = Instant::now();
+            run.app.handle_event(event);
+            slowest = slowest.max(answer.elapsed());
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    eprintln!("typing in colored 10 MB of Rust: slowest key+frame or answer {slowest:.1?}");
+    assert!(
+        slowest < FRAME_BUDGET,
+        "a key, frame or answer took {slowest:?}"
+    );
+}
