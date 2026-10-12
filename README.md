@@ -8,7 +8,7 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**This is version 0.2.0.** Release builds for Linux and Windows (and macOS, best effort) are on the
+**This is version 0.2.1.** The command is `trcode` (it was `terminal_code` in 0.2.0). Release builds for Linux and Windows (and macOS, best effort) are on the
 [releases page](https://github.com/Tim-kieboom/TerminalCode/releases) with their checksums, or you can build from
 source (see below). What is planned next is tracked in [docs/todo.md](docs/todo.md); the design is in
 [docs/design.md](docs/design.md).
@@ -38,11 +38,11 @@ You need a recent stable Rust toolchain (the project uses the 2024 edition).
 
 ```bash
 cargo build --release
-./target/release/terminal_code [folder] [file ...]
+./target/release/trcode [folder] [file ...]
 ```
 
 The first folder you name is the project; the files are opened in tabs. With no arguments it opens the current
-folder. The binary is `terminal_code.exe` on Windows.
+folder. The binary is `trcode.exe` on Windows.
 
 Any terminal with true color works. A terminal that supports the
 [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (kitty and foot, for example)
@@ -57,7 +57,7 @@ nix run github:Tim-kieboom/TerminalCode -- [folder] [file ...]
 nix profile install github:Tim-kieboom/TerminalCode
 ```
 
-On NixOS, add it as an input and put `inputs.terminal_code.packages.${pkgs.system}.default` in
+On NixOS, add it as an input and put `inputs.terminal_code.packages.${pkgs.stdenv.hostPlatform.system}.default` in
 `environment.systemPackages`. On Linux the package puts `wl-clipboard` and `xclip` on the program's `PATH` for the
 clipboard; `rust-analyzer` is not included, install it yourself for the language server. `nix develop` gives a shell
 with the Rust toolchain to work on the code.

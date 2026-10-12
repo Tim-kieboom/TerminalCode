@@ -24,13 +24,13 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            binary: terminal_code
+            binary: trcode
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            binary: terminal_code.exe
+            binary: trcode.exe
           - os: macos-latest
             target: aarch64-apple-darwin
-            binary: terminal_code
+            binary: trcode
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -42,7 +42,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME}"
           if [ "${GITHUB_REF_TYPE}" != "tag" ]; then version="dev"; fi
-          name="terminal_code-${version}-${{ matrix.target }}"
+          name="trcode-${version}-${{ matrix.target }}"
           mkdir "$name"
           cp "target/release/${{ matrix.binary }}" README.md LICENSE-MIT LICENSE-APACHE "$name/"
           if [ "${{ matrix.os }}" = "windows-latest" ]; then

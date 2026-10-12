@@ -61,7 +61,7 @@ fn initialize_names_the_project_the_process_and_the_client() {
         let params = server.start_up();
 
         assert_eq!(params["processId"], json!(std::process::id()));
-        assert_eq!(params["clientInfo"]["name"], json!("terminal_code"));
+        assert_eq!(params["clientInfo"]["name"], json!("trcode"));
         let uri = params["rootUri"].as_str().unwrap();
         assert!(
             uri.starts_with("file:///") && uri.ends_with("/project"),

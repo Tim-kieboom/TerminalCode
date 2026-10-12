@@ -31,14 +31,14 @@
           # The clipboard uses these when they are there; rust-analyzer is
           # found on the PATH when the user has it installed.
           postInstall = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
-            wrapProgram $out/bin/terminal_code \
+            wrapProgram $out/bin/trcode \
               --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.wl-clipboard pkgs.xclip ]}
           '';
 
           meta = {
             description = "A lightweight, keyboard-driven IDE for the terminal";
             license = [ pkgs.lib.licenses.mit pkgs.lib.licenses.asl20 ];
-            mainProgram = "terminal_code";
+            mainProgram = "trcode";
           };
         };
         default = terminal_code;
@@ -47,7 +47,7 @@
       apps = forAll (pkgs: rec {
         terminal_code = {
           type = "app";
-          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.terminal_code}/bin/terminal_code";
+          program = "${self.packages.${pkgs.stdenv.hostPlatform.system}.terminal_code}/bin/trcode";
         };
         default = terminal_code;
       });

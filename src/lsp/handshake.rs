@@ -61,7 +61,7 @@ pub(crate) fn initialize(
     let mut params = json!({
         "processId": std::process::id(),
         "clientInfo": {
-            "name": "terminal_code",
+            "name": "trcode",
             "version": env!("CARGO_PKG_VERSION"),
         },
         "rootUri": uri,

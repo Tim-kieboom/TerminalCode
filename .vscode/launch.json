@@ -6,25 +6,25 @@
     "configurations": [
     
         {
-            "name": "Debug executable 'terminal_code'",
+            "name": "Debug executable 'trcode'",
             "type": "lldb",
             "request": "launch",
             "cargo": {
                 "args": [
                     "run",
-                    "--bin=terminal_code"
+                    "--bin=trcode"
                 ]
             },
             "args": []
         },
         {
-            "name": "Debug unit tests in executable 'terminal_code'",
+            "name": "Debug unit tests in executable 'trcode'",
             "type": "lldb",
             "request": "launch",
             "cargo": {
                 "args": [
                     "test",
-                    "--bin=terminal_code"
+                    "--bin=trcode"
                 ]
             }
         }

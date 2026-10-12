@@ -34,6 +34,6 @@ If a requested implementation conflicts with the coding guidelines, explain the 
 
 - **`docs/todo.md`** should be the todo list
 - **`docs/design.md`** should be the design document
-- `cargo build` fails to link while `terminal_code.exe` is running. Stop the application before rebuilding.
+- `cargo build` fails to link while `trcode.exe` is running. Stop the application before rebuilding.
 - Unit tests live in sibling `tests.rs` files (`#[cfg(test)] mod tests;`), per the coding guidelines.
 - `lib/vecmap` is a separate crate with its own tests; run them with `cargo test` inside `lib/vecmap`.
