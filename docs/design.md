@@ -231,6 +231,18 @@ used `anyhow` everywhere instead of typed errors.
   optional in 0.1.0); the keymap is its own TOML file (`keymap.toml`, already implemented). Indentation: the editor
   detects tabs vs 2-4 spaces from the file and falls back to 4 spaces; the fallback and the detection switch become
   settings later.
+- `settings.json` first slice (built, `src/settings/`): `<config dir>/terminalcode/settings.json`, JSON with `//` and
+  `/* */` comments and trailing commas (a small stripper turns them into spaces, so error line numbers match the file).
+  Two settings so far: `theme` (a built-in theme by name or title in any case, or an installed theme by file name;
+  an installed theme wins on a name clash because `Config: Open Theme` keeps a copy of a built-in theme under its
+  name) and `vim` (parsed now, read by the vim layer in M7). Left-out settings keep their defaults. A setting with the
+  wrong type makes the whole file unusable (reported with the setting's name, the defaults are used, and a reload keeps
+  what is applied); a name that is not a setting is reported and the rest applies. `Config: Open Settings` makes the
+  file from `defaults/settings.jsonc`. No project layer yet.
+- The `theme` setting is the starting theme, not a store for the palette's choice: `Theme: ...` lasts for the run only
+  and its notification says so and names the setting (rewriting a hand-edited JSONC file would lose its comments). A
+  reload (the file was saved) applies a setting only when the file changed it, so a palette choice survives saving
+  `theme.toml`, but editing `theme` in `settings.json` and saving applies at once.
 - Auto-indent: Enter copies the leading whitespace left of the cursor verbatim. Adding a level after an opening
   token waits for tree-sitter (M5). Paste, from either path, is always inserted verbatim.
 

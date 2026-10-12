@@ -14,10 +14,12 @@ use tokio::time::{Instant, sleep_until};
 use crate::app::state::{AppState, Popup};
 use crate::clipboard::Clipboard;
 use crate::components;
+use crate::config::ThemeChoice;
 use crate::error::{IdeError, IdeResult};
 use crate::event::Event;
 use crate::keymap::Keymap;
 use crate::pty::Shell;
+use crate::settings::Settings;
 use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 use crate::ui::theme::ThemeVariant;
@@ -74,6 +76,8 @@ pub(crate) struct App {
     theme_variant: ThemeVariant,
     /// The installed theme in use, by name; the built-in `theme_variant` when none.
     installed_theme: Option<String>,
+    /// The settings last applied; a reload applies a setting only when the file changed it.
+    settings: Settings,
     /// What the config files said when they were last applied.
     config_applied: Option<u64>,
     /// The tab that was in front when the last input was handled, to notice a
@@ -198,6 +202,7 @@ impl App {
             keyboard_support: KeyboardSupport::Enhanced,
             theme_variant: ThemeVariant::default(),
             installed_theme: None,
+            settings: Settings::default(),
             config_applied: None,
             front_view: None,
         }
@@ -212,6 +217,15 @@ impl App {
     /// Where `Action::OpenConfig` finds and makes the user's files.
     pub(crate) fn with_config_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
         self.config_dir = dir;
+        self.config_applied = self.config_hash();
+        self
+    }
+
+    /// Starts with `settings` applied, `theme` being the theme they name.
+    pub(crate) fn with_settings(mut self, settings: Settings, theme: ThemeChoice) -> Self {
+        self.settings = settings;
+        self.theme_variant = theme.variant;
+        self.installed_theme = theme.installed;
         self.config_applied = self.config_hash();
         self
     }

@@ -96,8 +96,9 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Vim parser tests (table-driven: keys in, edits out)
 
 ## M8 — Config + polish
-- [ ] `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings: theme, shell, vim on/off, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
-- [ ] Settings left over from before M6: `mouse` on/off; remember what is hidden between runs; notification lifetime; dim ignored files in the explorer instead of hiding them; a layout file that starts with something hidden; `theme` ("dark" or "light", the built-in themes `Theme: Dark` / `Theme: Light` switch between for the session); `terminal` shell
+- [x] First slice of `settings.json` (`theme` and `vim`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
+- [ ] Rest of `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings still to add: shell, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
+- [ ] Settings left over from before M6: `mouse` on/off; remember what is hidden between runs; notification lifetime; dim ignored files in the explorer instead of hiding them; a layout file that starts with something hidden; `terminal` shell (the `theme` setting is done)
 - [x] Mouse: pane focus by click (done with the panes: a press in another pane focuses it)
 - [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
@@ -147,9 +148,12 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [ ] Left over from before M6, not needed for 0.1.0: auto-scroll while dragging past the edge of the text (needs a repeating timer); alt+click to extend a selection; move a tab between panes, resize panes by dragging the divider, close a pane without closing its tabs, per-pane tab history; a message history; read directories off the UI thread; a diff-based document reload that keeps undo history; inotify limits falling back to polling; a project-wide watch for new files in collapsed directories; rename and move handling in the watcher; a results pane for the project search that stays open while editing, with results grouped under file headers; multi-line patterns; searching within the selection or one folder, include/exclude globs, searching unsaved buffers; the fallback scan for projects with more than about 1M files; a scrollbar-style overview of find matches; match counts for the other panes showing the same file; a thin strip to click for a hidden pane; palette argument prompts and save as for untitled files
 - [ ] Load tree-sitter grammars at runtime from shared libraries (`.so` / `.dll`), so languages can be added without a rebuild; needs a place to find them, a version check against the `tree-sitter` ABI, and per-platform shipping
 - [ ] adding usefull keybinds like (move line `alt+up/down` cursor go back `alt+left/right` multicursor `ctrl+alt+up/down`)
-- [ ] LSP client (possibly as a Lua plugin)
-- [ ] Lua plugin runtime on top of the Action registry
-- [ ] Debugger via DAP (e.g. Rust through `lldb-dap`), possibly as a Lua plugin
+- [ ] Lua plugin runtime on top of the Action registry (decided: plugins are written in Lua because the nvim community knows it; the API is our own `terminal_code` Lua API, not the nvim API, so no `vim.*` compatibility; pick the binding crate (`mlua` with Lua 5.4 or LuaJIT) when it is built, and write the API surface in `docs/design.md` first)
+- [ ] Plugins window: list the installed plugins and enable or disable each one; download official plugins (made by this project) from there; plugins from anyone else are installed by dragging them into the plugins folder by hand, they are not offered for download. Needs: a plugins folder per platform, a manifest per plugin (id, version, required TerminalCode version), a place the official plugins are published (releases or an index file) with checksums checked before a plugin is installed, an enabled list in `settings.json`, and typed errors shown as notifications
+- [ ] LSP client; the language servers themselves arrive as official Lua plugins, see below
+- [ ] Official Lua plugin: Rust language support (`rust-analyzer`)
+- [ ] Official Lua plugin: Nix language support (`nixd` or `nil`, decide when it is built)
+- [ ] Debugger via DAP (e.g. Rust through `lldb-dap`), as a Lua plugin
 - [ ] Multi-cursor, undo tree, visual-block, vim macros, git integration
 
 ## Open questions (resolve before the milestone that needs them)

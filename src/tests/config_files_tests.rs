@@ -381,7 +381,8 @@ fn a_theme_change_says_which_theme_it_is() {
         app.state()
             .notifications()
             .texts()
-            .contains(&"theme: light")
+            .iter()
+            .any(|text| text.starts_with("theme: light"))
     );
 }
 

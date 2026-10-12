@@ -4,6 +4,7 @@ use crate::app::state::Focus;
 use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile};
 use crate::error::{IdeError, IdeResult};
+use crate::settings::Settings;
 use crate::ui::theme::ThemeVariant;
 
 use super::App;
@@ -46,6 +47,9 @@ impl App {
     }
 }
 
+/// Said after a theme is chosen from the palette, which lasts for the run only.
+const KEEP_HINT: &str = " (this run only; set \"theme\" in settings.json to keep it)";
+
 impl App {
     /// Opens the file of the theme in use in the themes folder, making the folder
     /// and, for a built-in theme or an installed one whose file is gone, the file.
@@ -87,9 +91,18 @@ impl App {
     /// as if the editor had started over (and later the plugins too). A file
     /// that is missing is normal, and one that is invalid is reported and
     /// replaced by the built-in one, exactly as at startup. Open files, tabs
-    /// and the terminal are left alone.
+    /// and the terminal are left alone. A setting is applied only when the
+    /// settings file changed it, so a theme chosen from the palette stays until
+    /// then; an invalid settings file leaves the settings as they are.
     pub(super) fn reload(&mut self) {
         self.config_applied = self.config_hash();
+        let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
+
+        let settings = config::load_settings(path(ConfigFile::Settings).as_deref());
+        let settings_warning = settings.warning;
+        let theme_warning = settings
+            .settings
+            .and_then(|settings| self.apply_settings(settings));
         let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
 
         let installed = self.installed_theme_path();
@@ -102,7 +115,13 @@ impl App {
         let keymap =
             config::load_keymap(path(ConfigFile::Keymap).as_deref(), self.keyboard_support);
 
-        let warnings = [theme.warning, layout.warning, keymap.warning];
+        let warnings = [
+            settings_warning,
+            theme_warning,
+            theme.warning,
+            layout.warning,
+            keymap.warning,
+        ];
         let mut theme = theme.theme;
         // Asking the terminal for its background needs the input stream, which
         // the loop owns now, so the answer from startup is kept.
@@ -119,8 +138,27 @@ impl App {
             self.state.notify_error(warning);
         }
         if failed == 0 {
-            self.state.notify("reloaded the theme, layout and keymap");
+            self.state
+                .notify("reloaded the settings, theme, layout and keymap");
         }
+    }
+
+    /// Makes `settings` the ones in use. The theme they name is chosen when it
+    /// differs from the one the settings named before; a name that is no theme
+    /// is returned as a warning and leaves the theme as it is.
+    fn apply_settings(&mut self, settings: Settings) -> Option<String> {
+        let mut warning = None;
+        if settings.theme != self.settings.theme {
+            match config::resolve_theme(&settings.theme, self.config_dir.as_deref()) {
+                Some(choice) => {
+                    self.theme_variant = choice.variant;
+                    self.installed_theme = choice.installed;
+                }
+                None => warning = Some(config::no_such_theme(&settings.theme)),
+            }
+        }
+        self.settings = settings;
+        warning
     }
 
     /// Switches to a built-in theme, with the user's theme file laid over it,
@@ -128,7 +166,7 @@ impl App {
     pub(super) fn use_theme(&mut self, variant: ThemeVariant) {
         self.theme_variant = variant;
         self.installed_theme = None;
-        self.apply_chosen_theme(variant.name());
+        self.apply_chosen_theme(&format!("{}{KEEP_HINT}", variant.name()));
     }
 
     /// Switches to the installed theme `name` (a file in the themes folder),
@@ -145,7 +183,7 @@ impl App {
             return;
         }
         self.installed_theme = Some(name.to_owned());
-        self.apply_chosen_theme(name);
+        self.apply_chosen_theme(&format!("{name}{KEEP_HINT}"));
     }
 
     /// The file of the installed theme in use, if one is.

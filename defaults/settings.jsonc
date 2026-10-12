@@ -1,0 +1,11 @@
+// TerminalCode settings. Comments and trailing commas are allowed.
+// This file is read at startup and again whenever it is saved.
+{
+    // The theme to start with: "dark", "light", "soldark", "sollight", or the
+    // name of a file in the themes folder (without .toml). Choosing a theme from
+    // the command palette lasts for the run only; set it here to keep it.
+    "theme": "dark",
+
+    // Vim keys in the editor. The vim layer is not built yet, so this does nothing.
+    "vim": false
+}

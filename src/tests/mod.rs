@@ -21,6 +21,7 @@ mod palette_tests;
 mod quit_tests;
 mod rename_tests;
 mod search_tests;
+mod settings_tests;
 mod stale_view_tests;
 mod startup_tests;
 mod state_tests;

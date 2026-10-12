@@ -5,6 +5,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::keymap::{DEFAULT_KEYMAP_TOML, Keymap};
+use crate::settings::{DEFAULT_SETTINGS_JSONC, Settings};
 use crate::terminal::KeyboardSupport;
 use crate::ui::layout::{DEFAULT_LAYOUT_RON, LayoutTree};
 use crate::ui::theme::{DEFAULT_THEME_TOML, Theme, ThemeVariant};
@@ -13,6 +14,7 @@ const CONFIG_DIR: &str = "terminalcode";
 const KEYMAP_FILE: &str = "keymap.toml";
 const LAYOUT_FILE: &str = "layout.ron";
 const THEME_FILE: &str = "theme.toml";
+const SETTINGS_FILE: &str = "settings.json";
 
 /// A keymap plus the reason, if any, that the user's file was not applied.
 #[derive(Debug)]
@@ -144,6 +146,7 @@ pub(crate) fn user_theme_path() -> Option<PathBuf> {
 /// (a syntax error, a bad color, an unknown `@name`) is reported and the whole
 /// built-in theme is used, not a half-applied one. The built-in theme itself
 /// is not allowed to fail: it panics.
+#[cfg(test)]
 pub(crate) fn load_theme(user_file: Option<&Path>) -> LoadedTheme {
     load_theme_for(ThemeVariant::Dark, user_file)
 }
@@ -177,6 +180,89 @@ fn unusable_theme(path: &Path, error: &dyn std::fmt::Display) -> String {
     format!("{}: {error}; using default theme", path.display())
 }
 
+/// The settings plus what was wrong with the user's file, if anything.
+#[derive(Debug)]
+pub(crate) struct LoadedSettings {
+    /// What to apply; `None` when the file is unusable, so a reload can leave
+    /// what is applied alone instead of going back to the defaults.
+    pub(crate) settings: Option<Settings>,
+    pub(crate) warning: Option<String>,
+}
+
+/// The settings in the user's file. A missing file is normal and means the
+/// defaults. An unreadable or invalid one is reported and gives no settings; a
+/// setting that does not exist is reported and the others are applied.
+pub(crate) fn load_settings(user_file: Option<&Path>) -> LoadedSettings {
+    let defaults = |warning| LoadedSettings {
+        settings: Some(Settings::default()),
+        warning,
+    };
+    let Some(path) = user_file else {
+        return defaults(None);
+    };
+    let unusable = |error: &dyn std::fmt::Display| LoadedSettings {
+        settings: None,
+        warning: Some(format!(
+            "{}: {error}; using default settings",
+            path.display()
+        )),
+    };
+
+    let source = match read_user_file(path) {
+        Ok(Some(source)) => source,
+        Ok(None) => return defaults(None),
+        Err(error) => return unusable(&error),
+    };
+    match Settings::parse(&source) {
+        Ok(parsed) => LoadedSettings {
+            settings: Some(parsed.settings),
+            warning: (!parsed.unknown.is_empty()).then(|| {
+                format!(
+                    "{}: no such setting: {}",
+                    path.display(),
+                    parsed.unknown.join(", ")
+                )
+            }),
+        },
+        Err(error) => unusable(&error),
+    }
+}
+
+/// Which theme is in use: a built-in one, or an installed one by name (the
+/// built-in `variant` is then only the floor under it).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ThemeChoice {
+    pub(crate) variant: ThemeVariant,
+    pub(crate) installed: Option<String>,
+}
+
+/// The theme a `theme` setting names: the installed theme of that name, else
+/// the built-in one (by name or title, in any case). An installed theme comes
+/// first because "Config: Open Theme" keeps an edited copy of a built-in theme
+/// under its name. `None` when there is no such theme.
+pub(crate) fn resolve_theme(name: &str, config_dir: Option<&Path>) -> Option<ThemeChoice> {
+    let installed = config_dir
+        .map(installed_themes)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|installed| installed == name);
+    if installed.is_some() {
+        return Some(ThemeChoice {
+            variant: ThemeVariant::default(),
+            installed,
+        });
+    }
+    ThemeVariant::ALL
+        .into_iter()
+        .find(|variant| {
+            variant.name().eq_ignore_ascii_case(name) || variant.title().eq_ignore_ascii_case(name)
+        })
+        .map(|variant| ThemeChoice {
+            variant,
+            installed: None,
+        })
+}
+
 /// One of the user's files in the config directory. Each has a built-in
 /// default that it is layered over (theme, keymap) or replaces (layout).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
@@ -185,17 +271,19 @@ pub(crate) enum ConfigFile {
     Theme,
     Keymap,
     Layout,
+    Settings,
 }
 
 impl ConfigFile {
     /// Every file, for looking through them.
-    pub(crate) const ALL: [Self; 3] = [Self::Theme, Self::Keymap, Self::Layout];
+    pub(crate) const ALL: [Self; 4] = [Self::Theme, Self::Keymap, Self::Layout, Self::Settings];
 
     fn file_name(self) -> &'static str {
         match self {
             Self::Theme => THEME_FILE,
             Self::Keymap => KEYMAP_FILE,
             Self::Layout => LAYOUT_FILE,
+            Self::Settings => SETTINGS_FILE,
         }
     }
 
@@ -205,6 +293,7 @@ impl ConfigFile {
             Self::Theme => DEFAULT_THEME_TOML,
             Self::Keymap => DEFAULT_KEYMAP_TOML,
             Self::Layout => DEFAULT_LAYOUT_RON,
+            Self::Settings => DEFAULT_SETTINGS_JSONC,
         }
     }
 
@@ -365,4 +454,9 @@ pub(crate) fn theme_file_stem(name: &str) -> Option<String> {
     let name = name.strip_suffix(".toml").unwrap_or(name).trim();
     let usable = !name.is_empty() && !name.contains(['/', '\\']) && !name.starts_with('.');
     usable.then(|| name.to_owned())
+}
+
+/// What is said when a `theme` setting names no theme.
+pub(crate) fn no_such_theme(name: &str) -> String {
+    format!("settings.json: no theme called \"{name}\"; keeping the current theme")
 }
