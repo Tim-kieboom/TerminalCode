@@ -18,6 +18,7 @@ mod mouse_tests;
 mod move_tests;
 mod notification_tests;
 mod palette_tests;
+mod perf_tests;
 mod quit_tests;
 mod rename_tests;
 mod search_tests;
