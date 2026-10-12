@@ -180,8 +180,8 @@ used `anyhow` everywhere instead of typed errors.
   nothing. A press outside closes the menu and is then handled as if the menu were not there (so a right click
   reopens it elsewhere); the wheel only closes it. Each item shows the keys bound to its action in the explorer (the shortest, as the palette does), right-aligned.
 - Implemented so far: the tree (`components/explorer`), directories read on expand on the UI thread (a huge
-  directory can stall a frame; move to a worker if it shows up), listing filtered by the `ignore` crate
-  (`.gitignore` honored even outside a repository, `.git` never listed, other dotfiles shown), directories first
+  directory can stall a frame; move to a worker if it shows up), listing by the `ignore` crate
+  (`.gitignore` honored even outside a repository; what it leaves out is listed too, dimmed and openable; `.git` never listed, other dotfiles shown), directories first
   then case-insensitive names. The project root is the first directory on the command line, else the working
   directory.
 - Keyboard focus is `AppState::focus` (`Editor` or `Explorer`) and picks the keymap contexts: `[Editor, Global]` or

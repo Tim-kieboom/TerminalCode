@@ -85,6 +85,10 @@ fn line<'a>(
     };
     // The file open in the editor stands out from the rest.
     let mut name_style = theme.style(kind_slot);
+    // Left out by the ignore rules: dimmer than the rest.
+    if row.ignored {
+        name_style = name_style.patch(theme.style("explorer.ignored"));
+    }
     if active {
         name_style = name_style.patch(theme.style("explorer.active"));
     }

@@ -96,6 +96,10 @@ modifiers = ["bold"]
 ["explorer.file"]
 text = "@text"
 
+["explorer.ignored"]
+text = "@muted"
+modifiers = ["dim"]
+
 ["explorer.active"]
 text = "@accent_text"
 modifiers = ["bold"]

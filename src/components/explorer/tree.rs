@@ -37,6 +37,8 @@ pub(super) struct Node {
     /// A link to a folder that holds the link itself: opening it would list the
     /// same entries again, level after level.
     looped: bool,
+    /// Left out by the project's ignore rules, or inside a folder that is: shown dimmed.
+    ignored: bool,
     /// `None` until the directory is first opened.
     children: Option<Vec<Node>>,
 }
@@ -69,6 +71,8 @@ pub(crate) struct Row {
     pub(crate) expanded: bool,
     /// See [`Node`]; such a folder cannot be opened.
     pub(crate) looped: bool,
+    /// See [`Node`].
+    pub(crate) ignored: bool,
 }
 
 impl Node {
@@ -84,6 +88,7 @@ impl Node {
             kind: NodeKind::Dir,
             expanded: false,
             looped: false,
+            ignored: false,
             children: None,
         };
         root.expand()?;
@@ -105,7 +110,7 @@ impl Node {
         }
     }
 
-    fn entry(path: PathBuf) -> Self {
+    fn entry(path: PathBuf, ignored: bool) -> Self {
         let is_dir = path.is_dir();
         let kind = match is_dir {
             true => NodeKind::Dir,
@@ -122,6 +127,7 @@ impl Node {
             kind,
             expanded: false,
             looped,
+            ignored,
             children: None,
         }
     }
@@ -133,7 +139,7 @@ impl Node {
         if self.kind != NodeKind::Dir || self.looped {
             return Ok(());
         }
-        let fresh = read_children(&self.path)?;
+        let fresh = read_children(&self.path, self.ignored)?;
         self.children = Some(self.merge(fresh));
         self.expanded = true;
         Ok(())
@@ -175,7 +181,7 @@ impl Node {
             return Ok(());
         }
         if scope.includes(&self.path) {
-            let fresh = read_children(&self.path)?;
+            let fresh = read_children(&self.path, self.ignored)?;
             self.children = Some(self.merge(fresh));
         }
         for child in self.children.iter_mut().flatten() {
@@ -219,6 +225,7 @@ impl Node {
             kind: self.kind,
             expanded: self.expanded,
             looped: self.looped,
+            ignored: self.ignored,
         });
         if !self.expanded {
             return;
@@ -233,27 +240,29 @@ impl Node {
 }
 
 /// The entries of `dir`: directories first, then files, each in case
-/// insensitive name order. Files the project's ignore rules (`.gitignore`,
-/// `.ignore`, the global and per-repository excludes) exclude are left out.
-fn read_children(dir: &Path) -> Result<Vec<Node>, ExplorerError> {
-    let walker = WalkBuilder::new(dir)
-        .max_depth(Some(1))
-        .hidden(false)
+/// insensitive name order. Entries the project's ignore rules (`.gitignore`,
+/// `.ignore`, the global and per-repository excludes) leave out are listed
+/// too, marked as ignored, so they can be shown dimmed and opened; so is
+/// everything in a folder that is ignored (`inside_ignored`).
+fn read_children(dir: &Path, inside_ignored: bool) -> Result<Vec<Node>, ExplorerError> {
+    let listed = entries(dir, WalkBuilder::new(dir).standard_filters(false))?;
+    // A rule such as `target/` is not seen from inside `target`, so there
+    // the parent's answer is all there is.
+    let kept: HashSet<PathBuf> = match inside_ignored {
+        true => HashSet::new(),
         // Honor .gitignore files even outside a git repository.
-        .require_git(false)
-        .build();
+        false => entries(dir, WalkBuilder::new(dir).hidden(false).require_git(false))?
+            .into_iter()
+            .collect(),
+    };
 
-    let mut children = Vec::new();
-    for entry in walker {
-        let entry = entry.map_err(|source| ExplorerError::Read {
-            path: dir.to_path_buf(),
-            source,
-        })?;
-        if entry.depth() == 0 || entry.file_name() == HIDDEN_DIRECTORY {
-            continue;
-        }
-        children.push(Node::entry(entry.into_path()));
-    }
+    let mut children: Vec<Node> = listed
+        .into_iter()
+        .map(|path| {
+            let ignored = inside_ignored || !kept.contains(&path);
+            Node::entry(path, ignored)
+        })
+        .collect();
     children.sort_by_cached_key(|node| {
         (
             Reverse(node.kind == NodeKind::Dir),
@@ -261,6 +270,22 @@ fn read_children(dir: &Path) -> Result<Vec<Node>, ExplorerError> {
         )
     });
     Ok(children)
+}
+
+/// The paths directly inside `dir` that `builder` finds, without `.git`.
+fn entries(dir: &Path, builder: &mut WalkBuilder) -> Result<Vec<PathBuf>, ExplorerError> {
+    let mut paths = Vec::new();
+    for entry in builder.max_depth(Some(1)).build() {
+        let entry = entry.map_err(|source| ExplorerError::Read {
+            path: dir.to_path_buf(),
+            source,
+        })?;
+        if entry.depth() == 0 || entry.file_name() == HIDDEN_DIRECTORY {
+            continue;
+        }
+        paths.push(entry.into_path());
+    }
+    Ok(paths)
 }
 
 /// Whether `path`, a link, points at a folder that contains the link: opening

@@ -77,7 +77,9 @@ fn opening_a_project_lists_the_root_and_its_children_directories_first() {
             root.as_str(),
             "  docs",
             "  src",
+            "  target",
             "  .gitignore",
+            "  build.log",
             "  Cargo.toml",
             "  README.md",
             "  zeta.txt",
@@ -86,29 +88,65 @@ fn opening_a_project_lists_the_root_and_its_children_directories_first() {
     assert!(explorer.has_project());
 }
 
+/// The names of the rows marked ignored.
+fn ignored(explorer: &Explorer) -> Vec<&str> {
+    explorer
+        .rows()
+        .iter()
+        .filter(|row| row.ignored)
+        .map(|row| row.name.as_str())
+        .collect()
+}
+
 #[test]
-fn ignored_files_and_the_git_directory_are_not_listed() {
+fn ignored_entries_are_listed_and_marked_and_the_git_directory_is_not_listed() {
     let dir = project(true);
 
-    let listed = names(&open(&dir)).join(" ");
+    let explorer = open(&dir);
 
-    assert!(!listed.contains("target"), "{listed}");
-    assert!(!listed.contains("build.log"), "{listed}");
+    assert_eq!(ignored(&explorer), ["target", "build.log"]);
+    let listed = names(&explorer).join(" ");
     assert!(!listed.contains(".git "), "{listed}");
-    assert!(
-        listed.contains(".gitignore"),
-        "hidden files that are not ignored stay: {listed}"
-    );
+    assert!(listed.contains(".gitignore"), "{listed}");
 }
 
 #[test]
 fn a_gitignore_applies_outside_a_git_repository_too() {
     let dir = project(false);
 
-    let listed = names(&open(&dir)).join(" ");
+    let explorer = open(&dir);
 
-    assert!(!listed.contains("target"), "{listed}");
-    assert!(!listed.contains("build.log"), "{listed}");
+    assert_eq!(ignored(&explorer), ["target", "build.log"]);
+}
+
+#[test]
+fn an_ignored_folder_opens_and_everything_in_it_is_ignored_too() {
+    let dir = project(false);
+    write(dir.path(), "target/deep/inner.txt", "");
+    let mut explorer = open(&dir);
+
+    select(&mut explorer, "target");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    select(&mut explorer, "deep");
+    apply(&mut explorer, ExplorerCommand::Expand);
+
+    let shown = names(&explorer).join("|");
+    assert!(shown.contains("    inner.txt"), "{shown}");
+    assert_eq!(
+        ignored(&explorer),
+        ["target", "deep", "inner.txt", "debug.txt", "build.log"]
+    );
+}
+
+#[test]
+fn what_is_not_ignored_is_not_marked_even_beside_ignored_entries() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+
+    select(&mut explorer, "src");
+    apply(&mut explorer, ExplorerCommand::Expand);
+
+    assert_eq!(ignored(&explorer), ["target", "build.log"]);
 }
 
 #[test]

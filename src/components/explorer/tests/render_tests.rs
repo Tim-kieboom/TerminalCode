@@ -1,6 +1,7 @@
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
+use ratatui::style::Style;
 
 use super::explorer_tests::project;
 use crate::app::state::AppState;
@@ -8,6 +9,7 @@ use crate::components::ComponentKind;
 use crate::components::explorer::{Explorer, ExplorerCommand};
 use crate::ui::Render;
 use crate::ui::layout::Placement;
+use crate::ui::theme::{Theme, ThemeVariant};
 
 /// Draws the explorer alone into `width` x `height` cells and returns the screen.
 fn draw(explorer: &mut Explorer, width: u16, height: u16) -> String {
@@ -133,4 +135,43 @@ fn a_link_that_loops_gets_its_own_marker() {
 
     assert!(screen.contains("↻ here"), "{screen}");
     assert!(screen.contains("▸ real"), "{screen}");
+}
+
+/// The style of the cell where `name` starts on the drawn screen.
+fn name_style(explorer: &mut Explorer, name: &str) -> Style {
+    let mut state = AppState::default();
+    state.set_theme(Theme::built_in(ThemeVariant::Dark));
+    let placement = Placement::new(ComponentKind::Explorer, Rect::new(0, 0, 30, 16));
+    let mut terminal = Terminal::new(TestBackend::new(30, 16)).unwrap();
+    explorer.prepare(&placement);
+    terminal
+        .draw(|frame| explorer.render(frame, &state, &placement))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    for y in 0..buffer.area.height {
+        let cells: Vec<&str> = (0..buffer.area.width)
+            .map(|x| buffer[(x, y)].symbol())
+            .collect();
+        // The guides are wide in bytes but one cell each, so count cells.
+        let text = cells.concat();
+        if let Some(byte) = text.find(name) {
+            let column = text[..byte].chars().count() as u16;
+            return buffer[(column, y)].style();
+        }
+    }
+    panic!("no row shows {name}");
+}
+
+#[test]
+fn an_ignored_entry_is_dimmer_than_the_ones_beside_it() {
+    let dir = project(false);
+    let mut explorer = Explorer::open(dir.path()).unwrap();
+
+    let ignored = name_style(&mut explorer, "build.log");
+    let plain = name_style(&mut explorer, "zeta.txt");
+    let ignored_dir = name_style(&mut explorer, "target");
+    let plain_dir = name_style(&mut explorer, "docs");
+
+    assert_ne!(ignored, plain);
+    assert_ne!(ignored_dir, plain_dir);
 }
