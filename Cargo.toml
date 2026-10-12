@@ -2,6 +2,9 @@
 name = "terminal_code"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Tim Kieboom"]
+description = "A lightweight, keyboard-driven IDE for the terminal"
 
 [dependencies]
 ron = "0.12.2"

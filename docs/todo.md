@@ -124,9 +124,9 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] macOS (best-effort in CI): `a_paste_of_several_megabytes_into_a_shell_that_is_not_reading_does_not_freeze_anything` holds the caller about 54 ms (limit 50 ms) on the runner, and the flood timing tests are flaky there; look when macOS is tested by hand
 
 ## M9 — Release 0.1.0
-- [ ] README (install, keybinds, config), license
+- [x] README (install, keybinds, config) and license (MIT OR Apache-2.0, copyright Tim Kieboom: `LICENSE-MIT`, `LICENSE-APACHE`, `license` in `Cargo.toml`; the dependencies are MIT, Apache-2.0 or similar permissive, with one MPL-2.0 crate, `option-ext`, which is file-level copyleft and fine for a binary; an LGPL option appears only as an alternative next to MIT)
 - [ ] Release CI: binaries for Linux and Windows (macOS best-effort), checksums
-- [ ] Known-limits section (a single line over about 850 KB makes frames slower than 50 ms, 590 ms at 10 MB; UTF-8 only; no undo tree; no LSP/debugger)
+- [x] Known-limits section, in the README (a single line over about 850 KB makes frames slower than 50 ms, 590 ms at 10 MB; UTF-8 only; no undo tree; no LSP/debugger)
 - [ ] Tag `v0.1.0`
 
 ## Layout file syntax rewrite (decided, not built; details in `docs/design.md`, "Layout syntax v2")

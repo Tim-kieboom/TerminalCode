@@ -8,7 +8,119 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**Work in progress. TerminalCode is not ready to use yet.** There are no releases and no install instructions.
-The path to 0.1.0 is tracked in [docs/todo.md](docs/todo.md) and the design in [docs/design.md](docs/design.md).
+**0.1.0 is being prepared and is not tagged yet.** There are no release binaries yet, so for now you build it
+from source (see below). What is left before the tag is tracked in [docs/todo.md](docs/todo.md); the design is in
+[docs/design.md](docs/design.md).
 
-A full README (install, keybinds, config) and a license will arrive with 0.1.0.
+## What it does
+
+- **Editor:** tabs, split panes, undo and redo, smart indent, find and replace in a file, go to line, and the mouse
+  (click, drag, double and triple click, the wheel, a right click menu). Files are UTF-8.
+- **Syntax colors** for Rust, TOML, JSON, Markdown and Nix, computed on a background thread so typing never waits.
+- **Explorer:** a project tree that follows `.gitignore`, with create, rename, move (also by drag and drop) and delete.
+- **Finder and project search:** open a file by name from anywhere (`ctrl+p`), and search the whole project (`alt+f`).
+- **Integrated terminal:** a shell in a pane, with tabs, scrollback and mouse reporting, on Linux, macOS and Windows.
+- **Command palette** (`f1`) for every action.
+- **Everything is a file you can edit:** settings, key bindings, the layout and the themes are plain text files that
+  are applied when you save them, with no restart.
+- **Safe with your files:** a file changed on disk under your edits is never overwritten without asking, a deleted
+  file stays open with a `[deleted]` note, and a read-only file is locked against edits.
+
+## Build and run
+
+You need a recent stable Rust toolchain (the project uses the 2024 edition).
+
+```bash
+cargo build --release
+./target/release/terminal_code [folder] [file ...]
+```
+
+The first folder you name is the project; the files are opened in tabs. With no arguments it opens the current
+folder. The binary is `terminal_code.exe` on Windows.
+
+Any terminal with true color works. A terminal that supports the
+[kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (kitty and foot, for example)
+reports every key combination; others get fallbacks for the combinations they lose.
+
+## Keys
+
+Press `f1` for the command palette, which lists every action with its key. The defaults:
+
+| Keys | Action |
+|---|---|
+| `ctrl+q` | Quit (asks first when something is unsaved) |
+| `ctrl+s` / `ctrl+k a` | Save / save all |
+| `ctrl+z`, `ctrl+y` | Undo, redo |
+| `ctrl+c`, `ctrl+x`, `ctrl+v` | Copy, cut, paste (also `ctrl+insert`, `shift+delete`, `shift+insert`) |
+| `ctrl+a` | Select all |
+| `tab`, `shift+tab` | Indent, outdent (a selection over several lines indents each line) |
+| arrows, `home`, `end`, `ctrl+home`, `ctrl+end` | Move; add `shift` to select |
+| `ctrl+f`, `ctrl+r` | Find in the file, replace |
+| `ctrl+g` | Go to line (`line` or `line:column`) |
+| `ctrl+p` | Find a file by name (`name:42` opens it at line 42; `alt+enter` opens it beside this pane) |
+| `alt+f` | Search the project; `f4` and `shift+f4` step through the results |
+| `ctrl+n`, `ctrl+w` | New file, close tab |
+| `ctrl+tab`, `ctrl+shift+tab` | Next, previous tab |
+| `ctrl+k e`, `ctrl+k w`, `ctrl+k z` | Close other tabs, close all tabs, reopen the closed tab |
+| `ctrl+k right`, `ctrl+k down` | Split the pane |
+| `alt+h`, `alt+j`, `alt+k`, `alt+l` | Move to the pane on the left, below, above, on the right |
+| `ctrl+b` | Move to the explorer (inside the explorer: `a` new file, `shift+a` new folder, `r` or `f2` rename, `m` move, `delete`, `.` show or hide dotfiles, `f5` refresh) |
+| `ctrl+k b`, `ctrl+k s` | Show or hide the explorer, the status bar |
+| `` ctrl+` `` | Show, focus or hide the terminal |
+| `alt+m` | Mouse on or off for this run (off lets the terminal select text) |
+
+Inside the terminal pane every key goes to the shell except `ctrl+b`, which starts a short chord: `ctrl+b e`
+returns to the editor, `ctrl+b x` to the explorer, `ctrl+b t` hides the pane, `ctrl+b c` opens a new terminal tab,
+`ctrl+b n` and `ctrl+b p` step through the tabs, `ctrl+b 1` to `9` pick one, `ctrl+b w` closes it, and
+`ctrl+b ctrl+b` sends a real `ctrl+b` to the shell. `shift+page up` and `shift+page down` scroll its history.
+
+## Configuration
+
+The files live in the `terminalcode` folder of your config directory (`~/.config/terminalcode` on Linux,
+`~/Library/Application Support/terminalcode` on macOS, `%APPDATA%\terminalcode` on Windows). Every one is optional,
+and TerminalCode applies a file as soon as you save it. From the command palette, `Config: Open Settings`, `Open
+Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-in default first when it is missing.
+
+- **`settings.json`** (comments and trailing commas are allowed). A setting you leave out keeps its default.
+
+  | Setting | Default | Meaning |
+  |---|---|---|
+  | `theme` | `"dark"` | `"dark"`, `"light"`, `"soldark"`, `"sollight"`, or the name of a file in `themes/` |
+  | `shell` | `null` | The program the terminal runs; `null` is your own shell. Applies to new terminal tabs |
+  | `mouse` | `true` | Whether the mouse is on at the start |
+  | `tab_size` | `4` | Columns a tab character draws (1 to 16) and columns of one level of space indentation |
+  | `indent_style` | `"spaces"` | What the Tab key inserts: `"spaces"` or `"tabs"` |
+  | `detect_indent` | `true` | A file that already has indentation keeps its own; the two settings above are for files with none |
+
+  A mistake in the file (wrong type, a value out of range) is reported as a notification that names the setting,
+  and the settings you had stay in force.
+- **`keymap.toml`** adds to or removes from the default key bindings.
+  [defaults/default_keymap.toml](defaults/default_keymap.toml) lists every action and key name.
+- **`layout.ron`** says which panes there are and how they are arranged: see
+  [defaults/default_layout.ron](defaults/default_layout.ron).
+- **`themes/NAME.toml`** is a theme: a palette of colors and the style of every part of the screen. Choose one with
+  `"theme": "NAME"`, or make a new one from a built-in theme with `Theme: New from ...` in the palette.
+
+## Known limits
+
+- A single line longer than about 850 KB makes drawing slower than 50 ms (590 ms at 10 MB). Files made of many
+  ordinary lines are fine: 10 MB opens in about 10 ms.
+- Only UTF-8 files can be opened.
+- Undo is linear (no undo tree), and there is one cursor.
+- No language server, debugger or plugins yet; those are planned after 0.1.0 (see the backlog in
+  [docs/todo.md](docs/todo.md)).
+- The vim layer is planned for after 0.1.0 too; the editor works like an IDE until then.
+- On macOS the terminal pane's timing tests are flaky in CI, and the manual test pass on Windows Terminal is still
+  to be done.
+
+## License
+
+Licensed under either of
+
+- [Apache License, Version 2.0](LICENSE-APACHE)
+- [MIT license](LICENSE-MIT)
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this project by you,
+as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
