@@ -16,7 +16,7 @@ used `anyhow` everywhere instead of typed errors.
 - Linux and Windows tier 1; macOS best-effort.
 
 **Explicitly after 0.1.0**
-- Debugger (DAP), LSP, Lua plugin system (LSP and debugger may be delivered as Lua plugins).
+- Debugger (DAP), LSP (a generic client in the core, Rust first; see "LSP client"), Lua plugin system (the debugger may be delivered as a Lua plugin).
 - Collaboration, remote dev, AI features.
 
 **Constraint for 0.1.0 that keeps the above possible:** every user-visible operation goes through the
@@ -716,3 +716,67 @@ the embedded `defaults/default_theme.toml`; there is no user theme file.
   Unix only; the Windows tests use `cmd.exe` (`src/pty/tests/windows_tests.rs`).
 - CI runs the tests with `cargo nextest` (`.config/nextest.toml`): a test that hangs is killed after a minute and
   reported, the flood timing tests get two retries, and a job cannot hold a runner for more than 20 minutes.
+
+## LSP client (plan, decided before building; first slice is diagnostics)
+
+**Where it lives.** A generic client in the core, not a Lua plugin (this replaces the earlier idea that language servers
+arrive as plugins). Rust is the first, built-in configuration. A Lua plugin may later add servers or UI on top of it.
+
+**First slice and what "done" means.** Diagnostics from `rust-analyzer`, shown on the right lines. The on-type
+diagnostics (syntax errors, unresolved names, most type mismatches) must show as you type; the `cargo check` ones
+(borrow checker and so on) show when the server pushes them after a save. Nothing else is promised: no hover, go to
+definition or completion yet, and no diagnostics list for files that are not open (they show when the file is opened).
+Proof: a scripted fake server in CI on all three platforms, and one ignored test that starts the real `rust-analyzer`
+on a small temporary crate with a type error and checks the line (run by hand; CI never runs the real server).
+
+**Configuration** (`settings.json`):
+
+```jsonc
+"language_servers": {
+    "rust": {
+        "command": "rust-analyzer",
+        "args": [],
+        "extensions": ["rs"],
+        "root_files": ["Cargo.toml"],
+        "initialization_options": {}   // raw JSON, passed to the server as it is
+    }
+}
+```
+
+- Rust is built in; an entry with the same key replaces it and `"rust": null` turns it off.
+- A file is matched by extension. The server's root is the **outermost** ancestor folder, at or below the project
+  root, that holds one of the `root_files`; none found means the project root. One server per root, so a Cargo
+  workspace with many members is one server. Known limit: a second independent crate inside a workspace root that is
+  not a member gets the workspace's server.
+- Left out on purpose: per-server environment variables and server-specific settings other than
+  `initialization_options` (that one is the escape hatch, for example `"cargo": {"features": "all"}`).
+
+**Position encoding: UTF-16 only.** LSP positions are `(line, character)` in UTF-16 code units. We negotiate nothing
+and always convert between UTF-16 offsets and buffer bytes, so there is one code path and it works with every server.
+The conversion walks the line (O(line length), the same class as layout and the documented long-line limit). Tested on
+the fake server with an emoji, a combining accent, a tab and CRLF. If a real file makes it slow, measure and revisit.
+
+**Failure policy** (in the spirit of the terminal's): a broken server never blocks typing, and the user is told once.
+- Spawn fails, or the process exits at once (the `rustup` shim for a missing component does this): reported once with
+  the reason (the first line of stderr), the status bar shows the server as off, and it is not tried again until the
+  settings change or the project is reopened.
+- A crash while running: restarted automatically, at most 3 times in a short window, with a notice each time; after
+  that it stays off and says so.
+- Slow start or indexing: the status bar shows the server's own progress text, so a missing diagnostic does not look
+  like "no errors".
+
+**Staying on the right lines while you type.** Diagnostics arrive for the document version the server last saw, and
+the buffer may be several versions newer. Each diagnostic's range is mapped through every edit made after that version
+(the same mechanism as syntax colors: `map_spans` and the buffer's edit log), a diagnostic whose range an edit deletes
+into is dropped, and the next push replaces the set. After a reload from disk, or when the server's version is older
+than the history kept, all of them are dropped and a fresh push is awaited. This needs a short, version-bounded edit
+history per document.
+
+**Display.** A mark in the gutter and an underline under the range, colored by theme slots (`editor.diagnostic.error`,
+`.warning`, `.info`, `.hint`). The message of the diagnostic on the cursor's line is shown in the status bar; with
+several on a line the worst one shows, with "+N more". You read a message by putting the cursor on its line (a hover
+popup arrives with the hover feature). `f8` and `shift+f8` jump to the next and previous diagnostic.
+
+**Sync.** `didOpen` when a matching file is shown, incremental `didChange` from the buffer's edit log (with the
+positions before each edit), `didSave` on save, `didClose` when its last tab closes. Changes are batched so a typing
+burst is one message.
