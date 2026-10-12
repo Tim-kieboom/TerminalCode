@@ -149,6 +149,8 @@ fn toggling_again_hides_the_pane_and_keeps_the_same_shell() {
     );
 }
 
+// Prints the directory with `pwd`; Git's sh on Windows writes it as /c/Users/..., so Windows has its own test with cmd.exe (windows_tests.rs).
+#[cfg(unix)]
 #[test]
 fn the_shell_starts_in_the_project_root() {
     let (mut rig, dir) = rig("pwd; sleep 30");

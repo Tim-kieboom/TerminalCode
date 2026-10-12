@@ -33,6 +33,8 @@ fn text_that_is_not_ascii_arrives_intact() {
     rig.wait_for_text("héllo wörld ✓");
 }
 
+// Prints the directory with `pwd`; Git's sh on Windows writes it as /c/Users/..., so Windows has its own test with cmd.exe (windows_tests.rs).
+#[cfg(unix)]
 #[test]
 fn the_shell_starts_in_the_directory_asked_for() {
     let rig = start("pwd");
@@ -148,6 +150,8 @@ fn the_app_is_woken_when_the_shell_ends_even_with_no_output() {
     rig.wait_until("a wake-up", |rig| rig.wakes.load(Ordering::SeqCst) > 0);
 }
 
+// A Unix terminal in raw mode stops reading, which fills its input; ConPTY takes input into a console buffer that does not fill the same way, so this cannot be set up there.
+#[cfg(unix)]
 #[test]
 fn a_write_to_a_shell_that_is_not_reading_gives_up_instead_of_blocking() {
     // Raw mode, as a shell's line editor sets it: a terminal in line mode throws

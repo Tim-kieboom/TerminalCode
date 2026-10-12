@@ -99,7 +99,7 @@ fn the_output_ends_when_cmd_exits() {
 }
 
 #[test]
-fn cmd_runs_in_a_directory_with_a_verbatim_prefix() {
+fn cmd_still_runs_in_a_directory_with_a_verbatim_prefix() {
     let (_dir, path) = plain_directory();
     let verbatim = match path.canonicalize() {
         Ok(verbatim) => verbatim,
@@ -127,4 +127,43 @@ fn sh_prints_to_the_screen() {
     });
 
     assert!(seen.screen.contains("hello"), "{}", describe(&seen));
+}
+
+/// The name of the last folder of `path`, which the shell's `cd` prints in
+/// whichever spelling it likes of the folders before it.
+fn folder_name(path: &Path) -> String {
+    match path.file_name() {
+        Some(name) => name.to_string_lossy().into_owned(),
+        None => panic!("{} has no folder name", path.display()),
+    }
+}
+
+#[test]
+fn cmd_starts_in_the_directory_asked_for() {
+    let (_dir, path) = plain_directory();
+    let name = folder_name(&path);
+
+    let seen = run(cmd(&["/C", "cd"]), &path, |session| {
+        session.with_screen(|screen| screen.contents().contains(&name))
+    });
+
+    assert!(seen.screen.contains(&name), "{}", describe(&seen));
+}
+
+#[test]
+fn a_directory_with_a_verbatim_prefix_is_used_without_it() {
+    let (_dir, path) = plain_directory();
+    let name = folder_name(&path);
+    let verbatim = match path.canonicalize() {
+        Ok(verbatim) => verbatim,
+        Err(error) => panic!("cannot canonicalize {}: {error}", path.display()),
+    };
+
+    let seen = run(cmd(&["/C", "cd"]), &verbatim, |session| {
+        session.with_screen(|screen| screen.contents().contains(&name))
+    });
+
+    assert!(seen.screen.contains(&name), "{}", describe(&seen));
+    assert!(!seen.screen.contains("UNC"), "{}", describe(&seen));
+    assert!(!seen.screen.contains(r"\\?\"), "{}", describe(&seen));
 }

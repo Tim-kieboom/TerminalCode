@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::thread;
 use std::time::Duration;
 
@@ -69,8 +69,7 @@ struct Shared {
     ended: AtomicBool,
     /// The size the child should have, until the writer thread applies it.
     wanted_size: Mutex<Option<PtySize>>,
-    /// Everything the child has printed, for tests.
-    #[cfg(test)]
+    /// How many bytes the child has printed so far.
     received: std::sync::atomic::AtomicU64,
 }
 
@@ -96,7 +95,7 @@ impl Session {
 
         let mut command = CommandBuilder::new(&config.shell.program);
         command.args(&config.shell.args);
-        command.cwd(&config.directory);
+        command.cwd(working_directory(&config.directory));
         command.env("TERM", "xterm-256color");
         let child = pair
             .slave
@@ -122,7 +121,6 @@ impl Session {
             wake_pending: AtomicBool::new(false),
             ended: AtomicBool::new(false),
             wanted_size: Mutex::new(None),
-            #[cfg(test)]
             received: std::sync::atomic::AtomicU64::new(0),
         });
         let input = Arc::new(BoundedQueue::new(QUEUED_CHUNKS));
@@ -135,10 +133,14 @@ impl Session {
         let (writing, queue) = (Arc::clone(&shared), Arc::clone(&input));
         thread::spawn(move || write_input(writer, pair.master, &writing, &queue));
 
+        let child = Arc::new(Mutex::new(child));
+        let (watched, watching) = (Arc::downgrade(&child), Arc::clone(&shared));
+        thread::spawn(move || watch_child(&watched, &watching, &*wake));
+
         Ok(Self {
             shared,
             input,
-            child: Arc::new(Mutex::new(child)),
+            child,
             process_id,
         })
     }
@@ -237,8 +239,8 @@ impl Session {
         self.shared.received.load(Ordering::Relaxed)
     }
 
-    /// Whether the shell has closed its end of the terminal, which is what
-    /// happens when it exits.
+    /// Whether the shell is over and its last output has been taken: its end of
+    /// the terminal closed, or (on Windows, where that never happens) it exited.
     pub(crate) fn output_ended(&self) -> bool {
         self.shared.ended.load(Ordering::SeqCst)
     }
@@ -323,7 +325,6 @@ fn read_output(
             // A child that does not listen loses the answer, as it would a keystroke.
             let _ = answers.push_within(Message::Input(replies), WAIT_FOR_ROOM);
         }
-        #[cfg(test)]
         shared.received.fetch_add(read as u64, Ordering::Relaxed);
         wake_once(shared, wake);
     }
@@ -362,5 +363,68 @@ fn write_input(
             queue.close();
             return;
         }
+    }
+}
+
+/// How often [`watch_child`] looks whether the child is still there.
+const CHILD_POLL: Duration = Duration::from_millis(100);
+/// How long the output has to stay quiet, once the child is gone, for the rest
+/// of it to count as taken.
+const OUTPUT_QUIET: Duration = Duration::from_millis(25);
+/// How many quiet periods to wait for at most.
+const QUIET_TRIES: usize = 10;
+
+/// Notices that the child exited when the reader cannot tell. Unix closes the
+/// terminal when the child exits, so the reader sees the end. Windows' ConPTY
+/// keeps it open until the terminal is closed, so without this nobody would
+/// learn that the shell is over. Stops when the reader has seen the end, or
+/// when the session is gone.
+fn watch_child(
+    child: &Weak<Mutex<Box<dyn Child + Send + Sync>>>,
+    shared: &Shared,
+    wake: &(dyn Fn() + Send + Sync),
+) {
+    loop {
+        thread::sleep(CHILD_POLL);
+        if shared.ended.load(Ordering::SeqCst) {
+            return;
+        }
+        let Some(child) = child.upgrade() else {
+            return;
+        };
+        let exited = child
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .try_wait()
+            .ok()
+            .flatten()
+            .is_some();
+        if exited {
+            wait_for_quiet_output(shared);
+            shared.ended.store(true, Ordering::SeqCst);
+            wake_once(shared, wake);
+            return;
+        }
+    }
+}
+
+/// Waits until the child's output has stopped arriving, for a little while at most.
+fn wait_for_quiet_output(shared: &Shared) {
+    let mut seen = shared.received.load(Ordering::Relaxed);
+    for _ in 0..QUIET_TRIES {
+        thread::sleep(OUTPUT_QUIET);
+        let now = shared.received.load(Ordering::Relaxed);
+        if now == seen {
+            return;
+        }
+        seen = now;
+    }
+}
+
+/// The directory to start the shell in: `directory` as the shell can use it.
+fn working_directory(directory: &std::path::Path) -> PathBuf {
+    match cfg!(windows) {
+        true => crate::paths::without_verbatim_prefix(directory),
+        false => directory.to_path_buf(),
     }
 }

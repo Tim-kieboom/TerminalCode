@@ -142,6 +142,8 @@ fn keys_still_reach_a_shell_that_is_busy_printing() {
 /// read: the only kind of shell a write can block on.
 const NOT_READING: &str = "stty raw -echo; sleep 30";
 
+// A Unix terminal in raw mode stops reading, which fills its input; ConPTY takes input into a console buffer that does not fill the same way, so this cannot be set up there.
+#[cfg(unix)]
 #[test]
 fn a_paste_of_several_megabytes_into_a_shell_that_is_not_reading_does_not_freeze_anything() {
     let rig = start(NOT_READING);

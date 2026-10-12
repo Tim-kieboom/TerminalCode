@@ -16,6 +16,8 @@ fn hundred_lines() -> Rig {
     rig
 }
 
+// ConPTY redraws the screen instead of passing the output through, so the lines of history it leaves differ from a Unix terminal's; the exact counts are checked on Unix and by hand on Windows.
+#[cfg(unix)]
 #[test]
 fn the_view_starts_at_the_present() {
     let rig = hundred_lines();
@@ -24,6 +26,8 @@ fn the_view_starts_at_the_present() {
     assert_eq!(first_row(&rig), 78);
 }
 
+// ConPTY redraws the screen instead of passing the output through, so the lines of history it leaves differ from a Unix terminal's; the exact counts are checked on Unix and by hand on Windows.
+#[cfg(unix)]
 #[test]
 fn scrolling_up_shows_older_lines() {
     let rig = hundred_lines();
@@ -34,6 +38,8 @@ fn scrolling_up_shows_older_lines() {
     assert_eq!(first_row(&rig), 68);
 }
 
+// ConPTY redraws the screen instead of passing the output through, so the lines of history it leaves differ from a Unix terminal's; the exact counts are checked on Unix and by hand on Windows.
+#[cfg(unix)]
 #[test]
 fn scrolling_stops_at_the_oldest_line_and_at_the_present() {
     let rig = hundred_lines();
@@ -57,6 +63,8 @@ fn scrolling_down_after_scrolling_up_comes_back_step_by_step() {
     assert_eq!(rig.session.scrollback_offset(), 20);
 }
 
+// ConPTY redraws the screen instead of passing the output through, so the lines of history it leaves differ from a Unix terminal's; the exact counts are checked on Unix and by hand on Windows.
+#[cfg(unix)]
 #[test]
 fn the_top_and_the_bottom_can_be_jumped_to() {
     let rig = hundred_lines();
@@ -69,6 +77,8 @@ fn the_top_and_the_bottom_can_be_jumped_to() {
     assert_eq!(first_row(&rig), 78);
 }
 
+// ConPTY redraws the screen instead of passing the output through, so the lines of history it leaves differ from a Unix terminal's; the exact counts are checked on Unix and by hand on Windows.
+#[cfg(unix)]
 #[test]
 fn output_that_arrives_while_scrolled_back_does_not_move_the_view() {
     let rig = start("seq 1 50; sleep 0.5; seq 51 60; sleep 30");
