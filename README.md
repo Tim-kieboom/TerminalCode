@@ -8,7 +8,7 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**This is version 0.1.0.** Release builds for Linux and Windows (and macOS, best effort) are on the
+**This is version 0.2.0.** Release builds for Linux and Windows (and macOS, best effort) are on the
 [releases page](https://github.com/Tim-kieboom/TerminalCode/releases) with their checksums, or you can build from
 source (see below). What is planned next is tracked in [docs/todo.md](docs/todo.md); the design is in
 [docs/design.md](docs/design.md).
@@ -47,6 +47,20 @@ folder. The binary is `terminal_code.exe` on Windows.
 Any terminal with true color works. A terminal that supports the
 [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (kitty and foot, for example)
 reports every key combination; others get fallbacks for the combinations they lose.
+
+### Nix and NixOS
+
+The repository is a flake. Try it without installing, or install it into your profile:
+
+```bash
+nix run github:Tim-kieboom/TerminalCode -- [folder] [file ...]
+nix profile install github:Tim-kieboom/TerminalCode
+```
+
+On NixOS, add it as an input and put `inputs.terminal_code.packages.${pkgs.system}.default` in
+`environment.systemPackages`. On Linux the package puts `wl-clipboard` and `xclip` on the program's `PATH` for the
+clipboard; `rust-analyzer` is not included, install it yourself for the language server. `nix develop` gives a shell
+with the Rust toolchain to work on the code.
 
 ## Keys
 
@@ -116,9 +130,9 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   ordinary lines are fine: 10 MB opens in about 10 ms.
 - Only UTF-8 files can be opened.
 - Undo is linear (no undo tree), and there is one cursor.
-- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics only, with no hover, go to definition or completion yet. No debugger or plugins yet; those are planned after 0.1.0 (see the backlog in
+- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics only, with no hover, go to definition or completion yet. No debugger or plugins yet; those are planned after 0.2.0 (see the backlog in
   [docs/todo.md](docs/todo.md)).
-- The vim layer is planned for after 0.1.0 too; the editor works like an IDE until then.
+- The vim layer is planned for after 0.2.0 too; the editor works like an IDE until then.
 - On macOS the terminal pane's timing tests are flaky in CI, and the manual test pass on Windows Terminal is still
   to be done.
 
