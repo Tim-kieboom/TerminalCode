@@ -1,8 +1,8 @@
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 use terminal_code::error::IdeResult;
 use terminal_code::terminal;
+use terminal_code::{Invocation, help_text, version_text};
 
 fn main() -> ExitCode {
     match start() {
@@ -15,18 +15,23 @@ fn main() -> ExitCode {
 }
 
 fn start() -> IdeResult {
-    set_restore_on_panic();
+    // Help and version are answered before the terminal is touched.
+    let paths = match Invocation::from_args(std::env::args_os()) {
+        Invocation::Help => return print(help_text()),
+        Invocation::Version => return print(version_text()),
+        Invocation::Open(paths) => paths,
+    };
 
-    let paths = parse_args();
+    set_restore_on_panic();
     let (terminal, capabilities) = terminal::init();
     let result = terminal_code::run(terminal, &paths, capabilities);
     terminal::restore();
     result
 }
 
-fn parse_args() -> Vec<PathBuf> {
-    let args = std::env::args_os();
-    terminal_code::paths_from_args(args)
+fn print(text: String) -> IdeResult {
+    println!("{text}");
+    Ok(())
 }
 
 fn set_restore_on_panic() {

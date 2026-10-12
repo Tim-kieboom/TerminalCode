@@ -141,3 +141,52 @@ fn without_a_directory_argument_there_is_no_named_project() {
     assert_eq!(project, None);
     assert_eq!(files.len(), 1);
 }
+
+#[test]
+fn a_first_argument_that_is_a_help_or_version_flag_asks_for_that() {
+    use crate::Invocation;
+
+    for flag in ["-h", "--help"] {
+        assert_eq!(Invocation::from_args(args(&["tc", flag])), Invocation::Help);
+    }
+    for flag in ["-v", "--version"] {
+        assert_eq!(
+            Invocation::from_args(args(&["tc", flag])),
+            Invocation::Version
+        );
+    }
+}
+
+#[test]
+fn flags_only_count_first_and_a_double_dash_makes_them_files() {
+    use crate::Invocation;
+    use std::path::PathBuf;
+
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "a.rs", "-v"])),
+        Invocation::Open(vec![PathBuf::from("a.rs"), PathBuf::from("-v")])
+    );
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "--", "-h"])),
+        Invocation::Open(vec![PathBuf::from("-h")])
+    );
+    assert_eq!(
+        Invocation::from_args(args(&["tc"])),
+        Invocation::Open(Vec::new())
+    );
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "src", "main.rs"])),
+        Invocation::Open(vec![PathBuf::from("src"), PathBuf::from("main.rs")])
+    );
+}
+
+#[test]
+fn the_version_and_help_texts_name_the_command_and_its_flags() {
+    let version = crate::version_text();
+    assert_eq!(version, format!("trcode {}", env!("CARGO_PKG_VERSION")));
+
+    let help = crate::help_text();
+    for needle in ["Usage: trcode", "-h, --help", "-v, --version", "--"] {
+        assert!(help.contains(needle), "{needle}: {help}");
+    }
+}

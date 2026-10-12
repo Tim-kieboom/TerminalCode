@@ -369,7 +369,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   pane's active view scroll to its cursor. A press focuses the pane under it (and switches tab or places the cursor);
   drags and releases go to the focused pane; the wheel scrolls the pane under the pointer without moving focus;
   a middle press on a tab closes that tab (`close_tab_at`), whether or not it is active or its pane is focused.
-- Command line: every path argument opens a tab (first one active).
+- Command line (`src/cli.rs`): every path argument opens a tab (first one active). `-h`/`--help` and `-v`/`--version` count only as the first argument, print and exit before the terminal is touched; `--` first makes everything after it a path.
 
 ## Component frames
 - Every component is drawn inside a `PaneFrame` (`ui::pane_frame`): border `sides` (a list of `Top`, `Right`, `Bottom`,

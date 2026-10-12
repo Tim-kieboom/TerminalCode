@@ -14,6 +14,7 @@ use crate::watcher::FsWatcher;
 
 mod app;
 mod buffer;
+mod cli;
 mod clipboard;
 mod components;
 mod config;
@@ -81,6 +82,8 @@ where
         app.run(&mut terminal, sources).await
     })
 }
+
+pub use cli::{Invocation, help_text, version_text};
 
 /// The files to open: every argument after the program name. A leading `--`
 /// marks the end of options and is skipped.

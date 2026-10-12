@@ -42,7 +42,8 @@ cargo build --release
 ```
 
 The first folder you name is the project; the files are opened in tabs. With no arguments it opens the current
-folder. The binary is `trcode.exe` on Windows.
+folder. `trcode -v` prints the version and `trcode -h` the usage (a file named like a flag opens with `--` before it).
+The binary is `trcode.exe` on Windows.
 
 Any terminal with true color works. A terminal that supports the
 [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (kitty and foot, for example)
