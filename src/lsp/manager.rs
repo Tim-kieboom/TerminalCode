@@ -19,6 +19,9 @@ pub(crate) struct Manager {
     supervisor: Supervisor,
     launcher: Arc<dyn Launcher>,
     sessions: HashMap<ServerKey, Session>,
+    /// How many sessions each server has had, so that a server that started again
+    /// is told from the one it replaces.
+    generations: HashMap<ServerKey, u64>,
     started: Receiver<Started>,
     starter: Sender<Started>,
     /// Called when something is waiting for [`Manager::poll`].
@@ -35,6 +38,7 @@ impl Manager {
             supervisor: Supervisor::default(),
             launcher,
             sessions: HashMap::new(),
+            generations: HashMap::new(),
             started,
             starter,
             wake: Arc::new(wake),
@@ -61,6 +65,7 @@ impl Manager {
             let effects = match result {
                 Ok(session) => {
                     self.sessions.insert(key.clone(), session);
+                    *self.generations.entry(key.clone()).or_default() += 1;
                     self.supervisor.launched(&key, Ok(()))
                 }
                 Err(error) => self.supervisor.launched(&key, Err(error)),
@@ -132,5 +137,23 @@ impl Manager {
         self.supervisor.reset();
         // A start that was under way finishes into nothing.
         while self.started.try_recv().is_ok() {}
+    }
+}
+
+impl Manager {
+    /// The servers that are running now, with the number of the session each is in.
+    pub(crate) fn running(&self) -> Vec<(ServerKey, u64)> {
+        self.sessions
+            .keys()
+            .map(|key| (key.clone(), self.generations.get(key).copied().unwrap_or(0)))
+            .collect()
+    }
+
+    /// Sends a notification to the server `key`. One that is not running, or
+    /// whose connection broke, is left to [`Manager::poll`] to find out.
+    pub(crate) fn notify(&self, key: &ServerKey, method: &str, params: serde_json::Value) {
+        if let Some(session) = self.sessions.get(key) {
+            let _ = session.connection.notify(method, params);
+        }
     }
 }

@@ -414,3 +414,53 @@ fn typing_in_ten_megabytes_of_rust_while_it_is_colored() {
         "a key, frame or answer took {slowest:?}"
     );
 }
+
+/// What the language server sync costs on a big document: the first message
+/// carries all the text, and each later one is found by comparing the text
+/// with what the server has. Held to the frame budget, since it runs before
+/// every frame that follows a change.
+#[test]
+#[ignore = "measures; run in release"]
+fn telling_a_server_about_an_edit_in_ten_megabytes() {
+    use crate::components::workspace::DocumentId;
+    use crate::lsp::{DocSnapshot, DocumentSync, ServerKey};
+    let text = lines_of(TEN_MEGABYTES, 80);
+    let key = ServerKey {
+        name: "rust".to_owned(),
+        root: std::path::PathBuf::from("/p"),
+    };
+    let snapshot = |text: &str, version| DocSnapshot {
+        id: DocumentId::for_test(1),
+        uri: "file:///p/big.rs".to_owned(),
+        language_id: "rust".to_owned(),
+        text: ropey::Rope::from_str(text),
+        version,
+        saves: 0,
+    };
+    let mut sync = DocumentSync::default();
+    let (_, opening) = time(|| sync.messages(&key, 1, &[snapshot(&text, 0)]));
+
+    // An edit near the start, in the middle and near the end.
+    let mut slowest = Duration::ZERO;
+    for (number, at) in [text.len() / 100, text.len() / 2, text.len() - 1000]
+        .into_iter()
+        .enumerate()
+    {
+        let at = at - at % 81;
+        let mut edited = text.clone();
+        edited.insert(at, 'x');
+        let doc = snapshot(&edited, number as u64 + 1);
+        let (messages, took) = time(|| sync.messages(&key, 1, std::slice::from_ref(&doc)));
+        assert_eq!(messages.len(), 1);
+        slowest = slowest.max(took);
+        // Back to the original, so each edit is against the same text.
+        let back = snapshot(&text, number as u64 + 100);
+        sync.messages(&key, 1, &[back]);
+    }
+
+    eprintln!("sync of 10 MB: open message {opening:.1?}, slowest edit {slowest:.1?}");
+    assert!(
+        slowest < FRAME_BUDGET,
+        "an edit took {slowest:?} to work out"
+    );
+}

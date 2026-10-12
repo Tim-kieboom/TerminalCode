@@ -319,3 +319,31 @@ pub(crate) fn stays() -> Option<Script> {
 pub(crate) fn dies() -> Option<Script> {
     Some(Box::new(|_| {}))
 }
+
+/// A server that passes on everything it is sent, and stays until the client
+/// hangs up.
+pub(crate) fn recording(sent: std::sync::mpsc::Sender<crate::lsp::Message>) -> Option<Script> {
+    Some(Box::new(move |session| {
+        while let Some(message) = session.next() {
+            let _ = sent.send(message);
+        }
+    }))
+}
+
+/// A server that passes on what it is sent until it has had `count` messages,
+/// and then dies.
+pub(crate) fn recording_then_dying(
+    sent: std::sync::mpsc::Sender<crate::lsp::Message>,
+    count: usize,
+) -> Option<Script> {
+    Some(Box::new(move |session| {
+        for _ in 0..count {
+            match session.next() {
+                Some(message) => {
+                    let _ = sent.send(message);
+                }
+                None => return,
+            }
+        }
+    }))
+}

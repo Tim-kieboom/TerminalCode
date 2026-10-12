@@ -29,7 +29,7 @@ use crate::ui::layout::Axis;
 
 use bulk::ClosedTab;
 pub(crate) use bulk::{CloseMany, CloseScope};
-pub(crate) use disk::{DiskEvent, SaveOutcome};
+pub(crate) use disk::{DiskEvent, LspDocument, SaveOutcome};
 use tree::Node;
 
 mod bulk;
@@ -74,6 +74,8 @@ struct Document {
     /// The change on disk the user was already told about, so repeated file
     /// events do not repeat the warning.
     warned: Option<DiskChange>,
+    /// How many times the document was saved, for a language server to be told.
+    saves: u64,
     /// Whether the file was read-only when last looked at, for the tab's note.
     read_only: bool,
     /// The view that made the latest change, so a typing burst is not merged
@@ -800,6 +802,7 @@ impl Workspace {
                 indent,
                 last_editor: None,
                 warned: None,
+                saves: 0,
                 syntax: DocumentSyntax::new(u64::from(id.0)),
             },
         );
@@ -1005,4 +1008,12 @@ fn center_distance(start_a: u16, len_a: u16, start_b: u16, len_b: u16) -> u32 {
     let center_a = u32::from(start_a) * 2 + u32::from(len_a);
     let center_b = u32::from(start_b) * 2 + u32::from(len_b);
     center_a.abs_diff(center_b)
+}
+
+#[cfg(test)]
+impl DocumentId {
+    /// An id for tests that need documents without a workspace.
+    pub(crate) fn for_test(number: u32) -> Self {
+        Self(number)
+    }
 }

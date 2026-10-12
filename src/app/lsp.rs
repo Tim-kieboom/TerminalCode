@@ -1,13 +1,21 @@
 //! The language servers: starting the one the file in front needs, and saying
 //! how it is doing. The servers themselves are run by [`Manager`].
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::components::workspace::{DocumentId, LspDocument};
 use crate::event::Event;
 #[cfg(not(test))]
 use crate::lsp::ProcessLauncher;
-use crate::lsp::{LaunchSpec, Launcher, Manager, Notice, ServerKey};
+use crate::lsp::uri::file_uri;
+use crate::lsp::{
+    DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice, ServerKey,
+    language_id,
+};
+use crate::paths::{canonical, without_verbatim_prefix};
 
 use super::App;
 
@@ -20,6 +28,12 @@ pub(super) struct Lsp {
     launcher: Option<Arc<dyn Launcher>>,
     /// The server of the file in front, whose state the status bar shows.
     shown: Option<ServerKey>,
+    /// What each server has been told about the documents it serves.
+    sync: DocumentSync,
+    /// Which server each open document goes to, found once for each path.
+    targets: HashMap<DocumentId, (PathBuf, Option<Target>)>,
+    /// What the documents and servers were like when they were last synced.
+    fingerprint: u64,
 }
 
 impl Default for Lsp {
@@ -28,6 +42,9 @@ impl Default for Lsp {
             manager: None,
             launcher: Self::default_launcher(),
             shown: None,
+            sync: DocumentSync::default(),
+            targets: HashMap::new(),
+            fingerprint: 0,
         }
     }
 }
@@ -108,6 +125,9 @@ impl App {
             manager.reset();
         }
         self.lsp.shown = None;
+        self.lsp.sync.clear();
+        self.lsp.targets.clear();
+        self.lsp.fingerprint = 0;
         self.lsp_file_shown();
     }
 
@@ -167,4 +187,97 @@ impl App {
             self.needs_redraw = true;
         }
     }
+}
+
+/// Where a document goes: the server it is served by, and how that server
+/// names it.
+#[derive(Debug, Clone)]
+struct Target {
+    key: ServerKey,
+    uri: String,
+    language_id: String,
+}
+
+impl App {
+    /// Tells the running servers what changed in the documents they serve since
+    /// the last time: `didOpen` for a document they have not seen, `didChange`
+    /// for what was typed, `didSave`, and `didClose`. Called before each frame,
+    /// so a burst of typing between two frames is one message.
+    pub(crate) fn lsp_sync(&mut self) {
+        let project = self.project_root();
+        let Some(manager) = self.lsp.manager.as_mut() else {
+            return;
+        };
+        let running = manager.running();
+        if running.is_empty() {
+            return;
+        }
+        let docs = self.state.workspace().lsp_documents();
+        let fingerprint = fingerprint(&docs, &running);
+        if fingerprint == self.lsp.fingerprint {
+            return;
+        }
+        self.lsp.fingerprint = fingerprint;
+
+        let mut by_server: HashMap<ServerKey, Vec<DocSnapshot>> = HashMap::new();
+        for doc in docs {
+            let cached = self
+                .lsp
+                .targets
+                .get(&doc.id)
+                .filter(|(path, _)| *path == doc.path);
+            let target = match cached {
+                Some((_, target)) => target.clone(),
+                None => {
+                    let target = find_target(&self.settings.language_servers, &doc.path, &project);
+                    self.lsp
+                        .targets
+                        .insert(doc.id, (doc.path.clone(), target.clone()));
+                    target
+                }
+            };
+            let Some(target) = target else {
+                continue;
+            };
+            by_server.entry(target.key).or_default().push(DocSnapshot {
+                id: doc.id,
+                uri: target.uri,
+                language_id: target.language_id,
+                text: doc.text,
+                version: doc.version,
+                saves: doc.saves,
+            });
+        }
+
+        for (key, generation) in running {
+            let snapshots = by_server.get(&key).map_or(&[][..], Vec::as_slice);
+            for message in self.lsp.sync.messages(&key, generation, snapshots) {
+                manager.notify(&key, message.method, message.params);
+            }
+        }
+    }
+}
+
+/// The server for the file at `path` and how it names it, if there is one.
+fn find_target(servers: &LanguageServers, path: &Path, project: &Path) -> Option<Target> {
+    let (key, _) = servers.resolve(path, project)?;
+    let uri = file_uri(&without_verbatim_prefix(&canonical(path)))?;
+    let extension = path.extension()?.to_str()?;
+    Some(Target {
+        key,
+        uri,
+        language_id: language_id(extension),
+    })
+}
+
+/// A number that changes when any document or any server run does.
+fn fingerprint(docs: &[LspDocument], running: &[(ServerKey, u64)]) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for doc in docs {
+        (doc.id, &doc.path, doc.version, doc.saves).hash(&mut hasher);
+    }
+    let mut running: Vec<_> = running.iter().collect();
+    running.sort();
+    running.hash(&mut hasher);
+    hasher.finish()
 }

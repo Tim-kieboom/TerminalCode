@@ -14,18 +14,22 @@ pub(crate) use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartErr
 pub(crate) use manager::Manager;
 pub(crate) use message::{Id, Message, RpcError};
 pub(crate) use supervisor::{Effect, Notice, Supervisor};
+pub(crate) use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
 mod config;
 mod connection;
+mod diff;
 mod error;
 mod framing;
 mod handshake;
 mod launch;
 mod manager;
 mod message;
+mod position;
 mod progress;
 mod replies;
 mod supervisor;
+mod sync;
 #[cfg(test)]
 pub(crate) mod tests;
 pub(crate) mod uri;

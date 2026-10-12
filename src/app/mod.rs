@@ -154,6 +154,8 @@ impl App {
                 .unwrap_or(Instant::now());
 
             if self.needs_redraw() && Instant::now() >= draw_at {
+                // What was typed since the last frame is one message to the servers.
+                self.lsp_sync();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;

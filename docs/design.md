@@ -777,6 +777,14 @@ history per document.
 several on a line the worst one shows, with "+N more". You read a message by putting the cursor on its line (a hover
 popup arrives with the hover feature). `f8` and `shift+f8` jump to the next and previous diagnostic.
 
-**Sync.** `didOpen` when a matching file is shown, incremental `didChange` from the buffer's edit log (with the
-positions before each edit), `didSave` on save, `didClose` when its last tab closes. Changes are batched so a typing
-burst is one message.
+**Sync.** `didOpen` when a server runs and a matching document is open (all open documents it serves, not only the
+one in front), `didChange`, `didSave` after a save and `didClose` when the document goes away or has another name.
+Built (this replaced the first idea of replaying the buffer's edit log, which has byte ranges but not the replaced text
+and has one consumer already, the syntax worker): the client keeps a copy of each document as the server has it (a rope
+clone, which shares its text) and sends the **difference between that copy and the text now** as one incremental change,
+the common start and end kept and the middle replaced, never splitting a character or a `\r\n`. It does not depend on
+how the text got there (typing, undo, replace all, a reload from disk), so it cannot disagree with the text, and a burst
+of typing between two frames is one message because the sync runs once before each frame. Positions are converted with
+the rope's UTF-16 counts in logarithmic time. A server that started again, or whose settings changed, is told
+everything again (each run of a server has a number). Measured: an edit in 10 MB is worked out in about 5 ms and the
+first `didOpen` of 10 MB takes about 17 ms (release build).

@@ -1,12 +1,15 @@
 mod config_tests;
 mod connection_tests;
+mod diff_tests;
 mod framing_tests;
 mod handshake_tests;
 mod launch_tests;
 mod manager_tests;
 mod message_tests;
+mod position_tests;
 mod progress_tests;
 mod replies_tests;
 mod supervisor_tests;
 pub(crate) mod support;
+mod sync_tests;
 mod uri_tests;

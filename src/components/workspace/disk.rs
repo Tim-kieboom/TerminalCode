@@ -178,6 +178,7 @@ impl Workspace {
         }
         self.confirm_overwrite = None;
         doc.buffer.save()?;
+        doc.saves += 1;
         doc.warned = None;
         Ok(SaveOutcome::Saved)
     }
@@ -253,5 +254,36 @@ impl Workspace {
             Some(DiskChange::Modified(_)) => " [changed]",
             None => "",
         }
+    }
+}
+
+/// A document as a language server is told about it.
+#[derive(Debug, Clone)]
+pub(crate) struct LspDocument {
+    pub(crate) id: DocumentId,
+    pub(crate) path: PathBuf,
+    pub(crate) text: ropey::Rope,
+    pub(crate) version: u64,
+    pub(crate) saves: u64,
+}
+
+impl Workspace {
+    /// Every open document that has a file, in order, as it is now. Cheap: the
+    /// text is shared, not copied.
+    pub(crate) fn lsp_documents(&self) -> Vec<LspDocument> {
+        let mut ids: Vec<DocumentId> = self.documents.keys().copied().collect();
+        ids.sort();
+        ids.into_iter()
+            .filter_map(|id| {
+                let doc = self.documents.get(&id)?;
+                Some(LspDocument {
+                    id,
+                    path: doc.buffer.path()?.to_path_buf(),
+                    text: doc.buffer.snapshot(),
+                    version: doc.buffer.version(),
+                    saves: doc.saves,
+                })
+            })
+            .collect()
     }
 }
