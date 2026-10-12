@@ -518,8 +518,8 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   child that is not reading), written before any UI depends on the design; (B) the pane draws the screen, the
   toggle, spawn on first show, PTY size following the pane, one wake-up per drawn frame; (C) key encoding, the
   `ctrl+b` prefix with its fixed table and keymap fallthrough, the pending indicator in the status bar, bracketed
-  paste; (D) scrollback and the alternate screen; (E) mouse passthrough and terminal tabs. Windows (ConPTY) cannot
-  be tested here.
+  paste; (D) scrollback and the alternate screen; (E) mouse passthrough and terminal tabs. Windows (ConPTY) could not
+  be tested here at the time; CI does it now.
 - Step A is done: `src/pty` has `Session` (spawn a `Shell` in a directory through `portable-pty`, `TERM` set to
   `xterm-256color`), with no UI. The reader thread reads 8 KB at a time and feeds `vt100` (10,000 lines of
   scrollback) under a mutex it holds only per slice, then calls the wake-up once until `take_dirty` is called
@@ -530,7 +530,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   input. Dropping the session kills and reaps the shell. A terminal in line mode throws away input that does not
   fit instead of blocking the writer, so a child that "is not reading" only makes writes block once it has set raw
   mode (what a shell's line editor does); the not-reading tests use `stty raw -echo`. Needs the `cc`-free
-  `portable-pty` and `vt100` crates only; Windows (ConPTY) is untested.
+  `portable-pty` and `vt100` crates only; Windows (ConPTY) is tested on `windows-latest`, see "ConPTY" below.
 - Step A2 is done (`src/pty/tests/flood_tests.rs`): a `probe` stands in for the app between two events: it hands a
   byte to the shell and, when the screen changed, looks at every cell, timing both against the 50 ms limit. While a
   shell prints scrolling lines (`yes | head -c N`) the slowest key took about 9 µs and the slowest frame about
@@ -698,3 +698,21 @@ the embedded `defaults/default_theme.toml`; there is no user theme file.
   right after the last tab, or at the end of the bar when the tabs fill it; a left click on it is the same as
   `ctrl+b c`: a new tab, with the keyboard. Every shell therefore has one row less than the pane's inner height from
   the start, and opening a second tab no longer resizes the first.
+
+### ConPTY (Windows terminal), found by running the suite on `windows-latest`
+- ConPTY writes `ESC [ 6 n` (where is the cursor?) before it starts the shell and holds the shell back until the
+  terminal answers. Without an answer the session got 4 bytes, showed nothing and never ran the shell, so every
+  terminal test failed. `src/pty/replies.rs` answers it with `ESC [ row ; column R` from the screen's cursor, as of
+  the moment of the query, also when the query is split over two reads. Other queries (device attributes and so on)
+  are not answered yet.
+- ConPTY keeps the terminal open after the shell exits, so the reader never sees the end. A watcher thread in
+  `session.rs` polls the child every 100 ms; when it is gone it waits for the output to go quiet (25 ms, up to ten
+  times), marks the session ended and wakes the app. Unix still ends through the reader.
+- `canonicalize` on Windows gives `\\?\C:\...`, which `cmd.exe` cannot use as a working directory. The shell is started
+  in the path without the prefix (`paths::without_verbatim_prefix`).
+- ConPTY redraws its screen instead of passing the output through, so the lines of scrollback it leaves differ by a
+  few from a Unix terminal's, and its input never "fills" the way a raw-mode Unix terminal's does. The tests that
+  depend on exact history counts, on a shell that stops reading, or on `pwd` (Git's `sh` writes `/c/Users/...`) run on
+  Unix only; the Windows tests use `cmd.exe` (`src/pty/tests/windows_tests.rs`).
+- CI runs the tests with `cargo nextest` (`.config/nextest.toml`): a test that hangs is killed after a minute and
+  reported, the flood timing tests get two retries, and a job cannot hold a runner for more than 20 minutes.

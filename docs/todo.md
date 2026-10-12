@@ -97,7 +97,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
 - [ ] Benchmarks (`criterion`): parse and highlight on a large file, mapping highlights through edits, buffer edits and undo, rope line access, explorer reload of a big directory, finder and project search on a big tree, render of a full frame; run in CI or on demand to catch regressions
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
-- [ ] Windows: run the integrated terminal on ConPTY (`portable-pty`, never run there yet): shell from `COMSPEC`, resize, key encoding, bracketed paste, mouse reports, line endings, tabs closing their shell; consider a Windows CI job for the `pty` tests
+- [x] Windows CI now runs the whole suite on ConPTY (`windows-latest`, all tests pass in about a minute; see `docs/design.md`, "ConPTY"). Still by hand on a real Windows machine, in Windows Terminal: the shell from `COMSPEC` (cmd.exe) and PowerShell, resize, key encoding, bracketed paste, mouse reports, line endings, scrollback (ConPTY redraws the screen, so history counts differ from Unix), tabs closing their shell
+- [ ] macOS (best-effort in CI): `a_paste_of_several_megabytes_into_a_shell_that_is_not_reading_does_not_freeze_anything` holds the caller about 54 ms (limit 50 ms) on the runner, and the flood timing tests are flaky there; look when macOS is tested by hand
 
 ## M9 — Release 0.1.0
 - [ ] README (install, keybinds, config), license
