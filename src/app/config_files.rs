@@ -2,7 +2,7 @@
 
 use crate::app::state::Focus;
 use crate::components::ComponentKind;
-use crate::config::{self, ConfigFile};
+use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::error::{IdeError, IdeResult};
 use crate::settings::Settings;
 use crate::ui::theme::ThemeVariant;
@@ -57,29 +57,27 @@ impl App {
         let Some(dir) = self.config_dir.clone() else {
             return Ok(());
         };
-        let name = match &self.installed_theme {
-            Some(name) => name.clone(),
-            None => self.theme_variant.name().to_owned(),
-        };
+        let variant = self.theme_choice.variant;
+        let name = self.theme_choice.name().to_owned();
         let Some(path) = config::installed_theme_path(&dir, &name) else {
             self.state
                 .notify_error(format!("{name} is not a usable theme name"));
             return Ok(());
         };
         let created = ConfigFile::Theme
-            .create_with(&path, self.theme_variant.source())
+            .create_with(&path, variant.source())
             .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
-        if self.installed_theme.as_deref() != Some(name.as_str()) {
+        if self.theme_choice.installed.as_deref() != Some(name.as_str()) {
             // The file is the theme in use from now on, so editing it shows.
-            self.installed_theme = Some(name.clone());
-            self.apply_chosen_theme(&name);
+            self.theme_choice = ThemeChoice::installed(name);
+            self.apply_chosen_theme("");
         }
         self.state.workspace_mut().open_path(&path)?;
         if created {
             self.state.notify(format!(
                 "made {} from the built-in {} theme and chose it; changes apply when it is saved",
                 path.display(),
-                self.theme_variant.name()
+                variant.name()
             ));
         }
         Ok(())
@@ -87,30 +85,25 @@ impl App {
 }
 
 impl App {
-    /// Reads the user's theme, layout and keymap files again and applies them,
-    /// as if the editor had started over (and later the plugins too). A file
-    /// that is missing is normal, and one that is invalid is reported and
-    /// replaced by the built-in one, exactly as at startup. Open files, tabs
-    /// and the terminal are left alone. A setting is applied only when the
-    /// settings file changed it, so a theme chosen from the palette stays until
-    /// then; an invalid settings file leaves the settings as they are.
+    /// Reads the user's settings, theme, layout and keymap files again and
+    /// applies them, as if the editor had started over (and later the plugins
+    /// too). A file that is missing is normal, and one that is invalid is
+    /// reported and replaced by the built-in one, exactly as at startup. Open
+    /// files, tabs and the terminal are left alone. A setting is applied only
+    /// when the settings file changed it, so a theme chosen from the palette
+    /// stays until then; an invalid settings file leaves the settings as they are.
     pub(super) fn reload(&mut self) {
         self.config_applied = self.config_hash();
-        let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
+        let dir = self.config_dir.clone();
+        let path = |file: ConfigFile| dir.as_deref().map(|dir| file.path_in(dir));
 
         let settings = config::load_settings(path(ConfigFile::Settings).as_deref());
         let settings_warning = settings.warning;
         let theme_warning = settings
             .settings
             .and_then(|settings| self.apply_settings(settings));
-        let path = |file: ConfigFile| self.config_dir.as_deref().map(|dir| file.path_in(dir));
 
-        let installed = self.installed_theme_path();
-        let theme = config::load_chosen_theme(
-            self.theme_variant,
-            installed.as_deref(),
-            path(ConfigFile::Theme).as_deref(),
-        );
+        let theme = config::load_chosen_theme(&self.theme_choice, dir.as_deref());
         let layout = config::load_layout(path(ConfigFile::Layout).as_deref());
         let keymap =
             config::load_keymap(path(ConfigFile::Keymap).as_deref(), self.keyboard_support);
@@ -135,7 +128,7 @@ impl App {
 
         let failed = warnings.iter().flatten().count();
         for warning in warnings.into_iter().flatten() {
-            self.state.notify_error(warning);
+            self.state.notify_error(warning.to_string());
         }
         if failed == 0 {
             self.state
@@ -144,17 +137,19 @@ impl App {
     }
 
     /// Makes `settings` the ones in use. The theme they name is chosen when it
-    /// differs from the one the settings named before; a name that is no theme
-    /// is returned as a warning and leaves the theme as it is.
-    fn apply_settings(&mut self, settings: Settings) -> Option<String> {
+    /// differs from the one the settings named before. A name that is no theme
+    /// is returned as a warning and leaves the theme as it is; it also counts as
+    /// not applied, so it is tried again at the next reload (the theme file may
+    /// have been made in the meantime).
+    fn apply_settings(&mut self, mut settings: Settings) -> Option<ConfigWarning> {
         let mut warning = None;
         if settings.theme != self.settings.theme {
             match config::resolve_theme(&settings.theme, self.config_dir.as_deref()) {
-                Some(choice) => {
-                    self.theme_variant = choice.variant;
-                    self.installed_theme = choice.installed;
+                Some(choice) => self.theme_choice = choice,
+                None => {
+                    warning = Some(ConfigWarning::NoSuchTheme(settings.theme));
+                    settings.theme = self.settings.theme.clone();
                 }
-                None => warning = Some(config::no_such_theme(&settings.theme)),
             }
         }
         self.settings = settings;
@@ -164,9 +159,8 @@ impl App {
     /// Switches to a built-in theme, with the user's theme file laid over it,
     /// and keeps it across reloads. The choice is not saved for the next start.
     pub(super) fn use_theme(&mut self, variant: ThemeVariant) {
-        self.theme_variant = variant;
-        self.installed_theme = None;
-        self.apply_chosen_theme(&format!("{}{KEEP_HINT}", variant.name()));
+        self.theme_choice = ThemeChoice::built_in(variant);
+        self.apply_chosen_theme(KEEP_HINT);
     }
 
     /// Switches to the installed theme `name` (a file in the themes folder),
@@ -182,25 +176,18 @@ impl App {
                 .notify_error(format!("no installed theme called {name}"));
             return;
         }
-        self.installed_theme = Some(name.to_owned());
-        self.apply_chosen_theme(&format!("{name}{KEEP_HINT}"));
+        self.theme_choice = ThemeChoice::installed(name);
+        self.apply_chosen_theme(KEEP_HINT);
     }
 
     /// The file of the installed theme in use, if one is.
     pub(super) fn installed_theme_path(&self) -> Option<std::path::PathBuf> {
-        let name = self.installed_theme.as_deref()?;
-        config::installed_theme_path(self.config_dir.as_deref()?, name)
+        self.theme_choice.installed_path(self.config_dir.as_deref())
     }
 
-    /// Loads the chosen theme and shows it; `name` is what the message calls it.
-    fn apply_chosen_theme(&mut self, name: &str) {
-        let path = self
-            .config_dir
-            .as_deref()
-            .map(|dir| ConfigFile::Theme.path_in(dir));
-        let installed = self.installed_theme_path();
-        let loaded =
-            config::load_chosen_theme(self.theme_variant, installed.as_deref(), path.as_deref());
+    /// Loads the chosen theme and shows it, saying `theme: NAME` and then `hint`.
+    fn apply_chosen_theme(&mut self, hint: &str) {
+        let loaded = config::load_chosen_theme(&self.theme_choice, self.config_dir.as_deref());
 
         let mut theme = loaded.theme;
         theme.set_terminal_background(self.state.theme().terminal_background());
@@ -208,12 +195,14 @@ impl App {
         self.start_syntax_worker();
 
         match loaded.warning {
-            Some(warning) => self.state.notify_error(warning),
-            None => self.state.notify(format!("theme: {name}")),
+            Some(warning) => self.state.notify_error(warning.to_string()),
+            None => self
+                .state
+                .notify(format!("theme: {}{hint}", self.theme_choice.name())),
         }
     }
 
-    /// A hash of what the three config files say now (a missing file counts as
+    /// A hash of what the config files say now (a missing file counts as
     /// empty), to tell a file that was saved from one that was only read: reading
     /// can make the watcher report the file too, and reloading reads it again.
     pub(super) fn config_hash(&self) -> Option<u64> {
@@ -290,8 +279,8 @@ impl App {
             return Err(EntryError::Exists(stem));
         }
 
-        self.installed_theme = Some(stem.clone());
-        self.apply_chosen_theme(&stem);
+        self.theme_choice = ThemeChoice::installed(stem.clone());
+        self.apply_chosen_theme("");
         if let Err(error) = self.state.workspace_mut().open_path(&path) {
             self.state.notify_error(error.to_string());
         }

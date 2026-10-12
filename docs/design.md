@@ -237,7 +237,7 @@ used `anyhow` everywhere instead of typed errors.
   an installed theme wins on a name clash because `Config: Open Theme` keeps a copy of a built-in theme under its
   name); the vim setting waits for the vim layer, which is after 0.1.0. Left-out settings keep their defaults. A setting with the
   wrong type makes the whole file unusable (reported with the setting's name, the defaults are used, and a reload keeps
-  what is applied); a name that is not a setting is reported and the rest applies. `Config: Open Settings` makes the
+  what is applied); a name that is not a setting, or is set twice (the last counts), is reported and the rest applies. `Config: Open Settings` makes the
   file from `defaults/settings.jsonc`. No project layer yet.
 - The `theme` setting is the starting theme, not a store for the palette's choice: `Theme: ...` lasts for the run only
   and its notification says so and names the setting (rewriting a hand-edited JSONC file would lose its comments). A

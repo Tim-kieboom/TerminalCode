@@ -1,7 +1,17 @@
 use super::*;
 
 fn parse(source: &str) -> Parsed {
-    Settings::parse(source).unwrap()
+    match Settings::parse(source) {
+        Ok(parsed) => parsed,
+        Err(error) => panic!("{source:?} should parse: {error}"),
+    }
+}
+
+fn error_of(source: &str) -> String {
+    match Settings::parse(source) {
+        Ok(parsed) => panic!("{source:?} should not parse, got {parsed:?}"),
+        Err(error) => error.to_string(),
+    }
 }
 
 #[test]
@@ -17,20 +27,17 @@ fn the_default_file_says_what_the_defaults_are() {
 
     assert_eq!(parsed.settings, Settings::default());
     assert!(parsed.unknown.is_empty());
+    assert!(parsed.repeated.is_empty());
 }
 
 #[test]
 fn a_setting_left_out_keeps_its_default() {
-    let parsed = parse("{}");
-
-    assert_eq!(parsed.settings.theme, "dark");
+    assert_eq!(parse("{}").settings.theme, "dark");
 }
 
 #[test]
 fn settings_are_read() {
-    let parsed = parse(r#"{ "theme": "soldark" }"#);
-
-    assert_eq!(parsed.settings.theme, "soldark");
+    assert_eq!(parse(r#"{ "theme": "soldark" }"#).settings.theme, "soldark");
 }
 
 #[test]
@@ -55,6 +62,36 @@ fn an_escaped_quote_does_not_end_a_string() {
 }
 
 #[test]
+fn a_comment_may_end_the_file_without_a_line_break() {
+    assert_eq!(parse("{} // done").settings, Settings::default());
+}
+
+#[test]
+fn a_block_comment_that_is_never_closed_runs_to_the_end() {
+    let parsed = parse("{ \"theme\": \"x\" } /* never closed");
+
+    assert_eq!(parsed.settings.theme, "x");
+    assert_eq!(
+        parse("/* never closed { \"theme\": \"x\" }").settings,
+        Settings::default()
+    );
+}
+
+#[test]
+fn slash_star_slash_does_not_close_the_comment_it_opens() {
+    let parsed = parse("{ /*/ \"theme\": \"x\" */ \"theme\": \"light\" }");
+
+    assert_eq!(parsed.settings.theme, "light");
+}
+
+#[test]
+fn windows_line_endings_are_fine() {
+    let parsed = parse("{\r\n  // the theme\r\n  \"theme\": \"light\",\r\n}\r\n");
+
+    assert_eq!(parsed.settings.theme, "light");
+}
+
+#[test]
 fn stripping_keeps_line_and_column_numbers() {
     let source = "{ // héllo\n  \"theme\": 3, /* x\n y */ }\n";
 
@@ -66,24 +103,23 @@ fn stripping_keeps_line_and_column_numbers() {
 
 #[test]
 fn a_syntax_error_names_the_line() {
-    let error = Settings::parse("{\n  \"theme\" \"dark\"\n}").unwrap_err();
+    let message = error_of("{\n  \"theme\" \"dark\"\n}");
 
-    assert!(error.to_string().contains("line 2"), "{error}");
+    assert!(message.contains("line 2"), "{message}");
 }
 
 #[test]
 fn a_wrong_type_names_the_setting() {
-    let error = Settings::parse(r#"{ "theme": 3 }"#).unwrap_err();
+    let message = error_of(r#"{ "theme": 3 }"#);
 
-    let message = error.to_string();
     assert!(message.contains("\"theme\""), "{message}");
 }
 
 #[test]
 fn something_other_than_an_object_is_refused() {
-    for source in ["[]", "3", "\"dark\""] {
-        let error = Settings::parse(source).unwrap_err();
-        assert!(matches!(error, SettingsError::NotAnObject), "{source}");
+    for source in ["[]", "3", "\"dark\"", "null"] {
+        let message = error_of(source);
+        assert!(message.contains("object"), "{source}: {message}");
     }
 }
 
@@ -91,5 +127,22 @@ fn something_other_than_an_object_is_refused() {
 fn unknown_settings_are_listed_and_the_rest_applies() {
     let parsed = parse(r#"{ "colour": "red", "theme": "light", "tab": 4 }"#);
 
+    assert_eq!(parsed.settings.theme, "light");
     assert_eq!(parsed.unknown, ["colour", "tab"]);
+}
+
+#[test]
+fn a_setting_set_twice_is_listed_once_and_the_last_counts() {
+    let parsed = parse(r#"{ "theme": "light", "theme": "soldark", "theme": "dark" }"#);
+
+    assert_eq!(parsed.settings.theme, "dark");
+    assert_eq!(parsed.repeated, ["theme"]);
+}
+
+#[test]
+fn an_unknown_setting_set_twice_is_both_unknown_and_repeated() {
+    let parsed = parse(r#"{ "colour": 1, "colour": 2 }"#);
+
+    assert_eq!(parsed.unknown, ["colour"]);
+    assert_eq!(parsed.repeated, ["colour"]);
 }

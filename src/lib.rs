@@ -25,6 +25,7 @@ mod paths;
 mod pty;
 mod removal;
 mod settings;
+mod startup;
 mod syntax;
 pub mod terminal;
 #[cfg(test)]
@@ -45,61 +46,19 @@ where
     }
 
     let config_dir = config::user_config_dir();
-    let loaded_settings = config::load_settings(
-        config_dir
-            .as_deref()
-            .map(|dir| config::ConfigFile::Settings.path_in(dir))
-            .as_deref(),
-    );
-    if let Some(warning) = loaded_settings.warning {
-        state.notify_error(warning);
-    }
-    let settings = loaded_settings.settings.unwrap_or_default();
-    let theme_choice = config::resolve_theme(&settings.theme, config_dir.as_deref())
-        .unwrap_or_else(|| {
-            state.notify_error(config::no_such_theme(&settings.theme));
-            config::ThemeChoice::default()
-        });
-
-    let theme_path = config::user_theme_path();
-    let installed_theme = theme_choice
-        .installed
-        .as_deref()
-        .and_then(|name| config::installed_theme_path(config_dir.as_deref()?, name));
-    let loaded_theme = config::load_chosen_theme(
-        theme_choice.variant,
-        installed_theme.as_deref(),
-        theme_path.as_deref(),
-    );
-    state.set_theme(loaded_theme.theme);
-    if let Some(warning) = loaded_theme.warning {
-        state.notify_error(warning);
-    }
+    let user = startup::load_user_config(&mut state, config_dir.as_deref(), capabilities.keyboard);
 
     state.learn_terminal_background(terminal::query_background);
     if let Some(hint) = state.theme().terminal_hint() {
         state.notify(hint);
     }
 
-    let layout_path = config::user_layout_path();
-    let loaded_layout = config::load_layout(layout_path.as_deref());
-    state.set_layout(loaded_layout.layout);
-    if let Some(warning) = loaded_layout.warning {
-        state.notify_error(warning);
-    }
-
-    let keymap_path = config::user_keymap_path();
-    let loaded = config::load_keymap(keymap_path.as_deref(), capabilities.keyboard);
-    if let Some(warning) = loaded.warning {
-        state.notify_error(warning);
-    }
-
     let clipboard = Clipboard::new(System::detect());
-    let mut app = App::with_keymap(state, loaded.keymap)
+    let mut app = App::with_keymap(state, user.keymap)
         .with_clipboard(clipboard)
         .with_keyboard_support(capabilities.keyboard)
         .with_config_dir(config_dir)
-        .with_settings(settings, theme_choice);
+        .with_settings(user.settings, user.theme);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

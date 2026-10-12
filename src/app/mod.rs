@@ -22,7 +22,6 @@ use crate::pty::Shell;
 use crate::settings::Settings;
 use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
-use crate::ui::theme::ThemeVariant;
 
 mod background;
 mod config_files;
@@ -72,10 +71,8 @@ pub(crate) struct App {
     config_dir: Option<std::path::PathBuf>,
     /// What the terminal can do with keys, which decides the keymap's fallbacks.
     keyboard_support: KeyboardSupport,
-    /// The built-in theme the user's file is laid over.
-    theme_variant: ThemeVariant,
-    /// The installed theme in use, by name; the built-in `theme_variant` when none.
-    installed_theme: Option<String>,
+    /// The theme in use: a built-in one or an installed one.
+    theme_choice: ThemeChoice,
     /// The settings last applied; a reload applies a setting only when the file changed it.
     settings: Settings,
     /// What the config files said when they were last applied.
@@ -200,8 +197,7 @@ impl App {
             terminal_prefix: None,
             config_dir: None,
             keyboard_support: KeyboardSupport::Enhanced,
-            theme_variant: ThemeVariant::default(),
-            installed_theme: None,
+            theme_choice: ThemeChoice::default(),
             settings: Settings::default(),
             config_applied: None,
             front_view: None,
@@ -224,8 +220,7 @@ impl App {
     /// Starts with `settings` applied, `theme` being the theme they name.
     pub(crate) fn with_settings(mut self, settings: Settings, theme: ThemeChoice) -> Self {
         self.settings = settings;
-        self.theme_variant = theme.variant;
-        self.installed_theme = theme.installed;
+        self.theme_choice = theme;
         self.config_applied = self.config_hash();
         self
     }

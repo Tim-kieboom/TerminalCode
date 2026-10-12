@@ -74,7 +74,7 @@ fn an_invalid_user_file_falls_back_to_the_defaults_with_a_warning() {
 
     let loaded = load_keymap(Some(&path), KeyboardSupport::Enhanced);
 
-    let warning = loaded.warning.unwrap();
+    let warning = loaded.warning.unwrap().to_string();
     assert!(warning.contains("keymap.toml"), "{warning}");
     assert!(warning.contains("ctrl+banana"), "{warning}");
     assert_eq!(bound(&loaded.keymap, "ctrl+q"), Some(Action::Quit));
@@ -153,7 +153,7 @@ fn an_invalid_layout_falls_back_and_names_the_file_and_the_place_in_the_tree() {
 
     let loaded = load_layout(Some(&path));
 
-    let warning = loaded.warning.unwrap();
+    let warning = loaded.warning.unwrap().to_string();
     assert!(warning.contains("layout.ron"), "{warning}");
     assert!(warning.contains("Col > Row[0]"), "{warning}");
     assert!(warning.ends_with("using default layout"), "{warning}");
@@ -239,7 +239,7 @@ fn an_invalid_theme_falls_back_to_the_whole_built_in_theme_with_a_warning() {
 
     let loaded = load_theme(Some(&path));
 
-    let warning = loaded.warning.unwrap();
+    let warning = loaded.warning.unwrap().to_string();
     assert!(warning.contains("theme.toml"), "{warning}");
     assert!(warning.contains("`nope`"), "{warning}");
     assert!(warning.ends_with("using default theme"), "{warning}");

@@ -2,17 +2,17 @@
 //!
 //! Every setting has a default, so the file only needs the ones that differ.
 //! A setting with the wrong type makes the whole file unusable (it is reported
-//! and the defaults are used); a setting that does not exist is reported but
-//! the rest of the file is still applied.
+//! and the defaults are used); a setting that does not exist, or is set twice,
+//! is reported but the rest of the file is still applied.
 
-use serde::de::DeserializeOwned;
+use std::fmt;
+
+use serde::de::{DeserializeOwned, MapAccess, Visitor};
+use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value};
 use thiserror::Error;
 
 pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/settings.jsonc");
-
-/// The settings this version knows.
-const KNOWN: [&str; 1] = ["theme"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Settings {
@@ -28,19 +28,21 @@ impl Default for Settings {
     }
 }
 
-/// Settings read from a file, with the names in it that are not settings.
+/// Settings read from a file, with the names in it that need a remark.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Parsed {
     pub(crate) settings: Settings,
+    /// Names that are not settings.
     pub(crate) unknown: Vec<String>,
+    /// Names that are set more than once; the last one counts.
+    pub(crate) repeated: Vec<String>,
 }
 
 #[derive(Debug, Error)]
 pub(crate) enum SettingsError {
+    /// Bad syntax, or something other than one object, `{ ... }`.
     #[error("{0}")]
     Syntax(#[from] serde_json::Error),
-    #[error("the file must hold one object, {{ ... }}")]
-    NotAnObject,
     #[error("setting \"{key}\": {source}")]
     Value {
         key: &'static str,
@@ -57,22 +59,59 @@ impl Settings {
             return Ok(Parsed {
                 settings: Self::default(),
                 unknown: Vec::new(),
+                repeated: Vec::new(),
             });
         }
-        let Value::Object(mut map) = serde_json::from_str(&cleaned)? else {
-            return Err(SettingsError::NotAnObject);
-        };
 
-        let unknown = map
-            .keys()
-            .filter(|key| !KNOWN.contains(&key.as_str()))
-            .cloned()
-            .collect();
+        let Pairs(pairs) = serde_json::from_str(&cleaned)?;
+        let mut map = Map::new();
+        let mut repeated: Vec<String> = Vec::new();
+        for (key, value) in pairs {
+            let again = map.insert(key.clone(), value).is_some();
+            if again && !repeated.contains(&key) {
+                repeated.push(key);
+            }
+        }
+
         let defaults = Self::default();
         let settings = Self {
             theme: take(&mut map, "theme")?.unwrap_or(defaults.theme),
         };
-        Ok(Parsed { settings, unknown })
+        // Every setting that is known has been taken out, so what is left is not one.
+        let unknown = map.into_iter().map(|(key, _)| key).collect();
+        Ok(Parsed {
+            settings,
+            unknown,
+            repeated,
+        })
+    }
+}
+
+/// The members of a JSON object in file order, repeats included (a map would
+/// quietly keep the last of a repeated name).
+struct Pairs(Vec<(String, Value)>);
+
+impl<'de> Deserialize<'de> for Pairs {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Members;
+
+        impl<'de> Visitor<'de> for Members {
+            type Value = Pairs;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("one object, { ... }")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Pairs, A::Error> {
+                let mut pairs = Vec::new();
+                while let Some(pair) = access.next_entry::<String, Value>()? {
+                    pairs.push(pair);
+                }
+                Ok(Pairs(pairs))
+            }
+        }
+
+        deserializer.deserialize_map(Members)
     }
 }
 
@@ -91,7 +130,7 @@ fn take<T: DeserializeOwned>(
 /// `source` with the comments and the commas before a closing bracket made
 /// into spaces, so what is left is plain JSON whose line and column numbers
 /// still match the file.
-pub(crate) fn strip_jsonc(source: &str) -> String {
+fn strip_jsonc(source: &str) -> String {
     let mut out: Vec<char> = Vec::with_capacity(source.len());
     let mut chars = source.chars().peekable();
     let mut in_string = false;
