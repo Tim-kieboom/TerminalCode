@@ -39,6 +39,9 @@ impl Transaction<'_> {
     }
 
     pub(crate) fn apply(&mut self, edit: &Edit) -> Result<(), BufferError> {
+        if self.buffer.read_only {
+            return Err(BufferError::ReadOnly);
+        }
         let applied = self.buffer.apply(edit)?;
         if let Some(record) = &mut self.record {
             record.edits.push(edit.clone());

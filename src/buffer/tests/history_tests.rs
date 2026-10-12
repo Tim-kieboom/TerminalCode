@@ -242,3 +242,51 @@ fn rolled_back_transaction_leaves_a_modified_buffer_modified() {
 
     assert!(buffer.is_dirty());
 }
+
+#[test]
+fn a_locked_buffer_refuses_every_edit_and_stays_as_it_was() {
+    use crate::buffer::BufferError;
+    let mut buffer = Buffer::from_text("abc");
+    buffer.set_read_only(true);
+
+    let mut transaction = buffer.begin_transaction(cursor(0, 0));
+    let result = transaction.apply(&Edit::insert(0, "x"));
+    drop(transaction);
+
+    assert_eq!(result, Err(BufferError::ReadOnly));
+    assert_eq!(buffer.text(), "abc");
+    assert!(!buffer.is_dirty());
+}
+
+#[test]
+fn undo_and_redo_still_work_in_a_locked_buffer() {
+    let mut buffer = Buffer::from_text("abc");
+    commit(
+        &mut buffer,
+        cursor(0, 0),
+        &[Edit::insert(0, "x")],
+        cursor(0, 1),
+    );
+    buffer.set_read_only(true);
+
+    assert!(buffer.undo().unwrap().is_some());
+    assert_eq!(buffer.text(), "abc");
+    assert!(buffer.redo().unwrap().is_some());
+    assert_eq!(buffer.text(), "xabc");
+}
+
+#[test]
+fn unlocking_a_buffer_allows_edits_again() {
+    let mut buffer = Buffer::from_text("abc");
+    buffer.set_read_only(true);
+    buffer.set_read_only(false);
+
+    commit(
+        &mut buffer,
+        cursor(0, 0),
+        &[Edit::insert(0, "x")],
+        cursor(0, 1),
+    );
+
+    assert_eq!(buffer.text(), "xabc");
+}

@@ -45,6 +45,10 @@ pub(crate) struct Buffer {
     edit_log: Vec<EditInfo>,
     /// What the file held when this buffer last read or wrote it.
     disk: Disk,
+    /// Whether edits are locked (the file is read-only). Undo and redo still work.
+    read_only: bool,
+    /// What a buffer with no file is called, when it is not just `[no name]`.
+    title: Option<String>,
 }
 
 impl Buffer {
@@ -58,7 +62,41 @@ impl Buffer {
             history: History::default(),
             edit_log: Vec::new(),
             disk: Disk::Unknown,
+            read_only: false,
+            title: None,
         }
+    }
+
+    /// A locked copy of text that has no file (the defaults of a config file whose
+    /// folder is not writable). It can be read and copied from, not edited or saved.
+    pub(crate) fn defaults_copy(text: &str, title: impl Into<String>) -> Self {
+        let mut buffer = Self::from_text(text);
+        buffer.read_only = true;
+        buffer.title = Some(title.into());
+        buffer
+    }
+
+    pub(crate) fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    /// Locks the text against edits, or unlocks it. Undo and redo are not edits
+    /// in this sense: they only take back or bring back what was typed.
+    pub(crate) fn set_read_only(&mut self, read_only: bool) {
+        self.read_only = read_only;
+    }
+
+    /// Makes the lock follow the file's permissions, and says whether it is on.
+    /// A buffer with no file keeps the lock it has.
+    pub(crate) fn sync_read_only(&mut self) -> bool {
+        if self.path.is_some() {
+            self.read_only = self.file_is_read_only();
+        }
+        self.read_only
+    }
+
+    pub(crate) fn is_read_only(&self) -> bool {
+        self.read_only
     }
 
     /// Increases on every change, so cached results can tell they are stale.

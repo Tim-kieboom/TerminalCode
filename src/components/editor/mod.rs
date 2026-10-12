@@ -27,7 +27,9 @@ pub(crate) fn display_name(buffer: &Buffer) -> String {
     let name = buffer
         .path()
         .and_then(|path| path.file_name())
-        .map_or_else(|| "[no name]".into(), |name| name.to_string_lossy());
+        .map(|name| name.to_string_lossy())
+        .or_else(|| buffer.title().map(std::borrow::Cow::Borrowed))
+        .unwrap_or_else(|| "[no name]".into());
 
     match buffer.is_dirty() {
         true => format!("{name} [+]"),

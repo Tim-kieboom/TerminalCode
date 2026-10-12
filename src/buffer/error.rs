@@ -10,6 +10,8 @@ pub enum BufferError {
     InvertedRange { start: usize, end: usize },
     #[error("line {line} does not exist (buffer has {lines} lines)")]
     LineOutOfBounds { line: usize, lines: usize },
+    #[error("this file is read-only, so editing is locked (undo and redo still work)")]
+    ReadOnly,
     #[error("column {column} is past the end of line {line} ({columns} columns)")]
     ColumnOutOfBounds {
         line: usize,

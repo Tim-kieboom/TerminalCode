@@ -77,7 +77,7 @@ impl Workspace {
 
     fn check_document(&mut self, id: DocumentId) -> Option<DiskEvent> {
         let doc = self.documents.get_mut(&id)?;
-        let read_only = doc.buffer.file_is_read_only();
+        let read_only = doc.buffer.sync_read_only();
         let permissions = (read_only != doc.read_only)
             .then(|| DiskEvent::ReadOnly(file_name(&doc.buffer), read_only));
         doc.read_only = read_only;
@@ -149,8 +149,14 @@ impl Workspace {
         let Some(doc) = self.documents.get_mut(&id) else {
             return Ok(SaveOutcome::Saved);
         };
+        if doc.buffer.path().is_none() && doc.buffer.is_read_only() {
+            return Err(FileError::DefaultsCopy {
+                name: file_name(&doc.buffer),
+            });
+        }
         if let Some(error) = doc.buffer.read_only_error() {
             doc.read_only = true;
+            doc.buffer.set_read_only(true);
             self.confirm_overwrite = None;
             return Err(error);
         }
@@ -209,10 +215,12 @@ impl Workspace {
 
 /// The file's name, without the modified marker the tab shows.
 fn file_name(buffer: &Buffer) -> String {
-    buffer.path().and_then(Path::file_name).map_or_else(
-        || "[no name]".to_owned(),
-        |name| name.to_string_lossy().into_owned(),
-    )
+    let name = buffer.path().and_then(Path::file_name);
+    match (name, buffer.title()) {
+        (Some(name), _) => name.to_string_lossy().into_owned(),
+        (None, Some(title)) => title.to_owned(),
+        (None, None) => "[no name]".to_owned(),
+    }
 }
 
 impl Workspace {

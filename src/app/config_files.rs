@@ -1,9 +1,10 @@
 //! Opening the user's theme, keymap and layout files for editing.
 
 use crate::app::state::Focus;
+use crate::buffer::Buffer;
 use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
-use crate::error::{IdeError, IdeResult};
+use crate::error::IdeResult;
 use crate::settings::Settings;
 use crate::ui::theme::ThemeVariant;
 
@@ -32,9 +33,13 @@ impl App {
         }
 
         let path = file.path_in(dir);
-        let created = file
-            .create_from_default(&path)
-            .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
+        let created = match file.create_from_default(&path) {
+            Ok(created) => created,
+            Err(error) => {
+                self.show_defaults_copy(&path, file.default_content(), &error);
+                return Ok(());
+            }
+        };
 
         self.state.workspace_mut().open_path(&path)?;
         if created {
@@ -44,6 +49,30 @@ impl App {
             ));
         }
         Ok(())
+    }
+}
+
+impl App {
+    /// The file at `path` could not be made, so its defaults are shown in a
+    /// locked tab with no file behind it, to read and copy from. The error that
+    /// stopped the file from being made stays on screen.
+    fn show_defaults_copy(
+        &mut self,
+        path: &std::path::Path,
+        content: &str,
+        error: &std::io::Error,
+    ) {
+        let name = path.file_name().map_or_else(
+            || path.display().to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        );
+        let buffer = Buffer::defaults_copy(content, format!("{name} (defaults)"));
+        self.state.workspace_mut().open_buffer(buffer);
+        self.state.set_focus(Focus::Editor);
+        self.state.notify_error(format!(
+            "could not make {}: {error}; showing the defaults, which cannot be edited or saved",
+            path.display()
+        ));
     }
 }
 
@@ -64,9 +93,13 @@ impl App {
                 .notify_error(format!("{name} is not a usable theme name"));
             return Ok(());
         };
-        let created = ConfigFile::Theme
-            .create_with(&path, variant.source())
-            .map_err(|error| IdeError::Unknown(format!("{}: {error}", path.display()).into()))?;
+        let created = match ConfigFile::Theme.create_with(&path, variant.source()) {
+            Ok(created) => created,
+            Err(error) => {
+                self.show_defaults_copy(&path, variant.source(), &error);
+                return Ok(());
+            }
+        };
         if self.theme_choice.installed.as_deref() != Some(name.as_str()) {
             // The file is the theme in use from now on, so editing it shows.
             self.theme_choice = ThemeChoice::installed(name);

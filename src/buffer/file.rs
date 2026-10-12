@@ -18,6 +18,10 @@ pub enum FileError {
     FolderGone { folder: PathBuf },
     #[error("{}: the file is read-only; saving never overwrites it", path.display())]
     ReadOnly { path: PathBuf },
+    #[error(
+        "{name} is a copy of the defaults, shown because the config folder could not be written; it cannot be saved"
+    )]
+    DefaultsCopy { name: String },
     #[error("buffer has no file path; use save as")]
     NoPath,
 }

@@ -1376,3 +1376,118 @@ fn a_theme_file_that_is_an_unchanged_copy_of_a_sol_theme_does_not_pin_it() {
 
     assert_eq!(*app.state().theme(), Theme::built_in(ThemeVariant::Light));
 }
+
+// ---- a config folder that cannot be written
+
+/// A config folder that can never be made: its parent is a file.
+fn app_with_unwritable_config_dir() -> (App, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    let blocker = dir.path().join("blocker");
+    fs::write(&blocker, "a file, not a folder").unwrap();
+    let app = app_with_config_dir(&blocker.join("config"));
+    (app, dir)
+}
+
+fn screen_of(app: &mut App) -> String {
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    let mut terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    terminal
+        .draw(|frame| crate::components::prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    terminal.backend().to_string()
+}
+
+fn latest(app: &App) -> String {
+    app.state()
+        .latest_notification()
+        .unwrap_or_default()
+        .to_owned()
+}
+
+#[test]
+fn a_settings_file_that_cannot_be_made_opens_the_defaults_in_a_locked_tab() {
+    let (mut app, dir) = app_with_unwritable_config_dir();
+
+    run_from_palette(&mut app, "Open Settings");
+
+    assert_eq!(editor_text(&app), crate::settings::DEFAULT_SETTINGS_JSONC);
+    assert_eq!(app.state().editor().buffer().path(), None);
+    assert!(app.state().notifications().has_errors());
+    assert!(latest(&app).contains("could not make"), "{}", latest(&app));
+    assert!(
+        latest(&app).contains("cannot be edited or saved"),
+        "{}",
+        latest(&app)
+    );
+    let screen = screen_of(&mut app);
+    assert!(
+        screen.contains("settings.json (defaults) [read-only]"),
+        "{screen}"
+    );
+    assert!(!dir.path().join("blocker/config").exists());
+}
+
+#[test]
+fn the_defaults_copy_cannot_be_edited_and_cannot_be_saved() {
+    let (mut app, _dir) = app_with_unwritable_config_dir();
+    run_from_palette(&mut app, "Open Settings");
+
+    for c in "xyz".chars() {
+        press(&mut app, KeyCode::Char(c));
+    }
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Backspace);
+    assert_eq!(editor_text(&app), crate::settings::DEFAULT_SETTINGS_JSONC);
+    assert!(!app.state().editor().buffer().is_dirty());
+
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('s'),
+        KeyModifiers::CONTROL,
+    )));
+    assert!(app.state().notifications().has_errors());
+    assert!(
+        latest(&app).contains("copy of the defaults"),
+        "{}",
+        latest(&app)
+    );
+}
+
+#[test]
+fn the_defaults_copy_can_still_be_moved_around_selected_and_copied() {
+    let (mut app, _dir) = app_with_unwritable_config_dir();
+    run_from_palette(&mut app, "Open Settings");
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Right);
+    // Dismisses the error that is on screen, then runs the commands.
+    press(&mut app, KeyCode::Esc);
+
+    for c in ['a', 'c'] {
+        app.handle_input(InputEvent::Key(KeyEvent::new(
+            KeyCode::Char(c),
+            KeyModifiers::CONTROL,
+        )));
+    }
+
+    assert!(
+        !app.state().notifications().has_errors(),
+        "{}",
+        latest(&app)
+    );
+}
+
+#[test]
+fn a_theme_file_that_cannot_be_made_shows_the_theme_locked_and_keeps_the_theme() {
+    let (mut app, _dir) = app_with_unwritable_config_dir();
+
+    run_from_palette(&mut app, "Open Theme");
+
+    assert_eq!(editor_text(&app), DEFAULT_THEME_TOML);
+    assert_eq!(app.state().editor().buffer().path(), None);
+    let screen = screen_of(&mut app);
+    assert!(
+        screen.contains("dark.toml (defaults) [read-only]"),
+        "{screen}"
+    );
+    assert!(latest(&app).contains("could not make"), "{}", latest(&app));
+}

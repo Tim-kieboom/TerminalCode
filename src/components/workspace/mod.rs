@@ -781,13 +781,15 @@ impl Workspace {
     }
 
     fn add_document(&mut self, buffer: Buffer) -> DocumentId {
+        let mut buffer = buffer;
+        let read_only = buffer.sync_read_only();
         let id = DocumentId(self.take_id());
         let indent = IndentStyle::detect(&buffer).unwrap_or_default();
         self.docs_version += 1;
         self.documents.insert(
             id,
             Document {
-                read_only: buffer.file_is_read_only(),
+                read_only,
                 buffer,
                 indent,
                 last_editor: None,
