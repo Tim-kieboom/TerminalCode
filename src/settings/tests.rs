@@ -146,3 +146,57 @@ fn an_unknown_setting_set_twice_is_both_unknown_and_repeated() {
     assert_eq!(parsed.unknown, ["colour"]);
     assert_eq!(parsed.repeated, ["colour"]);
 }
+
+#[test]
+fn the_shell_and_mouse_defaults_are_the_users_shell_and_on() {
+    let settings = parse("{}").settings;
+
+    assert_eq!(settings.shell, None);
+    assert!(settings.mouse);
+}
+
+#[test]
+fn a_shell_is_read_and_trimmed() {
+    assert_eq!(
+        parse(r#"{ "shell": "fish" }"#).settings.shell.as_deref(),
+        Some("fish")
+    );
+    assert_eq!(
+        parse(r#"{ "shell": "  /bin/zsh " }"#)
+            .settings
+            .shell
+            .as_deref(),
+        Some("/bin/zsh")
+    );
+}
+
+#[test]
+fn a_null_or_empty_shell_means_the_users_own() {
+    for source in [
+        r#"{ "shell": null }"#,
+        r#"{ "shell": "" }"#,
+        r#"{ "shell": "   " }"#,
+    ] {
+        assert_eq!(parse(source).settings.shell, None, "{source}");
+    }
+}
+
+#[test]
+fn a_shell_that_is_not_text_is_rejected_by_name() {
+    let message = error_of(r#"{ "shell": 3 }"#);
+
+    assert!(message.contains("\"shell\""), "{message}");
+}
+
+#[test]
+fn the_mouse_is_read() {
+    assert!(!parse(r#"{ "mouse": false }"#).settings.mouse);
+    assert!(parse(r#"{ "mouse": true }"#).settings.mouse);
+}
+
+#[test]
+fn a_mouse_that_is_not_true_or_false_is_rejected_by_name() {
+    let message = error_of(r#"{ "mouse": "off" }"#);
+
+    assert!(message.contains("\"mouse\""), "{message}");
+}

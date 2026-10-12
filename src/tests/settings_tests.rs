@@ -436,3 +436,102 @@ fn the_slot_the_tests_compare_differs_between_the_built_in_themes() {
         );
     }
 }
+
+// ---- shell and mouse
+
+#[test]
+fn the_app_starts_with_the_shell_the_settings_name() {
+    let dir = temp();
+
+    let app = started_with(dir.path(), r#"{ "shell": "fish" }"#);
+
+    assert_eq!(app.terminal_shell().program, "fish");
+}
+
+#[test]
+fn without_a_shell_setting_the_users_own_shell_is_used() {
+    let dir = temp();
+
+    let app = started_with(dir.path(), "{}");
+
+    assert_eq!(app.terminal_shell(), &crate::pty::Shell::detect());
+}
+
+#[test]
+fn saving_a_new_shell_applies_it_to_the_next_terminal_tab() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), "{}");
+
+    write(dir.path(), "settings.json", r#"{ "shell": "zsh" }"#);
+    reload(&mut app);
+
+    assert_eq!(app.terminal_shell().program, "zsh");
+
+    write(dir.path(), "settings.json", "{}");
+    reload(&mut app);
+
+    assert_eq!(app.terminal_shell(), &crate::pty::Shell::detect());
+}
+
+#[test]
+fn a_reload_that_leaves_the_shell_setting_alone_keeps_the_shell_in_use() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), r#"{ "shell": "fish" }"#)
+        .with_terminal_shell(crate::pty::Shell::program("something-else"));
+
+    reload(&mut app);
+
+    assert_eq!(app.terminal_shell().program, "something-else");
+}
+
+#[test]
+fn an_invalid_settings_file_leaves_the_shell_alone() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), r#"{ "shell": "fish" }"#);
+
+    write(dir.path(), "settings.json", r#"{ "shell": 3 }"#);
+    reload(&mut app);
+
+    assert_eq!(app.terminal_shell().program, "fish");
+}
+
+#[test]
+fn the_mouse_setting_off_tells_the_terminal_at_the_start() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), r#"{ "mouse": false }"#);
+
+    assert_eq!(app.take_mouse_change(), Some(false));
+}
+
+#[test]
+fn the_mouse_on_by_default_tells_the_terminal_nothing() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), "{}");
+
+    assert_eq!(app.take_mouse_change(), None);
+}
+
+#[test]
+fn saving_the_mouse_setting_applies_it_and_a_reload_that_leaves_it_alone_does_not() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), "{}");
+
+    write(dir.path(), "settings.json", r#"{ "mouse": false }"#);
+    reload(&mut app);
+    assert_eq!(app.take_mouse_change(), Some(false));
+
+    // alt+m switches it on for the run; the file still says off.
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('m'),
+        KeyModifiers::ALT,
+    )));
+    assert_eq!(app.take_mouse_change(), Some(true));
+    reload(&mut app);
+    assert_eq!(app.take_mouse_change(), None, "the file did not change");
+}
+
+#[test]
+fn the_template_names_both_new_settings() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"shell\""));
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"mouse\""));
+}

@@ -5,6 +5,7 @@ use crate::buffer::Buffer;
 use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::error::IdeResult;
+use crate::pty::Shell;
 use crate::settings::Settings;
 use crate::ui::theme::ThemeVariant;
 
@@ -185,8 +186,21 @@ impl App {
                 }
             }
         }
-        self.settings = settings;
+        let before = std::mem::replace(&mut self.settings, settings);
+        self.apply_runtime_settings(&before);
         warning
+    }
+
+    /// Puts the settings other than the theme to work: each one that differs
+    /// from `before` (what was applied until now). The shell is for terminal tabs
+    /// started from now on, and the mouse is told to the terminal by the loop.
+    pub(super) fn apply_runtime_settings(&mut self, before: &Settings) {
+        if self.settings.shell != before.shell {
+            self.terminal_shell = Shell::chosen(self.settings.shell.as_deref());
+        }
+        if self.settings.mouse != before.mouse {
+            self.mouse.set(self.settings.mouse);
+        }
     }
 
     /// Switches to a built-in theme, with the user's theme file laid over it,

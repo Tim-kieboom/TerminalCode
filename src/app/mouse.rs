@@ -31,6 +31,14 @@ impl MouseInput {
         self.enabled
     }
 
+    /// Makes the mouse `enabled`, telling the terminal if that changes anything.
+    pub(super) fn set(&mut self, enabled: bool) {
+        if self.enabled != enabled {
+            self.enabled = enabled;
+            self.change = Some(enabled);
+        }
+    }
+
     /// Switches the mouse on or off, and says which it is now. The terminal
     /// has to be told: see [`MouseInput::take_change`].
     fn toggle(&mut self) -> bool {

@@ -138,6 +138,11 @@ impl App {
     {
         let mut last_draw: Option<Instant> = None;
 
+        // A setting may have switched the mouse off before the first frame.
+        if let Some(enabled) = self.take_mouse_change() {
+            terminal::set_mouse_capture(enabled);
+        }
+
         loop {
             let draw_at = last_draw
                 .map(|at| at + FRAME_INTERVAL)
@@ -222,7 +227,8 @@ impl App {
 
     /// Starts with `settings` applied, `theme` being the theme they name.
     pub(crate) fn with_settings(mut self, settings: Settings, theme: ThemeChoice) -> Self {
-        self.settings = settings;
+        let before = std::mem::replace(&mut self.settings, settings);
+        self.apply_runtime_settings(&before);
         self.theme_choice = theme;
         self.config_applied = self.config_hash();
         self
@@ -264,6 +270,12 @@ impl App {
     pub(crate) fn with_terminal_shell(mut self, shell: Shell) -> Self {
         self.terminal_shell = shell;
         self
+    }
+
+    /// The program the next terminal tab would run.
+    #[cfg(test)]
+    pub(crate) fn terminal_shell(&self) -> &Shell {
+        &self.terminal_shell
     }
 
     /// Falls back to `shell` instead of the platform's when the terminal's cannot start.

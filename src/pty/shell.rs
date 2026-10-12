@@ -13,6 +13,14 @@ impl Shell {
         Self::from_setting(std::env::var(variable).ok().as_deref())
     }
 
+    /// The shell the `shell` setting names, or the user's own when it names none.
+    pub(crate) fn chosen(setting: Option<&str>) -> Self {
+        match setting {
+            Some(program) => Self::program(program),
+            None => Self::detect(),
+        }
+    }
+
     /// The shell named by an environment setting, if it is not empty.
     pub(crate) fn from_setting(setting: Option<&str>) -> Self {
         let program = match setting.map(str::trim) {

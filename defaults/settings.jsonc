@@ -4,5 +4,16 @@
     // The theme to start with: "dark", "light", "soldark", "sollight", or the
     // name of a file in the themes folder (without .toml). Choosing a theme from
     // the command palette lasts for the run only; set it here to keep it.
-    "theme": "dark"
+    "theme": "dark",
+
+    // The program the terminal pane runs, for example "fish" or "/bin/zsh".
+    // null is your own shell ($SHELL, or cmd.exe on Windows). A change applies
+    // to terminal tabs started after it; a tab that is running keeps its shell.
+    // If the shell cannot start, the platform's own is tried and you are told.
+    "shell": null,
+
+    // Whether the mouse is on at the start. With it on, clicks, drags and the
+    // wheel reach the editor and the terminal's own text selection needs shift;
+    // with it off the terminal handles the mouse. alt+m switches it for the run.
+    "mouse": true
 }

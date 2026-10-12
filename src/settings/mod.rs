@@ -18,12 +18,19 @@ pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/set
 pub(crate) struct Settings {
     /// The theme to start with: a built-in theme or an installed one, by name.
     pub(crate) theme: String,
+    /// The program the terminal pane runs; `None` is the user's own shell
+    /// (`$SHELL`, or the platform's). New terminal tabs use it.
+    pub(crate) shell: Option<String>,
+    /// Whether the mouse is on at the start. `alt+m` still switches it for the run.
+    pub(crate) mouse: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: "dark".to_owned(),
+            shell: None,
+            mouse: true,
         }
     }
 }
@@ -76,6 +83,11 @@ impl Settings {
         let defaults = Self::default();
         let settings = Self {
             theme: take(&mut map, "theme")?.unwrap_or(defaults.theme),
+            shell: take::<Option<String>>(&mut map, "shell")?
+                .flatten()
+                .map(|shell| shell.trim().to_owned())
+                .filter(|shell| !shell.is_empty()),
+            mouse: take(&mut map, "mouse")?.unwrap_or(defaults.mouse),
         };
         // Every setting that is known has been taken out, so what is left is not one.
         let unknown = map.into_iter().map(|(key, _)| key).collect();
