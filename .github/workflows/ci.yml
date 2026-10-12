@@ -40,4 +40,4 @@ jobs:
         if: ${{ failure() && matrix.os == 'windows-latest' }}
         timeout-minutes: 10
         continue-on-error: true
-        run: cargo test pty:: -- --test-threads=1 --nocapture
+        run: "cargo test pty:: -- --test-threads=1 --nocapture"
