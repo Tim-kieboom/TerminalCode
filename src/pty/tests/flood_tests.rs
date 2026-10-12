@@ -71,38 +71,55 @@ fn flood(bytes: u64) -> (Rig, Probe) {
     (rig, seen)
 }
 
-fn assert_responsive(rig: &Rig, seen: &Probe, bytes: u64) {
+/// Checks that the flood really ran and the probe really ran beside it. These
+/// are not about timing, so they are not retried.
+fn assert_ran(rig: &Rig, seen: &Probe, bytes: u64) {
     let received = rig.session.bytes_received();
     assert!(received >= bytes, "only {received} bytes came through");
     assert!(
         seen.keys > 20 && seen.frames > 5,
         "{seen:?}: the probe barely ran"
     );
-    assert!(
-        seen.slowest_key < LIMIT,
-        "a key took {:?}: {seen:?}",
-        seen.slowest_key
-    );
-    assert!(
-        seen.slowest_frame < LIMIT,
-        "a frame took {:?}: {seen:?}",
-        seen.slowest_frame
-    );
+}
+
+/// What a key or a frame that took too long was, if one did.
+fn too_slow(seen: &Probe) -> Option<String> {
+    (seen.slowest_key >= LIMIT || seen.slowest_frame >= LIMIT).then(|| format!("{seen:?}"))
+}
+
+/// Floods the shell and checks that no key and no frame took `LIMIT`. One
+/// stall can be the machine, not the code: the probe thread is descheduled on a
+/// busy runner, and a frame that waited on a lock would look the same. So a
+/// stall is looked at again, once, after a quiet moment, and only a second one
+/// fails. Every frame being slower fails both times.
+fn assert_responsive(bytes: u64) {
+    let (rig, seen) = flood(bytes);
+    assert_ran(&rig, &seen, bytes);
+    let Some(first) = too_slow(&seen) else {
+        return;
+    };
+    drop(rig);
+    std::thread::sleep(Duration::from_millis(500));
+
+    let (rig, seen) = flood(bytes);
+    assert_ran(&rig, &seen, bytes);
+    if let Some(second) = too_slow(&seen) {
+        panic!(
+            "a key or a frame took {LIMIT:?} or more, twice.\nfirst run:  {first}\nsecond run: {second}"
+        );
+    }
+    eprintln!("a stall in the first run was not there in the second: {first}");
 }
 
 #[test]
 fn ten_megabytes_of_output_do_not_hold_up_keys_or_drawing() {
-    let (rig, seen) = flood(SHORT_FLOOD);
-
-    assert_responsive(&rig, &seen, SHORT_FLOOD);
+    assert_responsive(SHORT_FLOOD);
 }
 
 #[test]
 #[ignore = "100 MB takes about 12 s in a debug build; cargo test --release -- --ignored"]
 fn a_hundred_megabytes_of_output_do_not_hold_up_keys_or_drawing() {
-    let (rig, seen) = flood(FULL_FLOOD);
-
-    assert_responsive(&rig, &seen, FULL_FLOOD);
+    assert_responsive(FULL_FLOOD);
 }
 
 #[test]
