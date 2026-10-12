@@ -136,7 +136,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 
 ## Release 0.2.1
 - [x] The command is `trcode` (`[[bin]]` in `Cargo.toml`; the crate, repo and config folder keep their names); release archives, the flake, the README, `.vscode` and the LSP `clientInfo` follow
-- [ ] Tag `v0.2.1` once CI is green; publish the draft by hand
+- [x] Tag `v0.2.1` (tagged on 3bd314f; Linux and Windows CI green, macOS only its known flood timing tests; draft release with the three archives and SHA256SUMS, to be published by hand)
 
 ## Layout file syntax rewrite (decided, not built; details in `docs/design.md`, "Layout syntax v2")
 - [x] Step 1, types and parser (done; `Axis` stays, the workspace uses it): `LayoutNode` becomes `Row([..])`, `Col([..])`, `Fixed(n, node)`, `Percent(n, node)` and `Pane(view: .., sides: .., border: .., title: .., ..)`; a bare node is `Fill`; `Framed` and `Leaf` are gone. `LayoutError` carries a tree path (`root > Col[0] > Row[1]: ...`); validation: two bare siblings, a size wrapping a size, a size on the root, `Percent` over 100, empty `Row`/`Col`, no editor. Table-driven tests for every rejection, with the path in the message
