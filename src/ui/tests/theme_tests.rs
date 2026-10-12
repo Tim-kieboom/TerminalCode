@@ -827,3 +827,126 @@ fn the_light_theme_has_no_literal_colors_in_its_slots_either() {
         .collect();
     assert!(literals.is_empty(), "{literals:?}");
 }
+
+// ---- the underline of a slot
+
+#[test]
+fn a_slot_can_color_the_line_under_its_text_without_changing_the_text() {
+    let source = r##"["editor.sample"]
+text = "#102030"
+underline = "red"
+"##;
+
+    let style = Theme::from_toml(source).unwrap().style("editor.sample");
+
+    assert_eq!(style.fg, Some(Color::Rgb(0x10, 0x20, 0x30)));
+    assert_eq!(style.underline_color, Some(Color::Red));
+    assert!(
+        !style
+            .add_modifier
+            .contains(ratatui::style::Modifier::UNDERLINED),
+        "the slot colors the line, drawing it is up to the code"
+    );
+}
+
+#[test]
+fn the_underline_color_can_be_a_palette_entry() {
+    let source = r##"[palette]
+wavy = "#aa0000"
+["editor.sample"]
+underline = "@wavy"
+"##;
+
+    let style = Theme::from_toml(source).unwrap().style("editor.sample");
+
+    assert_eq!(style.underline_color, Some(Color::Rgb(0xaa, 0, 0)));
+}
+
+#[test]
+fn an_underline_that_is_not_a_color_names_the_slot() {
+    let result = Theme::from_toml("[\"editor.sample\"]\nunderline = \"not_a_color\"\n");
+
+    let Err(error) = result else {
+        panic!("accepted");
+    };
+    assert!(error.to_string().contains("editor.sample"), "{error}");
+}
+
+#[test]
+fn a_missing_palette_entry_for_an_underline_names_it() {
+    let result = Theme::from_toml("[\"editor.sample\"]\nunderline = \"@nope\"\n");
+
+    let Err(error) = result else {
+        panic!("accepted");
+    };
+    assert!(error.to_string().contains("nope"), "{error}");
+}
+
+#[test]
+fn a_user_underline_replaces_the_themes_and_keeps_its_text_color() {
+    let base = r##"["editor.sample"]
+text = "blue"
+underline = "red"
+"##;
+    let user = "[\"editor.sample\"]\nunderline = \"green\"\n";
+
+    let style = Theme::layered(base, user).unwrap().style("editor.sample");
+
+    assert_eq!(style.fg, Some(Color::Blue));
+    assert_eq!(style.underline_color, Some(Color::Green));
+}
+
+#[test]
+fn reset_removes_an_underline_color_a_theme_set() {
+    let base = "[\"editor.sample\"]\nunderline = \"red\"\n";
+    let user = "[\"editor.sample\"]\nunderline = \"reset\"\n";
+
+    let style = Theme::layered(base, user).unwrap().style("editor.sample");
+
+    assert_eq!(style.underline_color, None);
+}
+
+#[test]
+fn every_built_in_theme_colors_the_four_diagnostic_severities() {
+    for variant in ThemeVariant::ALL {
+        let theme = Theme::built_in(variant);
+        for slot in [
+            "editor.diagnostic.error",
+            "editor.diagnostic.warning",
+            "editor.diagnostic.info",
+            "editor.diagnostic.hint",
+        ] {
+            let style = theme.style(slot);
+
+            assert!(
+                style.fg.is_some(),
+                "{} has no text color for {slot}",
+                variant.name()
+            );
+            assert!(
+                style.underline_color.is_some(),
+                "{} has no underline color for {slot}",
+                variant.name()
+            );
+        }
+    }
+}
+
+#[test]
+fn the_severities_are_told_apart_in_every_built_in_theme() {
+    for variant in ThemeVariant::ALL {
+        let theme = Theme::built_in(variant);
+        let colors: Vec<_> = ["error", "warning", "info", "hint"]
+            .iter()
+            .map(|severity| theme.style(&format!("editor.diagnostic.{severity}")).fg)
+            .collect();
+
+        for (index, color) in colors.iter().enumerate() {
+            assert!(
+                !colors[..index].contains(color),
+                "{}: two severities share a color: {colors:?}",
+                variant.name()
+            );
+        }
+    }
+}

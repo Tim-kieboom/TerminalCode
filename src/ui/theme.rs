@@ -252,6 +252,7 @@ impl StyleSpec {
             text: user.text.or(self.text),
             background: user.background.or(self.background),
             modifiers: user.modifiers.or(self.modifiers),
+            underline: user.underline.or(self.underline),
         }
     }
 }
@@ -306,6 +307,9 @@ struct StyleSpec {
     #[serde(alias = "bg")]
     background: Option<Box<str>>,
     modifiers: Option<Vec<ModifierName>>,
+    /// Color of the line under the characters, for a slot whose text is drawn
+    /// underlined (the slot says nothing about whether it is).
+    underline: Option<Box<str>>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -525,6 +529,13 @@ fn build_style(slot: &str, spec: &StyleSpec, palette: &Palette) -> Result<Style,
         let background = palette.resolve(&place, background)?;
         if !is_reset(background) {
             style = style.bg(parse_color(slot, background)?);
+        }
+    }
+
+    if let Some(underline) = &spec.underline {
+        let underline = palette.resolve(&place, underline)?;
+        if !is_reset(underline) {
+            style = style.underline_color(parse_color(slot, underline)?);
         }
     }
 

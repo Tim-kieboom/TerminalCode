@@ -22,6 +22,9 @@
 #   text       = "red"          color of the characters
 #   background = "#1e1e2e"      color behind the characters
 #   modifiers  = ["bold"]
+#   underline  = "red"          color of the line under the characters, for slots that
+#                               style an underline (a language server's diagnostics);
+#                               it shows where a terminal supports colored underlines
 # (`fg` and `bg` are still accepted for `text` and `background`.) The reserved
 # [background] table above is the screen's background, not a slot.
 #
@@ -156,6 +159,24 @@ modifiers = ["bold"]
 ["editor.match"]
 text = "black"
 background = "@warning"
+
+# Language server diagnostics: `text` colors the gutter mark and the message in the
+# status bar, `underline` the line under the text they are about.
+["editor.diagnostic.error"]
+text = "@error"
+underline = "@error"
+
+["editor.diagnostic.warning"]
+text = "@warning"
+underline = "@warning"
+
+["editor.diagnostic.info"]
+text = "@info"
+underline = "@info"
+
+["editor.diagnostic.hint"]
+text = "@dim"
+underline = "@dim"
 
 ["finder.match"]
 text = "@accent_text"

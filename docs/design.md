@@ -772,10 +772,16 @@ into is dropped, and the next push replaces the set. After a reload from disk, o
 than the history kept, all of them are dropped and a fresh push is awaited. This needs a short, version-bounded edit
 history per document.
 
-**Display.** A mark in the gutter and an underline under the range, colored by theme slots (`editor.diagnostic.error`,
-`.warning`, `.info`, `.hint`). The message of the diagnostic on the cursor's line is shown in the status bar; with
-several on a line the worst one shows, with "+N more". You read a message by putting the cursor on its line (a hover
-popup arrives with the hover feature). `f8` and `shift+f8` jump to the next and previous diagnostic.
+**Display.** The message is written **after the code on the line**, like nvim's virtual text (a first version marked the
+gutter with a dot, which read as a breakpoint): the first line of the worst diagnostic that starts on the line, two columns
+after the code, in the color of its theme slot (`editor.diagnostic.error`, `.warning`, `.info`, `.hint`), with ` (+N)` for the
+others that start there. It is cut with `…` to the edge of the text, left out when fewer than 8 columns are left (a long
+line) or when the line has scrolled out of sight, and said once for a diagnostic over several lines, on the line it starts
+on. Under the text each diagnostic is about there is a line, in the slot's new `underline` key (only the color, so the code
+keeps its own syntax color, and a terminal that cannot color underlines draws it in the text color); a worse severity is
+drawn over a milder one where they meet. The status bar shows only how the server is doing (a first version also repeated
+the cursor line's message there; it only duplicated the inline text, so it was dropped). A hover popup arrives with the
+hover feature, for reading a cut message whole. `f8` and `shift+f8` go to the next and previous diagnostic, round the file.
 
 **Sync.** `didOpen` when a server runs and a matching document is open (all open documents it serves, not only the
 one in front), `didChange`, `didSave` after a save and `didClose` when the document goes away or has another name.

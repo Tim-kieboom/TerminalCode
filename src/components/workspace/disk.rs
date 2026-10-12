@@ -290,3 +290,10 @@ impl Workspace {
             .collect()
     }
 }
+
+impl Workspace {
+    /// The document of the tab in front in the focused pane.
+    pub(crate) fn active_document_id(&self) -> Option<DocumentId> {
+        self.active_tab().map(|tab| tab.document)
+    }
+}

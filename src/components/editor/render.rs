@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use ratatui::Frame;
 use ratatui::layout::{Position as ScreenPosition, Rect};
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
@@ -14,10 +14,12 @@ use crate::buffer::{Buffer, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
 use crate::components::find::Find;
+use crate::lsp::{Diagnostic, Severity};
 use crate::syntax::Span as SyntaxSpan;
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 /// Smallest line-number column, in digits.
 const MIN_GUTTER_DIGITS: usize = 3;
@@ -44,6 +46,8 @@ pub(crate) struct Content<'a> {
     /// border.
     pub(crate) focused: bool,
     pub(crate) find: Option<&'a Find>,
+    /// What a language server says is wrong, in the order of the text.
+    pub(crate) diagnostics: &'a [Diagnostic],
 }
 
 /// Draws the editor into `area` inside `pane_frame`.
@@ -59,6 +63,7 @@ pub(crate) fn draw(
         syntax,
         focused,
         find,
+        diagnostics,
     } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
@@ -67,7 +72,12 @@ pub(crate) fn draw(
     frame.render_widget(block, area);
 
     let geometry = Geometry::new(inner, buffer.len_lines());
-    draw_lines(frame, theme, buffer, view, syntax, find, &geometry);
+    let overlays = Overlays {
+        syntax,
+        find,
+        diagnostics,
+    };
+    draw_lines(frame, theme, buffer, view, &overlays, &geometry);
     if focused {
         place_cursor(frame, buffer, view, &geometry);
     }
@@ -110,15 +120,26 @@ impl Geometry {
     }
 }
 
+/// What is drawn over the text of an editor: colors, matches, diagnostics.
+struct Overlays<'a> {
+    syntax: &'a [SyntaxSpan],
+    find: Option<&'a Find>,
+    diagnostics: &'a [Diagnostic],
+}
+
 fn draw_lines(
     frame: &mut Frame,
     theme: &Theme,
     buffer: &Buffer,
     view: &ViewState,
-    syntax: &[SyntaxSpan],
-    find: Option<&Find>,
+    overlays: &Overlays<'_>,
     geometry: &Geometry,
 ) {
+    let Overlays {
+        syntax,
+        find,
+        diagnostics,
+    } = *overlays;
     let scroll = view.scroll();
     let selection = view.selections().primary();
     let head_line = selection.head().line;
@@ -133,6 +154,12 @@ fn draw_lines(
             "editor.line_number"
         };
         let width = usize::from(geometry.gutter.width).saturating_sub(1);
+        let line_start = buffer.line_start_byte(line);
+        let next_start = buffer.line_start_byte(line + 1);
+        let here: Vec<&Diagnostic> = diagnostics
+            .iter()
+            .filter(|diagnostic| touches_line(diagnostic, line_start, next_start))
+            .collect();
         numbers.push(Line::styled(
             format!("{:>width$} ", line + 1),
             theme.style(number_slot),
@@ -141,6 +168,7 @@ fn draw_lines(
         let Ok(content) = buffer.line_content(line) else {
             continue;
         };
+        let underlines = Underlines::new(theme, &here, line_start, &content);
         let cells = visible_cells(
             &content,
             scroll.left,
@@ -169,11 +197,30 @@ fn draw_lines(
                     }
                     _ => base,
                 };
-                Span::styled(cell.text, style)
+                Span::styled(cell.text, underlines.apply(cell.grapheme, style))
             })
             .collect();
-        if matches!(selected, Some((_, true))) {
+        let spacer = matches!(selected, Some((_, true)));
+        if spacer {
             spans.push(Span::styled(" ", selection_style));
+        }
+        // What the server says about this line, after the code, in the color of
+        // its severity.
+        if let Some((severity, message)) = inline_message(&here, line_start, next_start) {
+            let line_width = display_column(&content, usize::MAX, view.tab_width());
+            // Where the code ends in the window; a line that ends left of it has
+            // scrolled away together with what is said about it.
+            if let Some(end) = line_width.checked_sub(scroll.left) {
+                let start = end + usize::from(spacer) + INLINE_GAP;
+                let room = usize::from(geometry.text.width).saturating_sub(start);
+                if room >= INLINE_MIN_WIDTH {
+                    spans.push(Span::raw(" ".repeat(INLINE_GAP)));
+                    spans.push(Span::styled(
+                        fit(&message, room),
+                        theme.style(slot_of(severity)),
+                    ));
+                }
+            }
         }
         texts.push(Line::from(spans));
     }
@@ -264,4 +311,128 @@ impl<'a> LineColors<'a> {
             .find(|span| span.range.contains(&byte))
             .map_or_else(Style::default, |span| span.style)
     }
+}
+
+/// The theme slot of a severity.
+pub(crate) fn slot_of(severity: Severity) -> &'static str {
+    match severity {
+        Severity::Error => "editor.diagnostic.error",
+        Severity::Warning => "editor.diagnostic.warning",
+        Severity::Information => "editor.diagnostic.info",
+        Severity::Hint => "editor.diagnostic.hint",
+    }
+}
+
+/// Whether `diagnostic` is about some of the line that starts at byte `start`
+/// and is followed by the next line at `next`. A range ending where the line
+/// starts is about the line before, and a point counts on the line it is on.
+fn touches_line(diagnostic: &Diagnostic, start: usize, next: usize) -> bool {
+    let range = &diagnostic.range;
+    match range.is_empty() {
+        true => range.start >= start && range.start < next.max(start + 1),
+        false => range.start < next && range.end > start,
+    }
+}
+
+/// The lines under the text of one line, by grapheme column.
+struct Underlines {
+    /// Grapheme ranges and the color of the line under each, the worst last so
+    /// that it wins where two meet.
+    ranges: Vec<(Range<usize>, Color)>,
+}
+
+impl Underlines {
+    fn new(theme: &Theme, diagnostics: &[&Diagnostic], line_start: usize, content: &str) -> Self {
+        if diagnostics.is_empty() {
+            return Self { ranges: Vec::new() };
+        }
+        let starts: Vec<usize> = content.grapheme_indices(true).map(|(at, _)| at).collect();
+        let mut ordered: Vec<&&Diagnostic> = diagnostics.iter().collect();
+        // Worst last, so that it is drawn over a milder one.
+        ordered.sort_by_key(|diagnostic| std::cmp::Reverse(diagnostic.severity));
+
+        let ranges = ordered
+            .into_iter()
+            .filter_map(|diagnostic| {
+                let style = theme.style(slot_of(diagnostic.severity));
+                let color = style.underline_color.or(style.fg)?;
+                let from = diagnostic.range.start.saturating_sub(line_start);
+                let to = diagnostic.range.end.saturating_sub(line_start);
+                let first = starts.partition_point(|at| *at < from);
+                // A point is drawn under the character it is at.
+                let last = match diagnostic.range.is_empty() {
+                    true => first + 1,
+                    false => starts.partition_point(|at| *at < to),
+                };
+                let end = last.min(starts.len());
+                (first < end).then_some((first..end, color))
+            })
+            .collect();
+        Self { ranges }
+    }
+
+    /// `style` with the line under it when a diagnostic is about the grapheme.
+    fn apply(&self, grapheme: usize, style: Style) -> Style {
+        match self
+            .ranges
+            .iter()
+            .rev()
+            .find(|(range, _)| range.contains(&grapheme))
+        {
+            Some((_, color)) => style
+                .add_modifier(ratatui::style::Modifier::UNDERLINED)
+                .underline_color(*color),
+            None => style,
+        }
+    }
+}
+
+/// How many columns of space are kept between the end of the code and the
+/// message of a diagnostic after it.
+const INLINE_GAP: usize = 2;
+/// The narrowest room worth putting a message in; with less it is left out.
+const INLINE_MIN_WIDTH: usize = 8;
+
+/// What is said after the code of a line about the diagnostics that start on
+/// it: the first line of the worst one's message, with how many others there
+/// are. A diagnostic over several lines is said once, on the line it starts on.
+fn inline_message(
+    diagnostics: &[&Diagnostic],
+    line_start: usize,
+    next_start: usize,
+) -> Option<(Severity, String)> {
+    let starting: Vec<&&Diagnostic> = diagnostics
+        .iter()
+        .filter(|diagnostic| {
+            (line_start..next_start.max(line_start + 1)).contains(&diagnostic.range.start)
+        })
+        .collect();
+    let worst = starting
+        .iter()
+        .min_by_key(|diagnostic| (diagnostic.severity, diagnostic.range.start))?;
+    let first_line = worst.message.lines().next().unwrap_or_default().trim();
+    let more = match starting.len() {
+        1 => String::new(),
+        others => format!(" (+{})", others - 1),
+    };
+    Some((worst.severity, format!("{first_line}{more}")))
+}
+
+/// `text` cut to `width` columns, with `…` where it was cut.
+fn fit(text: &str, width: usize) -> String {
+    if text.width() <= width {
+        return text.to_owned();
+    }
+    let mut out = String::new();
+    let mut used = 0;
+    for character in text.chars() {
+        let columns = unicode_width::UnicodeWidthChar::width(character).unwrap_or(0);
+        if used + columns + 1 > width {
+            break;
+        }
+        out.push(character);
+        used += columns;
+    }
+    out.push('…');
+    out
 }

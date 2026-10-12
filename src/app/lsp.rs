@@ -372,3 +372,32 @@ impl App {
         }
     }
 }
+
+impl App {
+    /// `f8` and `shift+f8`: the cursor goes to the next or the previous
+    /// diagnostic of the open file, round to the other end after the last.
+    pub(super) fn step_diagnostic(&mut self, next: bool) {
+        let Some(document) = self.state.workspace().active_document_id() else {
+            return;
+        };
+        let head = self.state.editor().selections().primary().head();
+        let Ok(byte) = self.state.editor().buffer().position_to_byte(head) else {
+            return;
+        };
+        let diagnostics = self.state.diagnostics();
+        let found = match next {
+            true => diagnostics.next_after(document, byte),
+            false => diagnostics.previous_before(document, byte),
+        };
+        let Some(start) = found.map(|diagnostic| diagnostic.range.start) else {
+            self.state
+                .notify("no diagnostics in this file (a language server reports them)");
+            return;
+        };
+        match self.state.editor().buffer().byte_to_position(start) {
+            Ok(position) => self.state.edit(|editor| editor.go_to(position)),
+            Err(error) => self.state.notify_error(error.to_string()),
+        }
+        self.needs_redraw = true;
+    }
+}

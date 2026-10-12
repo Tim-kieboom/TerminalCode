@@ -39,6 +39,11 @@ pub(crate) enum Action {
     NextSearchResult,
     /// Goes to the previous result of the last project search.
     PreviousSearchResult,
+    /// Moves the cursor to the next diagnostic of the open file, from a language
+    /// server, and round to the first after the last.
+    NextDiagnostic,
+    /// Moves the cursor to the previous diagnostic of the open file.
+    PreviousDiagnostic,
     /// Opens the find bar for the open file.
     FindInFile,
     /// Opens the find bar with the row for replacing.
@@ -205,6 +210,8 @@ impl Action {
             Self::FindInProject => "Search: Find in Project",
             Self::NextSearchResult => "Search: Next Result",
             Self::PreviousSearchResult => "Search: Previous Result",
+            Self::NextDiagnostic => "Diagnostics: Next",
+            Self::PreviousDiagnostic => "Diagnostics: Previous",
             Self::FindInFile => "Search: Find in File",
             Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
@@ -281,6 +288,8 @@ impl Action {
             Self::FindInProject,
             Self::NextSearchResult,
             Self::PreviousSearchResult,
+            Self::NextDiagnostic,
+            Self::PreviousDiagnostic,
             Self::FindInFile,
             Self::ReplaceInFile,
             Self::FocusExplorer,

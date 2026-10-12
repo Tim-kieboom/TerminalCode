@@ -4,7 +4,7 @@
 #          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
 # context: "global" (default), "editor" or "explorer". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
-# Actions: "quit", "command_palette", "find_file", "find_in_project", "next_search_result", "previous_search_result", "find_in_file", "replace_in_file", "go_to_line", "save", "undo", "redo", "insert_newline", "delete_backward",
+# Actions: "quit", "command_palette", "find_file", "find_in_project", "next_search_result", "previous_search_result", "next_diagnostic", "previous_diagnostic", "find_in_file", "replace_in_file", "go_to_line", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_all_tabs", "reopen_closed_tab", "save_all", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
@@ -507,3 +507,14 @@ action = "next_search_result"
 [[binding]]
 keys = "shift+f4"
 action = "previous_search_result"
+
+# Step through the diagnostics (errors and warnings) a language server found in the open file
+[[binding]]
+keys = "f8"
+context = "editor"
+action = "next_diagnostic"
+
+[[binding]]
+keys = "shift+f8"
+context = "editor"
+action = "previous_diagnostic"

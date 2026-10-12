@@ -65,6 +65,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+g` | Go to line (`line` or `line:column`) |
 | `ctrl+p` | Find a file by name (`name:42` opens it at line 42; `alt+enter` opens it beside this pane) |
 | `alt+f` | Search the project; `f4` and `shift+f4` step through the results |
+| `f8`, `shift+f8` | Go to the next, previous diagnostic (errors and warnings a language server found, written after the code of their line and underlined) |
 | `ctrl+n`, `ctrl+w` | New file, close tab |
 | `ctrl+tab`, `ctrl+shift+tab` | Next, previous tab |
 | `ctrl+k e`, `ctrl+k w`, `ctrl+k z` | Close other tabs, close all tabs, reopen the closed tab |
@@ -97,6 +98,7 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   | `tab_size` | `4` | Columns a tab character draws (1 to 16) and columns of one level of space indentation |
   | `indent_style` | `"spaces"` | What the Tab key inserts: `"spaces"` or `"tabs"` |
   | `detect_indent` | `true` | A file that already has indentation keeps its own; the two settings above are for files with none |
+  | `language_servers` | Rust through `rust-analyzer` | Language servers by name: `command`, `args`, `extensions`, `root_files` and raw `initialization_options`. An entry with a built-in name replaces it, `null` turns it off. Needs the server installed |
 
   A mistake in the file (wrong type, a value out of range) is reported as a notification that names the setting,
   and the settings you had stay in force.
@@ -113,7 +115,7 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   ordinary lines are fine: 10 MB opens in about 10 ms.
 - Only UTF-8 files can be opened.
 - Undo is linear (no undo tree), and there is one cursor.
-- No language server, debugger or plugins yet; those are planned after 0.1.0 (see the backlog in
+- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics only, with no hover, go to definition or completion yet. No debugger or plugins yet; those are planned after 0.1.0 (see the backlog in
   [docs/todo.md](docs/todo.md)).
 - The vim layer is planned for after 0.1.0 too; the editor works like an IDE until then.
 - On macOS the terminal pane's timing tests are flaky in CI, and the manual test pass on Windows Terminal is still

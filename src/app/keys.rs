@@ -208,6 +208,8 @@ impl App {
             Action::FindFile => self.open_finder(),
             Action::FindInProject => self.open_search(),
             Action::NextSearchResult => self.step_search_result(1),
+            Action::NextDiagnostic => self.step_diagnostic(true),
+            Action::PreviousDiagnostic => self.step_diagnostic(false),
             Action::PreviousSearchResult => self.step_search_result(-1),
             Action::FindInFile => self.open_find(),
             Action::ReplaceInFile => self.open_replace(),

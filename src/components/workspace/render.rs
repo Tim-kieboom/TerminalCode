@@ -76,6 +76,7 @@ impl Render for Workspace {
                 syntax: document.syntax.spans(),
                 focused,
                 find: state.find().filter(|_| focused),
+                diagnostics: state.diagnostics().of(tab.document),
             };
             editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 
