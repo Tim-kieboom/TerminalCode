@@ -621,3 +621,25 @@ fn opening_in_a_split_a_second_time_makes_a_third_pane() {
     assert_eq!(workspace.pane_count(), 3);
     assert_eq!(names(&workspace), ["c.txt"]);
 }
+
+#[test]
+fn save_all_leaves_a_deleted_file_alone_and_says_why() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = (file(&dir, "a.txt", "a"), file(&dir, "b.txt", "b"));
+    let mut workspace = Workspace::new(Editor::default());
+    dirty_open(&mut workspace, &a, "1");
+    dirty_open(&mut workspace, &b, "2");
+    fs::remove_file(&a).unwrap();
+
+    let report = workspace.save_all();
+
+    assert_eq!(report.saved, 1);
+    assert!(!a.exists());
+    assert_eq!(report.failed.len(), 1);
+    assert_eq!(report.failed[0].0, "a.txt");
+    assert!(
+        report.failed[0].1.contains("deleted"),
+        "{:?}",
+        report.failed
+    );
+}

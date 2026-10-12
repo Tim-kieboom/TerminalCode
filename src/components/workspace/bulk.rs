@@ -180,6 +180,10 @@ impl Workspace {
             match self.save_document(item.document) {
                 Ok(SaveOutcome::Saved) => report.saved += 1,
                 Ok(SaveOutcome::NeedsConfirmation(name)) => report.changed_on_disk.push(name),
+                Ok(SaveOutcome::FileDeleted(name)) => report.failed.push((
+                    name,
+                    "its file was deleted on disk; save it on its own to recreate it".to_owned(),
+                )),
                 Err(error) => report.failed.push((item.name, error.to_string())),
             }
         }

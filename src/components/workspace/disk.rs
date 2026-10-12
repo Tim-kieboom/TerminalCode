@@ -29,6 +29,9 @@ pub(crate) enum SaveOutcome {
     /// The file changed on disk since the document read it, so nothing was
     /// written. Saving again overwrites it.
     NeedsConfirmation(String),
+    /// The file was deleted since the document read it, so nothing was written.
+    /// Saving again recreates it (in the folder it was in, which must exist).
+    FileDeleted(String),
 }
 
 impl Workspace {
@@ -135,10 +138,20 @@ impl Workspace {
             return Ok(SaveOutcome::Saved);
         };
         let confirmed = self.confirm_overwrite == Some(id);
-        let changed = matches!(doc.buffer.disk_change()?, Some(DiskChange::Modified(_)));
-        if changed && !confirmed {
+        let change = doc.buffer.disk_change()?;
+        if matches!(change, Some(DiskChange::Deleted))
+            && let Some(error) = doc.buffer.folder_gone()
+        {
+            self.confirm_overwrite = None;
+            return Err(error);
+        }
+        if change.is_some() && !confirmed {
             self.confirm_overwrite = Some(id);
-            return Ok(SaveOutcome::NeedsConfirmation(file_name(&doc.buffer)));
+            let name = file_name(&doc.buffer);
+            return Ok(match change {
+                Some(DiskChange::Deleted) => SaveOutcome::FileDeleted(name),
+                _ => SaveOutcome::NeedsConfirmation(name),
+            });
         }
         self.confirm_overwrite = None;
         doc.buffer.save()?;

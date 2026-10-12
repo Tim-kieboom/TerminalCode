@@ -2,7 +2,7 @@
 
 use crossterm::event::KeyEvent;
 
-use crate::app::editing::overwrite_warning;
+use crate::app::editing::{deleted_warning, overwrite_warning};
 use crate::app::{App, Flow};
 use crate::components::quit_prompt::{self, QuitPrompt};
 use crate::components::workspace::{DocumentId, SaveOutcome};
@@ -65,6 +65,10 @@ impl App {
             }
             Ok(SaveOutcome::NeedsConfirmation(name)) => {
                 self.state.notify_error(overwrite_warning(&name));
+                false
+            }
+            Ok(SaveOutcome::FileDeleted(name)) => {
+                self.state.notify_error(deleted_warning(&name));
                 false
             }
             Err(error) => {

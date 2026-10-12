@@ -67,6 +67,7 @@ impl App {
             SaveOutcome::NeedsConfirmation(name) => {
                 self.state.notify_error(overwrite_warning(&name))
             }
+            SaveOutcome::FileDeleted(name) => self.state.notify_error(deleted_warning(&name)),
         }
         Ok(())
     }
@@ -88,6 +89,11 @@ impl App {
 /// What saving says when the file changed on disk since it was read.
 pub(super) fn overwrite_warning(name: &str) -> String {
     format!("{name} changed on disk since you opened it; save again to overwrite it")
+}
+
+/// What saving says when the file was deleted since it was read.
+pub(super) fn deleted_warning(name: &str) -> String {
+    format!("{name} was deleted on disk; save again to recreate it")
 }
 
 impl App {

@@ -14,6 +14,8 @@ pub enum FileError {
     Io { path: PathBuf, source: io::Error },
     #[error("{}: file is not valid UTF-8", path.display())]
     NotUtf8 { path: PathBuf },
+    #[error("{}: the folder is gone; saving does not make folders", folder.display())]
+    FolderGone { folder: PathBuf },
     #[error("buffer has no file path; use save as")]
     NoPath,
 }
@@ -85,6 +87,11 @@ impl Buffer {
             }
             other => other,
         }
+    }
+
+    /// The error saving would give because the folder of the file is gone.
+    pub(crate) fn folder_gone(&self) -> Option<FileError> {
+        folder_gone(self.path.as_deref()?)
     }
 
     /// Whether someone else changed the file since the buffer last read or
@@ -165,6 +172,9 @@ impl Buffer {
 }
 
 fn write_atomic(path: &Path, text: &str) -> Result<(), FileError> {
+    if let Some(error) = folder_gone(path) {
+        return Err(error);
+    }
     // Write through symlinks instead of replacing them.
     let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let temp = temp_path_for(&target).ok_or_else(|| {
@@ -194,4 +204,19 @@ fn temp_path_for(target: &Path) -> Option<PathBuf> {
     let name = target.file_name()?.to_string_lossy();
     let temp_name = format!(".{name}.{}.tmp", std::process::id());
     Some(target.with_file_name(temp_name))
+}
+
+/// The error for a file whose folder does not exist: saving never makes folders,
+/// since a folder removed on purpose, or a drive not mounted, would come back
+/// as an empty one.
+fn folder_gone(path: &Path) -> Option<FileError> {
+    let folder = path
+        .parent()
+        .filter(|folder| !folder.as_os_str().is_empty())?;
+    match folder.try_exists() {
+        Ok(false) => Some(FileError::FolderGone {
+            folder: folder.to_path_buf(),
+        }),
+        _ => None,
+    }
 }

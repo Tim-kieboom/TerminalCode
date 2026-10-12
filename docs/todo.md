@@ -93,7 +93,22 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Rest of `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings still to add: shell, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
 - [ ] Settings left over from before M6: `mouse` on/off; remember what is hidden between runs; notification lifetime; dim ignored files in the explorer instead of hiding them; a layout file that starts with something hidden; `terminal` shell (the `theme` setting is done)
 - [x] Mouse: pane focus by click (done with the panes: a press in another pane focuses it)
-- [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests
+- [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests. First case, decided (a file deleted while it is open; today only a plain, expiring notification, and only the buffer level is tested):
+  - A deleted file keeps its tab, which shows a persistent `[deleted]` marker.
+  - Saving a deleted file asks first. It never creates a missing directory: if the folder is gone too, the prompt says so and offers only save as or cancel.
+  - The marker clears when the file is saved or when it reappears.
+  - A file that reappears while the buffer has unsaved edits and different content on disk is a conflict like any other: edits kept, save asks before overwriting.
+  - A clean buffer whose file reappears with the same content clears the marker with no notification and no reload.
+  The `[deleted]` tab marker and its tests already existed (corrected from the first reading); what was missing is asking before a save recreates the file and the folder-gone message. There is no save as in the app yet (post-0.1.0 backlog), so a gone folder is refused with a message naming the folder. A reappearing file under unsaved edits turns the marker into `[changed]`.
+  Tests (in `src/tests/disk_tests.rs`; the first three were written failing, the rest pin behavior that already held):
+  - [x] saving a deleted file asks first, the second save recreates it and clears the marker
+  - [x] anything else between the two saves asks again
+  - [x] saving when the folder is gone creates no folder and the error says the folder is gone
+  - [x] the marker stays on a modified tab and after a tab switch
+  - [x] the file back with the same content clears the marker with no notification
+  - [x] the file back different reloads a clean tab; under unsaved edits it is a conflict (edits kept, `[changed]`, save asks)
+  - [x] found without a report when the screen comes back, and cleared the same way
+  - [x] a new file that does not exist yet is not marked deleted
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
 - [ ] Benchmarks (`criterion`): parse and highlight on a large file, mapping highlights through edits, buffer edits and undo, rope line access, explorer reload of a big directory, finder and project search on a big tree, render of a full frame; run in CI or on demand to catch regressions
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
