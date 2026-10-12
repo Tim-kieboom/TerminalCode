@@ -1,4 +1,5 @@
 use super::*;
+use crate::lsp::LanguageServers;
 
 fn parse(source: &str) -> Parsed {
     match Settings::parse(source) {
@@ -275,4 +276,78 @@ fn a_detect_indent_that_is_not_true_or_false_is_rejected_by_name() {
     let message = error_of(r#"{ "detect_indent": "yes" }"#);
 
     assert!(message.contains("\"detect_indent\""), "{message}");
+}
+
+// ---- language_servers
+
+#[test]
+fn language_servers_default_to_rust_analyzer_for_rust() {
+    let settings = parse("{}").settings;
+
+    assert_eq!(settings.language_servers, LanguageServers::default());
+    assert_eq!(
+        settings.language_servers.get("rust").unwrap().command,
+        "rust-analyzer"
+    );
+}
+
+#[test]
+fn a_language_server_entry_is_read_and_the_built_in_ones_stay() {
+    let settings =
+        parse(r#"{ "language_servers": { "zig": { "command": "zls", "extensions": ["zig"] } } }"#)
+            .settings;
+
+    assert_eq!(
+        settings.language_servers.names().collect::<Vec<_>>(),
+        ["rust", "zig"]
+    );
+}
+
+#[test]
+fn a_server_can_be_replaced_or_turned_off_in_the_file() {
+    let replaced = parse(
+        r#"{ "language_servers": { "rust": { "command": "ra-multiplex", "extensions": ["rs"],
+            "initialization_options": { "cargo": { "features": "all" } } } } }"#,
+    )
+    .settings;
+    let off = parse(r#"{ "language_servers": { "rust": null } }"#).settings;
+
+    let rust = replaced.language_servers.get("rust").unwrap();
+    assert_eq!(rust.command, "ra-multiplex");
+    assert_eq!(
+        rust.initialization_options["cargo"]["features"],
+        serde_json::json!("all")
+    );
+    assert_eq!(off.language_servers.names().count(), 0);
+}
+
+#[test]
+fn a_bad_language_server_entry_rejects_the_file_and_names_the_setting_and_the_entry() {
+    for source in [
+        r#"{ "language_servers": [] }"#,
+        r#"{ "language_servers": { "rust": 3 } }"#,
+        r#"{ "language_servers": { "x": { "command": "x" } } }"#,
+        r#"{ "language_servers": { "x": { "command": "x", "extensions": ["x"], "typo": 1 } } }"#,
+    ] {
+        let message = error_of(source);
+
+        assert!(
+            message.starts_with("setting \"language_servers\""),
+            "{source}: {message}"
+        );
+    }
+    let message = error_of(r#"{ "language_servers": { "x": { "command": "x" } } }"#);
+    assert!(
+        message.contains("\"x\"") && message.contains("extensions"),
+        "{message}"
+    );
+}
+
+#[test]
+fn the_template_has_an_empty_language_servers_that_changes_nothing() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"language_servers\""));
+    assert_eq!(
+        parse(DEFAULT_SETTINGS_JSONC).settings.language_servers,
+        LanguageServers::default()
+    );
 }

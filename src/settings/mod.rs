@@ -13,6 +13,7 @@ use serde_json::{Map, Value};
 use thiserror::Error;
 
 use crate::components::editor::{IndentKind, IndentPrefs, TabWidth};
+use crate::lsp::{ConfigError, LanguageServers};
 
 pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/settings.jsonc");
 
@@ -32,6 +33,13 @@ pub(crate) struct Settings {
     pub(crate) indent_style: IndentKind,
     /// Whether the indentation a file already has wins over the two settings above.
     pub(crate) detect_indent: bool,
+    /// The language servers: the built-in ones with the `language_servers` setting
+    /// laid over them.
+    #[allow(
+        dead_code,
+        reason = "the app starts servers in step 3 of the LSP client"
+    )]
+    pub(crate) language_servers: LanguageServers,
 }
 
 impl Default for Settings {
@@ -43,6 +51,7 @@ impl Default for Settings {
             tab_size: TabWidth::default(),
             indent_style: IndentKind::Spaces,
             detect_indent: true,
+            language_servers: LanguageServers::default(),
         }
     }
 }
@@ -67,6 +76,8 @@ pub(crate) enum SettingsError {
         key: &'static str,
         source: serde_json::Error,
     },
+    #[error("setting {0}")]
+    LanguageServers(#[from] ConfigError),
     #[error("setting \"{key}\": {value} is not between {min} and {max}")]
     OutOfRange {
         key: &'static str,
@@ -121,6 +132,10 @@ impl Settings {
                 .unwrap_or(defaults.tab_size),
             indent_style: take(&mut map, "indent_style")?.unwrap_or(defaults.indent_style),
             detect_indent: take(&mut map, "detect_indent")?.unwrap_or(defaults.detect_indent),
+            language_servers: match map.remove("language_servers") {
+                Some(setting) => LanguageServers::with_settings(setting)?,
+                None => defaults.language_servers,
+            },
         };
         // Every setting that is known has been taken out, so what is left is not one.
         let unknown = map.into_iter().map(|(key, _)| key).collect();

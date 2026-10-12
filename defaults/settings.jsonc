@@ -28,5 +28,22 @@
     // true: a file that already has indentation keeps the style and width it
     // uses (two spaces, four spaces or tabs), and the two settings above apply
     // to files with none. false: the two settings above apply to every file.
-    "detect_indent": true
+    "detect_indent": true,
+
+    // Language servers, by name. Rust is built in (rust-analyzer, found on your PATH),
+    // so this is empty unless you want to change that. An entry with the name of a
+    // built-in server replaces it whole, null turns it off, any other name adds one:
+    //
+    //   "language_servers": {
+    //       "rust": {
+    //           "command": "rust-analyzer",          // the program to run
+    //           "args": [],                          // its arguments
+    //           "extensions": ["rs"],                // the files it serves
+    //           "root_files": ["Cargo.toml"],        // the outermost folder with one is its project
+    //           "initialization_options": {          // sent to the server as they are
+    //               "cargo": { "features": "all" }
+    //           }
+    //       }
+    //   }
+    "language_servers": {}
 }

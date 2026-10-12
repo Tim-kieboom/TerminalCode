@@ -1,3 +1,4 @@
+mod config_tests;
 mod connection_tests;
 mod framing_tests;
 mod handshake_tests;
