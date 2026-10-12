@@ -16,6 +16,8 @@ pub enum FileError {
     NotUtf8 { path: PathBuf },
     #[error("{}: the folder is gone; saving does not make folders", folder.display())]
     FolderGone { folder: PathBuf },
+    #[error("{}: the file is read-only; saving never overwrites it", path.display())]
+    ReadOnly { path: PathBuf },
     #[error("buffer has no file path; use save as")]
     NoPath,
 }
@@ -87,6 +89,16 @@ impl Buffer {
             }
             other => other,
         }
+    }
+
+    /// Whether the file exists and is read-only, as the file system says now.
+    pub(crate) fn file_is_read_only(&self) -> bool {
+        self.path.as_deref().and_then(read_only).is_some()
+    }
+
+    /// The error saving would give because the file is read-only.
+    pub(crate) fn read_only_error(&self) -> Option<FileError> {
+        read_only(self.path.as_deref()?)
     }
 
     /// The error saving would give because the folder of the file is gone.
@@ -175,6 +187,9 @@ fn write_atomic(path: &Path, text: &str) -> Result<(), FileError> {
     if let Some(error) = folder_gone(path) {
         return Err(error);
     }
+    if let Some(error) = read_only(path) {
+        return Err(error);
+    }
     // Write through symlinks instead of replacing them.
     let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let temp = temp_path_for(&target).ok_or_else(|| {
@@ -219,4 +234,14 @@ fn folder_gone(path: &Path) -> Option<FileError> {
         }),
         _ => None,
     }
+}
+
+/// The error for a file that exists and is read-only. Saving never replaces
+/// one: the write goes to a new file that is renamed over the target, which
+/// would ignore the flag on Unix and fail with a raw error on Windows.
+fn read_only(path: &Path) -> Option<FileError> {
+    let readonly = fs::metadata(path).is_ok_and(|metadata| metadata.permissions().readonly());
+    readonly.then(|| FileError::ReadOnly {
+        path: path.to_path_buf(),
+    })
 }

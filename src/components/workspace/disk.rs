@@ -18,6 +18,9 @@ pub(crate) enum DiskEvent {
     Conflict(String),
     /// The file is gone. The document keeps its text.
     Deleted(String),
+    /// The file became read-only (`true`) or writable again (`false`), by a
+    /// change of its permissions. The tab's note follows.
+    ReadOnly(String, bool),
     /// The file could not be read.
     Unreadable(String),
 }
@@ -73,6 +76,15 @@ impl Workspace {
     }
 
     fn check_document(&mut self, id: DocumentId) -> Option<DiskEvent> {
+        let doc = self.documents.get_mut(&id)?;
+        let read_only = doc.buffer.file_is_read_only();
+        let permissions = (read_only != doc.read_only)
+            .then(|| DiskEvent::ReadOnly(file_name(&doc.buffer), read_only));
+        doc.read_only = read_only;
+        self.check_content(id).or(permissions)
+    }
+
+    fn check_content(&mut self, id: DocumentId) -> Option<DiskEvent> {
         let doc = self.documents.get_mut(&id)?;
         let name = file_name(&doc.buffer);
         let change = match doc.buffer.disk_change() {
@@ -137,6 +149,11 @@ impl Workspace {
         let Some(doc) = self.documents.get_mut(&id) else {
             return Ok(SaveOutcome::Saved);
         };
+        if let Some(error) = doc.buffer.read_only_error() {
+            doc.read_only = true;
+            self.confirm_overwrite = None;
+            return Err(error);
+        }
         let confirmed = self.confirm_overwrite == Some(id);
         let change = doc.buffer.disk_change()?;
         if matches!(change, Some(DiskChange::Deleted))

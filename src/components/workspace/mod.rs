@@ -72,6 +72,8 @@ struct Document {
     /// The change on disk the user was already told about, so repeated file
     /// events do not repeat the warning.
     warned: Option<DiskChange>,
+    /// Whether the file was read-only when last looked at, for the tab's note.
+    read_only: bool,
     /// The view that made the latest change, so a typing burst is not merged
     /// with another view's edit.
     last_editor: Option<ViewId>,
@@ -785,6 +787,7 @@ impl Workspace {
         self.documents.insert(
             id,
             Document {
+                read_only: buffer.file_is_read_only(),
                 buffer,
                 indent,
                 last_editor: None,

@@ -164,6 +164,12 @@ impl App {
                 DiskEvent::Deleted(name) => {
                     self.state.notify(format!("{name} was deleted on disk"));
                 }
+                DiskEvent::ReadOnly(name, true) => self
+                    .state
+                    .notify(format!("{name} is read-only now; saving it is refused")),
+                DiskEvent::ReadOnly(name, false) => {
+                    self.state.notify(format!("{name} is writable again"));
+                }
                 DiskEvent::Unreadable(message) => self.state.notify_error(message),
             }
         }

@@ -90,8 +90,13 @@ impl Workspace {
     /// What a tab says: the file name, a mark for unsaved changes and a note
     /// when the file changed on disk under them.
     fn tab_title(&self, document: super::DocumentId) -> String {
-        let buffer = &self.documents[&document].buffer;
-        format!("{}{}", display_name(buffer), self.disk_note(document))
+        let doc = &self.documents[&document];
+        let read_only = if doc.read_only { " [read-only]" } else { "" };
+        format!(
+            "{}{read_only}{}",
+            display_name(&doc.buffer),
+            self.disk_note(document)
+        )
     }
 
     fn layout_pane(&mut self, index: usize, area: Rect, frame: &PaneFrame) {

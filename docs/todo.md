@@ -93,6 +93,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [ ] Rest of `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings still to add: shell, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
 - [ ] Settings left over from before M6: `mouse` on/off; remember what is hidden between runs; notification lifetime; dim ignored files in the explorer instead of hiding them; a layout file that starts with something hidden; `terminal` shell (the `theme` setting is done)
 - [x] Mouse: pane focus by click (done with the panes: a press in another pane focuses it)
+- [ ] Cursor follows focus: only the pane that has the keyboard shows its cursor. Focusing the explorer hides the editor's cursor (the explorer shows its selected row instead), and focusing the editor hides the terminal's, and the other way round, so it is always clear where typing goes. Check the editor, explorer, terminal, find bar and popups, and the splits that show the same document
 - [ ] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests. First case, decided (a file deleted while it is open; today only a plain, expiring notification, and only the buffer level is tested):
   - A deleted file keeps its tab, which shows a persistent `[deleted]` marker.
   - Saving a deleted file asks first. It never creates a missing directory: if the folder is gone too, the prompt says so and offers only save as or cancel.
@@ -109,6 +110,8 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
   - [x] the file back different reloads a clean tab; under unsaved edits it is a conflict (edits kept, `[changed]`, save asks)
   - [x] found without a report when the screen comes back, and cleared the same way
   - [x] a new file that does not exist yet is not marked deleted
+  Second case, decided and done (a read-only file being saved): saving a read-only file is always refused (the old atomic write replaced it silently on Unix and failed with a raw error on Windows); the tab shows `[read-only]` from open on and follows the file's permissions live (watcher report, tab switch, screen back). Save all and the quit prompt report it too. Third and fourth cases still open: the PTY failing to spawn, an unwritable config directory.
+  Seen on Linux: `ten_megabytes_of_output_do_not_hold_up_keys_or_drawing` failed 2 of 5 full runs right after a build (frame 63 ms against the limit), then 0 of 10 later and 0 of 6 without this change; a timing test under CPU load, not the read-only code.
 - [ ] Performance pass: large file open (10 MB), long lines, fast scroll
 - [ ] Benchmarks (`criterion`): parse and highlight on a large file, mapping highlights through edits, buffer edits and undo, rope line access, explorer reload of a big directory, finder and project search on a big tree, render of a full frame; run in CI or on demand to catch regressions
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux

@@ -643,3 +643,26 @@ fn save_all_leaves_a_deleted_file_alone_and_says_why() {
         report.failed
     );
 }
+
+#[test]
+fn save_all_leaves_a_read_only_file_alone_and_says_why() {
+    let dir = tempfile::tempdir().unwrap();
+    let (a, b) = (file(&dir, "a.txt", "a"), file(&dir, "b.txt", "b"));
+    let mut workspace = Workspace::new(Editor::default());
+    dirty_open(&mut workspace, &a, "1");
+    dirty_open(&mut workspace, &b, "2");
+    let mut permissions = fs::metadata(&a).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&a, permissions).unwrap();
+
+    let report = workspace.save_all();
+
+    assert_eq!(report.saved, 1);
+    assert_eq!(fs::read_to_string(&a).unwrap(), "a");
+    assert_eq!(report.failed.len(), 1);
+    assert!(
+        report.failed[0].1.contains("read-only"),
+        "{:?}",
+        report.failed
+    );
+}
