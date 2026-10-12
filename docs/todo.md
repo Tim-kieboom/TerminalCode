@@ -132,7 +132,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 ## M10 — Release 0.2.0
 - [x] `flake.nix` (package, app, dev shell; `nix build` checked on Linux; tests are not run in the Nix build, CI runs them) and a Nix section in the README
 - [x] Version 0.2.0: the release adds the language server client (diagnostics) over 0.1.0
-- [ ] Tag `v0.2.0` once CI is green on the commit; publish the draft release by hand
+- [x] Tag `v0.2.0` (tagged on 2a3b504; Linux and Windows CI green, macOS only failed its known flood timing tests; the release workflow made a draft release with the three archives and SHA256SUMS, to be published by hand)
 
 ## Layout file syntax rewrite (decided, not built; details in `docs/design.md`, "Layout syntax v2")
 - [x] Step 1, types and parser (done; `Axis` stays, the workspace uses it): `LayoutNode` becomes `Row([..])`, `Col([..])`, `Fixed(n, node)`, `Percent(n, node)` and `Pane(view: .., sides: .., border: .., title: .., ..)`; a bare node is `Fill`; `Framed` and `Leaf` are gone. `LayoutError` carries a tree path (`root > Col[0] > Row[1]: ...`); validation: two bare siblings, a size wrapping a size, a size on the root, `Percent` over 100, empty `Row`/`Col`, no editor. Table-driven tests for every rejection, with the path in the message
