@@ -8,6 +8,7 @@ use std::time::Duration;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
 use super::queue::BoundedQueue;
+use super::replies::Replier;
 use super::{PtyError, Shell};
 
 /// How much a write may hand to the writer thread in one piece.
@@ -128,8 +129,9 @@ impl Session {
         let process_id = child.process_id();
 
         let wake: Arc<dyn Fn() + Send + Sync> = Arc::new(wake);
-        let (reading, waking) = (Arc::clone(&shared), Arc::clone(&wake));
-        thread::spawn(move || read_output(reader, &reading, &*waking));
+        let (reading, answers, waking) =
+            (Arc::clone(&shared), Arc::clone(&input), Arc::clone(&wake));
+        thread::spawn(move || read_output(reader, &reading, &answers, &*waking));
         let (writing, queue) = (Arc::clone(&shared), Arc::clone(&input));
         thread::spawn(move || write_input(writer, pair.master, &writing, &queue));
 
@@ -295,19 +297,32 @@ fn size_of(rows: u16, columns: u16) -> PtySize {
     }
 }
 
-/// Feeds the child's output to the screen until it ends.
-fn read_output(mut reader: Box<dyn Read + Send>, shared: &Shared, wake: &(dyn Fn() + Send + Sync)) {
+/// Feeds the child's output to the screen until it ends, and answers the
+/// questions the child asks the terminal (see [`Replier`]).
+fn read_output(
+    mut reader: Box<dyn Read + Send>,
+    shared: &Shared,
+    answers: &BoundedQueue<Message>,
+    wake: &(dyn Fn() + Send + Sync),
+) {
     let mut buffer = [0u8; READ_SLICE];
+    let mut replier = Replier::default();
     loop {
         let read = match reader.read(&mut buffer) {
             Ok(0) | Err(_) => break,
             Ok(read) => read,
         };
-        shared
-            .screen
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .process(&buffer[..read]);
+        let replies = replier.feed(
+            &mut shared
+                .screen
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            &buffer[..read],
+        );
+        if !replies.is_empty() {
+            // A child that does not listen loses the answer, as it would a keystroke.
+            let _ = answers.push_within(Message::Input(replies), WAIT_FOR_ROOM);
+        }
         #[cfg(test)]
         shared.received.fetch_add(read as u64, Ordering::Relaxed);
         wake_once(shared, wake);

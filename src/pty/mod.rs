@@ -12,6 +12,7 @@ mod error;
 mod keys;
 mod mouse;
 mod queue;
+mod replies;
 mod session;
 mod shell;
 #[cfg(test)]
