@@ -12,22 +12,18 @@ use thiserror::Error;
 pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/settings.jsonc");
 
 /// The settings this version knows.
-const KNOWN: [&str; 2] = ["theme", "vim"];
+const KNOWN: [&str; 1] = ["theme"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Settings {
     /// The theme to start with: a built-in theme or an installed one, by name.
     pub(crate) theme: String,
-    /// Whether the editor takes vim keys.
-    #[allow(dead_code, reason = "read by the vim layer (M7)")]
-    pub(crate) vim: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             theme: "dark".to_owned(),
-            vim: false,
         }
     }
 }
@@ -75,7 +71,6 @@ impl Settings {
         let defaults = Self::default();
         let settings = Self {
             theme: take(&mut map, "theme")?.unwrap_or(defaults.theme),
-            vim: take(&mut map, "vim")?.unwrap_or(defaults.vim),
         };
         Ok(Parsed { settings, unknown })
     }

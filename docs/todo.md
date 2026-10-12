@@ -87,16 +87,9 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 - [x] Multiple terminal tabs (up to 16; `ctrl+b c/n/p/1-9/w`, click and middle click, palette entries)
 - [x] Focus handling (step C; keys encoded as xterm sends them, bracketed paste, `ctrl+b` prefix with a fixed table and keymap fallthrough, status bar while pending): all keys to the shell except the one reserved chord `ctrl+b` (twice sends a literal `ctrl+b`); the global bindings go to the shell while the terminal has focus; what follows the prefix: see `docs/design.md`
 
-## M7 — Vim layer
-- [ ] Mode state machine: normal / insert / visual / visual-line
-- [ ] Motions, operators, text objects, counts
-- [ ] Registers, `.` repeat, `/` search + `n`/`N`
-- [ ] Minimal ex commands: `:w :q :wq :e`
-- [ ] Config toggle for vim on/off; mode indicator in the status bar
-- [ ] Vim parser tests (table-driven: keys in, edits out)
 
 ## M8 — Config + polish
-- [x] First slice of `settings.json` (`theme` and `vim`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
+- [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
 - [ ] Rest of `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings still to add: shell, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
 - [ ] Settings left over from before M6: `mouse` on/off; remember what is hidden between runs; notification lifetime; dim ignored files in the explorer instead of hiding them; a layout file that starts with something hidden; `terminal` shell (the `theme` setting is done)
 - [x] Mouse: pane focus by click (done with the panes: a press in another pane focuses it)
@@ -154,6 +147,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [ ] Official Lua plugin: Rust language support (`rust-analyzer`)
 - [ ] Official Lua plugin: Nix language support (`nixd` or `nil`, decide when it is built)
 - [ ] Debugger via DAP (e.g. Rust through `lldb-dap`), as a Lua plugin
+- [ ] Vim layer (moved out of 0.1.0; the editor is IDE-style until then). Mode state machine (normal, insert, visual, visual-line), motions, operators, text objects, counts, registers, `.` repeat, `/` search with `n`/`N`, minimal ex commands (`:w :q :wq :e`), a `vim` setting, a mode indicator in the status bar, table-driven parser tests. Open design question to settle first: does the vim layer sit in front of the keymap and eat keys, or are the modes a keymap `Context`? Counts and operator + motion (`d3w`, `"ayy`) are a grammar, which the chord-sequence trie does not express.
 - [ ] Multi-cursor, undo tree, visual-block, vim macros, git integration
 
 ## Open questions (resolve before the milestone that needs them)

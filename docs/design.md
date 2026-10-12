@@ -10,7 +10,7 @@ used `anyhow` everywhere instead of typed errors.
 ## Goals / Non-goals
 
 **0.1.0 goals**
-- Normal IDE-style editing as the primary mode; vim motions as an optional layer.
+- Normal IDE-style editing as the primary mode; vim motions as an optional layer, shipped after 0.1.0.
 - File explorer, tabs/splits, integrated terminal, tree-sitter syntax highlighting.
 - Fully rebindable keymap (data, not code).
 - Linux and Windows tier 1; macOS best-effort.
@@ -233,9 +233,9 @@ used `anyhow` everywhere instead of typed errors.
   settings later.
 - `settings.json` first slice (built, `src/settings/`): `<config dir>/terminalcode/settings.json`, JSON with `//` and
   `/* */` comments and trailing commas (a small stripper turns them into spaces, so error line numbers match the file).
-  Two settings so far: `theme` (a built-in theme by name or title in any case, or an installed theme by file name;
+  One setting so far, `theme` (a built-in theme by name or title in any case, or an installed theme by file name;
   an installed theme wins on a name clash because `Config: Open Theme` keeps a copy of a built-in theme under its
-  name) and `vim` (parsed now, read by the vim layer in M7). Left-out settings keep their defaults. A setting with the
+  name); the vim setting waits for the vim layer, which is after 0.1.0. Left-out settings keep their defaults. A setting with the
   wrong type makes the whole file unusable (reported with the setting's name, the defaults are used, and a reload keeps
   what is applied); a name that is not a setting is reported and the rest applies. `Config: Open Settings` makes the
   file from `defaults/settings.jsonc`. No project layer yet.

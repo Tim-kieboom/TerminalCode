@@ -70,14 +70,14 @@ fn no_settings_file_is_the_defaults_without_a_warning() {
 #[test]
 fn an_invalid_file_is_reported_with_its_path_and_gives_no_settings() {
     let dir = tempfile::tempdir().unwrap();
-    write(dir.path(), "settings.json", "{ \"vim\": 3 }");
+    write(dir.path(), "settings.json", "{ \"theme\": 3 }");
 
     let loaded = config::load_settings(Some(&dir.path().join("settings.json")));
 
     assert_eq!(loaded.settings, None);
     let warning = loaded.warning.unwrap();
     assert!(warning.contains("settings.json"), "{warning}");
-    assert!(warning.contains("\"vim\""), "{warning}");
+    assert!(warning.contains("\"theme\""), "{warning}");
 }
 
 #[test]
@@ -86,12 +86,12 @@ fn an_unknown_setting_is_reported_and_the_rest_applies() {
     write(
         dir.path(),
         "settings.json",
-        "{ \"vim\": true, \"colour\": 1 }",
+        "{ \"theme\": \"light\", \"colour\": 1 }",
     );
 
     let loaded = config::load_settings(Some(&dir.path().join("settings.json")));
 
-    assert!(loaded.settings.unwrap().vim);
+    assert_eq!(loaded.settings.unwrap().theme, "light");
     assert!(loaded.warning.unwrap().contains("colour"));
 }
 
