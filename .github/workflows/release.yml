@@ -1,0 +1,90 @@
+name: Release
+
+# A tag like v0.1.0 builds the binaries and makes a draft release with them and
+# their checksums; publish the draft by hand after looking at it. Run by hand
+# (Actions > Release > Run workflow) it only builds, to see that the builds work.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    # macOS is best-effort: a failure there does not stop the release.
+    continue-on-error: ${{ matrix.os == 'macos-latest' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: terminal_code
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: terminal_code.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: terminal_code
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release --locked
+      - name: Package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then version="dev"; fi
+          name="terminal_code-${version}-${{ matrix.target }}"
+          mkdir "$name"
+          cp "target/release/${{ matrix.binary }}" README.md LICENSE-MIT LICENSE-APACHE "$name/"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            powershell -NoProfile -Command "Compress-Archive -Path '$name' -DestinationPath '$name.zip'"
+            archive="$name.zip"
+          else
+            tar czf "$name.tar.gz" "$name"
+            archive="$name.tar.gz"
+          fi
+          if command -v sha256sum > /dev/null; then
+            sha256sum "$archive" > "$archive.sha256"
+          else
+            shasum -a 256 "$archive" > "$archive.sha256"
+          fi
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+
+  release:
+    name: Draft release
+    needs: build
+    # Not when run by hand, and still when only the best-effort macOS build failed.
+    if: startsWith(github.ref, 'refs/tags/v') && !cancelled()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd dist
+          cat *.sha256 > SHA256SUMS
+          rm -f *.sha256
+          ls -l
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --draft --generate-notes --title "${GITHUB_REF_NAME}"

@@ -125,7 +125,7 @@ See `design.md` for decisions. Milestones are ordered; each ends in something ru
 
 ## M9 — Release 0.1.0
 - [x] README (install, keybinds, config) and license (MIT OR Apache-2.0, copyright Tim Kieboom: `LICENSE-MIT`, `LICENSE-APACHE`, `license` in `Cargo.toml`; the dependencies are MIT, Apache-2.0 or similar permissive, with one MPL-2.0 crate, `option-ext`, which is file-level copyleft and fine for a binary; an LGPL option appears only as an alternative next to MIT)
-- [ ] Release CI: binaries for Linux and Windows (macOS best-effort), checksums
+- [x] Release CI (`.github/workflows/release.yml`): a `v*` tag builds Linux (glibc, built on ubuntu-latest), Windows (msvc) and macOS (Apple silicon, best effort) binaries, each in a `.tar.gz` or `.zip` with the README and both licenses, plus one `SHA256SUMS`, and makes a DRAFT release to publish by hand; run by hand from the Actions tab it only builds
 - [x] Known-limits section, in the README (a single line over about 850 KB makes frames slower than 50 ms, 590 ms at 10 MB; UTF-8 only; no undo tree; no LSP/debugger)
 - [ ] Tag `v0.1.0`
 

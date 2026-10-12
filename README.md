@@ -8,9 +8,15 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**0.1.0 is being prepared and is not tagged yet.** There are no release binaries yet, so for now you build it
-from source (see below). What is left before the tag is tracked in [docs/todo.md](docs/todo.md); the design is in
+**This is version 0.1.0.** Release builds for Linux and Windows (and macOS, best effort) are on the
+[releases page](https://github.com/Tim-kieboom/TerminalCode/releases) with their checksums, or you can build from
+source (see below). What is planned next is tracked in [docs/todo.md](docs/todo.md); the design is in
 [docs/design.md](docs/design.md).
+
+**Windows has been built and tested in CI only; nobody has tried it by hand in Windows Terminal yet.** The terminal
+pane, key encoding, resize, paste and mouse reports there are the likeliest places for surprises. Please report what
+you find. The Linux build is what the author uses, and the Linux release binary is built on a current Ubuntu, so it
+needs a recent glibc; on an older system build from source.
 
 ## What it does
 
