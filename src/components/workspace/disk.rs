@@ -122,6 +122,7 @@ impl Workspace {
             return Ok(());
         };
         doc.buffer.reload()?;
+        doc.reloads += 1;
         doc.warned = None;
         doc.last_editor = None;
 
@@ -265,6 +266,7 @@ pub(crate) struct LspDocument {
     pub(crate) text: ropey::Rope,
     pub(crate) version: u64,
     pub(crate) saves: u64,
+    pub(crate) reloads: u64,
 }
 
 impl Workspace {
@@ -282,6 +284,7 @@ impl Workspace {
                     text: doc.buffer.snapshot(),
                     version: doc.buffer.version(),
                     saves: doc.saves,
+                    reloads: doc.reloads,
                 })
             })
             .collect()

@@ -76,6 +76,8 @@ struct Document {
     warned: Option<DiskChange>,
     /// How many times the document was saved, for a language server to be told.
     saves: u64,
+    /// How many times the text was read again from the file.
+    reloads: u64,
     /// Whether the file was read-only when last looked at, for the tab's note.
     read_only: bool,
     /// The view that made the latest change, so a typing burst is not merged
@@ -803,6 +805,7 @@ impl Workspace {
                 last_editor: None,
                 warned: None,
                 saves: 0,
+                reloads: 0,
                 syntax: DocumentSyntax::new(u64::from(id.0)),
             },
         );

@@ -26,6 +26,17 @@ pub(crate) struct Manager {
     starter: Sender<Started>,
     /// Called when something is waiting for [`Manager::poll`].
     wake: Wake,
+    /// What running servers said that is for the app to handle, taken by
+    /// [`Manager::take_notifications`].
+    notifications: Vec<ServerNotification>,
+}
+
+/// A notification from a server that the app is to look at.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ServerNotification {
+    pub(crate) key: ServerKey,
+    pub(crate) method: String,
+    pub(crate) params: serde_json::Value,
 }
 
 impl Manager {
@@ -42,6 +53,7 @@ impl Manager {
             started,
             starter,
             wake: Arc::new(wake),
+            notifications: Vec::new(),
         }
     }
 
@@ -90,6 +102,13 @@ impl Manager {
             match incoming {
                 Incoming::Notification { method, params } => {
                     self.supervisor.notification(key, &method, &params);
+                    if method != "$/progress" {
+                        self.notifications.push(ServerNotification {
+                            key: key.clone(),
+                            method,
+                            params,
+                        });
+                    }
                 }
                 Incoming::Closed(reason) => {
                     // Dropping the session ends the program if it is still there.
@@ -155,5 +174,13 @@ impl Manager {
         if let Some(session) = self.sessions.get(key) {
             let _ = session.connection.notify(method, params);
         }
+    }
+}
+
+impl Manager {
+    /// What the servers said since the last time, other than progress (which
+    /// shows in the status by itself): diagnostics, messages.
+    pub(crate) fn take_notifications(&mut self) -> Vec<ServerNotification> {
+        std::mem::take(&mut self.notifications)
     }
 }

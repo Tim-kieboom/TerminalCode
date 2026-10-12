@@ -56,6 +56,8 @@ pub(crate) struct AppState {
     terminal_prefix: bool,
     /// How the language server of the file in front is doing, for the status bar.
     lsp_status: Option<String>,
+    /// What the language servers say is wrong with the open documents.
+    lsp_diagnostics: crate::lsp::Diagnostics,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,
@@ -177,6 +179,14 @@ impl AppState {
 
     pub(crate) fn set_lsp_status(&mut self, status: Option<String>) {
         self.lsp_status = status;
+    }
+
+    pub(crate) fn diagnostics(&self) -> &crate::lsp::Diagnostics {
+        &self.lsp_diagnostics
+    }
+
+    pub(crate) fn diagnostics_mut(&mut self) -> &mut crate::lsp::Diagnostics {
+        &mut self.lsp_diagnostics
     }
 
     pub(crate) fn set_screen(&mut self, screen: ratatui::layout::Rect) {

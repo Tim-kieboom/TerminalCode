@@ -436,6 +436,7 @@ fn telling_a_server_about_an_edit_in_ten_megabytes() {
         text: ropey::Rope::from_str(text),
         version,
         saves: 0,
+        reloads: 0,
     };
     let mut sync = DocumentSync::default();
     let (_, opening) = time(|| sync.messages(&key, 1, &[snapshot(&text, 0)]));

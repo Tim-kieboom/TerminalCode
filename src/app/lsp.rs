@@ -12,8 +12,8 @@ use crate::event::Event;
 use crate::lsp::ProcessLauncher;
 use crate::lsp::uri::file_uri;
 use crate::lsp::{
-    DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice, ServerKey,
-    language_id,
+    Diagnostic, DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice,
+    ServerKey, language_id, parse_published,
 };
 use crate::paths::{canonical, without_verbatim_prefix};
 
@@ -108,9 +108,65 @@ impl App {
             return;
         };
         let notices = manager.poll();
+        let notifications = manager.take_notifications();
         self.show_lsp_notices(notices);
+        for notification in notifications {
+            if notification.method == "textDocument/publishDiagnostics" {
+                self.take_published_diagnostics(&notification.key, &notification.params);
+            }
+        }
         self.refresh_lsp_status();
         self.needs_redraw = true;
+    }
+
+    /// A server published the diagnostics of a document: puts them in the text
+    /// the server was last told, from the version it looked at. Ones about a
+    /// document that is not open are not wanted.
+    fn take_published_diagnostics(&mut self, key: &ServerKey, params: &serde_json::Value) {
+        let Some(published) = parse_published(params) else {
+            return;
+        };
+        let Some(document) = self.document_with_uri(key, &published.uri) else {
+            return;
+        };
+        let ranges: Vec<_> = published
+            .diagnostics
+            .iter()
+            .map(|diagnostic| (diagnostic.start, diagnostic.end))
+            .collect();
+        let Some(placed) =
+            self.lsp
+                .sync
+                .ranges_in_told_text(key, document, published.version, &ranges)
+        else {
+            // About a text that is not kept any more: nothing it says can be placed.
+            self.state.diagnostics_mut().clear(document);
+            return;
+        };
+        let diagnostics = published
+            .diagnostics
+            .into_iter()
+            .zip(placed)
+            .filter_map(|(diagnostic, range)| {
+                Some(Diagnostic {
+                    range: range?,
+                    severity: diagnostic.severity,
+                    message: diagnostic.message,
+                    source: diagnostic.source,
+                    code: diagnostic.code,
+                })
+            })
+            .collect();
+        self.state.diagnostics_mut().set(document, diagnostics);
+        self.needs_redraw = true;
+    }
+
+    /// The open document that the server `key` knows by `uri`.
+    fn document_with_uri(&self, key: &ServerKey, uri: &str) -> Option<DocumentId> {
+        self.lsp.targets.iter().find_map(|(id, (_, target))| {
+            let target = target.as_ref()?;
+            (target.key == *key && target.uri == uri).then_some(*id)
+        })
     }
 
     /// The `language_servers` setting changed: every server is ended and the
@@ -126,6 +182,7 @@ impl App {
         }
         self.lsp.shown = None;
         self.lsp.sync.clear();
+        self.state.diagnostics_mut().clear_all();
         self.lsp.targets.clear();
         self.lsp.fingerprint = 0;
         self.lsp_file_shown();
@@ -210,6 +267,7 @@ impl App {
         };
         let running = manager.running();
         if running.is_empty() {
+            self.drop_stopped_servers(&running);
             return;
         }
         let docs = self.state.workspace().lsp_documents();
@@ -246,13 +304,27 @@ impl App {
                 text: doc.text,
                 version: doc.version,
                 saves: doc.saves,
+                reloads: doc.reloads,
             });
         }
 
-        for (key, generation) in running {
-            let snapshots = by_server.get(&key).map_or(&[][..], Vec::as_slice);
-            for message in self.lsp.sync.messages(&key, generation, snapshots) {
-                manager.notify(&key, message.method, message.params);
+        let mut moved = Vec::new();
+        for (key, generation) in &running {
+            let snapshots = by_server.get(key).map_or(&[][..], Vec::as_slice);
+            let output = self.lsp.sync.update(key, *generation, snapshots);
+            for message in output.messages {
+                manager.notify(key, message.method, message.params);
+            }
+            moved.push((output.resets, output.changes));
+        }
+        self.drop_stopped_servers(&running);
+        // What the texts went through, so that the diagnostics follow them.
+        for (resets, changes) in moved {
+            for document in resets {
+                self.state.diagnostics_mut().clear(document);
+            }
+            for (document, change) in changes {
+                self.state.diagnostics_mut().remap(document, &change);
             }
         }
     }
@@ -280,4 +352,23 @@ fn fingerprint(docs: &[LspDocument], running: &[(ServerKey, u64)]) -> u64 {
     running.sort();
     running.hash(&mut hasher);
     hasher.finish()
+}
+
+impl App {
+    /// Servers that are not running any more have nothing open, and what they
+    /// said about the documents is no longer anything to go by.
+    fn drop_stopped_servers(&mut self, running: &[(ServerKey, u64)]) {
+        let gone: Vec<ServerKey> = self
+            .lsp
+            .sync
+            .servers()
+            .into_iter()
+            .filter(|key| !running.iter().any(|(running, _)| running == key))
+            .collect();
+        for key in gone {
+            for document in self.lsp.sync.drop_server(&key) {
+                self.state.diagnostics_mut().clear(document);
+            }
+        }
+    }
 }

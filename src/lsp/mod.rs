@@ -8,16 +8,19 @@
 
 pub(crate) use config::{ConfigError, LanguageServers, ServerConfig, ServerKey};
 pub(crate) use connection::{Connection, Incoming, PendingReply};
+pub(crate) use diagnostics::{Diagnostic, Diagnostics, RawDiagnostic, Severity, parse_published};
+pub(crate) use diff::ByteChange;
 pub(crate) use error::LspError;
 pub(crate) use handshake::{Server, initialize, shutdown};
 pub(crate) use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartError};
-pub(crate) use manager::Manager;
+pub(crate) use manager::{Manager, ServerNotification};
 pub(crate) use message::{Id, Message, RpcError};
 pub(crate) use supervisor::{Effect, Notice, Supervisor};
 pub(crate) use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
 mod config;
 mod connection;
+mod diagnostics;
 mod diff;
 mod error;
 mod framing;

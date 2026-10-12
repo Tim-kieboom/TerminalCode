@@ -16,6 +16,17 @@ pub(crate) struct Change {
     pub(crate) end: LspPosition,
     /// What it is replaced by.
     pub(crate) text: String,
+    /// The same change in bytes, for moving what points into the text.
+    pub(crate) bytes: ByteChange,
+}
+
+/// A change as byte offsets: the bytes `start..old_end` of the old text became the
+/// bytes `start..new_end` of the new text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ByteChange {
+    pub(crate) start: usize,
+    pub(crate) old_end: usize,
+    pub(crate) new_end: usize,
 }
 
 /// The change from `old` to `new`, or `None` when they are the same text.
@@ -41,6 +52,11 @@ pub(crate) fn change_between(old: &Rope, new: &Rope) -> Option<Change> {
         start: to_lsp(old, prefix),
         end: to_lsp(old, old_end),
         text: new.byte_slice(prefix..new_end).to_string(),
+        bytes: ByteChange {
+            start: prefix,
+            old_end,
+            new_end,
+        },
     })
 }
 

@@ -274,3 +274,129 @@ fn real_rust_analyzer_starts_reports_progress_and_shuts_down() {
     assert!(saw_progress, "no progress was reported in a minute");
     shutdown(&session.connection, Duration::from_secs(20)).unwrap();
 }
+
+/// The proof that diagnostics land on the right lines, with the real server: a
+/// crate with a type error on a known line, after a line with an emoji in it
+/// (so that UTF-16 counting matters). Run by hand, since CI has no
+/// `rust-analyzer`: `cargo test real_rust_analyzer_puts -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_puts_a_type_error_on_the_right_line() {
+    use crate::components::workspace::DocumentId;
+    use crate::lsp::diagnostics::Diagnostic;
+    use crate::lsp::{DocSnapshot, DocumentSync, ServerKey, Severity, parse_published};
+
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"small\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    fs::create_dir_all(dir.path().join("src")).unwrap();
+    // The error is on line 4 (counted from 0), and the emoji on line 3 makes any
+    // byte or code point count differ from a UTF-16 one.
+    let text = "fn main() {\n    let ok: u32 = 1;\n    let note = \"😀 fine\";\n    let wrong: u32 = \"not a number\";\n    println!(\"{ok} {note} {wrong}\");\n}\n";
+    let file = dir.path().join("src/main.rs");
+    fs::write(&file, text).unwrap();
+    let root = fs::canonicalize(dir.path()).unwrap();
+    let uri = crate::lsp::uri::file_uri(&fs::canonicalize(&file).unwrap()).unwrap();
+    let spec = LaunchSpec {
+        name: "rust".to_owned(),
+        command: "rust-analyzer".to_owned(),
+        args: Vec::new(),
+        root: root.clone(),
+        initialization_options: Value::Null,
+    };
+    let session = match launch(&spec) {
+        Ok(session) => session,
+        Err(error) => panic!("rust-analyzer did not start: {}", error.reason()),
+    };
+
+    let key = ServerKey {
+        name: "rust".to_owned(),
+        root,
+    };
+    let mut sync = DocumentSync::default();
+    let snapshot = DocSnapshot {
+        id: DocumentId::for_test(1),
+        uri: uri.clone(),
+        language_id: "rust".to_owned(),
+        text: ropey::Rope::from_str(text),
+        version: 0,
+        saves: 0,
+        reloads: 0,
+    };
+    for message in sync.messages(&key, 1, &[snapshot]) {
+        session
+            .connection
+            .notify(message.method, message.params)
+            .unwrap();
+    }
+
+    // Wait for a publication that names this file and has something in it.
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let mut found: Option<Vec<Diagnostic>> = None;
+    while Instant::now() < deadline && found.is_none() {
+        let Ok(Incoming::Notification { method, params }) =
+            session.incoming.recv_timeout(Duration::from_millis(500))
+        else {
+            continue;
+        };
+        if method != "textDocument/publishDiagnostics" {
+            continue;
+        }
+        let Some(published) = parse_published(&params) else {
+            continue;
+        };
+        eprintln!(
+            "published for {}: {} diagnostics (version {:?})",
+            published.uri,
+            published.diagnostics.len(),
+            published.version
+        );
+        if published.uri != uri || published.diagnostics.is_empty() {
+            continue;
+        }
+        let ranges: Vec<_> = published
+            .diagnostics
+            .iter()
+            .map(|d| (d.start, d.end))
+            .collect();
+        let placed = sync
+            .ranges_in_told_text(&key, DocumentId::for_test(1), published.version, &ranges)
+            .expect("the version it names is the one that was sent");
+        found = Some(
+            published
+                .diagnostics
+                .into_iter()
+                .zip(placed)
+                .filter_map(|(d, range)| {
+                    Some(Diagnostic {
+                        range: range?,
+                        severity: d.severity,
+                        message: d.message,
+                        source: d.source,
+                        code: d.code,
+                    })
+                })
+                .collect(),
+        );
+    }
+
+    let diagnostics = found.expect("no diagnostics in two minutes");
+    for diagnostic in &diagnostics {
+        eprintln!(
+            "{:?} {:?}: {}",
+            diagnostic.severity,
+            &text[diagnostic.range.clone()],
+            diagnostic.message
+        );
+    }
+    let on_the_wrong_line = diagnostics
+        .iter()
+        .find(|d| d.severity == Severity::Error && text[d.range.clone()].contains("not a number"))
+        .expect("an error about the string");
+    let line = text[..on_the_wrong_line.range.start].matches('\n').count();
+    assert_eq!(line, 3, "the error is on the line with `let wrong`");
+    assert_eq!(&text[on_the_wrong_line.range.clone()], "\"not a number\"");
+}
