@@ -545,6 +545,8 @@ fn a_program_that_asked_for_bracketed_paste_gets_one() {
     rig.wait_for_text("^[[201~");
 }
 
+// A Unix terminal in raw mode stops reading, which fills its input; ConPTY takes input into a console buffer that does not fill the same way, so this cannot be set up there.
+#[cfg(unix)]
 #[test]
 fn a_paste_into_a_shell_that_is_not_reading_reports_how_much_went_through() {
     let (mut rig, _dir) = rig("stty raw -echo; sleep 30");

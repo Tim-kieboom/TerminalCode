@@ -176,6 +176,8 @@ fn drawing_and_further_keys_stay_responsive_after_such_a_paste() {
     assert!(seen.slowest_key < LIMIT, "{seen:?}");
 }
 
+// A Unix terminal in raw mode stops reading, which fills its input; ConPTY takes input into a console buffer that does not fill the same way, so this cannot be set up there.
+#[cfg(unix)]
 #[test]
 fn output_keeps_coming_while_a_paste_is_stuck() {
     let rig = start("stty raw -echo; (while true; do printf tick; sleep 0.05; done) & sleep 30");

@@ -410,8 +410,11 @@ fn another_file_that_differs_only_in_case_is_not_replaced() {
 fn a_link_that_differs_only_in_case_is_not_the_file_itself() {
     let dir = tempfile::tempdir().unwrap();
     fs::write(dir.path().join("a.txt"), "mine\n").unwrap();
-    std::os::unix::fs::symlink("a.txt", dir.path().join("A.txt")).unwrap();
-    if names_in(dir.path()).len() < 2 {
+    // A file system that does not tell the two names apart (macOS, by default)
+    // cannot have both, and there is nothing to test on it.
+    if std::os::unix::fs::symlink("a.txt", dir.path().join("A.txt")).is_err()
+        || names_in(dir.path()).len() < 2
+    {
         return;
     }
 

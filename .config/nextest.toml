@@ -4,3 +4,10 @@
 [profile.default]
 slow-timeout = { period = "20s", terminate-after = 3 }
 fail-fast = false
+
+# These measure how long keys and frames take while a shell floods the terminal,
+# which a busy shared runner can stretch. A test that passes on a retry is
+# reported as flaky, not hidden.
+[[profile.default.overrides]]
+filter = 'test(flood_tests)'
+retries = 2
