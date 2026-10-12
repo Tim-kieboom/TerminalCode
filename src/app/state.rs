@@ -54,6 +54,8 @@ pub(crate) struct AppState {
     screen: ratatui::layout::Rect,
     /// `ctrl+b` was pressed in the terminal and the key after it is awaited.
     terminal_prefix: bool,
+    /// How the language server of the file in front is doing, for the status bar.
+    lsp_status: Option<String>,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,
@@ -167,6 +169,14 @@ impl AppState {
 
     pub(crate) fn terminal_prefix_pending(&self) -> bool {
         self.terminal_prefix
+    }
+
+    pub(crate) fn lsp_status(&self) -> Option<&str> {
+        self.lsp_status.as_deref()
+    }
+
+    pub(crate) fn set_lsp_status(&mut self, status: Option<String>) {
+        self.lsp_status = status;
     }
 
     pub(crate) fn set_screen(&mut self, screen: ratatui::layout::Rect) {

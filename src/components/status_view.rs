@@ -16,8 +16,12 @@ impl Render for StatusBar {
         } else if state.workspace().has_tabs() {
             let editor = state.editor();
             let head = editor.selections().primary().head();
+            let server = state
+                .lsp_status()
+                .map(|status| format!("  [{status}]"))
+                .unwrap_or_default();
             format!(
-                " {}  Ln {}, Col {} -- quit: Ctr+Q, commandPallet: f1",
+                " {}  Ln {}, Col {}{server} -- quit: Ctr+Q, commandPallet: f1",
                 editor.display_name(),
                 head.line + 1,
                 head.column + 1

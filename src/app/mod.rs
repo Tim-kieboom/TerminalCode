@@ -27,6 +27,7 @@ mod background;
 mod config_files;
 mod editing;
 mod keys;
+mod lsp;
 mod mouse;
 mod panels;
 mod popups;
@@ -82,6 +83,8 @@ pub(crate) struct App {
     /// The tab that was in front when the last input was handled, to notice a
     /// switch to another.
     front_view: Option<crate::components::workspace::ViewId>,
+    /// The language servers.
+    lsp: lsp::Lsp,
 }
 
 /// Everything that can wake the app loop.
@@ -142,6 +145,8 @@ impl App {
         if let Some(enabled) = self.take_mouse_change() {
             terminal::set_mouse_capture(enabled);
         }
+        // The file named on the command line is in front before any input.
+        self.lsp_file_shown();
 
         loop {
             let draw_at = last_draw
@@ -209,6 +214,7 @@ impl App {
             settings: Settings::default(),
             config_applied: None,
             front_view: None,
+            lsp: lsp::Lsp::default(),
         }
     }
 
@@ -387,6 +393,7 @@ impl App {
                 }
             }
             Event::TerminalChanged => self.terminal_changed(),
+            Event::LspChanged => self.lsp_changed(),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {
                     self.needs_redraw = true;

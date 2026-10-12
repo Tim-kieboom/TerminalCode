@@ -44,4 +44,6 @@ pub(crate) enum Event {
     Highlighted(crate::syntax::Output),
     /// The file watcher reported a problem.
     WatchFailed(String),
+    /// A language server finished starting, said something, or died.
+    LspChanged,
 }

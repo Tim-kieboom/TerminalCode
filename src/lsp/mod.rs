@@ -10,15 +10,22 @@ pub(crate) use config::{ConfigError, LanguageServers, ServerConfig, ServerKey};
 pub(crate) use connection::{Connection, Incoming, PendingReply};
 pub(crate) use error::LspError;
 pub(crate) use handshake::{Server, initialize, shutdown};
+pub(crate) use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartError};
+pub(crate) use manager::Manager;
 pub(crate) use message::{Id, Message, RpcError};
+pub(crate) use supervisor::{Effect, Notice, Supervisor};
 
 mod config;
 mod connection;
 mod error;
 mod framing;
 mod handshake;
+mod launch;
+mod manager;
 mod message;
+mod progress;
 mod replies;
+mod supervisor;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 pub(crate) mod uri;

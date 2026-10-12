@@ -12,19 +12,19 @@ use crate::lsp::framing::{read_message, write_message};
 use crate::lsp::{Connection, Id, Incoming, Message, RpcError};
 
 /// How long a test waits for something that should happen at once.
-pub(super) const PATIENCE: Duration = Duration::from_secs(10);
+pub(crate) const PATIENCE: Duration = Duration::from_secs(10);
 
 /// The writing end of an in-memory pipe.
-pub(super) struct PipeWriter(Sender<Vec<u8>>);
+pub(crate) struct PipeWriter(Sender<Vec<u8>>);
 
 /// The reading end: ends (reads zero bytes) once the writer is dropped.
-pub(super) struct PipeReader {
+pub(crate) struct PipeReader {
     chunks: Receiver<Vec<u8>>,
     current: Vec<u8>,
     taken: usize,
 }
 
-pub(super) fn pipe() -> (PipeReader, PipeWriter) {
+pub(crate) fn pipe() -> (PipeReader, PipeWriter) {
     let (sender, chunks) = mpsc::channel();
     let reader = PipeReader {
         chunks,
@@ -63,19 +63,19 @@ impl Read for PipeReader {
 }
 
 /// The server's end of the connection, as the script sees it.
-pub(super) struct Session {
+pub(crate) struct Session {
     reader: BufReader<PipeReader>,
     writer: PipeWriter,
 }
 
 impl Session {
     /// The next message from the client, or `None` when it hung up.
-    pub(super) fn next(&mut self) -> Option<Message> {
+    pub(crate) fn next(&mut self) -> Option<Message> {
         let value = read_message(&mut self.reader).expect("the client sent a broken message")?;
         Some(Message::from_value(value).expect("the client sent a message that is not one"))
     }
 
-    pub(super) fn expect_request(&mut self, method: &str) -> (Id, Value) {
+    pub(crate) fn expect_request(&mut self, method: &str) -> (Id, Value) {
         match self.next() {
             Some(Message::Request {
                 id,
@@ -86,7 +86,7 @@ impl Session {
         }
     }
 
-    pub(super) fn expect_notification(&mut self, method: &str) -> Value {
+    pub(crate) fn expect_notification(&mut self, method: &str) -> Value {
         match self.next() {
             Some(Message::Notification {
                 method: got,
@@ -96,21 +96,21 @@ impl Session {
         }
     }
 
-    pub(super) fn expect_response(&mut self) -> (Id, Result<Value, RpcError>) {
+    pub(crate) fn expect_response(&mut self) -> (Id, Result<Value, RpcError>) {
         match self.next() {
             Some(Message::Response { id, outcome }) => (id, outcome),
             other => panic!("expected an answer, got {other:?}"),
         }
     }
 
-    pub(super) fn respond(&mut self, id: Id, result: Value) {
+    pub(crate) fn respond(&mut self, id: Id, result: Value) {
         self.send(&Message::Response {
             id,
             outcome: Ok(result),
         });
     }
 
-    pub(super) fn respond_error(&mut self, id: Id, code: i64, message: &str) {
+    pub(crate) fn respond_error(&mut self, id: Id, code: i64, message: &str) {
         self.send(&Message::Response {
             id,
             outcome: Err(RpcError {
@@ -121,7 +121,7 @@ impl Session {
         });
     }
 
-    pub(super) fn notify(&mut self, method: &str, params: Value) {
+    pub(crate) fn notify(&mut self, method: &str, params: Value) {
         self.send(&Message::Notification {
             method: method.to_owned(),
             params,
@@ -129,7 +129,7 @@ impl Session {
     }
 
     /// Asks the client for something, as a server does.
-    pub(super) fn request(&mut self, id: i64, method: &str, params: Value) {
+    pub(crate) fn request(&mut self, id: i64, method: &str, params: Value) {
         self.send(&Message::Request {
             id: Id::Number(id),
             method: method.to_owned(),
@@ -137,18 +137,18 @@ impl Session {
         });
     }
 
-    pub(super) fn send(&mut self, message: &Message) {
+    pub(crate) fn send(&mut self, message: &Message) {
         write_message(&mut self.writer, &message.to_value()).expect("the client is gone");
     }
 
     /// Bytes as they are, for a stream that is not well formed.
-    pub(super) fn send_raw(&mut self, bytes: &[u8]) {
+    pub(crate) fn send_raw(&mut self, bytes: &[u8]) {
         self.writer.write_all(bytes).expect("the client is gone");
     }
 
     /// Answers `initialize` as a server that can do what the tests need, and
     /// reads the `initialized` that follows.
-    pub(super) fn start_up(&mut self) -> Value {
+    pub(crate) fn start_up(&mut self) -> Value {
         let (id, params) = self.expect_request("initialize");
         self.respond(
             id,
@@ -164,13 +164,13 @@ impl Session {
 
 /// The server thread. A script that fails an expectation fails the test when
 /// [`FakeServer::finish`] joins it.
-pub(super) struct FakeServer {
+pub(crate) struct FakeServer {
     handle: JoinHandle<()>,
 }
 
 impl FakeServer {
     /// Joins the script, passing on a panic from it.
-    pub(super) fn finish(self) {
+    pub(crate) fn finish(self) {
         if let Err(panic) = self.handle.join() {
             std::panic::resume_unwind(panic);
         }
@@ -179,17 +179,17 @@ impl FakeServer {
 
 /// A connection to a fake server that plays `script`, with what arrives from
 /// it for the app.
-pub(super) struct Rig {
-    pub(super) connection: Connection,
-    pub(super) incoming: Receiver<Incoming>,
-    pub(super) server: FakeServer,
+pub(crate) struct Rig {
+    pub(crate) connection: Connection,
+    pub(crate) incoming: Receiver<Incoming>,
+    pub(crate) server: FakeServer,
 }
 
-pub(super) fn connect(script: impl FnOnce(&mut Session) + Send + 'static) -> Rig {
+pub(crate) fn connect(script: impl FnOnce(&mut Session) + Send + 'static) -> Rig {
     connect_with_wake(script, || {})
 }
 
-pub(super) fn connect_with_wake(
+pub(crate) fn connect_with_wake(
     script: impl FnOnce(&mut Session) + Send + 'static,
     wake: impl Fn() + Send + 'static,
 ) -> Rig {
@@ -211,7 +211,7 @@ pub(super) fn connect_with_wake(
 }
 
 impl Rig {
-    pub(super) fn next_incoming(&self) -> Incoming {
+    pub(crate) fn next_incoming(&self) -> Incoming {
         self.incoming
             .recv_timeout(PATIENCE)
             .expect("nothing came from the server")
@@ -219,6 +219,103 @@ impl Rig {
 }
 
 /// A `BufRead` over bytes, for the framing tests.
-pub(super) fn reader(bytes: &[u8]) -> impl BufRead + '_ {
+pub(crate) fn reader(bytes: &[u8]) -> impl BufRead + '_ {
     BufReader::new(bytes)
+}
+
+// ---- a launcher that starts fake servers
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::lsp::{LaunchSpec, Launcher, Session as LspSession, StartError, initialize};
+
+/// What a started fake server does after it has answered `initialize`.
+pub(crate) type Script = Box<dyn FnOnce(&mut Session) + Send>;
+
+/// Starts a fake server for each launch, running the script that `script`
+/// gives for that launch (counted from zero); `None` is a program that cannot
+/// be run. A script that returns is a server that died.
+pub(crate) struct FakeLauncher {
+    pub(crate) launches: Arc<AtomicUsize>,
+    /// What each launch was asked to run.
+    specs: std::sync::Mutex<Vec<LaunchSpec>>,
+    script: Box<dyn Fn(usize) -> Option<Script> + Send + Sync>,
+}
+
+impl FakeLauncher {
+    pub(crate) fn new(
+        script: impl Fn(usize) -> Option<Script> + Send + Sync + 'static,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            launches: Arc::new(AtomicUsize::new(0)),
+            specs: std::sync::Mutex::new(Vec::new()),
+            script: Box::new(script),
+        })
+    }
+
+    pub(crate) fn launched(&self) -> usize {
+        self.launches.load(Ordering::SeqCst)
+    }
+
+    pub(crate) fn specs(&self) -> Vec<LaunchSpec> {
+        self.specs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+}
+
+impl Launcher for FakeLauncher {
+    fn launch(
+        &self,
+        spec: &LaunchSpec,
+        wake: Arc<dyn Fn() + Send + Sync>,
+    ) -> Result<LspSession, StartError> {
+        let number = self.launches.fetch_add(1, Ordering::SeqCst);
+        self.specs
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(spec.clone());
+        let Some(script) = (self.script)(number) else {
+            return Err(StartError::Spawn(format!(
+                "`{}` was not found",
+                spec.command
+            )));
+        };
+        let rig = connect_with_wake(
+            move |session| {
+                session.start_up();
+                script(session);
+            },
+            move || wake(),
+        );
+        match initialize(
+            &rig.connection,
+            &spec.root,
+            &spec.initialization_options,
+            PATIENCE,
+        ) {
+            Ok(server) => Ok(LspSession::new(
+                rig.connection,
+                rig.incoming,
+                server,
+                Box::new(rig.server),
+            )),
+            Err(error) => Err(StartError::Handshake {
+                error,
+                stderr: Some("it said so on stderr".to_owned()),
+            }),
+        }
+    }
+}
+
+/// A server that stays until the client hangs up.
+pub(crate) fn stays() -> Option<Script> {
+    Some(Box::new(|session| while session.next().is_some() {}))
+}
+
+/// A server that answers `initialize` and then dies.
+pub(crate) fn dies() -> Option<Script> {
+    Some(Box::new(|_| {}))
 }

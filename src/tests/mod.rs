@@ -13,6 +13,7 @@ mod focus_tests;
 mod frame_tests;
 mod hide_tests;
 mod highlight_tests;
+mod lsp_tests;
 mod menu_tests;
 mod mouse_tests;
 mod move_tests;

@@ -194,6 +194,7 @@ impl App {
             return;
         }
         self.front_view = front;
+        self.lsp_file_shown();
         if let Some(event) = self.state.workspace_mut().check_active_disk() {
             self.report_disk_events(vec![event]);
             self.needs_redraw = true;

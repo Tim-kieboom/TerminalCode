@@ -201,6 +201,9 @@ impl App {
         if self.settings.mouse != before.mouse {
             self.mouse.set(self.settings.mouse);
         }
+        if self.settings.language_servers != before.language_servers {
+            self.lsp_settings_changed();
+        }
         if self.settings.indent_prefs() != before.indent_prefs() {
             let prefs = self.settings.indent_prefs();
             self.state.workspace_mut().set_indent_prefs(prefs);
