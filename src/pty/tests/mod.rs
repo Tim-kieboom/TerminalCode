@@ -6,3 +6,6 @@ mod scrollback_tests;
 mod session_tests;
 mod shell_tests;
 mod support;
+
+#[cfg(windows)]
+mod windows_tests;
