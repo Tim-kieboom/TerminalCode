@@ -64,6 +64,8 @@ pub(crate) struct App {
     removal: Removal,
     /// What the terminal pane runs.
     terminal_shell: Shell,
+    /// What runs when `terminal_shell` cannot start: the platform's own.
+    fallback_shell: Shell,
     /// When `ctrl+b` in the terminal gives up waiting for the next key.
     terminal_prefix: Option<std::time::Instant>,
     /// The directory of the user's files; `None` when there is none, in which
@@ -194,6 +196,7 @@ impl App {
             remembered: Remembered::default(),
             removal: Removal::default(),
             terminal_shell: Shell::detect(),
+            fallback_shell: Shell::from_setting(None),
             terminal_prefix: None,
             config_dir: None,
             keyboard_support: KeyboardSupport::Enhanced,
@@ -260,6 +263,13 @@ impl App {
     #[cfg(test)]
     pub(crate) fn with_terminal_shell(mut self, shell: Shell) -> Self {
         self.terminal_shell = shell;
+        self
+    }
+
+    /// Falls back to `shell` instead of the platform's when the terminal's cannot start.
+    #[cfg(test)]
+    pub(crate) fn with_fallback_shell(mut self, shell: Shell) -> Self {
+        self.fallback_shell = shell;
         self
     }
 

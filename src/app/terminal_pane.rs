@@ -10,7 +10,7 @@ use crate::app::state::Focus;
 use crate::components::ComponentKind;
 use crate::components::terminal::MAX_TABS;
 use crate::event::Event;
-use crate::pty::{Session, SpawnConfig, encode_mouse};
+use crate::pty::{Session, Shell, SpawnConfig, encode_mouse};
 
 /// Rows and columns a shell gets before the pane has been laid out.
 const FIRST_SIZE: (u16, u16) = (24, 80);
@@ -34,7 +34,10 @@ impl App {
         }
         if !self.state.terminal().any_running() {
             self.state.terminal_mut().remove_ended();
-            self.start_tab();
+            if !self.start_tab() {
+                self.hide_pane_without_tabs();
+                return;
+            }
         }
         self.state.set_focus(Focus::Terminal);
     }
@@ -49,7 +52,10 @@ impl App {
                 .notify_error(format!("at most {MAX_TABS} terminal tabs"));
             return;
         }
-        self.start_tab();
+        if !self.start_tab() {
+            self.hide_pane_without_tabs();
+            return;
+        }
         self.state.set_focus(Focus::Terminal);
     }
 
@@ -110,12 +116,15 @@ impl App {
         self.state.set_focus(Focus::Explorer);
     }
 
-    /// Starts a shell in a new tab, in the project root.
-    fn start_tab(&mut self) {
+    /// Starts a shell in a new tab, in the project root. Returns whether one
+    /// started. When the shell cannot start, the platform's own is tried once
+    /// and, if that works, it is the shell for the rest of the run; the error
+    /// that says so stays on screen until it is dismissed. Failing both says why.
+    fn start_tab(&mut self) -> bool {
         let Some(events) = self.background.sender() else {
             self.state
                 .notify_error("the terminal needs the event loop, which is not running");
-            return;
+            return false;
         };
         let (mut rows, columns) = self
             .state
@@ -124,22 +133,57 @@ impl App {
             .unwrap_or(FIRST_SIZE);
         // The tab bar takes a row.
         rows = rows.saturating_sub(1).max(1);
-        let title = program_name(&self.terminal_shell.program);
-        let config = SpawnConfig {
-            shell: self.terminal_shell.clone(),
-            directory: self.project_root(),
-            rows,
-            columns,
+        let directory = self.project_root();
+        let spawn = |shell: &Shell| {
+            let config = SpawnConfig {
+                shell: shell.clone(),
+                directory: directory.clone(),
+                rows,
+                columns,
+            };
+            let events = events.clone();
+            Session::spawn(&config, move || {
+                // Delivery matters more than speed here: a lost wake-up would
+                // leave the screen stale until the next key.
+                let _ = events.blocking_send(Event::TerminalChanged);
+            })
         };
-        let session = Session::spawn(&config, move || {
-            // Delivery matters more than speed here: a lost wake-up would
-            // leave the screen stale until the next key.
-            let _ = events.blocking_send(Event::TerminalChanged);
-        });
-        match session {
-            Ok(session) => self.state.terminal_mut().start(session, title),
-            Err(error) => self.state.notify_error(error.to_string()),
+
+        let (shell, session, notice) = match spawn(&self.terminal_shell) {
+            Ok(session) => (self.terminal_shell.clone(), session, None),
+            Err(error) => {
+                let fallback = self.fallback_shell.clone();
+                match (fallback != self.terminal_shell).then(|| spawn(&fallback)) {
+                    Some(Ok(session)) => {
+                        let notice = format!("{error}; started `{}` instead", fallback.program);
+                        (fallback, session, Some(notice))
+                    }
+                    _ => {
+                        self.state.notify_error(error.to_string());
+                        return false;
+                    }
+                }
+            }
+        };
+        let title = program_name(&shell.program);
+        self.terminal_shell = shell;
+        self.state.terminal_mut().start(session, title);
+        if let Some(notice) = notice {
+            self.state.notify_error(notice);
         }
+        true
+    }
+
+    /// After a shell could not start: a pane with no tab is no use, so it is
+    /// hidden again and the keyboard stays where it was.
+    fn hide_pane_without_tabs(&mut self) {
+        if self.state.terminal().tab_count() == 0 {
+            self.state.hide_terminal();
+            if self.state.focus() == Focus::Terminal {
+                self.state.set_focus(Focus::Editor);
+            }
+        }
+        self.needs_redraw = true;
     }
 
     /// A shell printed something or ended: draw again, and say when one ended.
