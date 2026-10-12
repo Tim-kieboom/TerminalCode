@@ -55,7 +55,10 @@ fn lines(outcome: &Outcome) -> Vec<String> {
     outcome
         .hits
         .iter()
-        .map(|hit| format!("{}:{}", hit.path.display(), hit.line + 1))
+        .map(|hit| {
+            format!("{}:{}", hit.path.display(), hit.line + 1)
+                .replace(std::path::MAIN_SEPARATOR, "/")
+        })
         .collect()
 }
 

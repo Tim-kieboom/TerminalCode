@@ -80,7 +80,10 @@ fn found(app: &App) -> Vec<String> {
         .unwrap()
         .hits()
         .iter()
-        .map(|hit| format!("{}:{}", hit.path.display(), hit.line + 1))
+        .map(|hit| {
+            format!("{}:{}", hit.path.display(), hit.line + 1)
+                .replace(std::path::MAIN_SEPARATOR, "/")
+        })
         .collect()
 }
 
@@ -119,7 +122,8 @@ fn the_results_are_drawn_with_where_they_are_and_the_footer_counts_them() {
 
     assert!(screen.contains("Find in Project"), "{screen}");
     assert!(screen.contains("> hello"), "{screen}");
-    assert!(screen.contains("src/main.rs:2"), "{screen}");
+    let place = format!("src{}main.rs:2", std::path::MAIN_SEPARATOR);
+    assert!(screen.contains(&place), "{screen}");
     assert!(screen.contains("println!(\"Hello\");"), "{screen}");
     assert!(screen.contains("3 results in 2 files"), "{screen}");
     assert!(screen.contains("[ ] match case"), "{screen}");

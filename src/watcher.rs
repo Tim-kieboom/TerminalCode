@@ -123,7 +123,7 @@ impl FsWatcher {
             };
             // A directory that is gone is not a failure: there is nothing to
             // watch, and it is tried again at the next call.
-            if is_missing(&source) {
+            if is_missing(&source) || !path.exists() {
                 continue;
             }
 
@@ -141,7 +141,8 @@ impl FsWatcher {
     }
 }
 
-/// Whether the error says the path does not exist.
+/// Whether the error says the path does not exist. (Windows reports a missing
+/// directory as a generic error, so the caller also looks at the path.)
 fn is_missing(error: &notify::Error) -> bool {
     match &error.kind {
         notify::ErrorKind::PathNotFound => true,

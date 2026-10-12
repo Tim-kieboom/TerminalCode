@@ -69,7 +69,10 @@ fn m_asks_for_the_path_from_the_project_root() {
     press(&mut app, KeyCode::Char('m'));
 
     let prompt = app.state().name_prompt().unwrap();
-    assert_eq!(prompt.name(), Path::new("src/main.rs").to_str().unwrap());
+    assert_eq!(
+        prompt.name(),
+        Path::new("src").join("main.rs").to_str().unwrap()
+    );
     assert_eq!(prompt.dir(), dir.path());
 }
 
