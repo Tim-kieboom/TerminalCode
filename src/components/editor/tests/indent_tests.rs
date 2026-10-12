@@ -1,6 +1,6 @@
 use crate::buffer::{Buffer, Position};
 use crate::clipboard::Register;
-use crate::components::editor::{Editor, IndentStyle, Motion};
+use crate::components::editor::{Editor, IndentKind, IndentPrefs, IndentStyle, Motion, TabWidth};
 
 fn detect(text: &str) -> Option<IndentStyle> {
     IndentStyle::detect(&Buffer::from_text(text))
@@ -373,4 +373,67 @@ fn pasting_after_indented_text_keeps_the_pasted_indentation_as_is() {
         .unwrap();
 
     assert_eq!(text(&editor), "    x = [\n        1,\n    ]");
+}
+
+// ---- what the settings say
+
+fn prefs(kind: IndentKind, size: usize, detect: bool) -> IndentPrefs {
+    IndentPrefs {
+        kind,
+        size: TabWidth::new(size).unwrap(),
+        detect,
+    }
+}
+
+fn style_for(prefs: IndentPrefs, text: &str) -> IndentStyle {
+    prefs.style_for(&Buffer::from_text(text))
+}
+
+#[test]
+fn the_default_preferences_are_what_the_editor_always_did() {
+    let defaults = IndentPrefs::default();
+
+    assert_eq!(style_for(defaults, "plain\n"), IndentStyle::Spaces(4));
+    assert_eq!(style_for(defaults, "a\n  b\n"), IndentStyle::Spaces(2));
+    assert_eq!(style_for(defaults, "a\n\tb\n"), IndentStyle::Tabs);
+}
+
+#[test]
+fn a_file_with_no_indentation_gets_the_style_and_size_from_the_settings() {
+    assert_eq!(
+        style_for(prefs(IndentKind::Spaces, 2, true), "plain\n"),
+        IndentStyle::Spaces(2)
+    );
+    assert_eq!(
+        style_for(prefs(IndentKind::Spaces, 8, true), ""),
+        IndentStyle::Spaces(8)
+    );
+    assert_eq!(
+        style_for(prefs(IndentKind::Tabs, 4, true), "plain\n"),
+        IndentStyle::Tabs
+    );
+}
+
+#[test]
+fn detection_keeps_the_style_a_file_already_has() {
+    assert_eq!(
+        style_for(prefs(IndentKind::Tabs, 8, true), "a\n  b\n"),
+        IndentStyle::Spaces(2)
+    );
+    assert_eq!(
+        style_for(prefs(IndentKind::Spaces, 2, true), "a\n\tb\n"),
+        IndentStyle::Tabs
+    );
+}
+
+#[test]
+fn with_detection_off_the_settings_win_over_what_the_file_has() {
+    assert_eq!(
+        style_for(prefs(IndentKind::Spaces, 8, false), "a\n  b\n"),
+        IndentStyle::Spaces(8)
+    );
+    assert_eq!(
+        style_for(prefs(IndentKind::Tabs, 4, false), "a\n    b\n"),
+        IndentStyle::Tabs
+    );
 }

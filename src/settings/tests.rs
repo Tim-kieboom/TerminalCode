@@ -200,3 +200,79 @@ fn a_mouse_that_is_not_true_or_false_is_rejected_by_name() {
 
     assert!(message.contains("\"mouse\""), "{message}");
 }
+
+#[test]
+fn the_tab_size_defaults_to_four_and_is_read() {
+    assert_eq!(parse("{}").settings.tab_size.get(), 4);
+    assert_eq!(parse(r#"{ "tab_size": 8 }"#).settings.tab_size.get(), 8);
+    assert_eq!(parse(r#"{ "tab_size": 1 }"#).settings.tab_size.get(), 1);
+    assert_eq!(parse(r#"{ "tab_size": 16 }"#).settings.tab_size.get(), 16);
+}
+
+#[test]
+fn a_tab_size_out_of_range_is_rejected_by_name_with_the_range() {
+    for source in [
+        r#"{ "tab_size": 0 }"#,
+        r#"{ "tab_size": 17 }"#,
+        r#"{ "tab_size": -2 }"#,
+    ] {
+        let message = error_of(source);
+
+        assert!(
+            message.contains("\"tab_size\"") && message.contains("between 1 and 16"),
+            "{source}: {message}"
+        );
+    }
+}
+
+#[test]
+fn a_tab_size_that_is_not_a_whole_number_is_rejected_by_name() {
+    for source in [
+        r#"{ "tab_size": "wide" }"#,
+        r#"{ "tab_size": 2.5 }"#,
+        r#"{ "tab_size": null }"#,
+    ] {
+        let message = error_of(source);
+
+        assert!(message.contains("\"tab_size\""), "{source}: {message}");
+    }
+}
+
+#[test]
+fn the_indent_defaults_are_spaces_with_detection_on() {
+    let settings = parse("{}").settings;
+
+    assert_eq!(settings.indent_style, IndentKind::Spaces);
+    assert!(settings.detect_indent);
+    assert_eq!(settings.indent_prefs(), IndentPrefs::default());
+}
+
+#[test]
+fn the_indent_settings_are_read() {
+    let settings =
+        parse(r#"{ "tab_size": 2, "indent_style": "tabs", "detect_indent": false }"#).settings;
+
+    assert_eq!(settings.indent_style, IndentKind::Tabs);
+    assert!(!settings.detect_indent);
+    assert_eq!(settings.indent_prefs().size.get(), 2);
+}
+
+#[test]
+fn an_indent_style_that_is_neither_spaces_nor_tabs_is_rejected_by_name() {
+    for source in [
+        r#"{ "indent_style": "space" }"#,
+        r#"{ "indent_style": 4 }"#,
+        r#"{ "indent_style": null }"#,
+    ] {
+        let message = error_of(source);
+
+        assert!(message.contains("\"indent_style\""), "{source}: {message}");
+    }
+}
+
+#[test]
+fn a_detect_indent_that_is_not_true_or_false_is_rejected_by_name() {
+    let message = error_of(r#"{ "detect_indent": "yes" }"#);
+
+    assert!(message.contains("\"detect_indent\""), "{message}");
+}

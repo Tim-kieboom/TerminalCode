@@ -6,7 +6,7 @@ use std::ops::Range;
 use crate::buffer::{Buffer, BufferError, Edit, Position, Selection, Selections};
 
 use super::smart_indent::{Dialect, is_closer};
-use super::{EditKind, Editor, Motion};
+use super::{EditKind, Editor, Motion, TabWidth};
 
 /// Lines looked at when detecting a file's indentation.
 const SAMPLE_LINES: usize = 2000;
@@ -288,4 +288,44 @@ fn remap(selection: &Selection, shift: impl Fn(Position) -> Position) -> Selecti
     let moved = Selection::new(shift(selection.anchor()), shift(selection.head()))
         .with_desired_column(None);
     Selections::single(moved)
+}
+
+/// What one level of indentation is made of when a file shows no style of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum IndentKind {
+    Spaces,
+    Tabs,
+}
+
+/// What the settings say about indentation: the style to use when a file shows
+/// none, how many columns a level (and a tab character) is, and whether the
+/// style a file already has wins over all that.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct IndentPrefs {
+    pub(crate) kind: IndentKind,
+    pub(crate) size: TabWidth,
+    pub(crate) detect: bool,
+}
+
+impl Default for IndentPrefs {
+    fn default() -> Self {
+        Self {
+            kind: IndentKind::Spaces,
+            size: TabWidth::default(),
+            detect: true,
+        }
+    }
+}
+
+impl IndentPrefs {
+    /// The indentation for a file: its own style if detection is on and it has
+    /// one, otherwise the one the settings name.
+    pub(crate) fn style_for(&self, buffer: &Buffer) -> IndentStyle {
+        let detected = self.detect.then(|| IndentStyle::detect(buffer)).flatten();
+        detected.unwrap_or(match self.kind {
+            IndentKind::Spaces => IndentStyle::Spaces(self.size.get()),
+            IndentKind::Tabs => IndentStyle::Tabs,
+        })
+    }
 }

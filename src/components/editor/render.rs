@@ -78,7 +78,7 @@ fn keep_cursor_visible(buffer: &Buffer, view: &mut ViewState, geometry: &Geometr
     let Ok(text) = buffer.line_content(head.line) else {
         return;
     };
-    let column = display_column(&text, head.column);
+    let column = display_column(&text, head.column, view.tab_width());
     view.scroll_to_show(
         head.line,
         column,
@@ -141,7 +141,12 @@ fn draw_lines(
         let Ok(content) = buffer.line_content(line) else {
             continue;
         };
-        let cells = visible_cells(&content, scroll.left, usize::from(geometry.text.width));
+        let cells = visible_cells(
+            &content,
+            scroll.left,
+            usize::from(geometry.text.width),
+            view.tab_width(),
+        );
         let selected = selected_columns(selection, line, buffer.line_len(line).unwrap_or(0));
         let colors = LineColors::new(syntax, buffer.line_start_byte(line), &content);
 
@@ -204,7 +209,7 @@ fn place_cursor(frame: &mut Frame, buffer: &Buffer, view: &ViewState, geometry: 
     let Ok(content) = buffer.line_content(head.line) else {
         return;
     };
-    let column = text_layout::display_column(&content, head.column);
+    let column = text_layout::display_column(&content, head.column, view.tab_width());
 
     let (Some(row), Some(col)) = (
         head.line.checked_sub(scroll.top),

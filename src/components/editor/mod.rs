@@ -5,9 +5,10 @@ use ratatui::layout::Rect;
 
 use crate::buffer::{Buffer, BufferError, Edit, Position, Selection, Selections};
 
-pub(crate) use indent::IndentStyle;
+pub(crate) use indent::{IndentKind, IndentPrefs, IndentStyle};
 pub(crate) use motion::Motion;
 pub(crate) use replace::Replacement;
+pub(crate) use text_layout::TabWidth;
 pub(crate) use view_state::ViewState;
 
 mod clipboard_ops;
@@ -68,7 +69,7 @@ impl<'a> EditorRef<'a> {
         let area = self.view.text_area()?;
         let head = self.view.selections().primary().head();
         let content = self.buffer.line_content(head.line).ok()?;
-        let column = text_layout::display_column(&content, head.column);
+        let column = text_layout::display_column(&content, head.column, self.view.tab_width());
         let scroll = self.view.scroll();
         let row = head.line.checked_sub(scroll.top)?;
         let column = column.checked_sub(scroll.left)?;

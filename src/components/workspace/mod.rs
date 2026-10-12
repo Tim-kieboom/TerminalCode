@@ -17,7 +17,9 @@ use ratatui::layout::Rect;
 use serde::Deserialize;
 
 use crate::buffer::{Buffer, DiskChange, EditInfo, FileError, Selection, Selections};
-use crate::components::editor::{Editor, EditorRef, IndentStyle, ViewState, display_name};
+use crate::components::editor::{
+    Editor, EditorRef, IndentPrefs, IndentStyle, ViewState, display_name,
+};
 use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
 use crate::paths::canonical;
@@ -135,6 +137,9 @@ pub(crate) struct Workspace {
     find_bar: u16,
     /// Stands in for the active editor while the only pane has no tabs.
     empty: (Buffer, ViewState),
+    /// What the settings say about indentation and the width of a tab character,
+    /// for every document and view, existing and new.
+    indent_prefs: IndentPrefs,
 }
 
 impl Default for Workspace {
@@ -162,6 +167,7 @@ impl Workspace {
             forgotten: Vec::new(),
             find_bar: 0,
             empty: (Buffer::default(), ViewState::default()),
+            indent_prefs: IndentPrefs::default(),
         };
         let (view, buffer) = editor.into_parts();
         let document = workspace.add_document(buffer);
@@ -784,7 +790,7 @@ impl Workspace {
         let mut buffer = buffer;
         let read_only = buffer.sync_read_only();
         let id = DocumentId(self.take_id());
-        let indent = IndentStyle::detect(&buffer).unwrap_or_default();
+        let indent = self.indent_prefs.style_for(&buffer);
         self.docs_version += 1;
         self.documents.insert(
             id,
@@ -800,7 +806,22 @@ impl Workspace {
         id
     }
 
-    fn new_tab(&mut self, document: DocumentId, view: ViewState) -> Tab {
+    /// Applies the indentation settings: how wide a tab character draws, in every
+    /// pane and in the tabs opened from now on, and the indentation of every
+    /// open document (its own style where detection is on and it shows one).
+    pub(crate) fn set_indent_prefs(&mut self, prefs: IndentPrefs) {
+        self.indent_prefs = prefs;
+        self.empty.1.set_tab_width(prefs.size);
+        for tab in self.panes.iter_mut().flat_map(|pane| pane.tabs.iter_mut()) {
+            tab.view.set_tab_width(prefs.size);
+        }
+        for doc in self.documents.values_mut() {
+            doc.indent = prefs.style_for(&doc.buffer);
+        }
+    }
+
+    fn new_tab(&mut self, document: DocumentId, mut view: ViewState) -> Tab {
+        view.set_tab_width(self.indent_prefs.size);
         Tab {
             id: ViewId(self.take_id()),
             document,

@@ -15,5 +15,18 @@
     // Whether the mouse is on at the start. With it on, clicks, drags and the
     // wheel reach the editor and the terminal's own text selection needs shift;
     // with it off the terminal handles the mouse. alt+m switches it for the run.
-    "mouse": true
+    "mouse": true,
+
+    // How many columns wide a tab character draws, from 1 to 16, and how many
+    // columns one level of indentation is when it is made of spaces (the Tab key
+    // inserts spaces up to the next multiple of it). The file is not touched.
+    "tab_size": 4,
+
+    // What the Tab key inserts: "spaces" or "tabs".
+    "indent_style": "spaces",
+
+    // true: a file that already has indentation keeps the style and width it
+    // uses (two spaces, four spaces or tabs), and the two settings above apply
+    // to files with none. false: the two settings above apply to every file.
+    "detect_indent": true
 }

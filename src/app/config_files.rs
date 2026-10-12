@@ -201,6 +201,11 @@ impl App {
         if self.settings.mouse != before.mouse {
             self.mouse.set(self.settings.mouse);
         }
+        if self.settings.indent_prefs() != before.indent_prefs() {
+            let prefs = self.settings.indent_prefs();
+            self.state.workspace_mut().set_indent_prefs(prefs);
+            self.needs_redraw = true;
+        }
     }
 
     /// Switches to a built-in theme, with the user's theme file laid over it,

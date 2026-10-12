@@ -535,3 +535,189 @@ fn the_template_names_both_new_settings() {
     assert!(DEFAULT_SETTINGS_JSONC.contains("\"shell\""));
     assert!(DEFAULT_SETTINGS_JSONC.contains("\"mouse\""));
 }
+
+// ---- tab_size
+
+/// The column the `Z` of a pasted tab and a `Z` shows in, on the first line of the text.
+fn z_column(app: &mut App) -> usize {
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
+    terminal
+        .draw(|frame| crate::components::prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    let screen = terminal.backend().to_string();
+    let line = screen
+        .lines()
+        .find(|line| line.contains('Z'))
+        .unwrap_or_else(|| panic!("no Z on the screen:\n{screen}"));
+    line.chars().position(|c| c == 'Z').unwrap()
+}
+
+fn paste(app: &mut App, text: &str) {
+    app.handle_input(InputEvent::Paste(text.to_owned()));
+}
+
+#[test]
+fn a_tab_draws_as_wide_as_the_setting_says() {
+    let dir = temp();
+    let mut narrow = started_with(dir.path(), r#"{ "tab_size": 2 }"#);
+    let mut wide = started_with(dir.path(), r#"{ "tab_size": 8 }"#);
+    paste(&mut narrow, "\tZ");
+    paste(&mut wide, "\tZ");
+
+    assert_eq!(z_column(&mut wide) - z_column(&mut narrow), 6);
+}
+
+#[test]
+fn saving_the_tab_size_redraws_open_tabs_and_applies_to_new_ones() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), "{}");
+    paste(&mut app, "\tZ");
+    let before = z_column(&mut app);
+
+    write(dir.path(), "settings.json", r#"{ "tab_size": 8 }"#);
+    reload(&mut app);
+    assert_eq!(z_column(&mut app), before + 4, "the open tab follows");
+
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('n'),
+        KeyModifiers::CONTROL,
+    )));
+    paste(&mut app, "\tZ");
+    assert_eq!(z_column(&mut app), before + 4, "a new tab starts with it");
+}
+
+#[test]
+fn a_reload_that_leaves_the_tab_size_alone_keeps_it_and_a_bad_value_changes_nothing() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), r#"{ "tab_size": 8 }"#);
+    paste(&mut app, "\tZ");
+    let before = z_column(&mut app);
+
+    reload(&mut app);
+    assert_eq!(z_column(&mut app), before);
+
+    write(dir.path(), "settings.json", r#"{ "tab_size": 99 }"#);
+    reload(&mut app);
+    assert_eq!(z_column(&mut app), before);
+    assert!(notified(&app, "tab_size"));
+}
+
+#[test]
+fn the_template_names_the_tab_size() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"tab_size\""));
+}
+
+// ---- indentation
+
+fn typed_tab(app: &mut App) -> String {
+    press(app, KeyCode::Tab);
+    app.state().editor().buffer().text()
+}
+
+#[test]
+fn the_tab_key_inserts_as_many_spaces_as_the_tab_size() {
+    let dir = temp();
+
+    assert_eq!(
+        typed_tab(&mut started_with(dir.path(), "{}")),
+        "    ",
+        "the default"
+    );
+    assert_eq!(
+        typed_tab(&mut started_with(dir.path(), r#"{ "tab_size": 2 }"#)),
+        "  "
+    );
+    assert_eq!(
+        typed_tab(&mut started_with(dir.path(), r#"{ "tab_size": 8 }"#)),
+        "        "
+    );
+}
+
+#[test]
+fn the_indent_style_tabs_makes_the_tab_key_insert_a_tab_character() {
+    let dir = temp();
+
+    let mut app = started_with(dir.path(), r#"{ "indent_style": "tabs" }"#);
+
+    assert_eq!(typed_tab(&mut app), "\t");
+}
+
+#[test]
+fn saving_new_indent_settings_applies_to_open_documents_without_a_style_of_their_own() {
+    let dir = temp();
+    let mut app = started_with(dir.path(), "{}");
+
+    write(dir.path(), "settings.json", r#"{ "tab_size": 2 }"#);
+    reload(&mut app);
+
+    assert_eq!(typed_tab(&mut app), "  ");
+}
+
+#[test]
+fn with_detection_off_the_settings_apply_to_every_document() {
+    let dir = temp();
+    let file = dir.path().join("t.txt");
+    fs::write(&file, "a\n  b\n").unwrap();
+    write(
+        dir.path(),
+        "settings.json",
+        r#"{ "tab_size": 8, "detect_indent": false }"#,
+    );
+    let mut state = crate::initial_state(std::slice::from_ref(&file)).unwrap();
+    let user = startup::load_user_config(&mut state, Some(dir.path()), KeyboardSupport::Enhanced);
+    let mut app = App::with_keymap(state, user.keymap)
+        .with_config_dir(Some(dir.path().to_path_buf()))
+        .with_settings(user.settings, user.theme);
+
+    press(&mut app, KeyCode::Tab);
+
+    assert_eq!(
+        app.state().editor().buffer().text(),
+        "        a\n  b\n",
+        "eight spaces, not the file's two"
+    );
+}
+
+#[test]
+fn with_detection_on_a_file_opened_with_two_space_indentation_keeps_two() {
+    let dir = temp();
+    let file = dir.path().join("t.txt");
+    fs::write(&file, "a\n  b\n").unwrap();
+    write(dir.path(), "settings.json", r#"{ "tab_size": 8 }"#);
+    let mut state = crate::initial_state(std::slice::from_ref(&file)).unwrap();
+    let user = startup::load_user_config(&mut state, Some(dir.path()), KeyboardSupport::Enhanced);
+    let mut app = App::with_keymap(state, user.keymap)
+        .with_config_dir(Some(dir.path().to_path_buf()))
+        .with_settings(user.settings, user.theme);
+
+    press(&mut app, KeyCode::Tab);
+
+    assert_eq!(app.state().editor().buffer().text(), "  a\n  b\n");
+}
+
+#[test]
+fn the_template_names_the_indent_settings() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"indent_style\""));
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"detect_indent\""));
+}
+
+#[test]
+fn saving_a_bigger_tab_size_leaves_an_open_document_with_its_own_indentation_alone() {
+    let dir = temp();
+    let file = dir.path().join("t.txt");
+    fs::write(&file, "a\n  b\n").unwrap();
+    write(dir.path(), "settings.json", "{}");
+    let mut state = crate::initial_state(std::slice::from_ref(&file)).unwrap();
+    let user = startup::load_user_config(&mut state, Some(dir.path()), KeyboardSupport::Enhanced);
+    let mut app = App::with_keymap(state, user.keymap)
+        .with_config_dir(Some(dir.path().to_path_buf()))
+        .with_settings(user.settings, user.theme);
+
+    write(dir.path(), "settings.json", r#"{ "tab_size": 8 }"#);
+    reload(&mut app);
+    press(&mut app, KeyCode::Tab);
+
+    assert_eq!(app.state().editor().buffer().text(), "  a\n  b\n");
+}

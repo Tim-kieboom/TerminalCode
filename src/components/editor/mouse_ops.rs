@@ -179,7 +179,7 @@ impl Editor {
             ..(self.view.scroll.top + self.view.viewport_height).min(self.buffer.len_lines());
         let widest = visible
             .filter_map(|line| self.buffer.line_content(line).ok())
-            .map(|content| display_column(&content, usize::MAX))
+            .map(|content| display_column(&content, usize::MAX, self.view.tab_width()))
             .max()
             .unwrap_or(0);
 
@@ -218,7 +218,7 @@ impl Editor {
         let display = self.view.scroll.left + usize::from(column - area.x);
         Ok(Some(Position::new(
             line,
-            column_at_display(&content, display),
+            column_at_display(&content, display, self.view.tab_width()),
         )))
     }
 

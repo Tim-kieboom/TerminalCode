@@ -12,6 +12,8 @@ use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value};
 use thiserror::Error;
 
+use crate::components::editor::{IndentKind, IndentPrefs, TabWidth};
+
 pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/settings.jsonc");
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +25,13 @@ pub(crate) struct Settings {
     pub(crate) shell: Option<String>,
     /// Whether the mouse is on at the start. `alt+m` still switches it for the run.
     pub(crate) mouse: bool,
+    /// How many columns a tab character draws, and how many a level of
+    /// indentation made of spaces is, for a file that shows no style of its own.
+    pub(crate) tab_size: TabWidth,
+    /// What a level of indentation is made of, for a file that shows no style.
+    pub(crate) indent_style: IndentKind,
+    /// Whether the indentation a file already has wins over the two settings above.
+    pub(crate) detect_indent: bool,
 }
 
 impl Default for Settings {
@@ -31,6 +40,9 @@ impl Default for Settings {
             theme: "dark".to_owned(),
             shell: None,
             mouse: true,
+            tab_size: TabWidth::default(),
+            indent_style: IndentKind::Spaces,
+            detect_indent: true,
         }
     }
 }
@@ -55,9 +67,25 @@ pub(crate) enum SettingsError {
         key: &'static str,
         source: serde_json::Error,
     },
+    #[error("setting \"{key}\": {value} is not between {min} and {max}")]
+    OutOfRange {
+        key: &'static str,
+        value: i64,
+        min: usize,
+        max: usize,
+    },
 }
 
 impl Settings {
+    /// What the indentation settings say, as the editor uses them.
+    pub(crate) fn indent_prefs(&self) -> IndentPrefs {
+        IndentPrefs {
+            kind: self.indent_style,
+            size: self.tab_size,
+            detect: self.detect_indent,
+        }
+    }
+
     /// Reads settings from the text of a settings file. Settings left out keep
     /// their defaults, and a file with nothing in it is all defaults.
     pub(crate) fn parse(source: &str) -> Result<Parsed, SettingsError> {
@@ -88,6 +116,11 @@ impl Settings {
                 .map(|shell| shell.trim().to_owned())
                 .filter(|shell| !shell.is_empty()),
             mouse: take(&mut map, "mouse")?.unwrap_or(defaults.mouse),
+            tab_size: take_in_range(&mut map, "tab_size", TabWidth::RANGE)?
+                .and_then(TabWidth::new)
+                .unwrap_or(defaults.tab_size),
+            indent_style: take(&mut map, "indent_style")?.unwrap_or(defaults.indent_style),
+            detect_indent: take(&mut map, "detect_indent")?.unwrap_or(defaults.detect_indent),
         };
         // Every setting that is known has been taken out, so what is left is not one.
         let unknown = map.into_iter().map(|(key, _)| key).collect();
@@ -137,6 +170,26 @@ fn take<T: DeserializeOwned>(
             serde_json::from_value(value).map_err(|source| SettingsError::Value { key, source })
         })
         .transpose()
+}
+
+/// A whole-number setting that must lie in `range`.
+fn take_in_range(
+    map: &mut Map<String, Value>,
+    key: &'static str,
+    range: std::ops::RangeInclusive<usize>,
+) -> Result<Option<usize>, SettingsError> {
+    let Some(value) = take::<i64>(map, key)? else {
+        return Ok(None);
+    };
+    match usize::try_from(value) {
+        Ok(number) if range.contains(&number) => Ok(Some(number)),
+        _ => Err(SettingsError::OutOfRange {
+            key,
+            value,
+            min: *range.start(),
+            max: *range.end(),
+        }),
+    }
 }
 
 /// `source` with the comments and the commas before a closing bracket made

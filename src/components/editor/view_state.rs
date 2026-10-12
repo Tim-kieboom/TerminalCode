@@ -2,7 +2,7 @@ use ratatui::layout::Rect;
 
 use crate::buffer::{Position, Selections};
 
-use super::{EditKind, IndentStyle, Scroll};
+use super::{EditKind, IndentStyle, Scroll, TabWidth};
 
 /// Everything about one editor view except the text itself: where the cursor
 /// is, what is scrolled into view, and mouse and undo-grouping state. Several
@@ -20,6 +20,8 @@ pub(crate) struct ViewState {
     pub(super) drag_lines: Option<usize>,
     pub(super) seen_view: Option<(Position, u64, Rect)>,
     pub(super) indent: IndentStyle,
+    /// How wide a tab character draws.
+    pub(super) tab_width: TabWidth,
     pub(super) last_edit: Option<EditKind>,
 }
 
@@ -55,6 +57,14 @@ impl ViewState {
 
     pub(crate) fn set_indent(&mut self, indent: IndentStyle) {
         self.indent = indent;
+    }
+
+    pub(crate) fn tab_width(&self) -> TabWidth {
+        self.tab_width
+    }
+
+    pub(crate) fn set_tab_width(&mut self, tab_width: TabWidth) {
+        self.tab_width = tab_width;
     }
 
     /// A copy for a new pane showing the same document: same cursor and
