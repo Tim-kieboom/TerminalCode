@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::components::ComponentKind;
 use crate::components::PluginViewId;
 use crate::components::confirm::Confirm;
+use crate::components::diagnostic_popup::DiagnosticPopup;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::find::Find;
@@ -73,6 +74,7 @@ pub(crate) enum Popup {
     Confirm(Confirm),
     NewEntry(NamePrompt),
     Menu(Menu),
+    Diagnostics(DiagnosticPopup),
     Palette(Palette),
     Finder(Finder),
     Search(Search),
@@ -422,6 +424,25 @@ impl AppState {
 
     pub(crate) fn open_menu(&mut self, menu: Menu) {
         self.popup = Popup::Menu(menu);
+    }
+
+    /// Opens the box with the diagnostics of a line, closing any other popup.
+    pub(crate) fn open_diagnostic_popup(&mut self, popup: DiagnosticPopup) {
+        self.popup = Popup::Diagnostics(popup);
+    }
+
+    pub(crate) fn diagnostic_popup(&self) -> Option<&DiagnosticPopup> {
+        match &self.popup {
+            Popup::Diagnostics(popup) => Some(popup),
+            _ => None,
+        }
+    }
+
+    /// Closes the box with the diagnostics; any other popup stays open.
+    pub(crate) fn close_diagnostic_popup(&mut self) {
+        if matches!(self.popup, Popup::Diagnostics(_)) {
+            self.popup = Popup::None;
+        }
     }
 
     /// Closes the menu and hands it back; any other popup stays open.

@@ -66,6 +66,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+p` | Find a file by name (`name:42` opens it at line 42; `alt+enter` opens it beside this pane) |
 | `alt+f` | Search the project; `f4` and `shift+f4` step through the results |
 | `f8`, `shift+f8` | Go to the next, previous diagnostic (errors and warnings a language server found, written after the code of their line and underlined) |
+| `f7` | The whole text of the diagnostics on the cursor's line in a box (for a message that is cut after the code; arrows and page keys scroll, any other key closes) |
 | `ctrl+n`, `ctrl+w` | New file, close tab |
 | `ctrl+tab`, `ctrl+shift+tab` | Next, previous tab |
 | `ctrl+k e`, `ctrl+k w`, `ctrl+k z` | Close other tabs, close all tabs, reopen the closed tab |

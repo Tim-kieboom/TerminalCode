@@ -1,4 +1,5 @@
 pub mod confirm;
+pub mod diagnostic_popup;
 pub mod editor;
 pub mod explorer;
 pub mod find;

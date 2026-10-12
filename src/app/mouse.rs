@@ -116,6 +116,14 @@ impl App {
             return;
         }
 
+        // A click anywhere closes the box with the diagnostics, like a key does.
+        if matches!(event.kind, MouseEventKind::Down(_)) && self.state.diagnostic_popup().is_some()
+        {
+            self.state.close_diagnostic_popup();
+            self.needs_redraw = true;
+            return;
+        }
+
         if self.modal_open() {
             return;
         }

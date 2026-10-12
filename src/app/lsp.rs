@@ -6,6 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::components::diagnostic_popup::{DiagnosticPopup, PopupKey};
 use crate::components::workspace::{DocumentId, LspDocument};
 use crate::event::Event;
 #[cfg(not(test))]
@@ -397,6 +398,60 @@ impl App {
         match self.state.editor().buffer().byte_to_position(start) {
             Ok(position) => self.state.edit(|editor| editor.go_to(position)),
             Err(error) => self.state.notify_error(error.to_string()),
+        }
+        self.needs_redraw = true;
+    }
+}
+
+impl App {
+    /// `f7`: the whole text of the diagnostics on the cursor's line, in a box
+    /// next to the cursor.
+    pub(super) fn show_diagnostics(&mut self) {
+        let Some(document) = self.state.workspace().active_document_id() else {
+            return;
+        };
+        let editor = self.state.editor();
+        let buffer = editor.buffer();
+        let line = editor.selections().primary().head().line;
+        let (start, next) = (
+            buffer.line_start_byte(line),
+            buffer.line_start_byte(line + 1),
+        );
+        let on_line: Vec<&Diagnostic> = self
+            .state
+            .diagnostics()
+            .overlapping(document, start..next)
+            .collect();
+        if on_line.is_empty() {
+            self.state.notify("no diagnostics on this line");
+            return;
+        }
+        // Under the cursor; the middle of the screen when it is out of sight.
+        let screen = self.state.screen();
+        let anchor = editor
+            .cursor_cell()
+            .unwrap_or_else(|| ratatui::layout::Position::new(screen.width / 4, screen.height / 3));
+        let popup = DiagnosticPopup::new(&on_line, anchor);
+        self.state.open_diagnostic_popup(popup);
+        self.needs_redraw = true;
+    }
+
+    /// A key while the box with the diagnostics is open: the arrow and page
+    /// keys scroll it, any other key closes it (and does nothing else).
+    pub(super) fn handle_diagnostic_popup_key(&mut self, key: crossterm::event::KeyEvent) {
+        match PopupKey::from_key(key) {
+            PopupKey::Ignore => {}
+            PopupKey::Lines(lines) => {
+                if let Some(popup) = self.state.diagnostic_popup() {
+                    popup.scroll_lines(lines);
+                }
+            }
+            PopupKey::Pages(pages) => {
+                if let Some(popup) = self.state.diagnostic_popup() {
+                    popup.scroll_pages(pages);
+                }
+            }
+            PopupKey::Close => self.state.close_diagnostic_popup(),
         }
         self.needs_redraw = true;
     }

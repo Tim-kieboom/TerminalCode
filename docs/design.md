@@ -781,7 +781,9 @@ on. Under the text each diagnostic is about there is a line, in the slot's new `
 keeps its own syntax color, and a terminal that cannot color underlines draws it in the text color); a worse severity is
 drawn over a milder one where they meet. The status bar shows only how the server is doing (a first version also repeated
 the cursor line's message there; it only duplicated the inline text, so it was dropped). A hover popup arrives with the
-hover feature, for reading a cut message whole. `f8` and `shift+f8` go to the next and previous diagnostic, round the file.
+`f7` opens a box next to the cursor with the whole text of the diagnostics on its line, for reading a message that was cut
+or has more lines than the one shown (a compiler's notes and help); it opens on demand only, scrolls with the arrow and page
+keys and closes with any other key. `f8` and `shift+f8` go to the next and previous diagnostic, round the file.
 
 **Sync.** `didOpen` when a server runs and a matching document is open (all open documents it serves, not only the
 one in front), `didChange`, `didSave` after a save and `didClose` when the document goes away or has another name.

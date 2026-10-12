@@ -1249,4 +1249,25 @@ fn real_rust_analyzer_errors_show_on_the_right_lines_in_the_app() {
         3,
         "f8 went to the line with the error"
     );
+
+    // f7 shows the whole message in a box.
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::F(7),
+        KeyModifiers::NONE,
+    )));
+    let boxed = draw(&mut app);
+    let box_text: String = (0..boxed.area.height)
+        .map(|row| {
+            (0..boxed.area.width)
+                .map(|column| boxed[(column, row)].symbol().to_owned())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    eprintln!("{box_text}");
+    assert!(box_text.contains("Diagnostics"), "the box is open");
+    assert!(
+        box_text.contains("expected u32, found"),
+        "with the whole message in it"
+    );
 }

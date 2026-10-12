@@ -4,6 +4,7 @@ mod config_tests;
 mod create_tests;
 mod delete_tests;
 mod diagnostics_display_tests;
+mod diagnostics_popup_tests;
 mod disk_tests;
 mod drag_tests;
 mod editor_mouse_tests;
