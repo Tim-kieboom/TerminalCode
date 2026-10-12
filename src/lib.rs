@@ -21,6 +21,12 @@ mod entries;
 pub mod error;
 mod event;
 mod keymap;
+#[allow(
+    dead_code,
+    unused_imports,
+    reason = "the client is wired into the app in the next steps"
+)]
+mod lsp;
 mod paths;
 mod pty;
 mod removal;
