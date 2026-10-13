@@ -4,7 +4,7 @@ See `design.md` for decisions. Finished milestones (M0-M6, releases 0.1.0 to 0.2
 
 ## Release 0.3.0
 - [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
-- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
+- [x] Tag `v0.3.0` (tagged on 2b3e052; Linux and Windows CI green, macOS only its known flood timing tests; draft release with the three archives and SHA256SUMS, to be published by hand)
 
 ## M8 — Config + polish
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
