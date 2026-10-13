@@ -111,6 +111,12 @@ pub(crate) enum Action {
     CloseTab,
     /// Closes every other tab of the focused pane.
     CloseOtherTabs,
+    /// Closes every tab of the focused pane to the left of the one showing.
+    CloseTabsToLeft,
+    /// Closes every tab of the focused pane to the right of the one showing.
+    CloseTabsToRight,
+    /// Pins the tab showing to the left of the strip, or lets it go.
+    TogglePinTab,
     /// Closes every tab of every pane.
     CloseAllTabs,
     /// Opens the file of the tab closed last, with the cursor where it was.
@@ -136,6 +142,9 @@ impl Action {
             self,
             Self::NewFile
                 | Self::CloseOtherTabs
+                | Self::CloseTabsToLeft
+                | Self::CloseTabsToRight
+                | Self::TogglePinTab
                 | Self::CloseAllTabs
                 | Self::ReopenClosedTab
                 | Self::OpenConfig(_)
@@ -184,6 +193,9 @@ impl Action {
                 | Self::ToggleMouse
                 | Self::NewFile
                 | Self::CloseOtherTabs
+                | Self::CloseTabsToLeft
+                | Self::CloseTabsToRight
+                | Self::TogglePinTab
                 | Self::CloseAllTabs
                 | Self::ReopenClosedTab
                 | Self::SaveAll
@@ -256,6 +268,9 @@ impl Action {
             Self::Save => "File: Save",
             Self::SaveAll => "File: Save All",
             Self::CloseOtherTabs => "Tab: Close Others",
+            Self::CloseTabsToLeft => "Tab: Close to the Left",
+            Self::CloseTabsToRight => "Tab: Close to the Right",
+            Self::TogglePinTab => "Tab: Pin or Unpin",
             Self::CloseAllTabs => "Tab: Close All",
             Self::ReopenClosedTab => "Tab: Reopen Closed",
             Self::NewFile => "File: New",
@@ -344,6 +359,9 @@ impl Action {
             Self::Save,
             Self::SaveAll,
             Self::CloseOtherTabs,
+            Self::CloseTabsToLeft,
+            Self::CloseTabsToRight,
+            Self::TogglePinTab,
             Self::CloseAllTabs,
             Self::ReopenClosedTab,
             Self::NewFile,

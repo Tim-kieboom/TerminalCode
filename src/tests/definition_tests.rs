@@ -369,7 +369,7 @@ fn siblings(places: &'static [(&'static str, u32)]) -> Answer {
 const TWO: &[(&str, u32)] = &[("lib.rs", 4), ("util.rs", 9)];
 
 fn rig_with_two() -> Rig {
-    let mut rig = rig(siblings(TWO));
+    let rig = rig(siblings(TWO));
     let util: String = (1..=20).map(|n| format!("    util {n}\n")).collect();
     fs::write(rig._dir.path().join("src/util.rs"), util).unwrap();
     rig

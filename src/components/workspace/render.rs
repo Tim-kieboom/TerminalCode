@@ -50,8 +50,9 @@ impl Render for Workspace {
                     continue;
                 }
 
+                let pin = if tab.pinned { PIN } else { "" };
                 let label = truncate(
-                    &format!(" {} ", self.tab_title(tab.document)),
+                    &format!(" {pin}{} ", self.tab_title(tab.document)),
                     usize::from(rect.width),
                 );
                 let slot = if index == pane.active {
@@ -87,6 +88,9 @@ impl Render for Workspace {
     }
 }
 
+/// Written before the name of a pinned tab.
+const PIN: &str = "◆ ";
+
 impl Workspace {
     /// What a tab says: the file name, a mark for unsaved changes and a note
     /// when the file changed on disk under them.
@@ -104,7 +108,10 @@ impl Workspace {
         let labels: Vec<String> = self.panes[index]
             .tabs
             .iter()
-            .map(|tab| format!(" {} ", self.tab_title(tab.document)))
+            .map(|tab| {
+                let pin = if tab.pinned { PIN } else { "" };
+                format!(" {pin}{} ", self.tab_title(tab.document))
+            })
             .collect();
 
         let find_rows = match self.panes[index].id == self.focused {

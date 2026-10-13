@@ -214,3 +214,44 @@ fn name_of(path: &Path) -> String {
         |n| n.to_string_lossy().into_owned(),
     )
 }
+
+/// What the menu on a tab offers. The tab was brought to the front by the click,
+/// so the items work on the tab in front.
+impl App {
+    fn tab_entries(&self) -> Vec<Entry> {
+        let item = |label, action: Action| {
+            let keys = self.keyboard.keys_for(&action, &EDITOR_CONTEXTS);
+            Entry::Item {
+                label,
+                action,
+                keys,
+            }
+        };
+        let pin = match self.state.workspace().active_tab_is_pinned() {
+            true => item("Unpin Tab", Action::TogglePinTab),
+            false => item("Pin Tab", Action::TogglePinTab),
+        };
+        vec![
+            item("Close", Action::CloseTab),
+            item("Close Others", Action::CloseOtherTabs),
+            item("Close to the Left", Action::CloseTabsToLeft),
+            item("Close to the Right", Action::CloseTabsToRight),
+            item("Close All", Action::CloseAllTabs),
+            Entry::Separator,
+            pin,
+        ]
+    }
+
+    /// A right click on a tab: brings the tab to the front and opens the menu
+    /// just below the strip. Returns whether the click was on a tab.
+    pub(in crate::app) fn right_click_tab(&mut self, column: u16, row: u16) -> bool {
+        if !self.state.workspace_mut().tab_context_press(column, row) {
+            return false;
+        }
+        self.state.set_focus(Focus::Editor);
+        let entries = self.tab_entries();
+        self.state
+            .open_menu(Menu::on_editor(entries, Position::new(column, row)));
+        true
+    }
+}

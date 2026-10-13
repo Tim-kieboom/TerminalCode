@@ -109,6 +109,18 @@ impl Menu {
         self.selected
     }
 
+    /// The labels of the items, for tests.
+    #[cfg(test)]
+    pub(crate) fn labels_for_test(&self) -> Vec<&str> {
+        self.entries
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Item { label, .. } => Some(*label),
+                Entry::Separator => None,
+            })
+            .collect()
+    }
+
     pub(crate) fn target(&self) -> Option<&Path> {
         self.target.as_deref()
     }

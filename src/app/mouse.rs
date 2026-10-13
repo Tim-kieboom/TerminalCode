@@ -187,6 +187,14 @@ impl App {
             return;
         }
 
+        // A right click on a tab opens the menu of the tab.
+        if event.kind == MouseEventKind::Down(MouseButton::Right)
+            && self.right_click_tab(event.column, event.row)
+        {
+            self.needs_redraw = true;
+            return;
+        }
+
         // A right click on the text opens the editor's menu; elsewhere it does nothing.
         if event.kind == MouseEventKind::Down(MouseButton::Right) {
             self.right_click_editor(event.column, event.row);

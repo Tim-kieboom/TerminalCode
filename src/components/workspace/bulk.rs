@@ -16,6 +16,10 @@ const REMEMBERED_TABS: usize = 20;
 pub(crate) enum CloseScope {
     /// Every tab of the focused pane except the one showing.
     Others,
+    /// Every tab of the focused pane to the left of the one showing.
+    Left,
+    /// Every tab of the focused pane to the right of the one showing.
+    Right,
     /// Every tab of every pane.
     All,
 }
@@ -76,22 +80,28 @@ impl Workspace {
         CloseMany::Closed(closed)
     }
 
+    /// The tabs a bulk close covers; a pinned tab is never among them.
     fn doomed_tabs(&self, scope: CloseScope) -> Vec<ViewId> {
+        let in_focused = |wanted: &dyn Fn(usize, usize) -> bool| {
+            let pane = self.focused_pane();
+            pane.tabs
+                .iter()
+                .enumerate()
+                .filter(|(index, tab)| !tab.pinned && wanted(*index, pane.active))
+                .map(|(_, tab)| tab.id)
+                .collect()
+        };
         match scope {
             CloseScope::All => self
                 .panes
                 .iter()
-                .flat_map(|pane| pane.tabs.iter().map(|tab| tab.id))
+                .flat_map(|pane| pane.tabs.iter())
+                .filter(|tab| !tab.pinned)
+                .map(|tab| tab.id)
                 .collect(),
-            CloseScope::Others => {
-                let pane = self.focused_pane();
-                pane.tabs
-                    .iter()
-                    .enumerate()
-                    .filter(|(index, _)| *index != pane.active)
-                    .map(|(_, tab)| tab.id)
-                    .collect()
-            }
+            CloseScope::Others => in_focused(&|index, active| index != active),
+            CloseScope::Left => in_focused(&|index, active| index < active),
+            CloseScope::Right => in_focused(&|index, active| index > active),
         }
     }
 

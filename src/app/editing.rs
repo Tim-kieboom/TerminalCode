@@ -158,3 +158,12 @@ impl App {
         self.state.notify(message);
     }
 }
+
+impl App {
+    /// Pins the tab in front to the left of its strip, or lets it go.
+    pub(super) fn toggle_pin_tab(&mut self) {
+        let pinned = self.state.workspace_mut().toggle_pin_active();
+        self.state
+            .notify(if pinned { "tab pinned" } else { "tab unpinned" });
+    }
+}

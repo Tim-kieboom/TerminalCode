@@ -21,7 +21,7 @@ needs a recent glibc; on an older system build from source.
 ## What it does
 
 - **Editor:** tabs, split panes, undo and redo, smart indent, find and replace in a file, go to line, and the mouse
-  (click, drag, double and triple click, the wheel, a right click menu). Files are UTF-8.
+  (click, drag, double and triple click, the wheel, a right click menu, and a right click menu on a tab: close, close others, to the left or the right, close all, pin; a pinned tab stays at the left and is left alone by the close-many items). Files are UTF-8.
 - **Syntax colors** for Rust, TOML, JSON, Markdown and Nix, computed on a background thread so typing never waits.
 - **Explorer:** a project tree that shows what `.gitignore` leaves out dimmed (you can still open it), with create, rename, move (also by drag and drop) and delete.
 - **Finder and project search:** open a file by name from anywhere (`ctrl+p`), and search the whole project (`alt+f`).

@@ -92,6 +92,9 @@ struct Tab {
     id: ViewId,
     document: DocumentId,
     view: ViewState,
+    /// Pinned tabs sit at the left of the strip, are left alone by the close-many
+    /// items and need an explicit close.
+    pinned: bool,
 }
 
 #[derive(Debug)]
@@ -504,6 +507,60 @@ impl Workspace {
         self.close_tab_at(pane, tab)
     }
 
+    /// Pins the active tab of the focused pane, or lets it go. A pinned tab moves
+    /// to the end of the pinned ones at the left of the strip; one let go to just
+    /// after them. Whether the tab is pinned now.
+    pub(crate) fn toggle_pin_active(&mut self) -> bool {
+        self.reset_confirmations();
+        let pane = self.focused_pane_mut();
+        if pane.active >= pane.tabs.len() {
+            return false;
+        }
+        let mut tab = pane.tabs.remove(pane.active);
+        tab.pinned = !tab.pinned;
+        let pinned = tab.pinned;
+        let first_loose = pane.tabs.iter().filter(|other| other.pinned).count();
+        pane.tabs.insert(first_loose, tab);
+        pane.active = first_loose;
+        pinned
+    }
+
+    /// The names of the tabs of the focused pane, left to right.
+    #[cfg(test)]
+    pub(crate) fn tab_names_for_test(&self) -> Vec<String> {
+        self.focused_pane()
+            .tabs
+            .iter()
+            .map(|tab| display_name(&self.documents[&tab.document].buffer))
+            .collect()
+    }
+
+    /// Whether the active tab of the focused pane is pinned.
+    pub(crate) fn active_tab_is_pinned(&self) -> bool {
+        self.active_tab().is_some_and(|tab| tab.pinned)
+    }
+
+    /// A right button press on a tab strip: brings that tab to the front, in its
+    /// pane, which gets the focus (the menu works on the tab in front). Returns
+    /// whether it was on a tab.
+    pub(crate) fn tab_context_press(&mut self, column: u16, row: u16) -> bool {
+        let Some(pane) = self.pane_at(column, row) else {
+            return false;
+        };
+        let Some(tab) = self.panes[pane].tab_at(column, row) else {
+            return false;
+        };
+        // The same tab again is nothing new, so a warning that waits for the same
+        // close to be asked again still waits.
+        let moved = self.focused != self.panes[pane].id || self.panes[pane].active != tab;
+        if moved {
+            self.reset_confirmations();
+        }
+        self.focused = self.panes[pane].id;
+        self.panes[pane].active = tab;
+        true
+    }
+
     /// A middle button press: closes the tab under the pointer, if it is on a
     /// tab. Like [`Workspace::close_tab`], but for any tab and without moving
     /// focus.
@@ -905,6 +962,7 @@ impl Workspace {
             id: ViewId(self.take_id()),
             document,
             view,
+            pinned: false,
         }
     }
 
