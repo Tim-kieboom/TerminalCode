@@ -13,6 +13,10 @@ const ROOT: &str = "/home/tim/project";
 #[cfg(windows)]
 const ROOT: &str = r"C:\Users\tim\project";
 
+pub(super) fn root_for_tests() -> &'static str {
+    ROOT
+}
+
 fn root() -> &'static Path {
     Path::new(ROOT)
 }
@@ -38,7 +42,10 @@ fn the_client_says_only_what_it_uses() {
         json!(true)
     );
     assert_eq!(capabilities["window"]["workDoneProgress"], json!(true));
-    assert!(capabilities["textDocument"].get("completion").is_none());
+    let completion = &capabilities["textDocument"]["completion"];
+    assert_eq!(completion["contextSupport"], json!(true));
+    assert_eq!(completion["completionItem"]["snippetSupport"], json!(false));
+    assert!(completion["completionItem"].get("resolveSupport").is_none());
     assert!(capabilities["textDocument"].get("hover").is_none());
 }
 

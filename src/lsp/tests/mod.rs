@@ -1,3 +1,4 @@
+mod completion_tests;
 mod config_tests;
 mod connection_tests;
 mod diagnostics_tests;

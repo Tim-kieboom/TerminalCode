@@ -17,6 +17,13 @@ pub(crate) struct Server {
     pub(crate) capabilities: Value,
 }
 
+impl Server {
+    /// What the server offers for completion; `None` when it offers none.
+    pub(crate) fn completion(&self) -> Option<super::Provider> {
+        super::Provider::from_capabilities(&self.capabilities)
+    }
+}
+
 /// What this client can do, as `initialize` says it. Only what is used: a
 /// server offers features to the clients that say they take them.
 pub(crate) fn client_capabilities() -> Value {
@@ -30,6 +37,19 @@ pub(crate) fn client_capabilities() -> Value {
             "synchronization": {
                 "dynamicRegistration": false,
                 "didSave": true,
+            },
+            "completion": {
+                "dynamicRegistration": false,
+                // The server is told why it is asked (a typed trigger character,
+                // a list that grew), and every kind of item is understood.
+                "contextSupport": true,
+                "completionItemKind": { "valueSet": (1..=25).collect::<Vec<u32>>() },
+                // Plain text only, and every edit an item needs comes with it:
+                // no snippets, no lazy resolving, no insert-or-replace.
+                "completionItem": {
+                    "snippetSupport": false,
+                    "insertReplaceSupport": false,
+                },
             },
             "publishDiagnostics": {
                 "versionSupport": true,
