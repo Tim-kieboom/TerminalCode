@@ -8,7 +8,7 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**This is version 0.2.1.** The command is `trcode` (it was `terminal_code` in 0.2.0). Release builds for Linux and Windows (and macOS, best effort) are on the
+**This is version 0.3.0.** The command is `trcode` (it was `terminal_code` before 0.2.1). Release builds for Linux and Windows (and macOS, best effort) are on the
 [releases page](https://github.com/Tim-kieboom/TerminalCode/releases) with their checksums, or you can build from
 source (see below). What is planned next is tracked in [docs/todo.md](docs/todo.md); the design is in
 [docs/design.md](docs/design.md).
@@ -133,9 +133,9 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   ordinary lines are fine: 10 MB opens in about 10 ms.
 - Only UTF-8 files can be opened.
 - Undo is linear (no undo tree), and there is one cursor.
-- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics, suggestions as you type (with brackets and documentation) and what the server says about the word under the pointer or the cursor (hover), with no go to definition yet. No debugger or plugins yet; those are planned after 0.2.0 (see the backlog in
+- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics, suggestions as you type (with brackets and documentation) and what the server says about the word under the pointer or the cursor (hover), with no go to definition yet. No debugger or plugins yet; those are planned after 0.3.0 (see the backlog in
   [docs/todo.md](docs/todo.md)).
-- The vim layer is planned for after 0.2.0 too; the editor works like an IDE until then.
+- The vim layer is planned for after 0.3.0 too; the editor works like an IDE until then.
 - On macOS the terminal pane's timing tests are flaky in CI, and the manual test pass on Windows Terminal is still
   to be done.
 

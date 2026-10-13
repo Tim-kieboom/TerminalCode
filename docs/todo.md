@@ -1,85 +1,425 @@
 # TODO
 
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
+
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 See `design.md` for decisions. Finished milestones (M0-M6, releases 0.1.0 to 0.2.1, the layout and theme rewrites, the pre-M6 triage) are in `todo-done.md`; this file keeps only open work.
 
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
+
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 ## M8 — Config + polish
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Rest of `settings.json` (Zed-style: JSON with comments, user file layered over defaults; project override file optional). Settings still to add: shell, indent fallback width/style and an option to turn off indent detection from the file, tab display width, sequence timeout. Needs a JSONC parser (or comment stripping) and typed errors shown as notifications. Keymap stays in `keymap.toml` unless we decide to move it.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - Cut decided for 0.1.0: `shell`, `mouse`, `tab_size`, `indent` (style, width, detection on or off). After 0.1.0: sequence timeout, remember what is hidden, notification lifetime, hidden-at-start layouts.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] `shell` (a program name, `null` is your own shell; new terminal tabs use it; a reload applies it only when the file changed it) and `mouse` (on or off at the start; `alt+m` still switches it for the run)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] `tab_size` (one setting, decided after `tab_width` showed nothing on a file indented with spaces: 1 to 16, default 4; it is how wide a tab character draws and how many columns a level of space indentation is), `indent_style` (`"spaces"` or `"tabs"`, what the Tab key inserts) and `detect_indent` (default true: a file that already has indentation keeps its own style and width, and the two settings apply to files with none; false: they apply to every file). A wrong type or an out of range value rejects the file by key. The width travels with each view as a `TabWidth` and the style with each document, both set by a reload that changed them, with no global.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Settings left over from before M6: `mouse` on/off; remember what is hidden between runs; notification lifetime; dim ignored files in the explorer instead of hiding them; a layout file that starts with something hidden; `terminal` shell (the `theme` setting is done)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] Mouse: pane focus by click (done with the panes: a press in another pane focuses it)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Cursor follows focus: only the pane that has the keyboard shows its cursor. Focusing the explorer hides the editor's cursor (the explorer shows its selected row instead), and focusing the editor hides the terminal's, and the other way round, so it is always clear where typing goes. Check the editor, explorer, terminal, find bar and popups, and the splits that show the same document
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] Error handling pass: every recoverable error surfaces as a notification; no `unwrap` outside tests. First case, decided (a file deleted while it is open; today only a plain, expiring notification, and only the buffer level is tested):
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - A deleted file keeps its tab, which shows a persistent `[deleted]` marker.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - Saving a deleted file asks first. It never creates a missing directory: if the folder is gone too, the prompt says so and offers only save as or cancel.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - The marker clears when the file is saved or when it reappears.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - A file that reappears while the buffer has unsaved edits and different content on disk is a conflict like any other: edits kept, save asks before overwriting.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - A clean buffer whose file reappears with the same content clears the marker with no notification and no reload.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   The `[deleted]` tab marker and its tests already existed (corrected from the first reading); what was missing is asking before a save recreates the file and the folder-gone message. There is no save as in the app yet (post-0.1.0 backlog), so a gone folder is refused with a message naming the folder. A reappearing file under unsaved edits turns the marker into `[changed]`.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   Tests (in `src/tests/disk_tests.rs`; the first three were written failing, the rest pin behavior that already held):
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] saving a deleted file asks first, the second save recreates it and clears the marker
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] anything else between the two saves asks again
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] saving when the folder is gone creates no folder and the error says the folder is gone
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] the marker stays on a modified tab and after a tab switch
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] the file back with the same content clears the marker with no notification
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] the file back different reloads a clean tab; under unsaved edits it is a conflict (edits kept, `[changed]`, save asks)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] found without a report when the screen comes back, and cleared the same way
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] a new file that does not exist yet is not marked deleted
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   Second case, decided and done (a read-only file being saved): saving a read-only file is always refused (the old atomic write replaced it silently on Unix and failed with a raw error on Windows); the tab shows `[read-only]` from open on and follows the file's permissions live (watcher report, tab switch, screen back), and editing is locked while it does (every edit is refused with a message; moving, selecting and copying work; undo and redo still work, so edits made before the file turned read-only can be taken back). Save all and the quit prompt report it too. Third case, done (the PTY failing to spawn): a shell that cannot start never leaves an empty focused pane (it is hidden again and the keyboard stays in the editor); the platform shell (`/bin/sh` or `cmd.exe`) is tried once, kept for the rest of the run, and a sticky error says which shell failed and what started instead; if both fail the error says why. Fourth case, done (an unwritable config folder): a config file that cannot be made opens its defaults in a locked tab named `NAME (defaults) [read-only]` with no file behind it (to read and copy from; edits are refused and saving says it is a copy of the defaults), and a sticky error says why the file could not be made. This covers Open Settings, Keymap, Layout and the theme in use; making a new theme or reading an unreadable config file at start are not changed. A copy opened before the folder became writable stays a copy until it is closed. Fifth, done (a copy the system clipboard cannot take): copy and cut say once per run, with the reason, that only the editor's own copy is used (`Clipboard::set` returns the notice, as `get` does for an unreadable one). Audit of the other 16 `let _ =` that drop a Result outside tests: terminal teardown, a closed channel at shutdown, temp file cleanup, a full input queue and killing an exited child are fine to ignore; the one `expect` left carries an invariant message. A copy too large for the terminal clipboard (OSC 52 limit) is told with the same once-per-run notice, so a later oversized copy is silent.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   Fixed: `ten_megabytes_of_output_do_not_hold_up_keys_or_drawing` (and the 100 MB one) now rerun the flood once after a quiet 500 ms when a key or frame took 50 ms or more, and fail only if the second run stalls too, printing both runs. It failed about 2 in 7 local full runs right after a build (one frame of 1319 at 63 ms; usual worst frame is 2 to 5 ms). The check stays on the worst frame, because the guard is against a stall, not a slower average.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] Performance pass: large file open (10 MB), long lines, fast scroll
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - Budgets decided: a 10 MB file is open and drawn within 300 ms, and no key plus frame takes 50 ms. Measured (release build, `cargo test --release perf_tests -- --ignored --nocapture`, tests in `src/tests/perf_tests.rs`): 10 MB of 80 or 1000 column lines open in about 10 ms, first frame under 1 ms, slowest key plus frame about 5 ms; typing in the middle of the file 0.4 ms; syntax colors for 10 MB of Rust arrive after about 1 s with no frame over 0.4 ms meanwhile; the guard test holds the budgets for the ordinary and 1000 column cases.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - Decided: a single line longer than about 850 KB is a known limit (frame time grows with its length, 59 ms at 1 MB and 590 ms at 10 MB, because layout walks the line from its start each frame); it is listed in the known-limits section for 0.1.0 and the fix (lay out only the visible window of a line) is post-0.1.0.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] Benchmarks: decided against `criterion` (a shared CI runner is too noisy to see a small regression, and a hand-run bench is only used when someone already suspects a problem); budget tests in `src/tests/perf_tests.rs` instead, ignored in the normal run and run in release with `cargo test --release perf_tests -- --ignored --nocapture`. Covered: opening, drawing and scrolling 10 MB (ordinary and 1000 column lines, and the single long line), typing in 10 MB with and without the syntax worker, highlighting 10 MB of Rust, the finder walk of 50000 files, the project search over 20000 files, the explorer with 50000 entries in one folder. Measured: walk 42 ms, search 156 to 338 ms (150 ms of it the search's own debounce), explorer open 102 ms and refresh 116 ms with 0.2 ms frames, typing while colored 8.5 ms at worst. Mapping highlights through edits has no test of its own: the worker only keeps colors for a few screens around the viewport, so the mapping stays small however big the file is.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] Windows CI now runs the whole suite on ConPTY (`windows-latest`, all tests pass in about a minute; see `docs/design.md`, "ConPTY"). Still by hand on a real Windows machine, in Windows Terminal: the shell from `COMSPEC` (cmd.exe) and PowerShell, resize, key encoding, bracketed paste, mouse reports, line endings, scrollback (ConPTY redraws the screen, so history counts differ from Unix), tabs closing their shell
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] macOS (best-effort in CI): `a_paste_of_several_megabytes_into_a_shell_that_is_not_reading_does_not_freeze_anything` holds the caller about 54 ms (limit 50 ms) on the runner, and the flood timing tests are flaky there; look when macOS is tested by hand
 
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
+
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 ## Post-0.1.0 backlog
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Long single lines: lay out only the visible window of a line, so a line of 1 MB or more draws within the 50 ms budget (today 59 ms at 1 MB, 590 ms at 10 MB); needs a way from a display column to a grapheme without walking from the line start, such as a per-line index kept beside the rope; `perf_tests::how_long_a_single_line_can_get` measures it
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Left over from before M6, not needed for 0.1.0: auto-scroll while dragging past the edge of the text (needs a repeating timer); alt+click to extend a selection; move a tab between panes, resize panes by dragging the divider, close a pane without closing its tabs, per-pane tab history; a message history; read directories off the UI thread; a diff-based document reload that keeps undo history; inotify limits falling back to polling; a project-wide watch for new files in collapsed directories; rename and move handling in the watcher; a results pane for the project search that stays open while editing, with results grouped under file headers; multi-line patterns; searching within the selection or one folder, include/exclude globs, searching unsaved buffers; the fallback scan for projects with more than about 1M files; a scrollbar-style overview of find matches; match counts for the other panes showing the same file; a thin strip to click for a hidden pane; palette argument prompts and save as for untitled files
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Load tree-sitter grammars at runtime from shared libraries (`.so` / `.dll`), so languages can be added without a rebuild (plan; the built-in five stay compiled in):
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [ ] 1. Language as data: `Language` (`src/syntax/language.rs`, today a closed enum whose `grammar()` and `highlights()` match on the variant) becomes a handle into a registry (the built-ins plus `Loaded(id)`); `name`, `from_path`, `grammar` and `highlights` read from the registry; the worker, the highlighter and the theme mapping only see a `Grammar` and a query string and do not change. Done when: the existing syntax tests pass unchanged on top of the registry
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [ ] 2. The language folder: `languages/<name>/` in the config folder holds `grammar.so` (`.dll` on Windows, `.dylib` on macOS), `highlights.scm` and `language.toml` (display name, file extensions, optional `before` / `after` query patterns like `RUST_BEFORE` / `RUST_AFTER`); the registry is built once at startup; a folder that is broken (missing file, bad TOML, bad query) is skipped with a sticky error naming it and the others still load; an extension a built-in already has is taken from the built-in unless `language.toml` says `override = true`
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [ ] 3. The loader (`src/syntax/loader.rs`, the only `unsafe` in the feature, with the safety conditions written above each block): `libloading` opens the library and looks up `tree_sitter_<name>` (the symbol name comes from `language.toml`, default the folder name); the pointer becomes a `tree_sitter::Language`; its `abi_version()` is checked against `MIN_COMPATIBLE_LANGUAGE_VERSION` and `LANGUAGE_VERSION` before any use and a mismatch is a notification, not a crash; the `Library` is leaked or kept in the registry for the life of the process, since a `Language` points into it and dropping it would dangle; `highlights.scm` is compiled once at load, so a bad query fails at startup instead of on the first keystroke
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [ ] 4. Tests: a tiny grammar built by the test (or a checked-in fixture `.so` for Linux, `#[cfg(target_os = "linux")]`) loads and highlights a sample; a library with the wrong ABI, a missing symbol, a non-library file and a bad query each give an error and leave the registry usable; an extension override works only with `override = true`; a user language shows in the status bar and picks its file by extension
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [ ] 5. Docs: README section "Adding a language" (build with `tree-sitter build`, which needs a C compiler, then the folder layout and `language.toml`), and a note that loading a `.so` runs arbitrary code, so only put in libraries you trust
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [ ] 6. Later, not part of this item: an install command in the Plugins window that downloads prebuilt grammars per platform with a hash or signature check (shipping and trust are the open problems); WASM grammars through tree-sitter's `wasm` feature as the sandboxed, portable alternative (costs the `wasmtime` dependency, several MB, and slower parsing); it would sit behind the same registry, so steps 1-3 do not change
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Paragraph motion and selection: `ctrl+up/down` move to the previous or next blank line and `ctrl+shift+up/down` select up to it (`ctrl+shift+left/right` already select by word); there is no paragraph motion yet, so it needs a new `move`/`select` target in the `Action` registry, a keymap entry and table-driven tests; check that the terminal reports `ctrl+shift+up/down` (kitty and Windows Terminal may keep some ctrl+shift chords)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] adding usefull keybinds like (move line `alt+up/down`; cursor history and mouse multicursor have their own items below; keyboard multicursor `ctrl+alt+up/down`)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Cursor history: `alt+left` goes back and `alt+right` forward through the earlier cursor positions (jump list: record a position after a jump such as go to line, search hit, click far away or a file switch, not after every keystroke; per pane or global, decide when built). Conflict: `alt+left/right` are bound to word motion in `defaults/default_keymap.toml` (and `alt+shift+left/right` to word select), while `ctrl+left/right` and `ctrl+shift+left/right` already do the same, so free the alt ones and update the keymap tests
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Mouse multicursor: `alt+click` adds a cursor and `alt+drag` adds a selection, `escape` or a plain click goes back to one cursor; needs the multi-cursor selection list below, so do it after that; this replaces the earlier `alt+click to extend` idea (extending stays on `shift+click`); check that the terminal passes `alt+click` through (some terminals and window managers keep it for moving windows)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Tab right-click menu (on the tab strip; the generic `components/menu.rs` the explorer and editor menus use): `Close`, `Close Others`, `Close All`, `Close to the Left`, `Close to the Right`, `Pin` / `Unpin`. Unsaved tabs keep the warning a close gives today. A pinned tab sits at the left of the strip, shows a pin mark, is skipped by the close-many items and needs an explicit `Close`; whether pins survive a restart is to be decided. Also in the palette, with `shift+f10` on the focused tab
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Lua plugin runtime on top of the Action registry (decided: plugins are written in Lua because the nvim community knows it; the API is our own `terminal_code` Lua API, not the nvim API, so no `vim.*` compatibility; pick the binding crate (`mlua` with Lua 5.4 or LuaJIT) when it is built, and write the API surface in `docs/design.md` first)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Plugins window: list the installed plugins and enable or disable each one; download official plugins (made by this project) from there; plugins from anyone else are installed by dragging them into the plugins folder by hand, they are not offered for download. Needs: a plugins folder per platform, a manifest per plugin (id, version, required TerminalCode version), a place the official plugins are published (releases or an index file) with checksums checked before a plugin is installed, an enabled list in `settings.json`, and typed errors shown as notifications
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] LSP client, generic, in the core (decided after a grill: not a Lua plugin; details in `docs/design.md`, "LSP client"); Rust is the first built-in configuration. First slice: diagnostics from `rust-analyzer` on the right lines (on-type ones as you type, `cargo check` ones after a save). Steps:
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 1. JSON-RPC framing (`Content-Length`, a 64 MB limit, a length that lies costs no memory), message types, request ids with answers matched out of order and timeouts, the initialize handshake (UTF-16 only offered; a server naming another unit is refused; `initializationOptions` passed through) and shutdown, `file:` URIs (also Windows drives and shares), the client's answers to a server's requests (progress, configuration, registration; anything else is a method-not-found, never ignored), and a scripted fake server for the tests (`src/lsp/tests/support.rs`); 75 tests. A write that fails means the session is over, and dropping a `Connection` closes what it writes to
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 2. Configuration (`language_servers` in `settings.json`, `src/lsp/config.rs`): Rust built in, an entry with a built-in name replaces it whole, `null` turns it off, other names add one; fields `command`, `args`, `extensions`, `root_files`, `initialization_options` (raw JSON), a misspelled field or a bad entry rejects the file by name; a file gets the server for its extension (the first by name when two want it); the root is the outermost folder from the file up to the project root holding a root file (no root file, or none configured: the project root); a file outside the project gets the nearest folder with a root file or no server; the key is (server name, root), so a workspace is one server; 33 tests
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 3. Lifecycle and failure policy: the launcher runs the server as a child process (`src/lsp/launch.rs`, the first lines of its stderr are kept so the `rustup` shim's "Unknown binary" is what the user reads), the supervisor decides (`src/lsp/supervisor.rs`, pure and tested with passed-in instants): cannot start or exits at once is one sticky error and not tried again until the settings change or the project is reopened; a death while running restarts it up to 3 times within 60 s with a notice each time, then off with one error; progress from `$/progress` is the status line; the manager runs starts on threads (`src/lsp/manager.rs`); the app starts the server for the file in front (once per server, on a tab switch and at startup), shows `[rust-analyzer: Indexing 3%]` in the status bar, and ends and restarts servers when `language_servers` changes (`src/app/lsp.rs`). Tests never start a real server (the launcher is opt-in under `cfg(test)`). Checked once by hand against the real `rust-analyzer`: `cargo test real_rust_analyzer -- --ignored --nocapture`. Not done: a graceful `shutdown`/`exit` when the editor quits (the child is killed when the session is dropped)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 4. Sync (`src/lsp/position.rs`, `diff.rs`, `sync.rs`, `src/app/lsp.rs`): `didOpen` for every open document a running server serves, `didChange` as one incremental change worked out against a copy of what the server has (so a typing burst, undo, replace all and a reload are each one message), `didSave` after a save, `didClose` when the document goes away or is renamed, everything again for a server that started again or whose settings changed; sent once before each frame; UTF-16 positions tested with an emoji, a combining accent, a tab, CRLF and 3000 random edits; an edit in 10 MB takes about 5 ms to work out (`perf_tests::telling_a_server_about_an_edit_in_ten_megabytes`). Settled here: the batching is the frame, not a timer; a lone `\r` is not a line break (the editor and rust-analyzer agree)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 5. The diagnostics model (`src/lsp/diagnostics.rs`, `sync.rs`, `src/app/lsp.rs`; the store is `AppState::diagnostics`): `publishDiagnostics` is read (severity defaults to error, a code may be a number, an unusable diagnostic is left out), placed in the text the server was last told from the version it looked at (a history of the last 32 texts sent; a version not kept clears the document), and moved through every change after that: an edit after it or ending where it starts leaves it, before it moves it, text typed inside makes it longer, any edit that deletes or replaces inside it drops it; the store is cleared for a document that is opened fresh, closed, read again from the file (a counter on the document), served by a server that restarted or stopped, or when the servers change in the settings; queries for step 6 (overlapping a span, next and previous with wrap-around, counts). 46 tests plus 14 app tests with a fake server that publishes, including an answer about an older version and a server that dies
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 6. Display (changed once after a first look: a gutter mark looked like a breakpoint, so the message is said after the code instead, like nvim's virtual text): the first line of the worst diagnostic that starts on a line is written after its code, two columns on, in the severity's slot color, with ` (+N)` for the others starting there, cut with … to the edge of the text and left out when under 8 columns are left or the line has scrolled out of sight; a diagnostic over several lines is said once, on the line it starts on; a line under the text each diagnostic is about, in the slot's `underline` color (a new theme key, only the color: the text keeps its own; where a terminal cannot color underlines the line takes the text color; a worse severity is drawn over a milder one; a diagnostic with no length underlines the character it is at); there is no message in the status bar (a first version had one, and it only repeated the inline text, so it was dropped; the status bar shows only how the server is doing); `f8` and `shift+f8` (palette `Diagnostics: Next` and `Previous`) go to the next or previous diagnostic and round the file, scrolling it into view, and say so when there is none; theme slots `editor.diagnostic.error`, `.warning`, `.info` and `.hint` in all four built-in themes (tested to be told apart). 28 tests. Checked once by hand with the real rust-analyzer through the whole app (`tests::lsp_tests::real_rust_analyzer_errors_show_on_the_right_lines_in_the_app`): the line reads `let wrong: u32 = "not a number";  expected u32, found   - [x] 6. Display: a mark (●) in the gutter column after the line number, colored by the worst severity on the line; a line under the text each diagnostic is about, in the slot's `underline` color (a new theme key, only the color: the text keeps its own; where a terminal cannot color underlines the line takes the text color; a worse severity is drawn over a milder one; a diagnostic with no length underlines the character it is at, one past the end of a line only marks the gutter); the status bar shows `error: SOURCE: the first line of the message (+N more)` for the cursor's line, ahead of the server status and in place of the key hints; `f8` and `shift+f8` (palette `Diagnostics: Next` and `Previous`) go to the next or previous diagnostic and round the file, scrolling it into view, and say so when there is none; theme slots `editor.diagnostic.error`, `.warning`, `.info` and `.hint` in all four built-in themes (tested to be told apart). 28 tests. Checked once by hand with the real rust-analyzer through the whole app (`tests::lsp_tests::real_rust_analyzer_errors_show_on_the_right_lines_in_the_app`): the error on the right line, the string underlined, the message in the status bar, `f8` on it'static str` with the string underlined
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 7. The ignored test with the real `rust-analyzer` (`launch_tests::real_rust_analyzer_puts_a_type_error_on_the_right_line`, run by hand): a temporary crate with a type error on line 3 after a line with an emoji; the diagnostic lands on exactly `\"not a number\"` through the real handshake, our sync and our placement (checked once, 0.4 s). The error on screen is checked by the app test in step 6. Still not checked by hand: a `cargo check` error after a save (it comes from `rust-analyzer`'s flycheck and arrives as another publish, which the same code takes)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 8. Reading a message that does not fit (decided after a first look: the inline message is cut at the edge and shows only the first line, and a compiler's notes and help come after it): `f7` (palette "Diagnostics: Show at Cursor", on demand only, never automatic) opens a box next to the cursor with the whole text of every diagnostic that touches the cursor's line, worst first, each with a header `error[E0308] (rustc)`; the box is as wide as its longest line (40 to 100 columns, inside the screen), wraps at spaces and inside long words (wide characters count two columns, the indentation a compiler quotes is kept), sits under the cursor line or above it when there is no room, scrolls with the arrow and page keys when the text is longer than the screen, and any other key or a click closes it without doing anything else; the box is also what a hover popup will reuse (`src/components/diagnostic_popup.rs`). 28 tests, and the hand-run test through the real rust-analyzer presses `f7`
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] LSP completion as you type (built; decided after a grill; details in `docs/design.md`, "Completion"): a box of suggestions from the first identifier character and after `.`/`::`; `Tab` accepts, `Up`/`Down` move, `Esc` closes; prefix filter kept locally on the first list, new request per character only while the list is `isIncomplete`; ranked by `sortText`; rows are name, kind tag and dimmed detail, 8 rows, no docs panel; name only, no snippets; auto-import edits in the same undo step. Done when `Vec::ne` shows `new` and `Tab` writes it, and `HashMap` + `Tab` adds the `use` line removed by one `ctrl+z`
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 1. Protocol (`src/lsp/completion.rs`): the client declares completion (`contextSupport`, every item kind, no snippets, no insert-or-replace; `resolveSupport` and `labelDetailsSupport` were added in step 4, see there); `request` sends `textDocument/completion` with the trigger (`Typing`, `Character`, `Incomplete` = the protocol's trigger kinds 1, 2, 3); `parse_completion` reads null, an array or a list object into `CompletionList { items, incomplete }` (an item with no label is dropped, an answer of another shape is an error); `Provider` reads `completionProvider` and its one-character trigger characters (`Server::completion`); items keep the server's positions (bytes are step 2); kinds with their one-letter tags. Fake-server tests for the request and the answer
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 2. Model (`src/lsp/completion_state.rs`, `Editor::replace_ranges`; no UI): `Completion` holds the server's list in its `sortText` order (label breaks a tie), narrowed to what starts with the typed word (not case sensitive, compared with `filterText`), one item highlighted (next and previous go round, the highlight stays on the same item while it matches); positions are turned into bytes once, then moved through each change (`apply_change`, `retarget`), and the box closes when the cursor leaves the word or a non-word character is typed; `wants_new_list` is true when the word is shorter than or not an extension of the one the list was asked for, or grew while the list is incomplete; `accept` gives the word's edit (from the server's start to the cursor now, so later typing is replaced too; the whole word when an edit took the server's range) and the import edits in text order, left out when an edit took them or they reach into the word, plus where the cursor goes; a snippet is written as its label; applied by `Editor::replace_ranges` as one undo step
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 3. Triggering and the box (`src/app/completion.rs`, `src/components/completion_box.rs`, `completion.*` theme slots): a key that typed text makes the next frame look at the word: a trigger character the server named asks for what may follow it (the box may stay open with nothing typed), a letter or digit or underscore asks for the word it ends (not one that starts with a digit) unless a request is already out; the request goes out right after the servers were told about the text, and the answer is looked for when the server makes a sound (every answer wakes the loop) and is moved forward through what was typed since (a diff against the text it was asked about); an answer for a word that is over, another document or a closed box is dropped, and an answer error shows nothing; the box follows the text each frame, closes when nothing matches, the cursor leaves the word or a non-word character is typed, and a request goes out again by `wants_new_list`; `Tab` writes (one undo step, never reopens the box), `Up`/`Down` move, `Esc` closes, `Enter` closes and is a newline, a click closes; rows are kind letter, name, dimmed detail, 8 at a time, drawn under the word (above when no room)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
   - [x] 4. The check against the real `rust-analyzer` (ignored tests, `cargo test real_rust_analyzer_ -- --ignored --nocapture`: `real_rust_analyzer_offers_new_after_vec_colons_ne_and_tab_writes_it`, `real_rust_analyzer_adds_the_use_line_for_hashmap_and_one_undo_takes_both_away`): both done-when cases pass. It found that rust-analyzer offers unimported items only to a client that declares `resolveSupport` for `additionalTextEdits`, so step 1's "no lazy resolving" was wrong: the client now declares it plus `labelDetailsSupport`, resolves the picked item (`completionItem/resolve`, up to 2 s, the text synced first; items with `data` are resolved although the server says `resolveProvider: false`) and writes the import with the word as one undo step; a server that does not answer gives the name alone and a message. Details in `docs/design.md`
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] (after step 4, asked for afterwards) Completion extras: snippet support (`src/lsp/snippet.rs`): a picked call comes with its brackets as the server says (`push(value)` with `value` selected, `len()` with the cursor after the brackets, `HashMap<>` with the cursor inside), only the first tab stop kept, the others written with their defaults (first idea was to drop the defaults, which wrote `ne(, )` for a call with two arguments; found with the real server); a snippet's later lines are indented like the line they go into; `Accepted` and `Editor::replace_ranges` now carry a selection (anchor..cursor). A box with the documentation of the highlighted item (`documentation` of the item, markdown made plain in `src/lsp/docs.rs`, `completion.docs` theme slot): above the cursor's line, under the list when there is no room above, cut to the room there is (4 rows at least), at most 8 lines
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] (after 0.2.1, not released yet) LSP hover (`src/lsp/hover.rs`, `src/app/hover.rs`, `src/components/hover_box.rs`, `hover.text` theme slot; design in `docs/design.md`, "Hover"): the pointer resting 400 ms on a word asks `textDocument/hover`, the answer (markdown made plain) shows in a box under the pointer; `f6` does it for the word at the cursor; goes away on another word, a key, a click, the wheel, an edit, another tab or a popup; a late answer is dropped. Checked against the real `rust-analyzer` (`real_rust_analyzer_says_what_a_method_is_under_the_pointer_and_what_a_type_is_at_the_cursor`, ignored)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] (asked for after hover) `f6` pins the hover box until a key (see "Hover" in `docs/design.md`), and the hover box and the documentation next to the suggestions scroll: the wheel over them, the arrow and page keys on a pinned hover box, `pgup`/`pgdn` for the documentation beside the suggestions; `TextScroll` is shared
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Save as root (Linux only, `#[cfg(target_os = "linux")]`; decided after a grill): when a save fails with `PermissionDenied` (an existing file that is read-only to the user, or a new file or replacement in a directory the user cannot write), a modal password prompt opens that names the path ("Save /etc/hosts as root"); the password is typed masked, written to `sudo -S` stdin and wiped at once (`zeroize`); it is never cached, so every such save asks again. The content goes to a temp file as the normal user (mode 0600, removed on every path), then one `sudo -S sh -c '…'` call does everything: `install` to a temp name in the target's directory, `chown` and `chmod` copied from the existing file (a new file gets `root:root 0644`), `mv` over the target (atomic; the inode is replaced, hard links and bind-mounted files such as a container's `/etc/resolv.conf` are accepted losses). A wrong password reopens the prompt with an error until the user cancels with `esc`; "not in sudoers" and "sudo not installed" are sticky errors (no `doas`); the existing "changed on disk, save again to overwrite" check still runs before the prompt; the quit prompt's save uses the same path. Tests put a fake `sudo` script first on `PATH` (it checks the password from stdin, runs the script unprivileged against a temp directory, and can fail like a wrong password); one `#[ignore]` test runs the real `sudo` by hand, like the `rust-analyzer` one
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Command-line flags leftovers (the flags themselves are built, see `todo-done.md`, "Release 0.2.1"): the README documents `-h` / `--help` and `-v` / `--version` (and that a file named like a flag opens with `--` before it); tests for `Invocation` parsing if `src/cli.rs` has none
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Official Lua plugin: Rust language support — superseded: Rust is built into the LSP client; a Lua plugin may later add servers or UI on top
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Official Lua plugin: Nix language support (`nixd` or `nil`, decide when it is built)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Debugger via DAP (e.g. Rust through `lldb-dap`), as a Lua plugin
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Vim layer (moved out of 0.1.0; the editor is IDE-style until then). Mode state machine (normal, insert, visual, visual-line), motions, operators, text objects, counts, registers, `.` repeat, `/` search with `n`/`N`, minimal ex commands (`:w :q :wq :e`), a `vim` setting, a mode indicator in the status bar, table-driven parser tests. Open design question to settle first: does the vim layer sit in front of the keymap and eat keys, or are the modes a keymap `Context`? Counts and operator + motion (`d3w`, `"ayy`) are a grammar, which the chord-sequence trie does not express.
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Multi-cursor, undo tree, visual-block, vim macros, git integration
 
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
+
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 ## Open questions (resolve before the milestone that needs them)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Clipboard strategy details (M3)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [x] Project search implementation: the `grep-searcher` crates, no `rg` dependency (M4)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
 - [ ] Mouse scope (M8)
+
+## Release 0.3.0
+- [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
+- [ ] Tag `v0.3.0` once CI is green; publish the draft release by hand
