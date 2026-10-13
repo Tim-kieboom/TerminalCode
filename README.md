@@ -81,8 +81,9 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+p` | Find a file by name (`name:42` opens it at line 42; `alt+enter` opens it beside this pane) |
 | `alt+f` | Search the project; `f4` and `shift+f4` step through the results |
 | `f8`, `shift+f8` | Go to the next, previous diagnostic (errors and warnings a language server found, written after the code of their line and underlined) |
+| `f6` | What the language server says about the word at the cursor (its type, signature and documentation) in a box under it. The same box comes up by itself when the mouse pointer rests on a word for about half a second and goes when the pointer moves on; `f6` with that box up keeps it until a key (the arrow and page keys scroll it, `esc` or `f6` closes it, any other key closes it and does its work). The wheel over the box scrolls it |
 | `f7` | The whole text of the diagnostics on the cursor's line in a box (for a message that is cut after the code; arrows and page keys scroll, any other key closes) |
-| `tab`, `up`, `down`, `esc` | While the box of suggestions is open (it appears as you type, from a language server): `tab` writes the highlighted one (a call with its brackets and the first argument selected, and the `use` line it needs, as one undo step), `up` and `down` move the highlight, `esc` closes the box; `enter` closes it and is a newline; a small box above shows the documentation of the highlighted one |
+| `tab`, `up`, `down`, `esc` | While the box of suggestions is open (it appears as you type, from a language server): `tab` writes the highlighted one (a call with its brackets and the first argument selected, and the `use` line it needs, as one undo step), `up` and `down` move the highlight, `esc` closes the box; `enter` closes it and is a newline; a small box above shows the documentation of the highlighted one (`pgup` and `pgdn`, or the wheel over it, scroll it when it is longer) |
 | `ctrl+n`, `ctrl+w` | New file, close tab |
 | `ctrl+tab`, `ctrl+shift+tab` | Next, previous tab |
 | `ctrl+k e`, `ctrl+k w`, `ctrl+k z` | Close other tabs, close all tabs, reopen the closed tab |
@@ -132,7 +133,7 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   ordinary lines are fine: 10 MB opens in about 10 ms.
 - Only UTF-8 files can be opened.
 - Undo is linear (no undo tree), and there is one cursor.
-- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics and suggestions as you type (with brackets and documentation), with no hover or go to definition yet. No debugger or plugins yet; those are planned after 0.2.0 (see the backlog in
+- A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics, suggestions as you type (with brackets and documentation) and what the server says about the word under the pointer or the cursor (hover), with no go to definition yet. No debugger or plugins yet; those are planned after 0.2.0 (see the backlog in
   [docs/todo.md](docs/todo.md)).
 - The vim layer is planned for after 0.2.0 too; the editor works like an IDE until then.
 - On macOS the terminal pane's timing tests are flaky in CI, and the manual test pass on Windows Terminal is still

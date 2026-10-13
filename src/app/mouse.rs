@@ -105,6 +105,31 @@ impl App {
             self.close_completion();
         }
 
+        // The wheel over a box of text that is longer than it shows scrolls it.
+        let wheel = matches!(
+            event.kind,
+            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+        );
+        if wheel
+            && self.scroll_docs_under(
+                event.column,
+                event.row,
+                event.kind == MouseEventKind::ScrollDown,
+            )
+        {
+            return;
+        }
+
+        // A click, a press or the wheel takes what the server said away (a box
+        // pinned with `f6` only a click does); moving the pointer is what it follows.
+        let pinned = self
+            .state
+            .hover_box()
+            .is_some_and(|shown| shown.is_pinned());
+        if event.kind != MouseEventKind::Moved && !(wheel && pinned) {
+            self.close_hover();
+        }
+
         if !self.mouse.is_enabled() {
             return;
         }
@@ -135,6 +160,12 @@ impl App {
 
         if self.handle_explorer_mouse(event) {
             self.needs_redraw = true;
+            return;
+        }
+
+        // The pointer over a word waits, then asks the server about it.
+        if event.kind == MouseEventKind::Moved {
+            self.hover_pointer_moved(event.column, event.row);
             return;
         }
 

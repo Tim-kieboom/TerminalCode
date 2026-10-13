@@ -524,3 +524,9 @@ action = "previous_diagnostic"
 keys = "f7"
 context = "editor"
 action = "show_diagnostics"
+
+# What the language server says about the word at the cursor, in a box (any key closes it)
+[[binding]]
+keys = "f6"
+context = "editor"
+action = "show_hover"

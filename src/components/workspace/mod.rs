@@ -655,6 +655,28 @@ impl Workspace {
         self.with_editor_in(index, |editor| editor.mouse_context(column, row))
     }
 
+    /// The document and the byte under a screen cell of any pane (not only the
+    /// focused one), and the text of that document; `None` outside the text of a
+    /// pane. Changes nothing, so it can follow the pointer.
+    pub(crate) fn text_at_cell(
+        &self,
+        column: u16,
+        row: u16,
+    ) -> Option<(DocumentId, usize, ropey::Rope)> {
+        let pane = &self.panes[self.pane_at(column, row)?];
+        let tab = pane.tabs.get(pane.active)?;
+        if !contains(pane.editor_area, column, row) {
+            return None;
+        }
+        let buffer = &self.documents.get(&tab.document)?.buffer;
+        let byte = EditorRef::new(buffer, &tab.view).byte_at_cell(column, row)?;
+        Some((tab.document, byte, buffer.snapshot()))
+    }
+
+    /// The version of a document's text, which changes with every edit.
+    pub(crate) fn document_version(&self, document: DocumentId) -> Option<u64> {
+        Some(self.documents.get(&document)?.buffer.version())
+    }
     /// A middle button press on the text of a pane: focuses it and puts the
     /// cursor there. Returns whether it was on text.
     pub(crate) fn place_cursor_at(

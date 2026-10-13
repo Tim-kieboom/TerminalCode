@@ -59,3 +59,11 @@ fn an_unclosed_link_or_mark_does_not_loop() {
     assert_eq!(plain_text("`open"), "open");
     assert_eq!(plain_text("**"), "");
 }
+
+#[test]
+fn a_rule_between_parts_is_a_blank_line() {
+    assert_eq!(
+        plain_text("fn push(&mut self)\n---\nAdds one.\n***\nMore."),
+        "fn push(&mut self)\n\nAdds one.\n\nMore."
+    );
+}

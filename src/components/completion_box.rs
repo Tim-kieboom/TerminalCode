@@ -3,7 +3,7 @@
 //! right), the highlighted one marked, at most [`MOST_ROWS`] rows at a time.
 //! It never takes the keyboard; the app steers it with a few keys.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
@@ -15,6 +15,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::components::diagnostic_popup::{place, wrap_text};
 use crate::components::editor::render::fit;
+use crate::components::scroll_text::TextScroll;
 use crate::components::workspace::DocumentId;
 use crate::lsp::Completion;
 use crate::ui::theme::Theme;
@@ -41,6 +42,11 @@ pub(crate) struct CompletionBox {
     by_trigger: bool,
     /// The first row shown.
     scroll: Cell<usize>,
+    /// Where the documentation of the highlighted item is scrolled to, and where
+    /// it was drawn.
+    docs_scroll: TextScroll,
+    /// The item the documentation shown was of; another item starts at the top.
+    docs_of: RefCell<String>,
 }
 
 impl CompletionBox {
@@ -56,7 +62,14 @@ impl CompletionBox {
             text,
             by_trigger,
             scroll: Cell::new(0),
+            docs_scroll: TextScroll::default(),
+            docs_of: RefCell::new(String::new()),
         }
+    }
+
+    /// The scrolling of the documentation box.
+    pub(crate) fn docs_scroll(&self) -> &TextScroll {
+        &self.docs_scroll
     }
 
     pub(crate) fn completion(&self) -> &Completion {
@@ -200,12 +213,16 @@ impl CompletionBox {
             },
         );
 
-        let docs = self
-            .completion
-            .selected_item()
-            .and_then(|item| item.documentation.as_deref());
-        if let Some(docs) = docs {
-            render_docs(frame, theme, docs, area, cursor);
+        let item = self.completion.selected_item();
+        let docs = item.and_then(|item| item.documentation.as_deref());
+        self.docs_scroll.not_drawn();
+        if let (Some(item), Some(docs)) = (item, docs) {
+            // Another item starts at the top.
+            if *self.docs_of.borrow() != item.label {
+                self.docs_scroll.reset();
+                self.docs_of.replace(item.label.clone());
+            }
+            render_docs(frame, theme, docs, area, cursor, &self.docs_scroll);
         }
     }
 }
@@ -214,13 +231,20 @@ impl CompletionBox {
 /// when the screen allows.
 const DOCS_WIDEST: u16 = 64;
 const DOCS_NARROWEST: u16 = 34;
-/// How many lines of the documentation show; the rest is cut with `…`.
+/// How many lines of the documentation show at once; the rest scrolls.
 const DOCS_LINES: usize = 8;
 
 /// Draws what the server says about the highlighted item in a little box above
 /// the cursor's line (above the list when the list is above the cursor, below
 /// the line then), lined up with the list. Not drawn when there is no room.
-fn render_docs(frame: &mut Frame, theme: &Theme, docs: &str, list: Rect, cursor: Position) {
+fn render_docs(
+    frame: &mut Frame,
+    theme: &Theme,
+    docs: &str,
+    list: Rect,
+    cursor: Position,
+    scroll: &TextScroll,
+) {
     let screen = frame.area();
     let width = list
         .width
@@ -255,7 +279,7 @@ fn render_docs(frame: &mut Frame, theme: &Theme, docs: &str, list: Rect, cursor:
     } else {
         bottom_edge
     };
-    let lines = cut_lines(wrapped, usize::from(height) - 2, text_width);
+    let rows = usize::from(height) - 2;
     let x = list
         .x
         .min(screen.right().saturating_sub(width))
@@ -267,10 +291,15 @@ fn render_docs(frame: &mut Frame, theme: &Theme, docs: &str, list: Rect, cursor:
         height,
     };
 
-    let block = Block::new()
+    scroll.drawn_at(area);
+    let first = scroll.fit(wrapped.len(), rows);
+    let mut block = Block::new()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(theme.style("pane.border"));
+    if let Some(label) = scroll.label(wrapped.len(), rows) {
+        block = block.title_bottom(Line::from(label).right_aligned());
+    }
     let inner = block.inner(area);
     frame.render_widget(Clear, area);
     frame.render_widget(block, area);
@@ -279,7 +308,12 @@ fn render_docs(frame: &mut Frame, theme: &Theme, docs: &str, list: Rect, cursor:
         width: inner.width.saturating_sub(2),
         ..inner
     };
-    let text: Vec<Line> = lines.into_iter().map(Line::from).collect();
+    let text: Vec<Line> = wrapped
+        .into_iter()
+        .skip(first)
+        .take(rows)
+        .map(Line::from)
+        .collect();
     frame.render_widget(
         Paragraph::new(text).style(theme.style("completion.docs")),
         body,
@@ -288,14 +322,3 @@ fn render_docs(frame: &mut Frame, theme: &Theme, docs: &str, list: Rect, cursor:
 
 /// The fewest rows the box with the documentation is drawn in: the border and two lines.
 const MIN_DOCS_ROWS: u16 = 4;
-
-/// `lines` cut to `count`, the last of them ending in `…` when something was left out.
-fn cut_lines(mut lines: Vec<String>, count: usize, width: usize) -> Vec<String> {
-    if lines.len() > count {
-        lines.truncate(count);
-        if let Some(last) = lines.last_mut() {
-            *last = fit(&format!("{last} …"), width);
-        }
-    }
-    lines
-}

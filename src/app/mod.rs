@@ -27,6 +27,7 @@ mod background;
 mod completion;
 mod config_files;
 mod editing;
+mod hover;
 mod keys;
 mod lsp;
 mod mouse;
@@ -158,6 +159,8 @@ impl App {
                 // What was typed since the last frame is one message to the servers.
                 self.lsp_sync();
                 self.completion_step();
+                self.hover_step();
+                self.hover_forget_stale();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;
@@ -169,6 +172,7 @@ impl App {
             // interval.
             let sequence_deadline = self.pending_deadline().map(Instant::from_std);
             let notification_deadline = self.notification_deadline().map(Instant::from_std);
+            let hover_deadline = self.hover_deadline().map(Instant::from_std);
 
             tokio::select! {
                 biased;
@@ -184,6 +188,8 @@ impl App {
                 if sequence_deadline.is_some() => self.expire_pending(),
                 _ = sleep_until(notification_deadline.unwrap_or_else(Instant::now)),
                 if notification_deadline.is_some() => self.expire_notifications(std::time::Instant::now()),
+                _ = sleep_until(hover_deadline.unwrap_or_else(Instant::now)),
+                if hover_deadline.is_some() => self.hover_due(),
             }
 
             self.sync_watches();

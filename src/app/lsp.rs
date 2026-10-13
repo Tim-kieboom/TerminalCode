@@ -37,6 +37,8 @@ pub(super) struct Lsp {
     fingerprint: u64,
     /// What the box of suggestions is waiting for.
     pub(super) completion: super::completion::Asking,
+    /// What the box with what the server says about a word waits for.
+    pub(super) hovering: super::hover::Hovering,
 }
 
 impl Default for Lsp {
@@ -49,6 +51,7 @@ impl Default for Lsp {
             targets: HashMap::new(),
             fingerprint: 0,
             completion: super::completion::Asking::default(),
+            hovering: super::hover::Hovering::default(),
         }
     }
 }
@@ -120,6 +123,7 @@ impl App {
             }
         }
         self.completion_answer();
+        self.hover_answer();
         self.refresh_lsp_status();
         self.needs_redraw = true;
     }
@@ -501,5 +505,26 @@ impl App {
         item: &crate::lsp::CompletionItem,
     ) -> Option<crate::lsp::PendingResolve> {
         self.lsp.manager.as_ref()?.resolve_completion(key, item)
+    }
+}
+
+impl App {
+    /// The server that serves `document` and how it names it, when it runs and
+    /// answers hover requests.
+    pub(super) fn hover_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
+        let (_, target) = self.lsp.targets.get(&document)?;
+        let target = target.as_ref()?;
+        let offered = self.lsp.manager.as_ref()?.offers_hover(&target.key);
+        offered.then(|| (target.key.clone(), target.uri.clone()))
+    }
+
+    /// Asks the server `key` what it can say about `position` of `uri`.
+    pub(super) fn request_hover(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::lsp::LspPosition,
+    ) -> Option<crate::lsp::PendingHover> {
+        self.lsp.manager.as_ref()?.request_hover(key, uri, position)
     }
 }

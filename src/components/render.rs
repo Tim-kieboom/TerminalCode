@@ -65,6 +65,13 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     {
         suggestions.render(frame, state.theme(), cursor);
     }
+
+    // What the server says about the thing under the pointer, over everything but a popup.
+    if matches!(state.popup(), Popup::None)
+        && let Some(hover) = state.hover_box()
+    {
+        hover.render(frame, state.theme());
+    }
 }
 
 /// Fills the whole screen with the theme's background, if it has one, so that

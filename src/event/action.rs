@@ -46,6 +46,8 @@ pub(crate) enum Action {
     PreviousDiagnostic,
     /// Shows the whole text of the diagnostics on the cursor line in a box.
     ShowDiagnostics,
+    /// Shows what the language server says about the word at the cursor in a box.
+    ShowHover,
     /// Opens the find bar for the open file.
     FindInFile,
     /// Opens the find bar with the row for replacing.
@@ -215,6 +217,7 @@ impl Action {
             Self::NextDiagnostic => "Diagnostics: Next",
             Self::PreviousDiagnostic => "Diagnostics: Previous",
             Self::ShowDiagnostics => "Diagnostics: Show at Cursor",
+            Self::ShowHover => "Hover: Show Documentation at Cursor",
             Self::FindInFile => "Search: Find in File",
             Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
@@ -294,6 +297,7 @@ impl Action {
             Self::NextDiagnostic,
             Self::PreviousDiagnostic,
             Self::ShowDiagnostics,
+            Self::ShowHover,
             Self::FindInFile,
             Self::ReplaceInFile,
             Self::FocusExplorer,

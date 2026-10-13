@@ -11,7 +11,12 @@ pub(crate) fn plain_text(markdown: &str) -> String {
         if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
             continue;
         }
-        let text = line.trim_end();
+        // A rule between two parts is a blank line.
+        let rule = trimmed.len() >= 3
+            && ['-', '*', '_']
+                .iter()
+                .any(|mark| trimmed.chars().all(|c| c == *mark));
+        let text = if rule { "" } else { line.trim_end() };
         let text = match text.trim_start().strip_prefix('#') {
             Some(rest) => rest.trim_start_matches('#').trim_start(),
             None => text,

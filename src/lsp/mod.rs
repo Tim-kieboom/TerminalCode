@@ -17,6 +17,7 @@ pub(crate) use diagnostics::{Diagnostic, Diagnostics, RawDiagnostic, Severity, p
 pub(crate) use diff::{ByteChange, change_between};
 pub(crate) use error::LspError;
 pub(crate) use handshake::{Server, initialize, shutdown};
+pub(crate) use hover::{PendingHover, parse_hover};
 pub(crate) use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartError};
 pub(crate) use manager::{Manager, ServerNotification};
 pub(crate) use message::{Id, Message, RpcError};
@@ -34,6 +35,7 @@ mod docs;
 mod error;
 mod framing;
 mod handshake;
+mod hover;
 mod launch;
 mod manager;
 mod message;

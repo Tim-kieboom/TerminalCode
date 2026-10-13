@@ -82,6 +82,27 @@ impl<'a> EditorRef<'a> {
         ))
     }
 
+    /// The byte of the character under a screen cell, as of the last layout pass;
+    /// `None` when the cell is outside the text, past the end of its line, or on
+    /// a line the text does not have.
+    pub(crate) fn byte_at_cell(&self, column: u16, row: u16) -> Option<usize> {
+        let area = self.view.text_area()?;
+        if !area.contains(ratatui::layout::Position::new(column, row)) {
+            return None;
+        }
+        let scroll = self.view.scroll();
+        let line = scroll.top + usize::from(row - area.y);
+        let content = self.buffer.line_content(line).ok()?;
+        let display = scroll.left + usize::from(column - area.x);
+        let tab_width = self.view.tab_width();
+        if display >= text_layout::display_column(&content, usize::MAX, tab_width) {
+            return None;
+        }
+        let at = text_layout::column_at_display(&content, display, tab_width);
+        let position = crate::buffer::Position::new(line, at);
+        self.buffer.position_to_byte(position).ok()
+    }
+
     #[cfg(test)]
     pub(crate) fn scroll(&self) -> Scroll {
         self.view.scroll()

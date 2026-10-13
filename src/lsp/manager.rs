@@ -219,3 +219,24 @@ impl Manager {
         super::completion::resolve(&session.connection, item).ok()
     }
 }
+
+impl Manager {
+    /// Whether the server `key` runs and answers hover requests.
+    pub(crate) fn offers_hover(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| super::hover::offered(&session.server.capabilities))
+    }
+
+    /// Asks the server `key` what it can say about `position` of `uri`. `None`
+    /// when it is not running or the request could not be sent.
+    pub(crate) fn request_hover(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: super::position::LspPosition,
+    ) -> Option<super::PendingHover> {
+        let session = self.sessions.get(key)?;
+        super::hover::request(&session.connection, uri, position).ok()
+    }
+}

@@ -49,7 +49,10 @@ fn the_client_says_only_what_it_uses() {
         completion["completionItem"]["resolveSupport"]["properties"],
         json!(["additionalTextEdits"])
     );
-    assert!(capabilities["textDocument"].get("hover").is_none());
+    assert_eq!(
+        capabilities["textDocument"]["hover"]["contentFormat"],
+        json!(["markdown", "plaintext"])
+    );
 }
 
 #[test]

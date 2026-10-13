@@ -168,6 +168,9 @@ text = "@accent_text"
 ["completion.docs"]
 text = "@dim"
 
+["hover.text"]
+text = "@text"
+
 ["search.match"]
 text = "@warning"
 modifiers = ["bold"]

@@ -38,6 +38,10 @@ pub(crate) fn client_capabilities() -> Value {
                 "dynamicRegistration": false,
                 "didSave": true,
             },
+            "hover": {
+                "dynamicRegistration": false,
+                "contentFormat": ["markdown", "plaintext"],
+            },
             "completion": {
                 "dynamicRegistration": false,
                 // The server is told why it is asked (a typed trigger character,

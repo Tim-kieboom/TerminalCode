@@ -10,6 +10,7 @@ use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::find::Find;
 use crate::components::finder::Finder;
+use crate::components::hover_box::HoverBox;
 use crate::components::menu::Menu;
 use crate::components::name_prompt::NamePrompt;
 use crate::components::notifications::{Hit, Level, Notifications};
@@ -62,6 +63,8 @@ pub(crate) struct AppState {
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The suggestions for the word being typed, while there are any.
     completion_box: Option<CompletionBox>,
+    /// What a language server says about the thing under the pointer or the cursor.
+    hover_box: Option<HoverBox>,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,
@@ -192,6 +195,18 @@ impl AppState {
 
     pub(crate) fn diagnostics_mut(&mut self) -> &mut crate::lsp::Diagnostics {
         &mut self.lsp_diagnostics
+    }
+
+    pub(crate) fn hover_box(&self) -> Option<&HoverBox> {
+        self.hover_box.as_ref()
+    }
+
+    pub(crate) fn hover_box_mut(&mut self) -> Option<&mut HoverBox> {
+        self.hover_box.as_mut()
+    }
+
+    pub(crate) fn set_hover_box(&mut self, hover_box: Option<HoverBox>) {
+        self.hover_box = hover_box;
     }
 
     pub(crate) fn completion_box(&self) -> Option<&CompletionBox> {

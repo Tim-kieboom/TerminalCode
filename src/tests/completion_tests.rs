@@ -21,11 +21,11 @@ use crate::initial_state;
 use crate::lsp::Message;
 use crate::lsp::tests::support::{FakeLauncher, Script};
 
-type Answer = Arc<dyn Fn(&Value) -> Value + Send + Sync>;
+pub(super) type Answer = Arc<dyn Fn(&Value) -> Value + Send + Sync>;
 
 /// A server that passes on what it is sent, and answers each completion request
 /// with what `answer` makes of its params.
-fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script> {
+pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script> {
     Some(Box::new(move |session| {
         while let Some(message) = session.next() {
             let request = match &message {
@@ -36,7 +36,9 @@ fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script> {
             };
             let _ = sent.send(message);
             match request {
-                Some((id, method, params)) if method == "textDocument/completion" => {
+                Some((id, method, params))
+                    if method == "textDocument/completion" || method == "textDocument/hover" =>
+                {
                     session.respond(id, answer(&params));
                 }
                 // The item comes back with the edits its `data` says it needs, or
@@ -57,10 +59,10 @@ fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script> {
     }))
 }
 
-struct Rig {
-    app: App,
-    events: mpsc::Receiver<Event>,
-    received: Receiver<Message>,
+pub(super) struct Rig {
+    pub(super) app: App,
+    pub(super) events: mpsc::Receiver<Event>,
+    pub(super) received: Receiver<Message>,
     _dir: tempfile::TempDir,
 }
 
@@ -73,15 +75,15 @@ fn items(labels: &[&str]) -> Value {
     )
 }
 
-fn answering(list: Value) -> Answer {
+pub(super) fn answering(list: Value) -> Answer {
     Arc::new(move |_| list.clone())
 }
 
-fn provider() -> Value {
+pub(super) fn provider() -> Value {
     json!({ "textDocumentSync": 2, "completionProvider": { "triggerCharacters": ["."] } })
 }
 
-fn write(path: &Path, text: &str) {
+pub(super) fn write(path: &Path, text: &str) {
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     fs::write(path, text).unwrap();
 }
@@ -89,7 +91,7 @@ fn write(path: &Path, text: &str) {
 impl Rig {
     /// An app over a Rust file with `text` in it, and a server with `capabilities`
     /// that answers with `answer`, running.
-    fn start(capabilities: Value, text: &str, answer: Answer) -> Self {
+    pub(super) fn start(capabilities: Value, text: &str, answer: Answer) -> Self {
         let dir = tempfile::tempdir().unwrap();
         write(&dir.path().join("Cargo.toml"), "[package]\n");
         let file = dir.path().join("src/main.rs");
@@ -103,7 +105,7 @@ impl Rig {
 
     /// An app over `file` in the project `dir`, with servers started by `launcher`,
     /// once the server runs; the cursor is at the end of the text.
-    fn with_launcher(
+    pub(super) fn with_launcher(
         dir: tempfile::TempDir,
         file: std::path::PathBuf,
         launcher: Arc<dyn crate::lsp::Launcher>,
@@ -128,18 +130,18 @@ impl Rig {
         rig
     }
 
-    fn with_answer(list: Value) -> Self {
+    pub(super) fn with_answer(list: Value) -> Self {
         Self::start(provider(), "", answering(list))
     }
 
     /// What the loop does before each frame.
-    fn frame(&mut self) {
+    pub(super) fn frame(&mut self) {
         self.app.lsp_sync();
         self.app.completion_step();
     }
 
     /// Takes what the servers sent to the app until `done`.
-    fn pump_until(&mut self, done: impl Fn(&App) -> bool) {
+    pub(super) fn pump_until(&mut self, done: impl Fn(&App) -> bool) {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             while let Ok(event) = self.events.try_recv() {
@@ -153,29 +155,29 @@ impl Rig {
         }
     }
 
-    fn wait_for_box(&mut self) {
+    pub(super) fn wait_for_box(&mut self) {
         self.pump_until(|app| app.state().completion_box().is_some());
     }
 
-    fn press(&mut self, code: KeyCode) {
+    pub(super) fn press(&mut self, code: KeyCode) {
         self.app
             .handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));
     }
 
     /// Types `text` one key at a time, with a frame after each, as the loop does.
-    fn type_text(&mut self, text: &str) {
+    pub(super) fn type_text(&mut self, text: &str) {
         for c in text.chars() {
             self.press(KeyCode::Char(c));
             self.frame();
         }
     }
 
-    fn text(&self) -> String {
+    pub(super) fn text(&self) -> String {
         self.app.state().editor().buffer().text()
     }
 
     /// The completion requests the server was sent so far.
-    fn requests(&self) -> Vec<Value> {
+    pub(super) fn requests(&self) -> Vec<Value> {
         let mut found = Vec::new();
         while let Ok(message) = self.received.recv_timeout(Duration::from_millis(150)) {
             if let Message::Request { method, params, .. } = message
@@ -187,7 +189,7 @@ impl Rig {
         found
     }
 
-    fn shown(&self) -> Vec<String> {
+    pub(super) fn shown(&self) -> Vec<String> {
         self.app
             .state()
             .completion_box()
@@ -200,12 +202,12 @@ impl Rig {
             .unwrap_or_default()
     }
 
-    fn highlighted(&self) -> Option<String> {
+    pub(super) fn highlighted(&self) -> Option<String> {
         let open = self.app.state().completion_box()?;
         Some(open.completion().selected_item()?.label.clone())
     }
 
-    fn screen(&mut self) -> String {
+    pub(super) fn screen(&mut self) -> String {
         let mut terminal = Terminal::new(TestBackend::new(100, 20)).unwrap();
         let app = &mut self.app;
         terminal
@@ -816,7 +818,7 @@ fn an_item_without_documentation_has_no_documentation_box() {
 }
 
 #[test]
-fn the_documentation_is_cut_after_eight_lines() {
+fn the_documentation_shows_eight_lines_and_says_how_many_there_are() {
     let long: Vec<String> = (1..=20).map(|n| format!("line {n}")).collect();
     let mut rig = Rig::start(
         provider(),
@@ -830,7 +832,8 @@ fn the_documentation_is_cut_after_eight_lines() {
 
     assert!(screen.contains("line 1 "), "{screen}");
     assert!(!screen.contains("line 9"), "{screen}");
-    assert!(screen.contains('…'), "{screen}");
+    // Which lines show, of how many.
+    assert!(screen.contains("1-8/20"), "{screen}");
 }
 
 #[test]
@@ -873,8 +876,160 @@ fn with_room_for_only_part_of_the_documentation_it_shows_what_fits() {
     let screen = rig.screen();
 
     assert!(screen.contains("line 1 "), "{screen}");
-    assert!(screen.contains('…'), "{screen}");
+    assert!(screen.contains("/20 "), "{screen}");
     assert!(!screen.contains("line 7"), "{screen}");
+}
+
+// ---- scrolling the documentation
+
+fn long_docs() -> Value {
+    let long: Vec<String> = (1..=20).map(|n| format!("line {n}")).collect();
+    json!([call_item("pop", "pop()$0", Some(&long.join("\n")))])
+}
+
+fn wheel(rig: &mut Rig, kind: crossterm::event::MouseEventKind, column: u16, row: u16) {
+    rig.app
+        .handle_input(InputEvent::Mouse(crossterm::event::MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+}
+
+/// The screen cell where `needle` starts.
+fn cell_of(rig: &mut Rig, needle: &str) -> (u16, u16) {
+    let screen = rig.screen();
+    for (row, line) in screen.lines().enumerate() {
+        let line = line.trim_matches('"');
+        if let Some(byte) = line.find(needle) {
+            return (line[..byte].chars().count() as u16, row as u16);
+        }
+    }
+    panic!("the screen does not show {needle:?}: {screen}");
+}
+
+fn docs_rig() -> Rig {
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n\n\n\n\n\n\n\n",
+        answering(long_docs()),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+    rig
+}
+
+#[test]
+fn the_wheel_over_the_documentation_scrolls_it_and_not_the_editor() {
+    let mut rig = docs_rig();
+    let (column, row) = cell_of(&mut rig, "line 2");
+    let top_before = rig.app.state().editor().scroll().top;
+
+    wheel(
+        &mut rig,
+        crossterm::event::MouseEventKind::ScrollDown,
+        column,
+        row,
+    );
+
+    let screen = rig.screen();
+    assert!(screen.contains("line 4 "), "{screen}");
+    assert!(!screen.contains("line 1 "), "{screen}");
+    assert!(screen.contains("4-11/20"), "{screen}");
+    assert_eq!(rig.app.state().editor().scroll().top, top_before);
+    assert!(rig.app.state().completion_box().is_some());
+
+    wheel(
+        &mut rig,
+        crossterm::event::MouseEventKind::ScrollUp,
+        column,
+        row,
+    );
+    assert!(rig.screen().contains("line 1 "));
+}
+
+#[test]
+fn the_documentation_stops_at_the_last_page() {
+    let mut rig = docs_rig();
+    let (column, row) = cell_of(&mut rig, "line 2");
+
+    for _ in 0..20 {
+        wheel(
+            &mut rig,
+            crossterm::event::MouseEventKind::ScrollDown,
+            column,
+            row,
+        );
+    }
+
+    let screen = rig.screen();
+    assert!(screen.contains("line 20"), "{screen}");
+    assert!(screen.contains("13-20/20"), "{screen}");
+}
+
+#[test]
+fn the_page_keys_scroll_the_documentation_while_the_suggestions_are_open() {
+    let mut rig = docs_rig();
+    let cursor = rig.app.state().editor().selections().primary().head();
+    // The box is known to be drawn after a frame.
+    rig.screen();
+
+    rig.press(KeyCode::PageDown);
+
+    let screen = rig.screen();
+    assert!(screen.contains("line 9 "), "{screen}");
+    assert!(screen.contains("9-16/20"), "{screen}");
+    assert!(rig.app.state().completion_box().is_some());
+    assert_eq!(
+        rig.app.state().editor().selections().primary().head(),
+        cursor
+    );
+    rig.press(KeyCode::PageUp);
+    assert!(rig.screen().contains("line 1 "));
+}
+
+#[test]
+fn the_page_keys_are_the_editors_when_the_documentation_fits() {
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n",
+        answering(json!([call_item("pop", "pop()$0", Some("Short."))])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+    rig.screen();
+
+    rig.press(KeyCode::PageUp);
+    rig.frame();
+
+    // The cursor went up, out of the word: the box is gone.
+    assert!(rig.app.state().completion_box().is_none());
+}
+
+#[test]
+fn another_highlighted_item_starts_its_documentation_at_the_top() {
+    let long: Vec<String> = (1..=20).map(|n| format!("line {n}")).collect();
+    let text = long.join("\n");
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n\n\n\n\n\n\n\n",
+        answering(json!([
+            call_item("pa", "pa()$0", Some(&text)),
+            call_item("pb", "pb()$0", Some(&text)),
+        ])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+    rig.screen();
+    rig.press(KeyCode::PageDown);
+    assert!(rig.screen().contains("9-16/20"));
+
+    rig.press(KeyCode::Down);
+
+    let screen = rig.screen();
+    assert!(screen.contains("1-8/20"), "{screen}");
+    assert!(screen.contains("line 1 "), "{screen}");
 }
 
 // ---- the proof: the real rust-analyzer through the whole app
@@ -883,7 +1038,7 @@ fn with_room_for_only_part_of_the_documentation_it_shows_what_fits() {
 impl Rig {
     /// An app over a temporary crate whose `src/main.rs` holds `text`, with the
     /// real `rust-analyzer`.
-    fn real(text: &str) -> Self {
+    pub(super) fn real(text: &str) -> Self {
         let dir = tempfile::tempdir().unwrap();
         write(
             &dir.path().join("Cargo.toml"),
@@ -898,7 +1053,7 @@ impl Rig {
     /// Types `text` and waits for the box to offer `wanted`. The server may still
     /// be indexing and answer with nothing at first, so a try that comes to
     /// nothing is taken back and made again, for up to two minutes.
-    fn type_until_offered(&mut self, text: &str, wanted: &str) {
+    pub(super) fn type_until_offered(&mut self, text: &str, wanted: &str) {
         let deadline = Instant::now() + Duration::from_secs(120);
         while Instant::now() < deadline {
             self.type_text(text);
@@ -927,7 +1082,7 @@ impl Rig {
     }
 
     /// Moves the highlight to the item called `label`.
-    fn highlight(&mut self, label: &str) {
+    pub(super) fn highlight(&mut self, label: &str) {
         for _ in 0..self.shown().len() {
             if self
                 .highlighted()

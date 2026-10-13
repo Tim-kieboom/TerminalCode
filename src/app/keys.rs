@@ -108,6 +108,12 @@ impl App {
             self.needs_redraw = true;
         }
 
+        // A key takes what the server said about a word away (a box pinned with f6
+        // scrolls with the arrow and page keys); Esc does nothing else then.
+        if self.handle_hover_key(key) {
+            return;
+        }
+
         // An open popup has all the keys.
         match self.state.popup() {
             Popup::None => {}
@@ -216,6 +222,7 @@ impl App {
             Action::NextDiagnostic => self.step_diagnostic(true),
             Action::PreviousDiagnostic => self.step_diagnostic(false),
             Action::ShowDiagnostics => self.show_diagnostics(),
+            Action::ShowHover => self.show_hover(),
             Action::PreviousSearchResult => self.step_search_result(-1),
             Action::FindInFile => self.open_find(),
             Action::ReplaceInFile => self.open_replace(),

@@ -289,6 +289,9 @@ impl App {
             KeyCode::Down => self.move_completion(true),
             KeyCode::Up => self.move_completion(false),
             KeyCode::Esc => self.close_completion(),
+            // The page keys scroll the documentation when it has more than it shows.
+            KeyCode::PageUp if self.page_docs(-1) => {}
+            KeyCode::PageDown if self.page_docs(1) => {}
             KeyCode::Enter => {
                 self.close_completion();
                 return false;
@@ -296,6 +299,20 @@ impl App {
             _ => return false,
         }
         self.needs_redraw = true;
+        true
+    }
+
+    /// Scrolls the documentation next to the suggestions by `pages`. Whether there
+    /// was any that scrolls.
+    fn page_docs(&mut self, pages: isize) -> bool {
+        let Some(open) = self.state.completion_box() else {
+            return false;
+        };
+        let scroll = open.docs_scroll();
+        if !scroll.is_drawn() || !scroll.is_scrollable() {
+            return false;
+        }
+        scroll.pages(pages);
         true
     }
 
