@@ -21,6 +21,8 @@ mod config;
 mod entries;
 pub mod error;
 mod event;
+#[allow(dead_code, reason = "the jump list is wired into the app in the next step")]
+mod jumplist;
 mod keymap;
 #[allow(
     dead_code,
