@@ -282,5 +282,5 @@ impl Drop for Staged {
     }
 }
 
-#[cfg(all(test, unix))]
+#[cfg(all(test, target_os = "linux"))]
 pub(crate) mod tests;

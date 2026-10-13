@@ -1,6 +1,6 @@
 //! Saving as root: the prompt, the password, and what `sudo` (a stand-in here)
 //! does with it.
-#![cfg(unix)]
+#![cfg(target_os = "linux")]
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;

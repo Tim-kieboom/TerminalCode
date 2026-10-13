@@ -227,13 +227,18 @@ impl DefinitionList {
 /// the last three parts.
 pub(crate) fn short_path(path: &Path, project: &Path) -> String {
     if let Ok(relative) = path.strip_prefix(project) {
-        return relative.display().to_string();
+        return slashes(&relative.display().to_string());
     }
     let parts: Vec<_> = path.components().collect();
     let skip = parts.len().saturating_sub(3);
     let kept: std::path::PathBuf = parts.into_iter().skip(skip).collect();
     match skip {
-        0 => kept.display().to_string(),
-        _ => format!("…/{}", kept.display()),
+        0 => slashes(&kept.display().to_string()),
+        _ => format!("…/{}", slashes(&kept.display().to_string())),
     }
+}
+
+/// `path` with `/` between the parts, on every system.
+fn slashes(path: &str) -> String {
+    path.replace('\\', "/")
 }
