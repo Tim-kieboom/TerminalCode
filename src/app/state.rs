@@ -5,6 +5,7 @@ use crate::components::ComponentKind;
 use crate::components::PluginViewId;
 use crate::components::completion_box::CompletionBox;
 use crate::components::confirm::Confirm;
+use crate::components::definition_list::DefinitionList;
 use crate::components::diagnostic_popup::DiagnosticPopup;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::explorer::{Explorer, ExplorerError};
@@ -81,6 +82,7 @@ pub(crate) enum Popup {
     NewEntry(NamePrompt),
     Menu(Menu),
     Diagnostics(DiagnosticPopup),
+    Definitions(DefinitionList),
     Palette(Palette),
     Finder(Finder),
     Search(Search),
@@ -454,6 +456,37 @@ impl AppState {
 
     pub(crate) fn open_menu(&mut self, menu: Menu) {
         self.popup = Popup::Menu(menu);
+    }
+
+    /// Opens the list of places a server named for a definition.
+    pub(crate) fn open_definition_list(&mut self, list: DefinitionList) {
+        self.popup = Popup::Definitions(list);
+    }
+
+    pub(crate) fn definition_list_mut(&mut self) -> Option<&mut DefinitionList> {
+        match &mut self.popup {
+            Popup::Definitions(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn definition_list(&self) -> Option<&DefinitionList> {
+        match &self.popup {
+            Popup::Definitions(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// Closes the list of definitions, giving it back.
+    pub(crate) fn take_definition_list(&mut self) -> Option<DefinitionList> {
+        if !matches!(self.popup, Popup::Definitions(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Definitions(list) => Some(list),
+            _ => None,
+        }
     }
 
     /// Opens the box with the diagnostics of a line, closing any other popup.

@@ -11,10 +11,12 @@ use std::time::{Duration, Instant};
 use ropey::Rope;
 
 use super::App;
+use crate::components::definition_list::{Command, DefinitionList, Entry, short_path};
 use crate::components::workspace::DocumentId;
 use crate::lsp::uri::uri_to_path;
 use crate::lsp::{Location, PendingDefinition, ServerKey, from_lsp, to_lsp};
 use crate::paths::canonical;
+use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 /// How long an answer is waited for before it is given up on.
 const PATIENCE: Duration = Duration::from_secs(10);
@@ -151,9 +153,81 @@ impl App {
         }
     }
 
-    /// Several places: until there is a list to choose from, the first.
+    /// Several places: a list to choose from, the first one selected.
     fn choose_definition(&mut self, found: &[Location], key: &ServerKey) {
-        self.go_to_location(&found[0], key);
+        let project = canonical(&self.project_root());
+        let entries = found
+            .iter()
+            .map(|location| {
+                let path =
+                    uri_to_path(&location.uri).unwrap_or_else(|| PathBuf::from(&location.uri));
+                let line = location.start.line as usize;
+                Entry {
+                    place: format!("{}:{}", short_path(&canonical(&path), &project), line + 1),
+                    text: line_text(&path, line),
+                    location: location.clone(),
+                }
+            })
+            .collect();
+        self.state
+            .open_definition_list(DefinitionList::new(entries, key.clone()));
+    }
+
+    /// A key while the list of definitions is open: up and down move over the
+    /// places, Enter goes to the selected one, Esc closes the list.
+    pub(super) fn handle_definitions_key(&mut self, key: crossterm::event::KeyEvent) {
+        let Some(command) = Command::from_key(key) else {
+            return;
+        };
+        match command {
+            Command::Previous => self.with_definition_list(|list| list.step(-1)),
+            Command::Next => self.with_definition_list(|list| list.step(1)),
+            Command::PageUp => self.with_definition_list(|list| list.page(-1)),
+            Command::PageDown => self.with_definition_list(|list| list.page(1)),
+            Command::Go => self.go_to_chosen_definition(),
+            Command::Cancel => {
+                self.state.take_definition_list();
+            }
+        }
+        self.needs_redraw = true;
+    }
+
+    fn with_definition_list(&mut self, f: impl FnOnce(&mut DefinitionList)) {
+        if let Some(list) = self.state.definition_list_mut() {
+            f(list);
+        }
+    }
+
+    /// Closes the list and goes to the place that was selected.
+    fn go_to_chosen_definition(&mut self) {
+        let Some(list) = self.state.take_definition_list() else {
+            return;
+        };
+        if let Some(location) = list.selected_location() {
+            self.go_to_location(location, list.key());
+        }
+    }
+
+    /// The mouse while the list of definitions is open: a click on a row goes to
+    /// it, one outside closes the list, the wheel moves the selection. Whether the
+    /// list was open, in which case nothing else gets the event.
+    pub(super) fn handle_definitions_mouse(&mut self, event: MouseEvent) -> bool {
+        let Some(list) = self.state.definition_list_mut() else {
+            return false;
+        };
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if list.select_at(event.column, event.row) {
+                    self.go_to_chosen_definition();
+                } else if !list.contains(event.column, event.row) {
+                    self.state.take_definition_list();
+                }
+            }
+            MouseEventKind::ScrollDown => list.step(1),
+            MouseEventKind::ScrollUp => list.step(-1),
+            _ => {}
+        }
+        true
     }
 
     /// Goes to a place the server named, opening its file when it is not open.
@@ -200,6 +274,14 @@ impl App {
         let root: PathBuf = canonical(&self.project_root());
         canonical(path).starts_with(root)
     }
+}
+
+/// The text of line `line` (from 0) of the file at `path`, without its indent.
+fn line_text(path: &Path, line: usize) -> String {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| text.lines().nth(line).map(|text| text.trim().to_owned()))
+        .unwrap_or_default()
 }
 
 /// Whether the character at `byte` is part of a word.

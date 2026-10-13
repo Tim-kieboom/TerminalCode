@@ -350,16 +350,166 @@ fn ctrl_click_away_from_a_word_does_nothing() {
     assert!(rig.definition_requests().is_empty());
 }
 
+// ---- several places: the list
+
+/// Points at several files next to the one that was asked about.
+fn siblings(places: &'static [(&'static str, u32)]) -> Answer {
+    Arc::new(move |params| {
+        let uri = params["textDocument"]["uri"].as_str().unwrap();
+        let (folder, _) = uri.rsplit_once('/').unwrap();
+        Value::Array(
+            places
+                .iter()
+                .map(|(name, line)| json!({ "uri": format!("{folder}/{name}"), "range": range(*line, 0, 4) }))
+                .collect(),
+        )
+    })
+}
+
+const TWO: &[(&str, u32)] = &[("lib.rs", 4), ("util.rs", 9)];
+
+fn rig_with_two() -> Rig {
+    let mut rig = rig(siblings(TWO));
+    let util: String = (1..=20).map(|n| format!("    util {n}\n")).collect();
+    fs::write(rig._dir.path().join("src/util.rs"), util).unwrap();
+    rig
+}
+
+impl Rig {
+    fn list_open(&self) -> bool {
+        self.app.state().definition_list().is_some()
+    }
+
+    fn list_selected(&self) -> usize {
+        self.app.state().definition_list().unwrap().selected()
+    }
+}
+
 #[test]
-fn several_places_go_to_the_first_until_there_is_a_list() {
-    let answer = answer_with(json!([
-        { "uri": "file:///nowhere/a.rs", "range": range(0, 0, 1) },
-    ]));
-    let mut rig = rig(answer);
+fn several_places_open_a_list_and_the_cursor_stays_until_one_is_chosen() {
+    let mut rig = rig_with_two();
 
     rig.f12_on_value();
-    rig.pump_until(|app| !app.state().notifications().texts().is_empty());
+    rig.pump_until(|app| app.state().definition_list().is_some());
 
-    // A file that is not there cannot be opened: the user is told, the cursor stays.
+    let list = rig.app.state().definition_list().unwrap();
+    assert_eq!(list.entries().len(), 2);
     assert_eq!(rig.name(), "main.rs");
+    assert_eq!(rig.head(), Position::new(1, 10));
+}
+
+#[test]
+fn each_row_has_the_file_the_line_and_the_text_of_the_line() {
+    let mut rig = rig_with_two();
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+
+    let screen = rig.screen();
+
+    assert!(screen.contains("Definitions (2)"), "{screen}");
+    assert!(screen.contains("src/lib.rs:5"), "{screen}");
+    assert!(screen.contains("line 5"), "{screen}");
+    assert!(screen.contains("src/util.rs:10"), "{screen}");
+    // The text of the line has no indent.
+    assert!(screen.contains("util 10"), "{screen}");
+    let entries = rig.app.state().definition_list().unwrap().entries();
+    assert_eq!(entries[1].text, "util 10");
+}
+
+#[test]
+fn enter_goes_to_the_selected_place_and_back_returns() {
+    let mut rig = rig_with_two();
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Enter);
+
+    assert!(!rig.list_open());
+    assert_eq!(rig.name(), "util.rs");
+    assert_eq!(rig.head(), Position::new(9, 0));
+    rig.alt(',');
+    assert_eq!(rig.name(), "main.rs");
+    assert_eq!(rig.head(), Position::new(1, 10));
+}
+
+#[test]
+fn up_and_down_go_round_and_escape_closes_without_going() {
+    let mut rig = rig_with_two();
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+
+    rig.press(KeyCode::Up);
+    assert_eq!(rig.list_selected(), 1);
+    rig.press(KeyCode::Down);
+    assert_eq!(rig.list_selected(), 0);
+    rig.press(KeyCode::Esc);
+
+    assert!(!rig.list_open());
+    assert_eq!(rig.name(), "main.rs");
+    assert_eq!(rig.head(), Position::new(1, 10));
+}
+
+#[test]
+fn a_click_on_a_row_goes_to_it_and_one_outside_closes_the_list() {
+    let mut rig = rig_with_two();
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+    let (column, row) = rig.cell_at("src/util.rs:10");
+
+    rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: column + 2,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+
+    assert!(!rig.list_open());
+    assert_eq!(rig.name(), "util.rs");
+
+    // Again, and a click far from the box.
+    rig.alt(',');
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+    rig.screen();
+    rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 98,
+        row: 28,
+        modifiers: KeyModifiers::NONE,
+    }));
+    assert!(!rig.list_open());
+    assert_eq!(rig.name(), "main.rs");
+}
+
+#[test]
+fn keys_do_not_reach_the_editor_while_the_list_is_open() {
+    let mut rig = rig_with_two();
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+    let before = rig.app.state().editor().buffer().text();
+
+    rig.press(KeyCode::Char('x'));
+
+    assert_eq!(rig.app.state().editor().buffer().text(), before);
+    assert!(rig.list_open());
+}
+
+#[test]
+fn many_places_scroll_and_a_page_stops_at_the_ends() {
+    let many: Vec<(&'static str, u32)> = (0..30).map(|n| ("lib.rs", n)).collect();
+    let many: &'static [(&'static str, u32)] = Box::leak(many.into_boxed_slice());
+    let mut rig = rig(siblings(many));
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+
+    rig.press(KeyCode::PageDown);
+    assert_eq!(rig.list_selected(), 12);
+    for _ in 0..5 {
+        rig.press(KeyCode::PageDown);
+    }
+    assert_eq!(rig.list_selected(), 29);
+    let screen = rig.screen();
+    assert!(screen.contains("src/lib.rs:30"), "{screen}");
+    assert!(!screen.contains("src/lib.rs:1 "), "{screen}");
 }

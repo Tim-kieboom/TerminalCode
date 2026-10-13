@@ -134,6 +134,10 @@ impl App {
             return;
         }
 
+        if self.handle_definitions_mouse(event) {
+            self.needs_redraw = true;
+            return;
+        }
         if self.handle_palette_mouse(event) {
             return;
         }

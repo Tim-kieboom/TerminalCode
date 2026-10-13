@@ -122,6 +122,7 @@ impl App {
             Popup::NewEntry(_) => return self.handle_name_key(key),
             Popup::Menu(_) => return self.handle_menu_key(key),
             Popup::Diagnostics(_) => return self.handle_diagnostic_popup_key(key),
+            Popup::Definitions(_) => return self.handle_definitions_key(key),
             Popup::Palette(_) => return self.handle_palette_key(key),
             Popup::Finder(_) => return self.handle_finder_key(key),
             Popup::Search(_) => return self.handle_search_key(key),

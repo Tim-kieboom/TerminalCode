@@ -1,5 +1,6 @@
 pub mod completion_box;
 pub mod confirm;
+pub mod definition_list;
 pub mod diagnostic_popup;
 pub mod editor;
 pub mod explorer;

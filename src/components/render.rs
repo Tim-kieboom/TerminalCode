@@ -53,6 +53,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         Popup::NewEntry(prompt) => prompt.render(frame, theme),
         Popup::Menu(menu) => menu.render(frame, theme),
         Popup::Diagnostics(popup) => popup.render(frame, theme),
+        Popup::Definitions(list) => list.render(frame, theme),
         // The find bar is drawn with its pane, which knows where its row is.
         Popup::Find(_) => {}
     }
