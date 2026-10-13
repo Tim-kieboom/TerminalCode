@@ -69,6 +69,8 @@ pub(crate) struct App {
     background: Background,
     remembered: Remembered,
     removal: Removal,
+    /// What saving as root needs: the password prompt's state and how to run sudo.
+    root: popups::Root,
     /// What the terminal pane runs.
     terminal_shell: Shell,
     /// What runs when `terminal_shell` cannot start: the platform's own.
@@ -221,6 +223,7 @@ impl App {
             background: Background::default(),
             remembered: Remembered::default(),
             removal: Removal::default(),
+            root: popups::Root::default(),
             terminal_shell: Shell::detect(),
             fallback_shell: Shell::from_setting(None),
             terminal_prefix: None,
@@ -412,6 +415,7 @@ impl App {
             }
             Event::TerminalChanged => self.terminal_changed(),
             Event::LspChanged => self.lsp_changed(),
+            Event::RootSaved(result) => self.root_save_finished(result),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {
                     self.needs_redraw = true;

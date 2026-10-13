@@ -117,6 +117,8 @@ pub(crate) enum Action {
     CloseTabsToRight,
     /// Pins the tab showing to the left of the strip, or lets it go.
     TogglePinTab,
+    /// Lets a file that is read-only to the user be edited, to save it as root.
+    UnlockForEditing,
     /// Closes every tab of every pane.
     CloseAllTabs,
     /// Opens the file of the tab closed last, with the cursor where it was.
@@ -271,6 +273,7 @@ impl Action {
             Self::CloseTabsToLeft => "Tab: Close to the Left",
             Self::CloseTabsToRight => "Tab: Close to the Right",
             Self::TogglePinTab => "Tab: Pin or Unpin",
+            Self::UnlockForEditing => "File: Edit Anyway (save as root)",
             Self::CloseAllTabs => "Tab: Close All",
             Self::ReopenClosedTab => "Tab: Reopen Closed",
             Self::NewFile => "File: New",
@@ -362,6 +365,7 @@ impl Action {
             Self::CloseTabsToLeft,
             Self::CloseTabsToRight,
             Self::TogglePinTab,
+            Self::UnlockForEditing,
             Self::CloseAllTabs,
             Self::ReopenClosedTab,
             Self::NewFile,

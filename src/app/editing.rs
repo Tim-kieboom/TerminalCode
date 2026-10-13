@@ -69,7 +69,13 @@ impl App {
     }
 
     pub(super) fn save(&mut self) -> IdeResult {
-        match self.state.workspace_mut().save_active()? {
+        let outcome = match self.state.workspace_mut().save_active() {
+            Ok(outcome) => outcome,
+            // Not allowed to write there: the password prompt of a save as root, if it applies.
+            Err(error) if self.offer_root_save(&error) => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        match outcome {
             SaveOutcome::Saved => {
                 let name = self.state.editor().display_name();
                 self.state.notify(format!("saved {name}"));

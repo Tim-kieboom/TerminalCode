@@ -17,6 +17,7 @@ use crate::components::name_prompt::NamePrompt;
 use crate::components::notifications::{Hit, Level, Notifications};
 use crate::components::palette::Palette;
 use crate::components::quit_prompt::QuitPrompt;
+use crate::components::root_prompt::RootPrompt;
 use crate::components::search::Search;
 use crate::components::status_view::StatusBar;
 use crate::components::terminal::TerminalPane;
@@ -83,6 +84,7 @@ pub(crate) enum Popup {
     Menu(Menu),
     Diagnostics(DiagnosticPopup),
     Definitions(DefinitionList),
+    RootPassword(RootPrompt),
     Palette(Palette),
     Finder(Finder),
     Search(Search),
@@ -456,6 +458,33 @@ impl AppState {
 
     pub(crate) fn open_menu(&mut self, menu: Menu) {
         self.popup = Popup::Menu(menu);
+    }
+
+    /// Opens the password prompt of a save as root.
+    pub(crate) fn open_root_prompt(&mut self, prompt: RootPrompt) {
+        self.popup = Popup::RootPassword(prompt);
+    }
+
+    pub(crate) fn root_prompt_mut(&mut self) -> Option<&mut RootPrompt> {
+        match &mut self.popup {
+            Popup::RootPassword(prompt) => Some(prompt),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn root_prompt(&self) -> Option<&RootPrompt> {
+        match &self.popup {
+            Popup::RootPassword(prompt) => Some(prompt),
+            _ => None,
+        }
+    }
+
+    /// Closes the password prompt, which wipes the password.
+    pub(crate) fn close_root_prompt(&mut self) {
+        if matches!(self.popup, Popup::RootPassword(_)) {
+            self.popup = Popup::None;
+        }
     }
 
     /// Opens the list of places a server named for a definition.

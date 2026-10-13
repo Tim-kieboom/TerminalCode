@@ -72,7 +72,12 @@ impl App {
                 false
             }
             Err(error) => {
-                self.state.notify_error(format!("{name}: {error}"));
+                // A save as root asks for a password, which this prompt does not.
+                let hint = match super::root_save::refused_for_permission(&error) {
+                    true => "; close this prompt and save it with ctrl+s to save it as root",
+                    false => "",
+                };
+                self.state.notify_error(format!("{name}: {error}{hint}"));
                 false
             }
         }

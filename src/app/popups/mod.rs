@@ -6,6 +6,7 @@ use super::App;
 use crate::components::search::{Hit, Options as SearchOptions};
 
 pub(super) use delete::Removal;
+pub(super) use root_save::Root;
 
 mod delete;
 mod find;
@@ -14,6 +15,7 @@ mod menu;
 mod new_entry;
 mod palette;
 mod quit;
+mod root_save;
 mod search;
 
 /// What a search box was last used for, so opening it again starts there.

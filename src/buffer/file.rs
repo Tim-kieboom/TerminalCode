@@ -48,7 +48,7 @@ pub(crate) enum DiskChange {
     Deleted,
 }
 
-fn fingerprint(bytes: &[u8]) -> u64 {
+pub(super) fn fingerprint(bytes: &[u8]) -> u64 {
     let mut hasher = std::hash::DefaultHasher::new();
     hasher.write(bytes);
     hasher.finish()

@@ -30,7 +30,7 @@ needs a recent glibc; on an older system build from source.
 - **Everything is a file you can edit:** settings, key bindings, the layout and the themes are plain text files that
   are applied when you save them, with no restart.
 - **Safe with your files:** a file changed on disk under your edits is never overwritten without asking, a deleted
-  file stays open with a `[deleted]` note, and a read-only file is locked against edits.
+  file stays open with a `[deleted]` note, and a read-only file is locked against edits. On Linux, `File: Edit Anyway (save as root)` in the palette unlocks such a file, and saving it (or saving a file in a folder you may not write to) asks for your password and has `sudo` write it: the password is never kept, every such save asks again.
 
 ## Build and run
 

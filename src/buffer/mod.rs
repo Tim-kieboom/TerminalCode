@@ -50,6 +50,9 @@ pub(crate) struct Buffer {
     /// Locked by the app, not by the file: a file opened read-only on purpose (the
     /// source of the standard library), which stays locked whatever the file system says.
     locked: bool,
+    /// The user asked to edit a file that is read-only to them (to save it as
+    /// root): the file permissions do not lock the text again.
+    unlocked: bool,
     /// What a buffer with no file is called, when it is not just `[no name]`.
     title: Option<String>,
 }
@@ -67,6 +70,7 @@ impl Buffer {
             disk: Disk::Unknown,
             read_only: false,
             locked: false,
+            unlocked: false,
             title: None,
         }
     }
@@ -94,7 +98,7 @@ impl Buffer {
     /// A buffer with no file keeps the lock it has.
     pub(crate) fn sync_read_only(&mut self) -> bool {
         if self.path.is_some() {
-            self.read_only = self.file_is_read_only() || self.locked;
+            self.read_only = (self.file_is_read_only() && !self.unlocked) || self.locked;
         }
         self.read_only
     }
@@ -103,6 +107,28 @@ impl Buffer {
     pub(crate) fn lock(&mut self) {
         self.locked = true;
         self.read_only = true;
+    }
+
+    /// Lets the text of a file that is read-only to the user be edited, which
+    /// saving then needs root for. A buffer the app locked stays locked. Whether
+    /// the text can be edited now.
+    pub(crate) fn unlock_for_root(&mut self) -> bool {
+        if self.locked {
+            return false;
+        }
+        self.unlocked = true;
+        self.read_only = false;
+        true
+    }
+
+    /// The text was written to the file by someone else on the buffer's behalf
+    /// (a save as root): the file holds `text` now, and the buffer is saved when
+    /// nothing changed since `version`.
+    pub(crate) fn wrote_elsewhere(&mut self, text: &str, version: u64) {
+        self.disk = Disk::Content(file::fingerprint(text.as_bytes()));
+        if self.version == version {
+            self.saved_version = self.version;
+        }
     }
 
     /// Whether the app locked it (see [`Buffer::lock`]).

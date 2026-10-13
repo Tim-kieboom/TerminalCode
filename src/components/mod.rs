@@ -13,6 +13,7 @@ pub mod notifications;
 pub mod palette;
 pub mod quit_prompt;
 mod render;
+pub mod root_prompt;
 pub mod scroll_text;
 pub mod search;
 pub mod status_view;

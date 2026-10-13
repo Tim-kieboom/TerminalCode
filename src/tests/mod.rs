@@ -28,6 +28,7 @@ mod palette_tests;
 mod perf_tests;
 mod quit_tests;
 mod rename_tests;
+mod root_save_tests;
 mod search_tests;
 mod settings_tests;
 mod stale_view_tests;

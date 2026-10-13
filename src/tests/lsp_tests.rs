@@ -1271,3 +1271,52 @@ fn real_rust_analyzer_errors_show_on_the_right_lines_in_the_app() {
         "with the whole message in it"
     );
 }
+
+/// The same in a Cargo workspace, opened at its top with a file in a member
+/// crate: the server must start at the workspace's `Cargo.toml` and report the
+/// member's error. Run by hand like the one above.
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_works_in_a_cargo_workspace() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        &dir.path().join("Cargo.toml"),
+        "[workspace]\nresolver = \"2\"\nmembers = [\"crates/api\", \"crates/importer\"]\n\n[workspace.package]\nedition = \"2021\"\n",
+    );
+    for member in ["api", "importer"] {
+        write(
+            &dir.path().join(format!("crates/{member}/Cargo.toml")),
+            &format!(
+                "[package]\nname = \"{member}\"\nversion = \"0.1.0\"\nedition.workspace = true\n"
+            ),
+        );
+    }
+    write(
+        &dir.path().join("crates/importer/src/main.rs"),
+        "fn main() {}\n",
+    );
+    let file = dir.path().join("crates/api/src/main.rs");
+    write(&file, "fn main() {\n    let wrong: u32 = \"text\";\n}\n");
+
+    let (tx, mut events) = mpsc::channel(256);
+    let mut app = App::new(opened(dir.path(), std::slice::from_ref(&file)))
+        .with_events(tx)
+        .with_lsp_launcher(Arc::new(crate::lsp::ProcessLauncher));
+    app.handle_input(InputEvent::FocusLost);
+    let document = app.state().workspace().active_document_id().unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(120);
+    while app.state().diagnostics().of(document).is_empty() {
+        while let Ok(event) = events.try_recv() {
+            app.handle_event(event);
+        }
+        app.lsp_sync();
+        assert!(
+            Instant::now() < deadline,
+            "no diagnostics in two minutes; status {:?}, notices {:?}",
+            app.state().lsp_status(),
+            app.state().notifications().texts()
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}

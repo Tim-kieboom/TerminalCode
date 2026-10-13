@@ -920,6 +920,7 @@ fn the_tab_says_when_its_file_is_read_only() {
     assert!(screen.contains("a.txt [read-only]"), "{screen}");
 }
 
+#[cfg(not(target_os = "linux"))]
 #[test]
 fn saving_a_read_only_file_is_refused_every_time_and_the_text_stays() {
     let (mut app, _dir, path) = app_with_file("old\n");
@@ -936,6 +937,7 @@ fn saving_a_read_only_file_is_refused_every_time_and_the_text_stays() {
     assert_eq!(text(&app), "mine old\n");
 }
 
+#[cfg(not(target_os = "linux"))]
 #[test]
 fn a_read_only_file_that_also_changed_on_disk_is_refused_not_asked_about() {
     let (mut app, _dir, path) = app_with_file("old\n");
@@ -948,6 +950,41 @@ fn a_read_only_file_that_also_changed_on_disk_is_refused_not_asked_about() {
 
     assert_eq!(fs::read_to_string(&path).unwrap(), "theirs\n");
     assert!(latest(&app).contains("read-only"), "{}", latest(&app));
+}
+
+// On Linux a save that the file permissions refuse asks for the root password
+// instead (see `root_save_tests`); giving up leaves the file and the text alone.
+#[cfg(target_os = "linux")]
+#[test]
+fn saving_a_read_only_file_asks_for_the_root_password_and_giving_up_leaves_everything() {
+    let (mut app, _dir, path) = app_with_file("old\n");
+    type_str(&mut app, "mine ");
+    set_read_only(&path, true);
+
+    ctrl(&mut app, 's');
+    assert!(app.state().root_prompt().is_some());
+    app.handle_input(key(KeyCode::Esc, KeyModifiers::NONE));
+    ctrl(&mut app, 's');
+    assert!(app.state().root_prompt().is_some());
+    app.handle_input(key(KeyCode::Esc, KeyModifiers::NONE));
+
+    assert_eq!(fs::read_to_string(&path).unwrap(), "old\n");
+    assert!(app.state().editor().buffer().is_dirty());
+    assert_eq!(text(&app), "mine old\n");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_read_only_file_that_also_changed_on_disk_asks_for_the_password_not_whether_to_overwrite() {
+    let (mut app, _dir, path) = app_with_file("old\n");
+    type_str(&mut app, "mine ");
+    fs::write(&path, "theirs\n").unwrap();
+    set_read_only(&path, true);
+
+    ctrl(&mut app, 's');
+
+    assert!(app.state().root_prompt().is_some());
+    assert_eq!(fs::read_to_string(&path).unwrap(), "theirs\n");
 }
 
 #[test]

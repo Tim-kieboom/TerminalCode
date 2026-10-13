@@ -458,6 +458,42 @@ impl Workspace {
         })
     }
 
+    /// What a save as root needs of a document: its file, its text, the version of
+    /// the text, and whether the app locked it for good (then it is never saved).
+    pub(crate) fn root_save_source(
+        &self,
+        document: DocumentId,
+    ) -> Option<(PathBuf, String, u64, bool)> {
+        let buffer = &self.documents.get(&document)?.buffer;
+        Some((
+            buffer.path()?.to_path_buf(),
+            buffer.text(),
+            buffer.version(),
+            buffer.is_locked(),
+        ))
+    }
+
+    /// Notes that a save as root wrote `text` to the file of `document`.
+    pub(crate) fn mark_written_as_root(&mut self, document: DocumentId, text: &str, version: u64) {
+        if let Some(doc) = self.documents.get_mut(&document) {
+            doc.buffer.wrote_elsewhere(text, version);
+        }
+    }
+
+    /// Lets the text of the document in front, a file read-only to the user, be
+    /// edited. Whether it can be edited now.
+    pub(crate) fn unlock_active_for_root(&mut self) -> bool {
+        let Some(document) = self.active_document_id() else {
+            return false;
+        };
+        let Some(doc) = self.documents.get_mut(&document) else {
+            return false;
+        };
+        let editable = doc.buffer.unlock_for_root();
+        doc.read_only = doc.buffer.is_read_only();
+        editable
+    }
+
     /// Locks the text of `document` against edits for good (see [`Buffer::lock`]).
     pub(crate) fn lock_document(&mut self, document: DocumentId) {
         if let Some(doc) = self.documents.get_mut(&document) {

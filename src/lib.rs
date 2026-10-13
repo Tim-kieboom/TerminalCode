@@ -36,6 +36,7 @@ mod lsp;
 mod paths;
 mod pty;
 mod removal;
+mod rootsave;
 mod settings;
 mod startup;
 mod syntax;

@@ -46,4 +46,6 @@ pub(crate) enum Event {
     WatchFailed(String),
     /// A language server finished starting, said something, or died.
     LspChanged,
+    /// A save as root is over: it worked, or why not.
+    RootSaved(Result<(), crate::rootsave::RootError>),
 }
