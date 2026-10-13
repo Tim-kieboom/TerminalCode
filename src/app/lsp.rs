@@ -403,6 +403,7 @@ impl App {
                 .notify("no diagnostics in this file (a language server reports them)");
             return;
         };
+        self.mark_jump();
         match self.state.editor().buffer().byte_to_position(start) {
             Ok(position) => self.state.edit(|editor| editor.go_to(position)),
             Err(error) => self.state.notify_error(error.to_string()),

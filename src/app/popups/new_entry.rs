@@ -189,6 +189,7 @@ impl App {
     /// Puts the cursor on `line` (and `column`), counted from 1 and held to
     /// what the file has.
     fn go_to_place(&mut self, (line, column): (usize, Option<usize>)) {
+        self.mark_jump();
         self.state.set_focus(Focus::Editor);
         self.state.edit(|editor| {
             let at = Position::new(line - 1, column.map_or(0, |column| column - 1));

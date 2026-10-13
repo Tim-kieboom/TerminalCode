@@ -104,6 +104,7 @@ impl App {
         let Some(line) = target.line else {
             return;
         };
+        self.mark_jump();
         self.state.edit(|editor| {
             let at = Position::new(line - 1, target.column.map_or(0, |column| column - 1));
             let at = editor.buffer().clamp_position(at);

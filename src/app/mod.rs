@@ -28,6 +28,7 @@ mod completion;
 mod config_files;
 mod editing;
 mod hover;
+mod jumps;
 mod keys;
 mod lsp;
 mod mouse;
@@ -60,6 +61,8 @@ pub(crate) struct App {
     needs_redraw: bool,
     keyboard: Keyboard,
     mouse: MouseInput,
+    /// Where the cursor has been, for going back.
+    jumps: jumps::Jumps,
     clipboard: Clipboard,
     watching: Watching,
     background: Background,
@@ -210,6 +213,7 @@ impl App {
             needs_redraw: true,
             keyboard: Keyboard::new(keymap),
             mouse: MouseInput::default(),
+            jumps: jumps::Jumps::default(),
             clipboard: Clipboard::internal_only(),
             watching: Watching::default(),
             background: Background::default(),
@@ -355,15 +359,17 @@ impl App {
     }
 
     pub(crate) fn handle_input(&mut self, input: InputEvent) {
-        match input {
-            InputEvent::Key(key) => self.handle_key(key),
-            InputEvent::Paste(text) => self.paste_from_terminal(text),
-            InputEvent::Mouse(event) => self.handle_mouse(event),
+        let before = self.here();
+        match &input {
+            InputEvent::Key(key) => self.handle_key(*key),
+            InputEvent::Paste(text) => self.paste_from_terminal(text.clone()),
+            InputEvent::Mouse(event) => self.handle_mouse(*event),
             InputEvent::Resize(..) => self.needs_redraw = true,
             // Back from another window: whatever was open may have changed.
             InputEvent::FocusGained => self.check_files_on_disk(),
             _ => {}
         }
+        self.track_jump(&input, before);
         self.notice_tab_switch();
     }
 

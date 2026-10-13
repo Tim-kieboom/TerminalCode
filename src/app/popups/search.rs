@@ -98,6 +98,7 @@ impl App {
     /// Opens the file of a search result with the cursor at the match. The
     /// editor gets the keyboard.
     fn open_hit(&mut self, root: &std::path::Path, hit: &Hit) {
+        self.mark_jump();
         self.state.set_focus(Focus::Editor);
         let target = crate::buffer::Position::new(hit.line, hit.column);
         let opened = self.state.workspace_mut().open_path(&root.join(&hit.path));

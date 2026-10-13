@@ -530,3 +530,12 @@ action = "show_diagnostics"
 keys = "f6"
 context = "editor"
 action = "show_hover"
+
+# Back to where the last jump left, and forward again (go to line, a search or finder hit, a diagnostic, another file, a far click)
+[[binding]]
+keys = "alt+,"
+action = "jump_back"
+
+[[binding]]
+keys = "alt+."
+action = "jump_forward"

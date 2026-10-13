@@ -48,6 +48,10 @@ pub(crate) enum Action {
     ShowDiagnostics,
     /// Shows what the language server says about the word at the cursor in a box.
     ShowHover,
+    /// Goes back to the place the last jump left (the jump list).
+    JumpBack,
+    /// Goes forward again after going back.
+    JumpForward,
     /// Opens the find bar for the open file.
     FindInFile,
     /// Opens the find bar with the row for replacing.
@@ -218,6 +222,8 @@ impl Action {
             Self::PreviousDiagnostic => "Diagnostics: Previous",
             Self::ShowDiagnostics => "Diagnostics: Show at Cursor",
             Self::ShowHover => "Hover: Show Documentation at Cursor",
+            Self::JumpBack => "Navigate: Back",
+            Self::JumpForward => "Navigate: Forward",
             Self::FindInFile => "Search: Find in File",
             Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
@@ -298,6 +304,8 @@ impl Action {
             Self::PreviousDiagnostic,
             Self::ShowDiagnostics,
             Self::ShowHover,
+            Self::JumpBack,
+            Self::JumpForward,
             Self::FindInFile,
             Self::ReplaceInFile,
             Self::FocusExplorer,

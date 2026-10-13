@@ -144,6 +144,17 @@ pub(crate) struct Workspace {
     /// What the settings say about indentation and the width of a tab character,
     /// for every document and view, existing and new.
     indent_prefs: IndentPrefs,
+    /// The edits made since they were last taken, for whatever keeps places in
+    /// the text (the jump list): the document, and the bytes `start..old_end` that became `start..new_end`.
+    edit_events: Vec<(DocumentId, EditEvent)>,
+}
+
+/// One edit of a document, in bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct EditEvent {
+    pub(crate) start: usize,
+    pub(crate) old_end: usize,
+    pub(crate) new_end: usize,
 }
 
 impl Default for Workspace {
@@ -172,6 +183,7 @@ impl Workspace {
             find_bar: 0,
             empty: (Buffer::default(), ViewState::default()),
             indent_prefs: IndentPrefs::default(),
+            edit_events: Vec::new(),
         };
         let (view, buffer) = editor.into_parts();
         let document = workspace.add_document(buffer);
@@ -434,7 +446,7 @@ impl Workspace {
 
     /// Activates a tab of `document`, preferring the focused pane; opens a new
     /// tab for it in the focused pane if no pane shows it.
-    fn show_document(&mut self, document: DocumentId) {
+    pub(crate) fn show_document(&mut self, document: DocumentId) {
         self.reset_confirmations();
         let focused = self.focused_index();
         let order =
@@ -673,6 +685,16 @@ impl Workspace {
         Some((tab.document, byte, buffer.snapshot()))
     }
 
+    /// Whether the document is open in a tab.
+    pub(crate) fn has_document(&self, document: DocumentId) -> bool {
+        self.documents.contains_key(&document)
+    }
+
+    /// The edits made since the last call, oldest first.
+    pub(crate) fn take_edit_events(&mut self) -> Vec<(DocumentId, EditEvent)> {
+        std::mem::take(&mut self.edit_events)
+    }
+
     /// The version of a document's text, which changes with every edit.
     pub(crate) fn document_version(&self, document: DocumentId) -> Option<u64> {
         Some(self.documents.get(&document)?.buffer.version())
@@ -738,6 +760,16 @@ impl Workspace {
         if !log.is_empty() {
             self.replay_onto_others(&editor, before, &log);
         }
+        self.edit_events.extend(log.iter().map(|info| {
+            (
+                document,
+                EditEvent {
+                    start: info.start_byte,
+                    old_end: info.old_end_byte,
+                    new_end: info.new_end_byte,
+                },
+            )
+        }));
 
         let (view, buffer) = editor.into_parts();
         self.panes[pane].tabs[tab_index].view = view;

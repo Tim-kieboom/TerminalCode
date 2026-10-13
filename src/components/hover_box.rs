@@ -64,6 +64,7 @@ impl HoverBox {
         self.version
     }
 
+    #[cfg(test)]
     pub(crate) fn text(&self) -> &str {
         &self.text
     }

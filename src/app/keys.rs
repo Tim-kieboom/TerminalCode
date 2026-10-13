@@ -223,6 +223,8 @@ impl App {
             Action::PreviousDiagnostic => self.step_diagnostic(false),
             Action::ShowDiagnostics => self.show_diagnostics(),
             Action::ShowHover => self.show_hover(),
+            Action::JumpBack => self.jump_back(),
+            Action::JumpForward => self.jump_forward(),
             Action::PreviousSearchResult => self.step_search_result(-1),
             Action::FindInFile => self.open_find(),
             Action::ReplaceInFile => self.open_replace(),

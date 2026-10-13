@@ -254,17 +254,3 @@ fn a_reopened_file_gives_its_places_its_new_document() {
     assert_eq!(list.entries[0].document, doc(9));
     assert_eq!(list.entries[1].document, doc(2));
 }
-
-#[test]
-fn a_file_saved_under_a_name_is_found_by_that_name() {
-    let mut list = JumpList::default();
-    list.record(Place {
-        document: doc(1),
-        path: None,
-        byte: 3,
-    });
-
-    list.rename(doc(1), &PathBuf::from("/p/new.rs"));
-
-    assert_eq!(list.entries[0].path, Some(PathBuf::from("/p/new.rs")));
-}

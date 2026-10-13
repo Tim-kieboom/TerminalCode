@@ -29,6 +29,16 @@ pub(crate) struct Change {
     pub(crate) new_end: usize,
 }
 
+impl Place {
+    /// This place after an edit of its document.
+    pub(crate) fn moved(mut self, document: DocumentId, change: Change) -> Self {
+        if self.document == document {
+            self.byte = shifted(self.byte, change);
+        }
+        self
+    }
+}
+
 /// A place the list went to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Step {
@@ -104,7 +114,7 @@ impl JumpList {
     /// `usable`; the ones passed that are not are forgotten.
     pub(crate) fn forward(&mut self, usable: impl Fn(&Place) -> bool) -> Option<Step> {
         let mut skipped = 0;
-        let mut index = self.at + 1;
+        let index = self.at + 1;
         while index < self.entries.len() {
             if usable(&self.entries[index]) {
                 self.at = index;
@@ -131,17 +141,6 @@ impl JumpList {
         }
     }
 
-    /// Notes that the file of `document` is now `path` (it was saved under a name).
-    pub(crate) fn rename(&mut self, document: DocumentId, path: &PathBuf) {
-        for place in self
-            .entries
-            .iter_mut()
-            .filter(|place| place.document == document)
-        {
-            place.path = Some(path.clone());
-        }
-    }
-
     /// Gives a place its document back: the tab of a file was closed and the
     /// file is open again under a new document.
     pub(crate) fn reopened(&mut self, path: &PathBuf, document: DocumentId) {
@@ -154,10 +153,12 @@ impl JumpList {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
 
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
