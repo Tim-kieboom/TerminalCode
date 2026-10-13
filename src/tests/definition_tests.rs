@@ -513,3 +513,113 @@ fn many_places_scroll_and_a_page_stops_at_the_ends() {
     assert!(screen.contains("src/lib.rs:30"), "{screen}");
     assert!(!screen.contains("src/lib.rs:1 "), "{screen}");
 }
+
+// ---- the proof: the real rust-analyzer
+
+#[cfg(unix)]
+impl Rig {
+    /// Presses `f12` until `done`, since the server may still be loading and say
+    /// nothing at first; for up to two minutes.
+    fn f12_until(&mut self, done: impl Fn(&Rig) -> bool) {
+        let deadline = std::time::Instant::now() + Duration::from_secs(120);
+        while std::time::Instant::now() < deadline {
+            self.screen();
+            self.press(KeyCode::F(12));
+            let tried = std::time::Instant::now() + Duration::from_secs(6);
+            while std::time::Instant::now() < tried {
+                while let Ok(event) = self.events.try_recv() {
+                    self.app.handle_event(event);
+                }
+                self.app.lsp_sync();
+                if done(self) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            // The list of several places or a message is in the way of a new try.
+            self.press(KeyCode::Esc);
+        }
+        panic!(
+            "go to definition never arrived; status {:?}, told {}",
+            self.app.state().lsp_status(),
+            self.told()
+        );
+    }
+
+    fn go_to_text(&mut self, needle: &str, extra: usize) {
+        let text = self.app.state().editor().buffer().text();
+        let byte = text
+            .find(needle)
+            .unwrap_or_else(|| panic!("{needle:?} is not in the text"));
+        let position = self
+            .app
+            .state()
+            .editor()
+            .buffer()
+            .byte_to_position(byte + extra)
+            .unwrap();
+        self.app.state_mut().edit(|editor| editor.go_to(position));
+    }
+
+    fn path(&self) -> String {
+        self.app
+            .state()
+            .editor()
+            .buffer()
+            .path()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default()
+    }
+}
+
+/// The real `rust-analyzer`: a definition in the project, one in the standard
+/// library (opened read-only), a jump from inside it, and back through all of
+/// them. Run by hand:
+/// `cargo test real_rust_analyzer_goes_to -- --ignored --nocapture`.
+#[cfg(unix)]
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_goes_to_definitions_in_the_project_and_in_the_standard_library_and_back() {
+    let source = "fn main() {\n    let v: Vec<u32> = Vec::new();\n    helper(v);\n}\n\nfn helper(v: Vec<u32>) {}\n";
+    let mut rig = Rig::real(source);
+
+    // In the project: `helper` on line 2.
+    rig.go_to_text("helper(v);", 2);
+    rig.f12_until(|rig| rig.head().line == 5);
+    assert_eq!(rig.name(), "main.rs");
+    assert!(!rig.app.state().editor().buffer().is_read_only());
+
+    rig.alt(',');
+    assert_eq!(rig.head().line, 2);
+
+    // In the standard library: `new` of `Vec::new()`.
+    rig.go_to_text("new()", 1);
+    rig.f12_until(|rig| rig.name() != "main.rs");
+    let first = rig.path();
+    eprintln!("the standard library: {first} at {:?}", rig.head());
+    assert!(first.contains("vec"), "{first}");
+    assert!(rig.app.state().editor().buffer().is_read_only());
+    let line = rig
+        .app
+        .state()
+        .editor()
+        .buffer()
+        .line_content(rig.head().line)
+        .unwrap()
+        .to_string();
+    assert!(line.contains("fn new"), "{line}");
+
+    // From inside it: the same server goes on to the next definition.
+    rig.go_to_text("RawVec", 2);
+    rig.f12_until(|rig| rig.path() != first);
+    let second = rig.path();
+    eprintln!("and on: {second} at {:?}", rig.head());
+    assert!(rig.app.state().editor().buffer().is_read_only());
+
+    // Back through all of them.
+    rig.alt(',');
+    assert_eq!(rig.path(), first);
+    rig.alt(',');
+    assert_eq!(rig.name(), "main.rs");
+    assert_eq!(rig.head().line, 1);
+}
