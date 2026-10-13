@@ -2,6 +2,7 @@ mod completion_state_tests;
 mod completion_tests;
 mod config_tests;
 mod connection_tests;
+mod definition_tests;
 mod diagnostics_tests;
 mod diff_tests;
 mod docs_tests;

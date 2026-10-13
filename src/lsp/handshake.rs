@@ -42,6 +42,11 @@ pub(crate) fn client_capabilities() -> Value {
                 "dynamicRegistration": false,
                 "contentFormat": ["markdown", "plaintext"],
             },
+            "definition": {
+                "dynamicRegistration": false,
+                // The range of the name comes with the place, not only the whole item.
+                "linkSupport": true,
+            },
             "completion": {
                 "dynamicRegistration": false,
                 // The server is told why it is asked (a typed trigger character,

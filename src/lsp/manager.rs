@@ -240,3 +240,24 @@ impl Manager {
         super::hover::request(&session.connection, uri, position).ok()
     }
 }
+
+impl Manager {
+    /// Whether the server `key` runs and answers definition requests.
+    pub(crate) fn offers_definition(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| super::definition::offered(&session.server.capabilities))
+    }
+
+    /// Asks the server `key` where the thing at `position` of `uri` is defined.
+    /// `None` when it is not running or the request could not be sent.
+    pub(crate) fn request_definition(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: super::position::LspPosition,
+    ) -> Option<super::PendingDefinition> {
+        let session = self.sessions.get(key)?;
+        super::definition::request(&session.connection, uri, position).ok()
+    }
+}
