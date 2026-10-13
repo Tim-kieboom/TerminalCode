@@ -78,10 +78,7 @@ pub(crate) struct Row {
 impl Node {
     /// The root of the tree: a directory that starts expanded.
     pub(super) fn root(path: &Path) -> Result<Self, ExplorerError> {
-        let name = path.file_name().map_or_else(
-            || path.display().to_string(),
-            |name| name.to_string_lossy().into_owned(),
-        );
+        let name = root_name(path);
         let mut root = Self {
             name,
             path: path.to_path_buf(),
@@ -286,6 +283,22 @@ fn entries(dir: &Path, builder: &mut WalkBuilder) -> Result<Vec<PathBuf>, Explor
         paths.push(entry.into_path());
     }
     Ok(paths)
+}
+
+/// What the root of the tree is called: the name of the folder. A path that has
+/// none (`.`, `./`, `..`, `/`) is looked at as the folder it stands for.
+fn root_name(path: &Path) -> String {
+    let name = |path: &Path| {
+        path.file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+    };
+    name(path)
+        .or_else(|| name(&canonical(path)))
+        .unwrap_or_else(|| {
+            crate::paths::without_verbatim_prefix(&canonical(path))
+                .display()
+                .to_string()
+        })
 }
 
 /// Whether `path`, a link, points at a folder that contains the link: opening

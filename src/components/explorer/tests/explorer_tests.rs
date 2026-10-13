@@ -547,3 +547,56 @@ fn refreshing_a_very_large_directory_keeps_what_was_open_and_the_selection() {
         "root, big, sub, inner and the files"
     );
 }
+
+// ---- what the root is called
+
+fn root_row_name(explorer: &Explorer) -> String {
+    explorer.rows()[0].name.clone()
+}
+
+#[test]
+fn the_root_is_called_after_its_folder() {
+    let dir = project(false);
+    let folder = dir
+        .path()
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+
+    assert_eq!(root_row_name(&open(&dir)), folder);
+    // A trailing slash does not change it.
+    let with_slash = PathBuf::from(format!("{}/", dir.path().display()));
+    assert_eq!(root_row_name(&Explorer::open(&with_slash).unwrap()), folder);
+}
+
+#[test]
+fn a_dot_and_a_dot_slash_are_called_after_the_folder_they_stand_for() {
+    let here = std::env::current_dir().unwrap();
+    let folder = here.file_name().unwrap().to_string_lossy().into_owned();
+
+    for path in [".", "./"] {
+        let explorer = Explorer::open(Path::new(path)).unwrap();
+        assert_eq!(root_row_name(&explorer), folder, "{path:?}");
+    }
+}
+
+#[test]
+fn two_dots_are_called_after_the_parent_folder() {
+    let parent = std::env::current_dir().unwrap();
+    let Some(parent_name) = parent.parent().and_then(|parent| parent.file_name()) else {
+        return;
+    };
+
+    let explorer = Explorer::open(Path::new("..")).unwrap();
+
+    assert_eq!(root_row_name(&explorer), parent_name.to_string_lossy());
+}
+
+#[test]
+#[cfg(unix)]
+fn the_filesystem_root_keeps_its_slash() {
+    let explorer = Explorer::open(Path::new("/")).unwrap();
+
+    assert_eq!(root_row_name(&explorer), "/");
+}
