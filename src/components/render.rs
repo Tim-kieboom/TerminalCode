@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::{
-    app::state::{AppState, PluginView, Popup},
+    app::state::{AppState, Focus, PluginView, Popup},
     components::ComponentKind,
     ui::{Render, layout::Placement, view::ViewNode},
 };
@@ -55,6 +55,15 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         Popup::Diagnostics(popup) => popup.render(frame, theme),
         // The find bar is drawn with its pane, which knows where its row is.
         Popup::Find(_) => {}
+    }
+
+    // The suggestions sit by the cursor, and only while no popup covers the editor.
+    if matches!(state.popup(), Popup::None)
+        && state.focus() == Focus::Editor
+        && let Some(suggestions) = state.completion_box()
+        && let Some(cursor) = state.editor().cursor_cell()
+    {
+        suggestions.render(frame, state.theme(), cursor);
     }
 }
 

@@ -232,7 +232,7 @@ fn header_of(diagnostic: &Diagnostic) -> String {
 /// Where a box of `width` by `height` goes on `screen` for a cursor at `anchor`:
 /// under the cursor's line, above it when it would run off the bottom, and
 /// always inside the screen.
-fn place(screen: Rect, anchor: Position, width: u16, height: u16) -> Rect {
+pub(crate) fn place(screen: Rect, anchor: Position, width: u16, height: u16) -> Rect {
     let x = anchor
         .x
         .min(screen.right().saturating_sub(width))

@@ -156,6 +156,15 @@ text = "@muted"
 ["explorer.guide"]
 text = "@faint"
 
+["completion.selected"]
+background = "@accent_bg"
+
+["completion.detail"]
+text = "@muted"
+
+["completion.kind"]
+text = "@accent_text"
+
 ["search.match"]
 text = "@warning"
 modifiers = ["bold"]

@@ -149,11 +149,16 @@ impl Session {
     /// Answers `initialize` as a server that can do what the tests need, and
     /// reads the `initialized` that follows.
     pub(crate) fn start_up(&mut self) -> Value {
+        self.start_up_with(json!({ "textDocumentSync": 2 }))
+    }
+
+    /// The same, for a server that says it can do what `capabilities` says.
+    pub(crate) fn start_up_with(&mut self, capabilities: Value) -> Value {
         let (id, params) = self.expect_request("initialize");
         self.respond(
             id,
             json!({
-                "capabilities": { "textDocumentSync": 2 },
+                "capabilities": capabilities,
                 "serverInfo": { "name": "fake-server", "version": "1.0" },
             }),
         );
@@ -240,6 +245,8 @@ pub(crate) struct FakeLauncher {
     pub(crate) launches: Arc<AtomicUsize>,
     /// What each launch was asked to run.
     specs: std::sync::Mutex<Vec<LaunchSpec>>,
+    /// What the servers say they can do.
+    capabilities: Value,
     script: Box<dyn Fn(usize) -> Option<Script> + Send + Sync>,
 }
 
@@ -247,9 +254,18 @@ impl FakeLauncher {
     pub(crate) fn new(
         script: impl Fn(usize) -> Option<Script> + Send + Sync + 'static,
     ) -> Arc<Self> {
+        Self::with_capabilities(json!({ "textDocumentSync": 2 }), script)
+    }
+
+    /// Servers that say they can do what `capabilities` says.
+    pub(crate) fn with_capabilities(
+        capabilities: Value,
+        script: impl Fn(usize) -> Option<Script> + Send + Sync + 'static,
+    ) -> Arc<Self> {
         Arc::new(Self {
             launches: Arc::new(AtomicUsize::new(0)),
             specs: std::sync::Mutex::new(Vec::new()),
+            capabilities,
             script: Box::new(script),
         })
     }
@@ -283,9 +299,10 @@ impl Launcher for FakeLauncher {
                 spec.command
             )));
         };
+        let capabilities = self.capabilities.clone();
         let rig = connect_with_wake(
             move |session| {
-                session.start_up();
+                session.start_up_with(capabilities);
                 script(session);
             },
             move || wake(),

@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::io::{self, BufReader, Read, Write};
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -165,9 +165,8 @@ impl PendingReply {
         let outcome = match self.answer.recv_timeout(timeout) {
             Ok(outcome) => outcome,
             Err(RecvTimeoutError::Timeout) => {
-                lock(&self.pending).waiting.remove(&self.id);
                 return Err(LspError::Timeout {
-                    method: self.method,
+                    method: self.method.clone(),
                     seconds: timeout.as_secs(),
                 });
             }
@@ -175,13 +174,37 @@ impl PendingReply {
                 return Err(LspError::Closed("the connection ended".to_owned()));
             }
         };
+        self.finish(outcome)
+    }
+
+    /// The answer if it has come, without waiting: `None` while it has not.
+    pub(crate) fn try_take(&mut self) -> Option<Result<Value, LspError>> {
+        let outcome = match self.answer.try_recv() {
+            Ok(outcome) => outcome,
+            Err(TryRecvError::Empty) => return None,
+            Err(TryRecvError::Disconnected) => {
+                return Some(Err(LspError::Closed("the connection ended".to_owned())));
+            }
+        };
+        Some(self.finish(outcome))
+    }
+
+    fn finish(&self, outcome: Result<Reply, LspError>) -> Result<Value, LspError> {
         match outcome? {
             Ok(result) => Ok(result),
             Err(error) => Err(LspError::Rejected {
-                method: self.method,
+                method: self.method.clone(),
                 error,
             }),
         }
+    }
+}
+
+/// A request nobody waits for any more (it timed out, or its answer is no
+/// longer wanted) must not stay in the table of requests that wait.
+impl Drop for PendingReply {
+    fn drop(&mut self) {
+        lock(&self.pending).waiting.remove(&self.id);
     }
 }
 
@@ -207,7 +230,11 @@ impl Reading {
                 continue;
             };
             match message {
-                Message::Response { id, outcome } => self.deliver(&id, outcome),
+                Message::Response { id, outcome } => {
+                    self.deliver(&id, outcome);
+                    // Someone may be looking for this answer without waiting for it.
+                    wake();
+                }
                 Message::Notification { method, params } => {
                     let _ = self
                         .incoming

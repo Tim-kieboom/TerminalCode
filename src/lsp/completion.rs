@@ -216,6 +216,12 @@ impl PendingCompletion {
     pub(crate) fn wait(self, timeout: Duration) -> Result<CompletionList, LspError> {
         parse_completion(&self.0.wait(timeout)?)
     }
+
+    /// The list if the answer has come, without waiting: `None` while it has not.
+    pub(crate) fn try_take(&mut self) -> Option<Result<CompletionList, LspError>> {
+        let answer = self.0.try_take()?;
+        Some(answer.and_then(|value| parse_completion(&value)))
+    }
 }
 
 /// Asks the server what could be typed at `position` of the document `uri`.

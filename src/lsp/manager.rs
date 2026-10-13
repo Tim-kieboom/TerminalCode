@@ -184,3 +184,25 @@ impl Manager {
         std::mem::take(&mut self.notifications)
     }
 }
+
+impl Manager {
+    /// What the server `key` offers for completion; `None` when it is not
+    /// running or offers none.
+    pub(crate) fn completion_provider(&self, key: &ServerKey) -> Option<super::Provider> {
+        self.sessions.get(key)?.server.completion()
+    }
+
+    /// Asks the server `key` what could be typed at `position` of the document
+    /// `uri`. `None` when the server is not running or the request could not
+    /// be sent; the answer is looked for with [`PendingCompletion::try_take`].
+    pub(crate) fn request_completion(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: super::position::LspPosition,
+        trigger: super::Trigger,
+    ) -> Option<super::PendingCompletion> {
+        let session = self.sessions.get(key)?;
+        super::completion::request(&session.connection, uri, position, trigger).ok()
+    }
+}

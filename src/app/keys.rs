@@ -134,6 +134,10 @@ impl App {
             return self.handle_terminal_key(key);
         }
 
+        if self.handle_completion_key(key) {
+            return;
+        }
+
         let Some(chord) = KeyChord::from_event(key) else {
             return;
         };
@@ -243,7 +247,10 @@ impl App {
             Action::Save => self.save()?,
             Action::Undo => self.state.edit(|editor| editor.undo())?,
             Action::Redo => self.state.edit(|editor| editor.redo())?,
-            Action::InsertText(text) => self.state.edit(|editor| editor.insert_text(&text))?,
+            Action::InsertText(text) => {
+                self.note_typed();
+                self.state.edit(|editor| editor.insert_text(&text))?
+            }
             Action::InsertNewline => self.state.edit(|editor| editor.insert_newline())?,
             Action::DeleteBackward => self.state.edit(|editor| editor.delete_backward())?,
             Action::DeleteForward => self.state.edit(|editor| editor.delete_forward())?,

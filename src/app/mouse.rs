@@ -100,6 +100,11 @@ impl App {
             self.needs_redraw = true;
         }
 
+        // A click puts the cursor elsewhere: the word is over.
+        if matches!(event.kind, MouseEventKind::Down(_)) {
+            self.close_completion();
+        }
+
         if !self.mouse.is_enabled() {
             return;
         }

@@ -24,6 +24,7 @@ use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 
 mod background;
+mod completion;
 mod config_files;
 mod editing;
 mod keys;
@@ -156,6 +157,7 @@ impl App {
             if self.needs_redraw() && Instant::now() >= draw_at {
                 // What was typed since the last frame is one message to the servers.
                 self.lsp_sync();
+                self.completion_step();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;

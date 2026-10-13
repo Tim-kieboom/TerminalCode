@@ -419,7 +419,7 @@ fn inline_message(
 }
 
 /// `text` cut to `width` columns, with `…` where it was cut.
-fn fit(text: &str, width: usize) -> String {
+pub(crate) fn fit(text: &str, width: usize) -> String {
     if text.width() <= width {
         return text.to_owned();
     }

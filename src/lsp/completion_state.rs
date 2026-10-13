@@ -92,18 +92,6 @@ impl Completion {
         completion
     }
 
-    /// Takes a newer answer for the same word, which was made for the text `rope`
-    /// (the text as it is now: an answer for older text is to be dropped by the
-    /// caller). What was highlighted stays highlighted if it is still there.
-    pub(crate) fn replace_list(&mut self, list: CompletionList, rope: &Rope, cursor: usize) {
-        let kept = self.selected_item().map(|item| item.label.clone());
-        self.asked_for = text_between(rope, self.word_start, cursor);
-        self.load(list, rope);
-        if let Some(label) = kept {
-            self.select_label(&label);
-        }
-    }
-
     fn load(&mut self, list: CompletionList, rope: &Rope) {
         self.incomplete = list.incomplete;
         let mut items = list.items;
@@ -183,6 +171,23 @@ impl Completion {
     /// Where the word being typed starts.
     pub(crate) fn word_start(&self) -> usize {
         self.word_start
+    }
+
+    /// What is typed of the word.
+    pub(crate) fn typed(&self) -> &str {
+        &self.prefix
+    }
+
+    /// The server said its list leaves items out that a longer word would have.
+    pub(crate) fn is_incomplete(&self) -> bool {
+        self.incomplete
+    }
+
+    /// Highlights the item that `previous` had highlighted, if this has it too.
+    pub(crate) fn keep_highlight_of(&mut self, previous: &Completion) {
+        if let Some(item) = previous.selected_item() {
+            self.select_label(&item.label.clone());
+        }
     }
 
     /// Nothing matches what is typed: the box has nothing to show.

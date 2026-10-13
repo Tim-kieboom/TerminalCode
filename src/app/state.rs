@@ -3,6 +3,7 @@ use std::time::Instant;
 
 use crate::components::ComponentKind;
 use crate::components::PluginViewId;
+use crate::components::completion_box::CompletionBox;
 use crate::components::confirm::Confirm;
 use crate::components::diagnostic_popup::DiagnosticPopup;
 use crate::components::editor::{Editor, EditorRef};
@@ -59,6 +60,8 @@ pub(crate) struct AppState {
     lsp_status: Option<String>,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
+    /// The suggestions for the word being typed, while there are any.
+    completion_box: Option<CompletionBox>,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,
@@ -189,6 +192,18 @@ impl AppState {
 
     pub(crate) fn diagnostics_mut(&mut self) -> &mut crate::lsp::Diagnostics {
         &mut self.lsp_diagnostics
+    }
+
+    pub(crate) fn completion_box(&self) -> Option<&CompletionBox> {
+        self.completion_box.as_ref()
+    }
+
+    pub(crate) fn completion_box_mut(&mut self) -> Option<&mut CompletionBox> {
+        self.completion_box.as_mut()
+    }
+
+    pub(crate) fn set_completion_box(&mut self, completion_box: Option<CompletionBox>) {
+        self.completion_box = completion_box;
     }
 
     pub(crate) fn set_screen(&mut self, screen: ratatui::layout::Rect) {

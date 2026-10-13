@@ -35,6 +35,8 @@ pub(super) struct Lsp {
     targets: HashMap<DocumentId, (PathBuf, Option<Target>)>,
     /// What the documents and servers were like when they were last synced.
     fingerprint: u64,
+    /// What the box of suggestions is waiting for.
+    pub(super) completion: super::completion::Asking,
 }
 
 impl Default for Lsp {
@@ -46,6 +48,7 @@ impl Default for Lsp {
             sync: DocumentSync::default(),
             targets: HashMap::new(),
             fingerprint: 0,
+            completion: super::completion::Asking::default(),
         }
     }
 }
@@ -116,6 +119,7 @@ impl App {
                 self.take_published_diagnostics(&notification.key, &notification.params);
             }
         }
+        self.completion_answer();
         self.refresh_lsp_status();
         self.needs_redraw = true;
     }
@@ -454,5 +458,37 @@ impl App {
             PopupKey::Close => self.state.close_diagnostic_popup(),
         }
         self.needs_redraw = true;
+    }
+}
+
+impl App {
+    /// The server that serves `document` and how it names it, when it runs and offers
+    /// completion; with what it says about triggers.
+    pub(super) fn completion_target(
+        &self,
+        document: DocumentId,
+    ) -> Option<(ServerKey, String, crate::lsp::Provider)> {
+        let (_, target) = self.lsp.targets.get(&document)?;
+        let target = target.as_ref()?;
+        let provider = self
+            .lsp
+            .manager
+            .as_ref()?
+            .completion_provider(&target.key)?;
+        Some((target.key.clone(), target.uri.clone(), provider))
+    }
+
+    /// Asks the server `key` for the suggestions at `position` of `uri`.
+    pub(super) fn request_completion(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::lsp::LspPosition,
+        trigger: crate::lsp::Trigger,
+    ) -> Option<crate::lsp::PendingCompletion> {
+        self.lsp
+            .manager
+            .as_ref()?
+            .request_completion(key, uri, position, trigger)
     }
 }

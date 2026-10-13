@@ -255,17 +255,19 @@ fn a_word_shorter_than_the_one_asked_for_always_needs_a_new_list() {
 }
 
 #[test]
-fn a_newer_list_replaces_the_old_one_and_the_highlight_stays_on_the_same_item() {
-    let mut completion = open(plain(&["ve", "vec", "vect"]), "v", 0, 1);
-    completion.select_next();
-    completion.apply_change(&typed(1, 1));
-    completion.retarget(&rope("ve"), 2);
+fn a_box_made_from_a_newer_list_can_keep_the_highlight_of_the_old_one() {
+    let mut old = open(plain(&["ve", "vec", "vect"]), "v", 0, 1);
+    old.select_next();
+    old.apply_change(&typed(1, 1));
+    old.retarget(&rope("ve"), 2);
 
-    completion.replace_list(plain(&["vec", "vect", "vector"]), &rope("ve"), 2);
+    let mut newer = open(plain(&["vec", "vect", "vector"]), "ve", 0, 2);
+    newer.keep_highlight_of(&old);
 
-    assert_eq!(labels(&completion), ["vec", "vect", "vector"]);
-    assert_eq!(completion.selected_item().unwrap().label, "vec");
-    assert!(!completion.wants_new_list());
+    assert_eq!(labels(&newer), ["vec", "vect", "vector"]);
+    assert_eq!(newer.selected_item().unwrap().label, "vec");
+    assert!(!newer.wants_new_list());
+    assert_eq!(newer.typed(), "ve");
 }
 
 // ---- what picking writes

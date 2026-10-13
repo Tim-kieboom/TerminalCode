@@ -1,3 +1,4 @@
+pub mod completion_box;
 pub mod confirm;
 pub mod diagnostic_popup;
 pub mod editor;
