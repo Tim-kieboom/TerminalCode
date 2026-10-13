@@ -44,8 +44,11 @@ fn the_client_says_only_what_it_uses() {
     assert_eq!(capabilities["window"]["workDoneProgress"], json!(true));
     let completion = &capabilities["textDocument"]["completion"];
     assert_eq!(completion["contextSupport"], json!(true));
-    assert_eq!(completion["completionItem"]["snippetSupport"], json!(false));
-    assert!(completion["completionItem"].get("resolveSupport").is_none());
+    assert_eq!(completion["completionItem"]["snippetSupport"], json!(true));
+    assert_eq!(
+        completion["completionItem"]["resolveSupport"]["properties"],
+        json!(["additionalTextEdits"])
+    );
     assert!(capabilities["textDocument"].get("hover").is_none());
 }
 

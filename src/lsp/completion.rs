@@ -3,9 +3,10 @@
 //! server says it can do (`completionProvider`). The positions stay as the
 //! server sent them; turning them into bytes is for whoever has the text.
 //!
-//! The client declares no snippet support and no lazy resolving of items, so a
-//! server sends plain text and puts the edits an item needs (the `use` line of
-//! an auto-import) in the item itself.
+//! The client declares no snippet support, so a server sends plain text. It
+//! declares that it resolves the edits an item needs (the `use` line of an
+//! auto-import) when the item is picked, since a server such as rust-analyzer
+//! offers the items that are not imported yet only to a client that does.
 
 use std::time::Duration;
 
@@ -44,6 +45,9 @@ impl Trigger {
 pub(crate) struct Provider {
     /// Characters that make the box open by themselves (`.`, `::` gives `:`).
     pub(crate) trigger_characters: Vec<char>,
+    /// Items can be resolved: their edits that are costly to work out (the `use`
+    /// line of an import) come with `completionItem/resolve`, not in the list.
+    pub(crate) resolve: bool,
 }
 
 impl Provider {
@@ -64,7 +68,13 @@ impl Provider {
             .collect();
         // `true` is not in the protocol but is what a sloppy server may say.
         match provider {
-            Value::Object(_) | Value::Bool(true) => Some(Self { trigger_characters }),
+            Value::Object(_) | Value::Bool(true) => Some(Self {
+                trigger_characters,
+                resolve: provider
+                    .get("resolveProvider")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            }),
             _ => None,
         }
     }
@@ -179,7 +189,7 @@ pub(crate) struct TextEdit {
 }
 
 /// One suggestion, as the server sent it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct CompletionItem {
     /// What the box shows, and what is written when nothing says otherwise.
     pub(crate) label: String,
@@ -198,10 +208,14 @@ pub(crate) struct CompletionItem {
     /// Whether the text to write is a snippet (never asked for, but a server
     /// can send one anyway, and writing its `$1` as it is would be wrong).
     pub(crate) snippet: bool,
+    /// What the server says about the item, as plain text.
+    pub(crate) documentation: Option<String>,
+    /// The item as the server sent it, which is what is sent back to resolve it.
+    pub(crate) raw: Value,
 }
 
 /// The answer to one request.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct CompletionList {
     pub(crate) items: Vec<CompletionItem>,
     /// The list leaves out items that a longer word would have: ask again as it grows.
@@ -296,6 +310,12 @@ fn parse_item(value: &Value) -> Option<CompletionItem> {
             .filter_map(parse_edit)
             .collect(),
         snippet: value.get("insertTextFormat").and_then(Value::as_u64) == Some(2),
+        documentation: value
+            .get("documentation")
+            .and_then(|docs| docs.as_str().or_else(|| docs.get("value")?.as_str()))
+            .map(super::docs::plain_text)
+            .filter(|docs| !docs.is_empty()),
+        raw: value.clone(),
         label,
     })
 }
@@ -327,4 +347,33 @@ fn position(value: &Value) -> Option<LspPosition> {
         line: u32::try_from(value.get("line")?.as_u64()?).ok()?,
         character: u32::try_from(value.get("character")?.as_u64()?).ok()?,
     })
+}
+
+/// A `completionItem/resolve` request that was sent and has not been answered yet.
+pub(crate) struct PendingResolve(PendingReply);
+
+impl PendingResolve {
+    /// The edits that go with the item (the `use` line of an import), waiting
+    /// at most `timeout` for the answer.
+    pub(crate) fn wait(self, timeout: Duration) -> Result<Vec<TextEdit>, LspError> {
+        let item = self.0.wait(timeout)?;
+        Ok(item
+            .get("additionalTextEdits")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(parse_edit)
+            .collect())
+    }
+}
+
+/// Asks the server for what picking `item` also writes. The item goes back as it
+/// came, since that is what the server finds its notes in.
+pub(crate) fn resolve(
+    connection: &Connection,
+    item: &CompletionItem,
+) -> Result<PendingResolve, LspError> {
+    connection
+        .request("completionItem/resolve", item.raw.clone())
+        .map(PendingResolve)
 }

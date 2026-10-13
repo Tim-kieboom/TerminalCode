@@ -29,28 +29,35 @@ impl Editor {
             let end = self.buffer.position_to_byte(replacement.end)?;
             edits.push(Edit::new(start..end, replacement.text.as_str()));
         }
-        self.commit_replacements(edits, |_| Ok(cursor))
+        self.commit_replacements(edits, |_| Ok(Selection::cursor(cursor)))
     }
 
     /// Replaces each byte range of `replacements` (in text order, not
     /// overlapping, text as it is now) as one undo step, and puts the cursor at
-    /// the byte `cursor` of the text as it is after the replacing.
+    /// the bytes `anchor..cursor` of the text as it is after the replacing selected
+    /// (a plain cursor when they are the same).
     pub(crate) fn replace_ranges(
         &mut self,
         replacements: &[(Range<usize>, &str)],
+        anchor: usize,
         cursor: usize,
     ) -> Result<(), BufferError> {
         let edits = replacements
             .iter()
             .map(|(range, text)| Edit::new(range.clone(), *text))
             .collect();
-        self.commit_replacements(edits, |buffer| buffer.byte_to_position(cursor))
+        self.commit_replacements(edits, |buffer| {
+            Ok(Selection::new(
+                buffer.byte_to_position(anchor)?,
+                buffer.byte_to_position(cursor)?,
+            ))
+        })
     }
 
     fn commit_replacements(
         &mut self,
         edits: Vec<Edit>,
-        cursor: impl FnOnce(&Buffer) -> Result<Position, BufferError>,
+        selection: impl FnOnce(&Buffer) -> Result<Selection, BufferError>,
     ) -> Result<(), BufferError> {
         if edits.is_empty() {
             return Ok(());
@@ -62,7 +69,7 @@ impl Editor {
         for edit in edits.iter().rev() {
             transaction.apply(edit)?;
         }
-        let after = Selections::single(Selection::cursor(cursor(transaction.buffer())?));
+        let after = Selections::single(selection(transaction.buffer())?);
         transaction.commit(after.clone());
         self.view.selections = after;
         Ok(())

@@ -127,6 +127,9 @@ text = "@muted"
 ["completion.kind"]
 text = "@accent_text"
 
+["completion.docs"]
+text = "@dim"
+
 ["search.match"]
 text = "@warning"
 modifiers = ["bold"]

@@ -17,10 +17,14 @@ use super::App;
 use super::state::{Focus, Popup};
 use crate::components::completion_box::CompletionBox;
 use crate::components::workspace::DocumentId;
-use crate::lsp::{Completion, PendingCompletion, Refresh, Trigger, change_between, to_lsp};
+use crate::lsp::{
+    ByteEdit, Completion, PendingCompletion, Refresh, Trigger, byte_edits, change_between, to_lsp,
+};
 
 /// How long an answer is waited for before it is given up on.
 const PATIENCE: Duration = Duration::from_secs(10);
+/// How long picking a suggestion waits for the server to say what it needs imported.
+const RESOLVE_PATIENCE: Duration = Duration::from_secs(2);
 
 /// What the box of suggestions is waiting for.
 #[derive(Default)]
@@ -304,6 +308,42 @@ impl App {
         }
     }
 
+    /// The edits that go with the highlighted suggestion and that the server only
+    /// works out when it is picked: the `use` line of an import. The text goes to the
+    /// server first, so that what it answers fits the text as it is; a server
+    /// that does not answer in time leaves the word to be written without it.
+    fn resolved_edits(&mut self) -> Vec<ByteEdit> {
+        let Some(document) = self.state.workspace().active_document_id() else {
+            return Vec::new();
+        };
+        let Some((key, _, provider)) = self.completion_target(document) else {
+            return Vec::new();
+        };
+        let item = self
+            .state
+            .completion_box()
+            .and_then(|open| open.completion().selected_item().cloned());
+        // rust-analyzer says it cannot resolve (`resolveProvider: false`) and
+        // does, for the items it stamps with `data`; so an item with data is
+        // resolved whatever the server says.
+        let Some(item) = item.filter(|item| provider.resolve || item.raw.get("data").is_some())
+        else {
+            return Vec::new();
+        };
+        self.lsp_sync();
+        let Some(request) = self.resolve_completion(&key, &item) else {
+            return Vec::new();
+        };
+        match request.wait(RESOLVE_PATIENCE) {
+            Ok(edits) => byte_edits(&edits, &self.state.editor().buffer().snapshot()),
+            Err(_) => {
+                self.state
+                    .notify("the language server did not say what to import; the name is written without it");
+                Vec::new()
+            }
+        }
+    }
+
     /// Writes the highlighted suggestion, and the import that goes with it, as one undo step.
     fn accept_completion(&mut self) {
         let editor = self.state.editor();
@@ -311,10 +351,11 @@ impl App {
         let Ok(cursor) = editor.buffer().position_to_byte(head) else {
             return;
         };
+        let resolved = self.resolved_edits();
         let accepted = self
             .state
             .completion_box()
-            .and_then(|open| open.completion().accept(cursor));
+            .and_then(|open| open.completion().accept_with(cursor, resolved));
         self.close_completion();
         // What was asked for before is about a word that is written now.
         self.lsp.completion.pending = None;
@@ -328,7 +369,7 @@ impl App {
             .collect();
         let result = self
             .state
-            .edit(|editor| editor.replace_ranges(&edits, accepted.cursor));
+            .edit(|editor| editor.replace_ranges(&edits, accepted.anchor, accepted.cursor));
         if let Err(error) = result {
             self.state.notify_error(error.to_string());
         }

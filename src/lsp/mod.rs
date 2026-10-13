@@ -7,10 +7,10 @@
 //! else (see [`handshake::client_capabilities`]).
 
 pub(crate) use completion::{
-    CompletionItem, CompletionList, Kind, PendingCompletion, Provider, TextEdit, Trigger,
-    parse_completion,
+    CompletionItem, CompletionList, Kind, PendingCompletion, PendingResolve, Provider, TextEdit,
+    Trigger, parse_completion,
 };
-pub(crate) use completion_state::{Accepted, ByteEdit, Completion, Refresh};
+pub(crate) use completion_state::{Accepted, ByteEdit, Completion, Refresh, byte_edits};
 pub(crate) use config::{ConfigError, LanguageServers, ServerConfig, ServerKey};
 pub(crate) use connection::{Connection, Incoming, PendingReply};
 pub(crate) use diagnostics::{Diagnostic, Diagnostics, RawDiagnostic, Severity, parse_published};
@@ -30,6 +30,7 @@ mod config;
 mod connection;
 mod diagnostics;
 mod diff;
+mod docs;
 mod error;
 mod framing;
 mod handshake;
@@ -39,6 +40,7 @@ mod message;
 mod position;
 mod progress;
 mod replies;
+mod snippet;
 mod supervisor;
 mod sync;
 #[cfg(test)]

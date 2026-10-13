@@ -321,3 +321,97 @@ fn a_server_that_refuses_the_request_is_an_error_not_an_empty_box() {
     );
     rig.server.finish();
 }
+
+// ---- resolving an item
+
+#[test]
+fn a_provider_says_whether_it_resolves_items() {
+    let yes =
+        Provider::from_capabilities(&json!({ "completionProvider": { "resolveProvider": true } }))
+            .unwrap();
+    let no =
+        Provider::from_capabilities(&json!({ "completionProvider": { "resolveProvider": false } }))
+            .unwrap();
+    let unsaid = Provider::from_capabilities(&json!({ "completionProvider": {} })).unwrap();
+
+    assert!(yes.resolve);
+    assert!(!no.resolve);
+    assert!(!unsaid.resolve);
+}
+
+#[test]
+fn an_item_keeps_what_the_server_sent_for_sending_back() {
+    let sent = json!({ "label": "HashMap", "data": { "hash": "abc" }, "extra": [1, 2] });
+
+    let list = parse_completion(&json!([sent.clone()])).unwrap();
+
+    assert_eq!(list.items[0].raw, sent);
+}
+
+#[test]
+fn resolving_sends_the_item_back_and_reads_the_edits_that_come_with_it() {
+    let sent = json!({ "label": "HashMap", "data": { "hash": "abc" } });
+    let expected = sent.clone();
+    let rig = connect(move |server| {
+        server.start_up();
+        let (id, params) = server.expect_request("completionItem/resolve");
+        assert_eq!(params, expected);
+        let mut item = params;
+        item["additionalTextEdits"] = json!([
+            { "range": range((0, 0), (0, 0)), "newText": "use std::collections::HashMap;\n" },
+            { "range": "nowhere", "newText": "ignored" },
+        ]);
+        server.respond(id, item);
+    });
+    crate::lsp::initialize(
+        &rig.connection,
+        std::path::Path::new(super::handshake_tests::root_for_tests()),
+        &Value::Null,
+        PATIENCE,
+    )
+    .unwrap();
+    let item = parse_completion(&json!([sent])).unwrap().items.remove(0);
+
+    let edits = crate::lsp::completion::resolve(&rig.connection, &item)
+        .unwrap()
+        .wait(PATIENCE)
+        .unwrap();
+
+    assert_eq!(
+        edits,
+        [TextEdit {
+            start: at(0, 0),
+            end: at(0, 0),
+            new_text: "use std::collections::HashMap;\n".to_owned(),
+        }]
+    );
+    rig.server.finish();
+}
+
+#[test]
+fn an_answer_with_no_edits_is_an_empty_list_not_an_error() {
+    let rig = connect(|server| {
+        server.start_up();
+        let (id, params) = server.expect_request("completionItem/resolve");
+        server.respond(id, params);
+    });
+    crate::lsp::initialize(
+        &rig.connection,
+        std::path::Path::new(super::handshake_tests::root_for_tests()),
+        &Value::Null,
+        PATIENCE,
+    )
+    .unwrap();
+    let item = parse_completion(&json!([{ "label": "x" }]))
+        .unwrap()
+        .items
+        .remove(0);
+
+    let edits = crate::lsp::completion::resolve(&rig.connection, &item)
+        .unwrap()
+        .wait(PATIENCE)
+        .unwrap();
+
+    assert!(edits.is_empty());
+    rig.server.finish();
+}

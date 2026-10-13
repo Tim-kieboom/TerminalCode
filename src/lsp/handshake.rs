@@ -44,11 +44,16 @@ pub(crate) fn client_capabilities() -> Value {
                 // a list that grew), and every kind of item is understood.
                 "contextSupport": true,
                 "completionItemKind": { "valueSet": (1..=25).collect::<Vec<u32>>() },
-                // Plain text only, and every edit an item needs comes with it:
-                // no snippets, no lazy resolving, no insert-or-replace.
+                // Snippets (written without their placeholders), no insert-or-replace. The edits that
+                // go with an item (the `use` line of an import) are asked for when
+                // it is picked; a server such as rust-analyzer offers the items that
+                // are not imported yet only to a client that does that.
                 "completionItem": {
-                    "snippetSupport": false,
+                    "documentationFormat": ["markdown", "plaintext"],
+                    "snippetSupport": true,
                     "insertReplaceSupport": false,
+                    "labelDetailsSupport": true,
+                    "resolveSupport": { "properties": ["additionalTextEdits"] },
                 },
             },
             "publishDiagnostics": {

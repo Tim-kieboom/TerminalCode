@@ -29,14 +29,29 @@ fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script> {
     Some(Box::new(move |session| {
         while let Some(message) = session.next() {
             let request = match &message {
-                Message::Request { id, method, params } if method == "textDocument/completion" => {
-                    Some((id.clone(), params.clone()))
+                Message::Request { id, method, params } => {
+                    Some((id.clone(), method.clone(), params.clone()))
                 }
                 _ => None,
             };
             let _ = sent.send(message);
-            if let Some((id, params)) = request {
-                session.respond(id, answer(&params));
+            match request {
+                Some((id, method, params)) if method == "textDocument/completion" => {
+                    session.respond(id, answer(&params));
+                }
+                // The item comes back with the edits its `data` says it needs, or
+                // the server refuses when `data` says so.
+                Some((id, method, params)) if method == "completionItem/resolve" => {
+                    let data = &params["data"];
+                    if data["fail"] == json!(true) {
+                        session.respond_error(id, -32803, "no");
+                    } else {
+                        let mut item = params.clone();
+                        item["additionalTextEdits"] = data["resolve_edits"].clone();
+                        session.respond(id, item);
+                    }
+                }
+                _ => {}
             }
         }
     }))
@@ -83,13 +98,21 @@ impl Rig {
         let launcher = FakeLauncher::with_capabilities(capabilities, move |_| {
             completing(sent.clone(), Arc::clone(&answer))
         });
+        Self::with_launcher(dir, file, launcher, received)
+    }
 
+    /// An app over `file` in the project `dir`, with servers started by `launcher`,
+    /// once the server runs; the cursor is at the end of the text.
+    fn with_launcher(
+        dir: tempfile::TempDir,
+        file: std::path::PathBuf,
+        launcher: Arc<dyn crate::lsp::Launcher>,
+        received: Receiver<Message>,
+    ) -> Self {
         let mut state = initial_state(&[file]).unwrap();
         state.open_project(dir.path()).unwrap();
         let (tx, events) = mpsc::channel(256);
-        let app = App::new(state)
-            .with_events(tx)
-            .with_lsp_launcher(launcher as _);
+        let app = App::new(state).with_events(tx).with_lsp_launcher(launcher);
         let mut rig = Self {
             app,
             events,
@@ -526,4 +549,473 @@ fn a_suggestion_with_an_import_writes_both_and_one_undo_takes_both_back() {
     );
     rig.app.state_mut().edit(|editor| editor.undo().unwrap());
     assert_eq!(rig.text(), format!("{source}h"));
+}
+
+// ---- the import the server only works out when the suggestion is picked
+
+fn import_edit() -> Value {
+    json!({
+        "range": { "start": { "line": 0, "character": 0 }, "end": { "line": 0, "character": 0 } },
+        "newText": "use std::collections::HashMap;\n",
+    })
+}
+
+fn hash_map_with_data(data: Value) -> Answer {
+    Arc::new(move |_| {
+        json!([{
+            "label": "HashMap",
+            "kind": 22,
+            "data": data.clone(),
+            "textEdit": {
+                "range": { "start": { "line": 1, "character": 11 }, "end": { "line": 1, "character": 15 } },
+                "newText": "HashMap",
+            },
+        }])
+    })
+}
+
+const HASH_SOURCE: &str = "fn f() {\n    let m: Has";
+
+/// Every message the server has been sent so far, in order.
+fn everything_sent(rig: &Rig) -> Vec<Message> {
+    let mut all = Vec::new();
+    while let Ok(message) = rig.received.recv_timeout(Duration::from_millis(150)) {
+        all.push(message);
+    }
+    all
+}
+
+#[test]
+fn an_item_with_data_is_resolved_when_picked_and_its_import_goes_in_with_the_word() {
+    let data = json!({ "resolve_edits": [import_edit()] });
+    let mut rig = Rig::start(provider(), HASH_SOURCE, hash_map_with_data(data));
+    rig.type_text("h");
+    rig.wait_for_box();
+    everything_sent(&rig);
+
+    rig.press(KeyCode::Tab);
+
+    assert_eq!(
+        rig.text(),
+        "use std::collections::HashMap;\nfn f() {\n    let m: HashMap"
+    );
+    let sent = everything_sent(&rig);
+    let resolve = sent
+        .iter()
+        .position(|message| matches!(message, Message::Request { method, .. } if method == "completionItem/resolve"))
+        .expect("the item was resolved");
+    // The server knew the text as it was before it was asked.
+    let changed = sent
+        .iter()
+        .position(|message| matches!(message, Message::Notification { method, .. } if method == "textDocument/didChange"));
+    assert!(changed.is_none() || changed < Some(resolve), "{sent:?}");
+    let Message::Request { params, .. } = &sent[resolve] else {
+        unreachable!()
+    };
+    assert_eq!(params["label"], json!("HashMap"));
+    rig.app.state_mut().edit(|editor| editor.undo().unwrap());
+    assert_eq!(rig.text(), format!("{HASH_SOURCE}h"));
+}
+
+#[test]
+fn a_server_that_refuses_to_resolve_gets_the_word_written_without_the_import_and_the_user_is_told()
+{
+    let data = json!({ "fail": true });
+    let mut rig = Rig::start(provider(), HASH_SOURCE, hash_map_with_data(data));
+    rig.type_text("h");
+    rig.wait_for_box();
+
+    rig.press(KeyCode::Tab);
+
+    assert_eq!(rig.text(), "fn f() {\n    let m: HashMap");
+    let told = rig.app.state().notifications().texts().join("|");
+    assert!(told.contains("did not say what to import"), "{told}");
+}
+
+#[test]
+fn an_item_without_data_is_not_resolved_when_the_server_does_not_resolve() {
+    let mut rig = Rig::with_answer(items(&["vec"]));
+    rig.type_text("ve");
+    rig.wait_for_box();
+    everything_sent(&rig);
+
+    rig.press(KeyCode::Tab);
+
+    let sent = everything_sent(&rig);
+    assert!(
+        !sent.iter().any(|message| matches!(message, Message::Request { method, .. } if method == "completionItem/resolve")),
+        "{sent:?}"
+    );
+}
+
+#[test]
+fn a_server_that_says_it_resolves_has_every_item_resolved() {
+    let capabilities = json!({
+        "textDocumentSync": 2,
+        "completionProvider": { "resolveProvider": true },
+    });
+    let mut rig = Rig::start(capabilities, "", answering(items(&["vec"])));
+    rig.type_text("ve");
+    rig.wait_for_box();
+    everything_sent(&rig);
+
+    rig.press(KeyCode::Tab);
+
+    let sent = everything_sent(&rig);
+    assert!(
+        sent.iter().any(|message| matches!(message, Message::Request { method, .. } if method == "completionItem/resolve")),
+        "{sent:?}"
+    );
+    assert_eq!(rig.text(), "vec");
+}
+
+// ---- calls get their brackets, and the documentation shows
+
+fn call_item(label: &str, snippet: &str, documentation: Option<&str>) -> Value {
+    let mut item = json!({
+        "label": label,
+        "kind": 2,
+        "detail": format!("fn {label}()"),
+        "insertTextFormat": 2,
+        "insertText": snippet,
+    });
+    if let Some(docs) = documentation {
+        item["documentation"] = json!({ "kind": "markdown", "value": docs });
+    }
+    item
+}
+
+fn cursor_column(rig: &Rig) -> usize {
+    rig.app
+        .state()
+        .editor()
+        .selections()
+        .primary()
+        .head()
+        .column
+}
+
+#[test]
+fn a_call_with_an_argument_is_written_with_the_placeholder_selected() {
+    let mut rig = Rig::with_answer(json!([call_item("push", "push(${1:value})", None)]));
+    rig.type_text("pu");
+    rig.wait_for_box();
+
+    rig.press(KeyCode::Tab);
+
+    assert_eq!(rig.text(), "push(value)");
+    let selection = rig.app.state().editor().selections().primary().clone();
+    assert_eq!(
+        (selection.anchor().column, selection.head().column),
+        (5, 10)
+    );
+}
+
+#[test]
+fn a_call_that_takes_nothing_leaves_the_cursor_after_the_brackets() {
+    let mut rig = Rig::with_answer(json!([call_item("len", "len()$0", None)]));
+    rig.type_text("le");
+    rig.wait_for_box();
+
+    rig.press(KeyCode::Tab);
+
+    assert_eq!(rig.text(), "len()");
+    assert_eq!(cursor_column(&rig), 5);
+}
+
+#[test]
+fn typing_replaces_the_selected_placeholder_after_picking() {
+    let mut rig = Rig::with_answer(json!([call_item("push", "push(${1:value})", None)]));
+    rig.type_text("pu");
+    rig.wait_for_box();
+    rig.press(KeyCode::Tab);
+
+    rig.press(KeyCode::Char('x'));
+
+    assert_eq!(rig.text(), "push(x)");
+}
+
+#[test]
+fn deleting_the_selected_placeholder_leaves_empty_brackets() {
+    let mut rig = Rig::with_answer(json!([call_item("push", "push(${1:value})", None)]));
+    rig.type_text("pu");
+    rig.wait_for_box();
+    rig.press(KeyCode::Tab);
+
+    rig.press(KeyCode::Backspace);
+
+    assert_eq!(rig.text(), "push()");
+}
+
+#[test]
+fn the_documentation_of_the_highlighted_item_shows_above_the_list_as_plain_text() {
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n",
+        answering(json!([
+            call_item(
+                "pa",
+                "pa($0)",
+                Some("Adds **one** `item`.\n\nPanics: never.")
+            ),
+            call_item("pb", "pb()$0", Some("Removes the last item.")),
+        ])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+
+    assert!(screen.contains("Adds one item."), "{screen}");
+    assert!(screen.contains("Panics: never."), "{screen}");
+    assert!(!screen.contains("**"), "{screen}");
+    let rows: Vec<&str> = screen.lines().collect();
+    let docs_row = rows
+        .iter()
+        .position(|row| row.contains("Adds one item."))
+        .unwrap();
+    let list_row = rows.iter().position(|row| row.contains("m pa")).unwrap();
+    assert!(docs_row < list_row, "{screen}");
+}
+
+#[test]
+fn moving_the_highlight_changes_the_documentation() {
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n",
+        answering(json!([
+            call_item("pop", "pop()$0", Some("Removes the last item.")),
+            call_item("push", "push($0)", Some("Adds an item.")),
+        ])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+    assert!(rig.screen().contains("Removes the last item."));
+
+    rig.press(KeyCode::Down);
+    let screen = rig.screen();
+
+    assert!(screen.contains("Adds an item."), "{screen}");
+    assert!(!screen.contains("Removes the last item."), "{screen}");
+}
+
+#[test]
+fn an_item_without_documentation_has_no_documentation_box() {
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n",
+        answering(json!([call_item("pop", "pop()$0", None)])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+
+    // Only the list is drawn: one box of three rows.
+    assert_eq!(screen.matches('╭').count(), 1, "{screen}");
+}
+
+#[test]
+fn the_documentation_is_cut_after_eight_lines() {
+    let long: Vec<String> = (1..=20).map(|n| format!("line {n}")).collect();
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n\n\n\n\n\n\n",
+        answering(json!([call_item("pop", "pop()$0", Some(&long.join("\n")))])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+
+    assert!(screen.contains("line 1 "), "{screen}");
+    assert!(!screen.contains("line 9"), "{screen}");
+    assert!(screen.contains('…'), "{screen}");
+}
+
+#[test]
+fn near_the_top_of_the_screen_the_documentation_goes_under_the_list() {
+    let mut rig = Rig::start(
+        provider(),
+        "",
+        answering(json!([call_item(
+            "pop",
+            "pop()$0",
+            Some("Removes the last item.")
+        )])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+
+    let rows: Vec<&str> = screen.lines().collect();
+    let docs = rows
+        .iter()
+        .position(|row| row.contains("Removes the last item."))
+        .unwrap();
+    let list = rows.iter().position(|row| row.contains("m pop")).unwrap();
+    assert!(docs > list, "{screen}");
+}
+
+#[test]
+fn with_room_for_only_part_of_the_documentation_it_shows_what_fits() {
+    let long: Vec<String> = (1..=20).map(|n| format!("line {n}")).collect();
+    // The cursor is in the middle of the 20 rows, so neither side has ten rows.
+    let mut rig = Rig::start(
+        provider(),
+        "\n\n\n\n\n\n\n",
+        answering(json!([call_item("pop", "pop()$0", Some(&long.join("\n")))])),
+    );
+    rig.type_text("p");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+
+    assert!(screen.contains("line 1 "), "{screen}");
+    assert!(screen.contains('…'), "{screen}");
+    assert!(!screen.contains("line 7"), "{screen}");
+}
+
+// ---- the proof: the real rust-analyzer through the whole app
+
+#[cfg(unix)]
+impl Rig {
+    /// An app over a temporary crate whose `src/main.rs` holds `text`, with the
+    /// real `rust-analyzer`.
+    fn real(text: &str) -> Self {
+        let dir = tempfile::tempdir().unwrap();
+        write(
+            &dir.path().join("Cargo.toml"),
+            "[package]\nname = \"small\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        let file = dir.path().join("src/main.rs");
+        write(&file, text);
+        let (_, received) = std::sync::mpsc::channel();
+        Self::with_launcher(dir, file, Arc::new(crate::lsp::ProcessLauncher), received)
+    }
+
+    /// Types `text` and waits for the box to offer `wanted`. The server may still
+    /// be indexing and answer with nothing at first, so a try that comes to
+    /// nothing is taken back and made again, for up to two minutes.
+    fn type_until_offered(&mut self, text: &str, wanted: &str) {
+        let deadline = Instant::now() + Duration::from_secs(120);
+        while Instant::now() < deadline {
+            self.type_text(text);
+            let tried = Instant::now() + Duration::from_secs(15);
+            while Instant::now() < tried {
+                while let Ok(event) = self.events.try_recv() {
+                    self.app.handle_event(event);
+                }
+                self.frame();
+                if self.shown().iter().any(|label| label.starts_with(wanted)) {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            for _ in text.chars() {
+                self.press(KeyCode::Backspace);
+                self.frame();
+            }
+            self.app.state_mut().notify("retrying");
+        }
+        panic!(
+            "{wanted:?} was never offered; the box shows {:?}, status {:?}",
+            self.shown(),
+            self.app.state().lsp_status()
+        );
+    }
+
+    /// Moves the highlight to the item called `label`.
+    fn highlight(&mut self, label: &str) {
+        for _ in 0..self.shown().len() {
+            if self
+                .highlighted()
+                .is_some_and(|shown| shown.starts_with(label))
+            {
+                return;
+            }
+            self.press(KeyCode::Down);
+        }
+        panic!("{label:?} is not among {:?}", self.shown());
+    }
+}
+
+/// `Vec::ne` shows `new` and `Tab` writes it. Run by hand, since CI has no
+/// `rust-analyzer`:
+/// `cargo test real_rust_analyzer_offers_new -- --ignored --nocapture`.
+#[cfg(unix)]
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_offers_new_after_vec_colons_ne_and_tab_writes_it() {
+    let mut rig = Rig::real("fn main() {\n    let v: Vec<u32> = Vec::");
+
+    rig.type_until_offered("ne", "new");
+    eprintln!("offered: {:?}", rig.shown());
+    eprintln!("{}", rig.screen());
+    rig.highlight("new");
+    rig.press(KeyCode::Tab);
+
+    assert_eq!(rig.text(), "fn main() {\n    let v: Vec<u32> = Vec::new()");
+    assert!(rig.app.state().completion_box().is_none());
+}
+
+/// `HashMap` + `Tab` adds the `use` line, and one undo takes both away. Run by
+/// hand: `cargo test real_rust_analyzer_adds_the_use -- --ignored --nocapture`.
+#[cfg(unix)]
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_adds_the_use_line_for_hashmap_and_one_undo_takes_both_away() {
+    let source = "fn main() {\n    let m: Hash";
+    let mut rig = Rig::real(source);
+
+    rig.type_until_offered("M", "HashMap");
+    eprintln!("offered: {:?}", rig.shown());
+    eprintln!("{}", rig.screen());
+    rig.highlight("HashMap");
+    rig.press(KeyCode::Tab);
+
+    let written = rig.text();
+    eprintln!("written:\n{written}");
+    assert!(
+        written.starts_with("use std::collections::HashMap;\n"),
+        "{written}"
+    );
+    assert!(written.ends_with("let m: HashMap<>"), "{written}");
+
+    rig.app.state_mut().edit(|editor| editor.undo().unwrap());
+
+    assert_eq!(rig.text(), format!("{source}M"));
+}
+
+/// A method call gets its brackets with the argument selected, and the
+/// documentation of the highlighted method shows. Run by hand:
+/// `cargo test real_rust_analyzer_writes_the_brackets -- --ignored --nocapture`.
+#[cfg(unix)]
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_writes_the_brackets_of_a_call_and_shows_its_documentation() {
+    let source = "fn main() {\n\n\n\n\n    let mut v: Vec<u32> = Vec::new();\n    v.pu";
+    let mut rig = Rig::real(source);
+
+    rig.type_until_offered("s", "push");
+    rig.highlight("push");
+    let screen = rig.screen();
+    eprintln!("{screen}");
+    assert!(
+        screen.contains("Appends an element"),
+        "the documentation of push shows: {screen}"
+    );
+    rig.press(KeyCode::Tab);
+
+    let text = rig.text();
+    // rust-analyzer adds the `;` itself when the call is a statement.
+    assert!(text.ends_with("v.push(value);"), "{text}");
+    let selection = rig.app.state().editor().selections().primary().clone();
+    assert_eq!(
+        (selection.anchor().column, selection.head().column),
+        ("    v.push(".len(), "    v.push(value".len())
+    );
+    rig.press(KeyCode::Char('7'));
+    assert!(rig.text().ends_with("v.push(7);"), "{}", rig.text());
 }

@@ -206,3 +206,16 @@ impl Manager {
         super::completion::request(&session.connection, uri, position, trigger).ok()
     }
 }
+
+impl Manager {
+    /// Asks the server `key` for the edits that go with `item`. `None` when the
+    /// server is not running or the request could not be sent.
+    pub(crate) fn resolve_completion(
+        &self,
+        key: &ServerKey,
+        item: &super::CompletionItem,
+    ) -> Option<super::PendingResolve> {
+        let session = self.sessions.get(key)?;
+        super::completion::resolve(&session.connection, item).ok()
+    }
+}

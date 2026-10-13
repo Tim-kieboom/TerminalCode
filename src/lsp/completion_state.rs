@@ -15,6 +15,7 @@ use ropey::Rope;
 use super::diagnostics::map_range;
 use super::diff::ByteChange;
 use super::position::{LspPosition, from_lsp};
+use super::snippet::expand;
 use super::{CompletionItem, CompletionList};
 
 /// A stretch of text to replace.
@@ -25,11 +26,12 @@ pub(crate) struct ByteEdit {
 }
 
 /// What picking an item writes: edits in text order that do not overlap, to be
-/// applied together as one undo step, and where the cursor goes (a byte of the
-/// text as it is after them).
+/// applied together as one undo step, and what is selected after them (bytes of the
+/// text as it is after them): `anchor..cursor`, which is empty for a plain cursor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Accepted {
     pub(crate) edits: Vec<ByteEdit>,
+    pub(crate) anchor: usize,
     pub(crate) cursor: usize,
 }
 
@@ -46,6 +48,10 @@ struct Entry {
     item: CompletionItem,
     /// What picking it writes in place of the word.
     text: String,
+    /// What is selected in `text` after it is written: `anchor..cursor`, empty for
+    /// a cursor, at the end unless it is a snippet.
+    anchor: usize,
+    cursor: usize,
     /// The bytes the server said to replace; `None` when it did not say, or
     /// once an edit took them (then the word is replaced).
     replaces: Option<Range<usize>>,
@@ -97,7 +103,10 @@ impl Completion {
         let mut items = list.items;
         // The server's order; the label breaks a tie, so the order is the same every time.
         items.sort_by(|a, b| (&a.sort_text, &a.label).cmp(&(&b.sort_text, &b.label)));
-        self.entries = items.into_iter().map(|item| entry(item, rope)).collect();
+        self.entries = items
+            .into_iter()
+            .map(|item| entry(item, rope, self.word_start))
+            .collect();
         self.filter();
     }
 
@@ -231,7 +240,18 @@ impl Completion {
     /// What picking the highlighted item writes, with the cursor at `cursor`.
     /// `None` when nothing is shown.
     pub(crate) fn accept(&self, cursor: usize) -> Option<Accepted> {
+        self.accept_with(cursor, Vec::new())
+    }
+
+    /// The same, with the edits the server named when asked to resolve the item
+    /// (in bytes of the text as it is now); they are used in place of the ones the
+    /// item came with, if there are any.
+    pub(crate) fn accept_with(&self, cursor: usize, resolved: Vec<ByteEdit>) -> Option<Accepted> {
         let entry = &self.entries[*self.shown.get(self.selected)?];
+        let extra = match resolved.is_empty() {
+            true => entry.extra.clone(),
+            false => resolved,
+        };
         // The word as it is now, which is longer than the one the server saw
         // when more was typed since; the server's range is only a start.
         let main = match &entry.replaces {
@@ -244,11 +264,9 @@ impl Completion {
         }];
         // An edit that reaches into the word would not apply to anything sane.
         edits.extend(
-            entry
-                .extra
-                .iter()
-                .filter(|edit| !overlaps(&edit.range, &main))
-                .cloned(),
+            extra
+                .into_iter()
+                .filter(|edit| !overlaps(&edit.range, &main)),
         );
         edits.sort_by_key(|edit| (edit.range.start, edit.range.end));
 
@@ -258,25 +276,38 @@ impl Completion {
             .filter(|edit| edit.range != main && edit.range.end <= main.start)
             .map(|edit| to_isize(edit.text.len()) - to_isize(edit.range.len()))
             .sum();
-        let cursor = main.start.saturating_add_signed(shift) + entry.text.len();
-        Some(Accepted { edits, cursor })
+        let base = main.start.saturating_add_signed(shift);
+        Some(Accepted {
+            edits,
+            anchor: base + entry.anchor,
+            cursor: base + entry.cursor,
+        })
     }
 }
 
-fn entry(item: CompletionItem, rope: &Rope) -> Entry {
+/// `edits` of the server, in bytes of `rope`, the text they were made for.
+pub(crate) fn byte_edits(edits: &[super::TextEdit], rope: &Rope) -> Vec<ByteEdit> {
+    edits
+        .iter()
+        .map(|edit| (from_lsp(rope, edit.start)..from_lsp(rope, edit.end), edit))
+        .filter(|(range, _)| range.start <= range.end)
+        .map(|(range, edit)| ByteEdit {
+            range,
+            text: edit.new_text.clone(),
+        })
+        .collect()
+}
+
+fn entry(item: CompletionItem, rope: &Rope, word_start: usize) -> Entry {
     let at = |position: LspPosition| from_lsp(rope, position);
-    // A snippet's `$1` and `${2:x}` would be written as they are, which is wrong,
-    // and none is asked for; the plain name is the safe reading.
-    let text = match (&item.text_edit, &item.insert_text, item.snippet) {
-        (_, _, true) => item.label.clone(),
-        (Some(edit), _, false) => edit.new_text.clone(),
-        (None, Some(text), false) => text.clone(),
-        (None, None, false) => item.label.clone(),
+    let written = match (&item.text_edit, &item.insert_text) {
+        (Some(edit), _) => edit.new_text.clone(),
+        (None, Some(text)) => text.clone(),
+        (None, None) => item.label.clone(),
     };
     let replaces = item
         .text_edit
         .as_ref()
-        .filter(|_| !item.snippet)
         .map(|edit| at(edit.start)..at(edit.end))
         .filter(|range| range.start <= range.end);
     let extra = item
@@ -286,13 +317,34 @@ fn entry(item: CompletionItem, rope: &Rope) -> Entry {
         .filter(|(range, _)| range.start <= range.end)
         .map(|(range, text)| ByteEdit { range, text })
         .collect();
+    // A snippet is written with the defaults of its placeholders, the first stop
+    // selected, and its lines indented like the line it goes into.
+    let (text, anchor, cursor) = if item.snippet {
+        let from = replaces.as_ref().map_or(word_start, |range| range.start);
+        let expanded = expand(&written, &indent_of_line_at(rope, from));
+        (expanded.text, expanded.anchor, expanded.cursor)
+    } else {
+        let end = written.len();
+        (written, end, end)
+    };
     Entry {
         filter: item.filter_text.to_lowercase(),
         text,
+        anchor,
+        cursor,
         replaces,
         extra,
         item,
     }
+}
+
+/// The white space the line that holds `byte` starts with.
+fn indent_of_line_at(rope: &Rope, byte: usize) -> String {
+    let line = rope.byte_to_line(byte.min(rope.len_bytes()));
+    rope.line(line)
+        .chars()
+        .take_while(|c| matches!(c, ' ' | '\t'))
+        .collect()
 }
 
 /// Two stretches overlap when they share text; one that only touches the other,

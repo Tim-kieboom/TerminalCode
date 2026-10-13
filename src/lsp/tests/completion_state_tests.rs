@@ -331,7 +331,7 @@ fn without_a_text_edit_the_insert_text_comes_before_the_label() {
 }
 
 #[test]
-fn a_snippet_is_written_as_its_plain_label() {
+fn a_snippet_is_written_with_its_defaults_and_the_first_stop_is_selected() {
     let completion = open(
         list(json!([{
             "label": "push",
@@ -343,10 +343,55 @@ fn a_snippet_is_written_as_its_plain_label() {
         4,
     );
 
-    assert_eq!(
-        accepted_text("v.pu", &completion.accept(4).unwrap()),
-        "v.push"
+    let accepted = completion.accept(4).unwrap();
+
+    assert_eq!(accepted_text("v.pu", &accepted), "v.push(value)");
+    // `value` is selected, so that typing replaces it.
+    assert_eq!(accepted.anchor, "v.push(".len());
+    assert_eq!(accepted.cursor, "v.push(value".len());
+}
+
+#[test]
+fn a_call_that_takes_nothing_leaves_the_cursor_after_the_brackets() {
+    let completion = open(
+        list(json!([{
+            "label": "len",
+            "insertTextFormat": 2,
+            "insertText": "len()$0",
+        }])),
+        "v.le",
+        2,
+        4,
     );
+
+    let accepted = completion.accept(4).unwrap();
+
+    assert_eq!(accepted_text("v.le", &accepted), "v.len()");
+    assert_eq!(accepted.cursor, "v.len()".len());
+    assert_eq!(accepted.anchor, accepted.cursor);
+}
+
+#[test]
+fn the_lines_of_a_snippet_are_indented_like_the_line_it_goes_into() {
+    let text = "fn f() {\n    i";
+    let completion = open(
+        list(json!([{
+            "label": "if",
+            "insertTextFormat": 2,
+            "insertText": "if $1 {\n    $0\n}",
+        }])),
+        text,
+        text.len() - 1,
+        text.len(),
+    );
+
+    let accepted = completion.accept(text.len()).unwrap();
+
+    assert_eq!(
+        accepted_text(text, &accepted),
+        "fn f() {\n    if  {\n        \n    }"
+    );
+    assert_eq!(accepted.cursor, "fn f() {\n    if ".len());
 }
 
 #[test]
@@ -564,7 +609,9 @@ fn apply(editor: &mut Editor, accepted: &Accepted) {
         .iter()
         .map(|edit| (edit.range.clone(), edit.text.as_str()))
         .collect();
-    editor.replace_ranges(&edits, accepted.cursor).unwrap();
+    editor
+        .replace_ranges(&edits, accepted.anchor, accepted.cursor)
+        .unwrap();
 }
 
 #[test]
@@ -607,4 +654,76 @@ fn picking_after_more_typing_leaves_one_undo_step_too() {
     editor.undo().unwrap();
 
     assert_eq!(editor.buffer().text(), before_pick);
+}
+
+// ---- the edits the server gives when asked to resolve the item
+
+#[test]
+fn edits_from_resolving_are_used_in_place_of_the_ones_the_item_came_with() {
+    let completion = open(
+        list(json!([{
+            "label": "HashMap",
+            "additionalTextEdits": [
+                { "range": range((0, 0), (0, 0)), "newText": "old;\n" },
+            ],
+        }])),
+        "Hash",
+        0,
+        4,
+    );
+    let resolved = vec![ByteEdit {
+        range: 0..0,
+        text: "use new;\n".to_owned(),
+    }];
+
+    let accepted = completion.accept_with(4, resolved).unwrap();
+
+    assert_eq!(accepted_text("Hash", &accepted), "use new;\nHashMap");
+    assert_eq!(accepted.cursor, "use new;\nHashMap".len());
+}
+
+#[test]
+fn no_resolved_edits_leave_the_ones_the_item_came_with() {
+    let completion = open(
+        list(json!([{
+            "label": "HashMap",
+            "additionalTextEdits": [
+                { "range": range((0, 0), (0, 0)), "newText": "kept;\n" },
+            ],
+        }])),
+        "Hash",
+        0,
+        4,
+    );
+
+    let accepted = completion.accept_with(4, Vec::new()).unwrap();
+
+    assert_eq!(accepted_text("Hash", &accepted), "kept;\nHashMap");
+}
+
+#[test]
+fn the_edits_of_the_server_are_turned_into_bytes_of_the_text_they_were_made_for() {
+    // The emoji is four bytes and two UTF-16 units.
+    let text = rope("😀 x");
+    let edits = [crate::lsp::TextEdit {
+        start: crate::lsp::LspPosition {
+            line: 0,
+            character: 3,
+        },
+        end: crate::lsp::LspPosition {
+            line: 0,
+            character: 4,
+        },
+        new_text: "y".to_owned(),
+    }];
+
+    let bytes = crate::lsp::byte_edits(&edits, &text);
+
+    assert_eq!(
+        bytes,
+        [ByteEdit {
+            range: 5..6,
+            text: "y".to_owned()
+        }]
+    );
 }

@@ -492,3 +492,14 @@ impl App {
             .request_completion(key, uri, position, trigger)
     }
 }
+
+impl App {
+    /// Asks the server `key` for the edits that go with `item`.
+    pub(super) fn resolve_completion(
+        &self,
+        key: &ServerKey,
+        item: &crate::lsp::CompletionItem,
+    ) -> Option<crate::lsp::PendingResolve> {
+        self.lsp.manager.as_ref()?.resolve_completion(key, item)
+    }
+}
