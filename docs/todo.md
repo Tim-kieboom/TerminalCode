@@ -2,6 +2,10 @@
 
 See `design.md` for decisions. Finished milestones (M0-M6, releases 0.1.0 to 0.2.1, the layout and theme rewrites, the pre-M6 triage) are in `todo-done.md`; this file keeps only open work.
 
+## Release 0.4.0
+- [x] Version 0.4.0 (after 0.3.0: go to definition with `f12` and `ctrl+click`, the jump list with `alt+,` and `alt+.`, files outside the project read-only with the same server, the tab right-click menu with pinned tabs, save as root on Linux, the `./` explorer root fixed)
+- [ ] Tag `v0.4.0` once CI is green; publish the draft release by hand
+
 ## Release 0.3.0
 - [x] Version 0.3.0 (after 0.2.1: the explorer shows ignored files dimmed, `-h`/`-v`, completion as you type with brackets, imports and documentation, hover by pointer and `f6`, scrolling documentation)
 - [x] Tag `v0.3.0` (tagged on 2b3e052; Linux and Windows CI green, macOS only its known flood timing tests; draft release with the three archives and SHA256SUMS, to be published by hand)
