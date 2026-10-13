@@ -36,6 +36,12 @@ impl App {
         })
     }
 
+    /// Records `place`, which something took the cursor away from outside of an input
+    /// (the answer of a server).
+    pub(super) fn record_place(&mut self, place: Place) {
+        self.jumps.list.record(place);
+    }
+
     /// Something is about to take the cursor to another place on purpose; the
     /// place it leaves is recorded when the input has been handled.
     pub(super) fn mark_jump(&mut self) {

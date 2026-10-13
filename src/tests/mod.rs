@@ -3,6 +3,7 @@ mod completion_tests;
 mod config_files_tests;
 mod config_tests;
 mod create_tests;
+mod definition_tests;
 mod delete_tests;
 mod diagnostics_display_tests;
 mod diagnostics_popup_tests;

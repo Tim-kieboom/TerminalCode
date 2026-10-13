@@ -539,3 +539,9 @@ action = "jump_back"
 [[binding]]
 keys = "alt+."
 action = "jump_forward"
+
+# Where the word at the cursor is defined (ctrl+click on a word does the same)
+[[binding]]
+keys = "f12"
+context = "editor"
+action = "go_to_definition"

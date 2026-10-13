@@ -102,7 +102,13 @@ impl Buffer {
 
     /// The error saving would give because the file is read-only.
     pub(crate) fn read_only_error(&self) -> Option<FileError> {
-        read_only(self.path.as_deref()?)
+        let path = self.path.as_deref()?;
+        match self.locked {
+            true => Some(FileError::ReadOnly {
+                path: path.to_path_buf(),
+            }),
+            false => read_only(path),
+        }
     }
 
     /// The error saving would give because the folder of the file is gone.

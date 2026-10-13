@@ -26,6 +26,7 @@ use crate::terminal::{self, KeyboardSupport};
 mod background;
 mod completion;
 mod config_files;
+mod definition;
 mod editing;
 mod hover;
 mod jumps;
@@ -164,6 +165,7 @@ impl App {
                 self.completion_step();
                 self.hover_step();
                 self.hover_forget_stale();
+                self.definition_forget_stale();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;

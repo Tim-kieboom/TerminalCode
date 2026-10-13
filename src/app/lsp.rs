@@ -39,6 +39,12 @@ pub(super) struct Lsp {
     pub(super) completion: super::completion::Asking,
     /// What the box with what the server says about a word waits for.
     pub(super) hovering: super::hover::Hovering,
+    /// Where the definitions the servers gave are asked for.
+    pub(super) defining: super::definition::Defining,
+    /// Files outside the project that a server pointed at (the source of the
+    /// standard library), with the server that did: they stay with it, instead
+    /// of getting a server of their own.
+    pub(super) borrowed: HashMap<PathBuf, (ServerKey, String)>,
 }
 
 impl Default for Lsp {
@@ -52,6 +58,8 @@ impl Default for Lsp {
             fingerprint: 0,
             completion: super::completion::Asking::default(),
             hovering: super::hover::Hovering::default(),
+            defining: super::definition::Defining::default(),
+            borrowed: HashMap::new(),
         }
     }
 }
@@ -124,6 +132,7 @@ impl App {
         }
         self.completion_answer();
         self.hover_answer();
+        self.definition_answer();
         self.refresh_lsp_status();
         self.needs_redraw = true;
     }
@@ -296,7 +305,9 @@ impl App {
             let target = match cached {
                 Some((_, target)) => target.clone(),
                 None => {
-                    let target = find_target(&self.settings.language_servers, &doc.path, &project);
+                    let target = borrowed_target(&self.lsp.borrowed, &doc.path).or_else(|| {
+                        find_target(&self.settings.language_servers, &doc.path, &project)
+                    });
                     self.lsp
                         .targets
                         .insert(doc.id, (doc.path.clone(), target.clone()));
@@ -528,4 +539,47 @@ impl App {
     ) -> Option<crate::lsp::PendingHover> {
         self.lsp.manager.as_ref()?.request_hover(key, uri, position)
     }
+}
+
+impl App {
+    /// The server that serves `document` and how it names it, when it runs and
+    /// answers definition requests.
+    pub(super) fn definition_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
+        let (_, target) = self.lsp.targets.get(&document)?;
+        let target = target.as_ref()?;
+        let offered = self.lsp.manager.as_ref()?.offers_definition(&target.key);
+        offered.then(|| (target.key.clone(), target.uri.clone()))
+    }
+
+    /// Asks the server `key` where the thing at `position` of `uri` is defined.
+    pub(super) fn request_definition(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::lsp::LspPosition,
+    ) -> Option<crate::lsp::PendingDefinition> {
+        self.lsp
+            .manager
+            .as_ref()?
+            .request_definition(key, uri, position)
+    }
+
+    /// Notes that `path` is served by the server `key`, which names it `uri`.
+    pub(super) fn borrow_file(&mut self, path: &Path, key: ServerKey, uri: String) {
+        self.lsp.borrowed.insert(canonical(path), (key, uri));
+    }
+}
+
+/// The server and name of a file outside the project that a server pointed at.
+fn borrowed_target(
+    borrowed: &HashMap<PathBuf, (ServerKey, String)>,
+    path: &Path,
+) -> Option<Target> {
+    let (key, uri) = borrowed.get(&canonical(path))?;
+    let extension = path.extension()?.to_str()?;
+    Some(Target {
+        key: key.clone(),
+        uri: uri.clone(),
+        language_id: language_id(extension),
+    })
 }

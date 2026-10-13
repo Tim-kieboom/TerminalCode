@@ -169,6 +169,20 @@ impl App {
             return;
         }
 
+        // Ctrl and a left press on a word: where it is defined. The cursor stays.
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && event.modifiers.contains(KeyModifiers::CONTROL)
+            && self
+                .state
+                .workspace()
+                .text_at_cell(event.column, event.row)
+                .is_some()
+        {
+            self.go_to_definition_at(event.column, event.row);
+            self.needs_redraw = true;
+            return;
+        }
+
         // A right click on the text opens the editor's menu; elsewhere it does nothing.
         if event.kind == MouseEventKind::Down(MouseButton::Right) {
             self.right_click_editor(event.column, event.row);

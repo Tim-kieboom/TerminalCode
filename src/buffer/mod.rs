@@ -47,6 +47,9 @@ pub(crate) struct Buffer {
     disk: Disk,
     /// Whether edits are locked (the file is read-only). Undo and redo still work.
     read_only: bool,
+    /// Locked by the app, not by the file: a file opened read-only on purpose (the
+    /// source of the standard library), which stays locked whatever the file system says.
+    locked: bool,
     /// What a buffer with no file is called, when it is not just `[no name]`.
     title: Option<String>,
 }
@@ -63,6 +66,7 @@ impl Buffer {
             edit_log: Vec::new(),
             disk: Disk::Unknown,
             read_only: false,
+            locked: false,
             title: None,
         }
     }
@@ -90,9 +94,20 @@ impl Buffer {
     /// A buffer with no file keeps the lock it has.
     pub(crate) fn sync_read_only(&mut self) -> bool {
         if self.path.is_some() {
-            self.read_only = self.file_is_read_only();
+            self.read_only = self.file_is_read_only() || self.locked;
         }
         self.read_only
+    }
+
+    /// Locks the text for good, whatever the file's permissions say.
+    pub(crate) fn lock(&mut self) {
+        self.locked = true;
+        self.read_only = true;
+    }
+
+    /// Whether the app locked it (see [`Buffer::lock`]).
+    pub(crate) fn is_locked(&self) -> bool {
+        self.locked
     }
 
     pub(crate) fn is_read_only(&self) -> bool {

@@ -37,7 +37,9 @@ pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script
             let _ = sent.send(message);
             match request {
                 Some((id, method, params))
-                    if method == "textDocument/completion" || method == "textDocument/hover" =>
+                    if method == "textDocument/completion"
+                        || method == "textDocument/hover"
+                        || method == "textDocument/definition" =>
                 {
                     session.respond(id, answer(&params));
                 }
@@ -63,7 +65,7 @@ pub(super) struct Rig {
     pub(super) app: App,
     pub(super) events: mpsc::Receiver<Event>,
     pub(super) received: Receiver<Message>,
-    _dir: tempfile::TempDir,
+    pub(super) _dir: tempfile::TempDir,
 }
 
 fn items(labels: &[&str]) -> Value {

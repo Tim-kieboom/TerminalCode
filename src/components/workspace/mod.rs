@@ -283,6 +283,12 @@ impl Workspace {
         !self.focused_pane().tabs.is_empty()
     }
 
+    /// How many tabs there are in all panes.
+    #[cfg(test)]
+    pub(crate) fn tab_count_for_test(&self) -> usize {
+        self.panes.iter().map(|pane| pane.tabs.len()).sum()
+    }
+
     /// Number of panes.
     #[cfg(test)]
     pub(crate) fn pane_count(&self) -> usize {
@@ -429,11 +435,7 @@ impl Workspace {
     /// focused pane. A file that is open is never read a second time, so two
     /// tabs can not disagree about its contents.
     pub(crate) fn open_path(&mut self, path: &Path) -> Result<(), FileError> {
-        let wanted = canonical(path);
-        let open = self.documents.iter().find_map(|(id, doc)| {
-            let own = doc.buffer.path()?;
-            (canonical(own) == wanted).then_some(*id)
-        });
+        let open = self.document_of_path(path);
         let Some(document) = open else {
             self.open_buffer(Buffer::open(path)?);
             self.remember_recent(path);
@@ -442,6 +444,23 @@ impl Workspace {
         self.show_document(document);
         self.remember_recent(path);
         Ok(())
+    }
+
+    /// The open document whose file is `path`, if there is one.
+    pub(crate) fn document_of_path(&self, path: &Path) -> Option<DocumentId> {
+        let wanted = canonical(path);
+        self.documents.iter().find_map(|(id, doc)| {
+            let own = doc.buffer.path()?;
+            (canonical(own) == wanted).then_some(*id)
+        })
+    }
+
+    /// Locks the text of `document` against edits for good (see [`Buffer::lock`]).
+    pub(crate) fn lock_document(&mut self, document: DocumentId) {
+        if let Some(doc) = self.documents.get_mut(&document) {
+            doc.buffer.lock();
+            doc.read_only = true;
+        }
     }
 
     /// Activates a tab of `document`, preferring the focused pane; opens a new

@@ -22,7 +22,7 @@ pub(crate) use hover::{PendingHover, parse_hover};
 pub(crate) use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartError};
 pub(crate) use manager::{Manager, ServerNotification};
 pub(crate) use message::{Id, Message, RpcError};
-pub(crate) use position::{LspPosition, to_lsp};
+pub(crate) use position::{LspPosition, from_lsp, to_lsp};
 pub(crate) use supervisor::{Effect, Notice, Supervisor};
 pub(crate) use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
