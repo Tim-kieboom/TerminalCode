@@ -38,6 +38,20 @@ used `anyhow` everywhere instead of typed errors.
   `AppState`; views are pure functions of state, theme and area.
 - Layout is a tree of data in RON (`defaults/default_layout.ron`, embedded at compile time). `LayoutTree::from_ron`
   parses and validates, so a user settings file can reuse it after 0.1.0.
+- **Bars.** A `SideBar(views: [...])` or `BottomBar(views: [...])` layout node holds a list of views (Explorer,
+  Terminal, plugin views) and shows one at a time; `Pane(view: Explorer)` and `Pane(view: Terminal)` still work and
+  are a bar of one view. A bar is not a `ComponentKind`: resolving the layout turns it into the placement of the view
+  it shows (`Placement::kind`), so every component keeps drawing itself, and a bar with several views also gives the
+  placement `bar: Some(BarTabs { views, active })`. Its frame (`PaneFrame::with_tab_row`) keeps the title row empty and
+  `ui::bar::draw_tabs` draws the labels there (`Explorer - Git`, slots `bar.tab.active` / `bar.tab.inactive`);
+  `ui::bar::tab_rects` is the one place that knows where each label is, for drawing and for clicks. A bar is named by
+  its first view; `AppState::bar_views` remembers which view each bar shows. Every view keeps its own `Hideable`
+  flag and its state while it is not the one shown (the terminal's shells keep running); `is_visible` is the flag,
+  `is_showing` is flag and shown-by-its-bar, and hiding the shown view hides the bar. `set_shown(view, true)` makes
+  the bar show that view, which is how the toggles, the remembered state and the startup do it. A click on a tab
+  shows the view and gives it the keyboard (a middle click goes to the next view; "Bar: Next View" / "Bar:
+  Previous View" do the same from the keyboard for the bar the keyboard is in). A view is named once in a layout, and
+  the editor and the status bar cannot be in a bar. Errors and Git are meant to be second views of these bars.
 - Theme is named style slots in TOML (`defaults/default_theme.toml`, embedded the same way). Components ask for a slot,
   never a color; unknown slots fall back to the default style.
 - Plugins push declarative `ViewNode` trees into their pane and never touch `Frame` or `Rect`.

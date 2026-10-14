@@ -296,6 +296,8 @@ impl App {
             }
             Action::DeleteWordForward => self.state.edit(|editor| editor.delete_word_forward())?,
             Action::SelectAll => self.state.edit(|editor| editor.select_all())?,
+            Action::NextBarView => self.cycle_bar_view(1),
+            Action::PreviousBarView => self.cycle_bar_view(-1),
             Action::MoveLineUp => self.state.edit(|editor| editor.move_lines(-1))?,
             Action::MoveLineDown => self.state.edit(|editor| editor.move_lines(1))?,
             Action::AddCursorAbove => self.state.edit(|editor| editor.add_cursor_vertically(-1))?,

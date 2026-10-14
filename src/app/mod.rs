@@ -24,6 +24,7 @@ use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 
 mod background;
+mod bars;
 mod completion;
 mod config_files;
 mod definition;

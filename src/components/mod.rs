@@ -29,7 +29,7 @@ use crate::ui::theme::BackgroundPane;
 /// The enum is closed except for [`ComponentKind::Plugin`], the single hole
 /// through which plugins add their own panes. Component state lives in
 /// `AppState`, never in the component itself.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 pub(crate) enum ComponentKind {
     Explorer,
     Editor,

@@ -469,3 +469,187 @@ fn the_old_border_names_are_rejected() {
         Err(LayoutError::Parse(_))
     ));
 }
+
+// ---- bars
+
+const BARS: &str = r#"Col([
+    Row([
+        Fixed(30, SideBar(views: [Explorer, Plugin("git")], sides: [Right])),
+        Col([
+            Pane(view: Editor),
+            Fixed(10, BottomBar(views: [Terminal, Plugin("errors")], sides: [Top])),
+            Fixed(1, Pane(view: StatusBar)),
+        ]),
+    ]),
+])"#;
+
+fn resolved(tree: &LayoutTree, active: usize) -> Vec<Placement> {
+    tree.resolve_scene(
+        Rect::new(0, 0, 100, 40),
+        &Scene {
+            visible: &|_| true,
+            active: &|_| active,
+        },
+    )
+}
+
+#[test]
+fn a_bar_is_parsed_and_places_the_view_it_shows() {
+    let tree = LayoutTree::from_ron(BARS).unwrap();
+
+    let first: Vec<_> = resolved(&tree, 0).into_iter().map(|p| p.kind).collect();
+    let second: Vec<_> = resolved(&tree, 1).into_iter().map(|p| p.kind).collect();
+
+    let plugin = |name: &str| ComponentKind::Plugin(PluginViewId::new(name));
+    assert_eq!(
+        first,
+        [
+            ComponentKind::Explorer,
+            ComponentKind::Editor,
+            ComponentKind::Terminal,
+            ComponentKind::StatusBar,
+        ]
+    );
+    assert_eq!(
+        second,
+        [
+            plugin("git"),
+            ComponentKind::Editor,
+            plugin("errors"),
+            ComponentKind::StatusBar,
+        ]
+    );
+}
+
+#[test]
+fn a_bar_with_several_views_says_which_and_gives_the_title_row_to_the_tabs() {
+    let tree = LayoutTree::from_ron(BARS).unwrap();
+
+    let placements = resolved(&tree, 1);
+
+    let side = &placements[0];
+    let tabs = side.bar.as_ref().unwrap();
+    assert_eq!(tabs.active, 1);
+    assert_eq!(tabs.views.len(), 2);
+    assert!(side.frame.shows_title());
+    // The row is the first one of the frame, which has no top border here.
+    assert_eq!(side.frame.inner(side.area).y, side.area.y + 1);
+}
+
+#[test]
+fn a_bar_with_one_view_is_a_plain_pane() {
+    let bar = LayoutTree::from_ron(
+        r#"Row([Fixed(20, SideBar(views: [Explorer], sides: [Right], title: Hidden)), Pane(view: Editor)])"#,
+    )
+    .unwrap();
+    let pane = LayoutTree::from_ron(
+        r#"Row([Fixed(20, Pane(view: Explorer, sides: [Right], title: Hidden)), Pane(view: Editor)])"#,
+    )
+    .unwrap();
+
+    let (from_bar, from_pane) = (
+        bar.resolve(Rect::new(0, 0, 100, 40)),
+        pane.resolve(Rect::new(0, 0, 100, 40)),
+    );
+
+    assert_eq!(from_bar, from_pane);
+    assert!(from_bar[0].bar.is_none());
+}
+
+#[test]
+fn the_old_pane_form_of_the_explorer_and_the_terminal_still_loads_and_is_in_no_bar() {
+    let tree = LayoutTree::from_ron(
+        r#"Col([Row([Fixed(30, Pane(view: Explorer)), Pane(view: Editor)]), Fixed(8, Pane(view: Terminal))])"#,
+    )
+    .unwrap();
+
+    assert!(tree.contains(&ComponentKind::Explorer));
+    assert_eq!(tree.bar_views(&ComponentKind::Explorer), None);
+}
+
+#[test]
+fn the_bar_that_holds_a_view_is_found_by_any_of_its_views() {
+    let tree = LayoutTree::from_ron(BARS).unwrap();
+
+    let views = tree.bar_views(&ComponentKind::Terminal).unwrap();
+
+    assert_eq!(views.len(), 2);
+    assert_eq!(views[0], ComponentKind::Terminal);
+    assert_eq!(tree.bar_views(&ComponentKind::Editor), None);
+}
+
+#[test]
+fn a_bar_can_start_hidden_through_its_first_view() {
+    let tree = LayoutTree::from_ron(
+        r#"Row([Fixed(20, SideBar(views: [Explorer, Plugin("git")], hidden: true)), Pane(view: Editor)])"#,
+    )
+    .unwrap();
+
+    assert_eq!(tree.starts_hidden(&ComponentKind::Explorer), Some(true));
+}
+
+#[test]
+fn a_bar_without_views_or_with_the_editor_in_it_is_rejected() {
+    assert!(
+        rejection("Row([Fixed(20, SideBar(views: [])), Pane(view: Editor)])")
+            .contains("at least one view")
+    );
+    assert!(
+        rejection("Row([Fixed(20, SideBar(views: [Editor])), Pane(view: Editor)])")
+            .contains("cannot be a view of a bar")
+    );
+}
+
+#[test]
+fn a_view_named_twice_is_rejected() {
+    let twice =
+        rejection(r#"Row([Fixed(20, SideBar(views: [Explorer, Explorer])), Pane(view: Editor)])"#);
+    let two_bars = rejection(
+        r#"Row([Fixed(20, SideBar(views: [Explorer])), Fixed(20, BottomBar(views: [Explorer])), Pane(view: Editor)])"#,
+    );
+    let and_a_pane = rejection(
+        r#"Row([Fixed(20, SideBar(views: [Explorer])), Fixed(20, Pane(view: Explorer)), Pane(view: Editor)])"#,
+    );
+
+    for message in [twice, two_bars, and_a_pane] {
+        assert!(message.contains("`Explorer` is named twice"), "{message}");
+    }
+}
+
+#[test]
+fn a_misspelled_bar_field_is_an_error() {
+    assert!(
+        LayoutTree::from_ron("Row([Fixed(20, SideBar(view: [Explorer])), Pane(view: Editor)])")
+            .is_err()
+    );
+}
+
+#[test]
+fn the_tab_rectangles_follow_the_labels_and_lie_in_the_title_row() {
+    use crate::ui::bar::tab_rects;
+    let tree = LayoutTree::from_ron(BARS).unwrap();
+    let placements = resolved(&tree, 0);
+    let bottom = &placements[2];
+
+    let rects = tab_rects(bottom);
+
+    assert_eq!(rects.len(), 2);
+    assert!(
+        rects
+            .iter()
+            .all(|(rect, _)| rect.y == bottom.area.y && rect.height == 1)
+    );
+    // "Terminal - errors" from one cell in: the labels are 8 and 6 wide, 3 apart.
+    assert_eq!(rects[0].0.x, bottom.area.x + 1);
+    assert_eq!(rects[0].0.width, 8);
+    assert_eq!(rects[1].0.x, rects[0].0.x + 8 + 3);
+    assert_eq!(rects[1].1, 1);
+}
+
+#[test]
+fn a_placement_that_is_not_a_bar_has_no_tabs() {
+    use crate::ui::bar::tab_rects;
+    let placement = Placement::new(ComponentKind::Editor, Rect::new(0, 0, 40, 10));
+
+    assert!(tab_rects(&placement).is_empty());
+}

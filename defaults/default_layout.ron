@@ -6,12 +6,19 @@
 // may be left without a size.
 //
 // A Pane shows one component: Explorer, Editor, Terminal, StatusBar or
-// Plugin("view.id"). Whatever a pane leaves out keeps the component's default:
+// Plugin("view.id"). A SideBar or a BottomBar holds a list of views (Explorer,
+// Terminal and Plugin("view.id")) and shows one at a time; with more than one it
+// draws their names in the title row, `Files - Git`, the shown one highlighted,
+// and a click on a name (or the "Bar: Next View" action) switches. It takes the
+// same fields as a Pane except `view`, which is `views: [...]`. A view is listed
+// once in the layout. `Pane(view: Explorer)` and `Pane(view: Terminal)` still work
+// and are the same as a bar with that one view. Whatever a pane leaves out keeps
+// the component's default:
 //
 //   Pane(
 //       view: Explorer,
 //       hidden: true,           // starts hidden (false: shown); for the Explorer, Terminal
-//                               // and StatusBar. What you hid or showed last time is
+//                               // and StatusBar (a bar: its first view). What you hid or showed last time is
 //                               // remembered (state.json) and wins over this
 //       sides: [Top, Right],    // edges with a border line: Top, Right, Bottom,
 //                               // Left or All; [] for no border
@@ -32,10 +39,10 @@
 
 Col([
     Row([
-        Fixed(30, Pane(view: Explorer, sides: [Right], border: QuadrantInside, title: Hidden)),
+        Fixed(30, SideBar(views: [Explorer], sides: [Right], border: QuadrantInside, title: Hidden)),
         Col([
             Pane(view: Editor, sides: [], title: Hidden),
-            Fixed(12, Pane(view: Terminal, sides: [Top], border: LightDoubleDashed, title: Name)),
+            Fixed(12, BottomBar(views: [Terminal], sides: [Top], border: LightDoubleDashed, title: Name)),
             Fixed(1, Pane(view: StatusBar)),
         ]),
     ]),

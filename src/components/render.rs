@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     app::state::{AppState, Focus, PluginView, Popup},
     components::ComponentKind,
-    ui::{Render, backdrop, layout::Placement, view::ViewNode},
+    ui::{Render, backdrop, bar, layout::Placement, view::ViewNode},
 };
 
 /// Draws every component of the layout: first all `prepare` steps, then all
@@ -17,9 +17,7 @@ use crate::{
 pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     state.set_screen(frame.area());
     paint_background(frame, state);
-    let placements = state
-        .layout()
-        .resolve_visible(frame.area(), &|kind| state.is_visible(kind));
+    let placements = state.placements(frame.area());
 
     for placement in &placements {
         prepare_component(state, placement);
@@ -30,6 +28,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
             backdrop::paint_pane(frame, state.theme(), pane, placement.area);
         }
         draw_component(frame, state, placement);
+        bar::draw_tabs(frame, state, placement);
     }
 
     let bottom = placements

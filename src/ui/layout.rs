@@ -44,6 +44,14 @@ pub enum LayoutError {
     MissingEditor,
     #[error("{path}: a Row or Col needs at least one child")]
     EmptyContainer { path: LayoutPath },
+    #[error("{path}: a bar needs at least one view")]
+    EmptyBar { path: LayoutPath },
+    #[error(
+        "{path}: `{view}` cannot be a view of a bar, only Explorer, Terminal and Plugin views can"
+    )]
+    NotABarView { path: LayoutPath, view: Box<str> },
+    #[error("{path}: `{view}` is named twice; a view is in one place in the layout")]
+    DuplicateView { path: LayoutPath, view: Box<str> },
     #[error("{path}: percentage size must be at most 100, got {percent}")]
     InvalidPercent { path: LayoutPath, percent: u16 },
     #[error("{path}: a size cannot wrap another size")]
@@ -119,6 +127,72 @@ impl From<PaneFields> for PaneSpec {
     }
 }
 
+/// What the layout file says about a bar: a `SideBar` or a `BottomBar`, which
+/// holds a list of views and shows one of them at a time, with a tab strip in its
+/// title when it has more than one.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(from = "BarFields")]
+pub(crate) struct BarSpec {
+    pub(super) views: Vec<ComponentKind>,
+    pub(super) frame: FrameSpec,
+    /// Whether the bar starts hidden, when that is not remembered; the first
+    /// view is the one it starts with.
+    pub(super) hidden: Option<bool>,
+}
+
+/// The fields of a `SideBar(..)` or `BottomBar(..)` as the file spells them.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BarFields {
+    views: Vec<ComponentKind>,
+    hidden: Option<bool>,
+    sides: Option<Vec<Side>>,
+    border: Option<BorderStyle>,
+    title: Option<Title>,
+    title_align: Option<TitleAlign>,
+    title_slot: Option<Box<str>>,
+    border_slot: Option<Box<str>>,
+}
+
+impl From<BarFields> for BarSpec {
+    fn from(fields: BarFields) -> Self {
+        Self {
+            views: fields.views,
+            hidden: fields.hidden,
+            frame: FrameSpec {
+                sides: fields.sides,
+                border: fields.border,
+                title: fields.title,
+                title_align: fields.title_align,
+                title_slot: fields.title_slot,
+                border_slot: fields.border_slot,
+            },
+        }
+    }
+}
+
+/// Which views a bar has and which one it shows, for the tab strip.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BarTabs {
+    pub(crate) views: Vec<ComponentKind>,
+    pub(crate) active: usize,
+}
+
+/// What a layout is resolved against: which components are shown, and which view
+/// each bar shows (the bar is named by its first view).
+pub(crate) struct Scene<'a> {
+    pub(crate) visible: &'a dyn Fn(&ComponentKind) -> bool,
+    pub(crate) active: &'a dyn Fn(&ComponentKind) -> usize,
+}
+
+impl BarSpec {
+    /// The view the bar shows given the index the app remembers for it.
+    fn shown_view(&self, scene: &Scene<'_>) -> usize {
+        let key = &self.views[0];
+        (scene.active)(key).min(self.views.len() - 1)
+    }
+}
+
 /// A node of the layout tree. `Fixed` and `Percent` give the node they wrap a
 /// size inside a `Row` or `Col`; a node without one fills what is left.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -132,6 +206,10 @@ pub(crate) enum LayoutNode {
     /// The node takes this percentage of its parent's direction.
     Percent(u16, Box<LayoutNode>),
     Pane(PaneSpec),
+    /// A bar on the side of the editor, with views such as the explorer.
+    SideBar(BarSpec),
+    /// A bar under the editor, with views such as the terminal.
+    BottomBar(BarSpec),
 }
 
 impl LayoutNode {
@@ -142,6 +220,8 @@ impl LayoutNode {
             Self::Fixed(..) => "Fixed",
             Self::Percent(..) => "Percent",
             Self::Pane(_) => "Pane",
+            Self::SideBar(_) => "SideBar",
+            Self::BottomBar(_) => "BottomBar",
         }
     }
 
@@ -167,11 +247,14 @@ impl LayoutNode {
     }
 
     /// Whether this node has a component that is shown.
-    fn has_visible(&self, visible: &dyn Fn(&ComponentKind) -> bool) -> bool {
+    fn has_visible(&self, scene: &Scene<'_>) -> bool {
         match self.content() {
-            Self::Pane(pane) => visible(&pane.view),
+            Self::Pane(pane) => (scene.visible)(&pane.view),
+            Self::SideBar(bar) | Self::BottomBar(bar) => {
+                (scene.visible)(&bar.views[bar.shown_view(scene)])
+            }
             Self::Row(children) | Self::Col(children) => {
-                children.iter().any(|child| child.has_visible(visible))
+                children.iter().any(|child| child.has_visible(scene))
             }
             Self::Fixed(..) | Self::Percent(..) => false,
         }
@@ -180,7 +263,9 @@ impl LayoutNode {
     fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
         match self.content() {
             Self::Pane(pane) if pane.view == *kind => pane.hidden,
-            Self::Pane(_) | Self::Fixed(..) | Self::Percent(..) => None,
+            Self::SideBar(bar) | Self::BottomBar(bar) if bar.views[0] == *kind => bar.hidden,
+            Self::Pane(_) | Self::SideBar(_) | Self::BottomBar(_) => None,
+            Self::Fixed(..) | Self::Percent(..) => None,
             Self::Row(children) | Self::Col(children) => {
                 children.iter().find_map(|child| child.starts_hidden(kind))
             }
@@ -190,10 +275,24 @@ impl LayoutNode {
     fn contains(&self, kind: &ComponentKind) -> bool {
         match self.content() {
             Self::Pane(pane) => pane.view == *kind,
+            Self::SideBar(bar) | Self::BottomBar(bar) => bar.views.contains(kind),
             Self::Row(children) | Self::Col(children) => {
                 children.iter().any(|child| child.contains(kind))
             }
             Self::Fixed(..) | Self::Percent(..) => false,
+        }
+    }
+
+    /// The views of the bar that has `kind` among them.
+    fn bar_of(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
+        match self.content() {
+            Self::SideBar(bar) | Self::BottomBar(bar) if bar.views.contains(kind) => {
+                Some(&bar.views)
+            }
+            Self::Row(children) | Self::Col(children) => {
+                children.iter().find_map(|child| child.bar_of(kind))
+            }
+            _ => None,
         }
     }
 }
@@ -204,6 +303,9 @@ pub(crate) struct Placement {
     pub(crate) kind: ComponentKind,
     pub(crate) area: Rect,
     pub(crate) frame: PaneFrame,
+    /// The views of the bar this component is the shown one of, when it has
+    /// more than one (the tab strip is drawn for them).
+    pub(crate) bar: Option<BarTabs>,
 }
 
 impl Placement {
@@ -211,7 +313,12 @@ impl Placement {
     #[cfg(test)]
     pub(crate) fn new(kind: ComponentKind, area: Rect) -> Self {
         let frame = PaneFrame::default_for(&kind);
-        Self { kind, area, frame }
+        Self {
+            kind,
+            area,
+            frame,
+            bar: None,
+        }
     }
 }
 
@@ -249,9 +356,13 @@ impl LayoutTree {
             });
         }
 
-        let mut has_editor = false;
-        validate(&root, &mut path, &mut has_editor)?;
-        if !has_editor {
+        let mut checks = Checks {
+            has_editor: false,
+            bar_views: bar_views_of(&root),
+            seen_in_bars: Vec::new(),
+        };
+        validate(&root, &mut path, &mut checks)?;
+        if !checks.has_editor {
             return Err(LayoutError::MissingEditor);
         }
         Ok(Self { root })
@@ -260,6 +371,12 @@ impl LayoutTree {
     /// Whether the layout has a component of this kind.
     pub(crate) fn contains(&self, kind: &ComponentKind) -> bool {
         self.root.contains(kind)
+    }
+
+    /// The views of the bar that holds `kind`, in the order the layout lists them;
+    /// `None` when `kind` is not in a bar.
+    pub(crate) fn bar_views(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
+        self.root.bar_of(kind)
     }
 
     /// What the layout says about the component of this kind starting hidden,
@@ -277,13 +394,26 @@ impl LayoutTree {
     /// Where the components for which `visible` says yes go. A hidden
     /// component takes no space: the others in its split share it, and a split
     /// whose components are all hidden takes none either.
+    #[cfg(test)]
     pub(crate) fn resolve_visible(
         &self,
         area: Rect,
         visible: &dyn Fn(&ComponentKind) -> bool,
     ) -> Vec<Placement> {
+        self.resolve_scene(
+            area,
+            &Scene {
+                visible,
+                active: &|_| 0,
+            },
+        )
+    }
+
+    /// Where the components of `scene` go: those it shows, and for a bar the
+    /// view it shows.
+    pub(crate) fn resolve_scene(&self, area: Rect, scene: &Scene<'_>) -> Vec<Placement> {
         let mut placements = Vec::new();
-        place(&self.root, area, visible, &mut placements);
+        place(&self.root, area, scene, &mut placements);
         placements
     }
 }
@@ -296,15 +426,68 @@ impl Default for LayoutTree {
     }
 }
 
+/// What checking a layout collects as it goes.
+struct Checks {
+    has_editor: bool,
+    /// Every view some bar lists, for a pane that shows one of them again.
+    bar_views: Vec<ComponentKind>,
+    /// The views of the bars checked so far, for a view listed twice.
+    seen_in_bars: Vec<ComponentKind>,
+}
+
+/// Every view the bars of `node` list.
+fn bar_views_of(node: &LayoutNode) -> Vec<ComponentKind> {
+    match node.content() {
+        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) => bar.views.clone(),
+        LayoutNode::Row(children) | LayoutNode::Col(children) => {
+            children.iter().flat_map(bar_views_of).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// Checks `node`, whose own step is the last one of `path`.
 fn validate(
     node: &LayoutNode,
     path: &mut Vec<Step>,
-    has_editor: &mut bool,
+    checks: &mut Checks,
 ) -> Result<(), LayoutError> {
     match node {
         LayoutNode::Pane(pane) => {
-            *has_editor |= pane.view == ComponentKind::Editor;
+            checks.has_editor |= pane.view == ComponentKind::Editor;
+            if checks.bar_views.contains(&pane.view) {
+                return Err(LayoutError::DuplicateView {
+                    path: LayoutPath(path.clone()),
+                    view: pane.view.title().into(),
+                });
+            }
+            Ok(())
+        }
+        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) => {
+            if bar.views.is_empty() {
+                return Err(LayoutError::EmptyBar {
+                    path: LayoutPath(path.clone()),
+                });
+            }
+            if let Some(view) = bar
+                .views
+                .iter()
+                .find(|view| matches!(view, ComponentKind::Editor | ComponentKind::StatusBar))
+            {
+                return Err(LayoutError::NotABarView {
+                    path: LayoutPath(path.clone()),
+                    view: view.title().into(),
+                });
+            }
+            for view in &bar.views {
+                if checks.seen_in_bars.contains(view) {
+                    return Err(LayoutError::DuplicateView {
+                        path: LayoutPath(path.clone()),
+                        view: view.title().into(),
+                    });
+                }
+                checks.seen_in_bars.push(view.clone());
+            }
             Ok(())
         }
         LayoutNode::Fixed(_, inner) | LayoutNode::Percent(_, inner) => {
@@ -316,7 +499,7 @@ fn validate(
                     percent: *percent,
                 });
             }
-            validate_child(inner, None, path, has_editor)
+            validate_child(inner, None, path, checks)
         }
         LayoutNode::Row(children) | LayoutNode::Col(children) => {
             if children.is_empty() {
@@ -332,7 +515,7 @@ fn validate(
                 });
             }
             for (index, child) in children.iter().enumerate() {
-                validate_child(child, Some(index), path, has_editor)?;
+                validate_child(child, Some(index), path, checks)?;
             }
             Ok(())
         }
@@ -343,7 +526,7 @@ fn validate_child(
     child: &LayoutNode,
     index: Option<usize>,
     path: &mut Vec<Step>,
-    has_editor: &mut bool,
+    checks: &mut Checks,
 ) -> Result<(), LayoutError> {
     let parent_is_size = index.is_none();
     path.push(Step {
@@ -355,29 +538,46 @@ fn validate_child(
             path: LayoutPath(path.clone()),
         });
     }
-    validate(child, path, has_editor)?;
+    validate(child, path, checks)?;
     path.pop();
     Ok(())
 }
 
-fn place(
-    node: &LayoutNode,
-    area: Rect,
-    visible: &dyn Fn(&ComponentKind) -> bool,
-    out: &mut Vec<Placement>,
-) {
+fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, out: &mut Vec<Placement>) {
     match node.content() {
-        LayoutNode::Pane(pane) if !visible(&pane.view) => {}
+        LayoutNode::Pane(pane) if !(scene.visible)(&pane.view) => {}
         LayoutNode::Pane(pane) => out.push(Placement {
             kind: pane.view.clone(),
             area,
             frame: PaneFrame::resolve(&pane.frame, &pane.view),
+            bar: None,
         }),
+        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) => {
+            let active = bar.shown_view(scene);
+            let kind = &bar.views[active];
+            if !(scene.visible)(kind) {
+                return;
+            }
+            let tabbed = bar.views.len() > 1;
+            let mut frame = PaneFrame::resolve(&bar.frame, kind);
+            if tabbed {
+                frame = frame.with_tab_row();
+            }
+            out.push(Placement {
+                kind: kind.clone(),
+                area,
+                frame,
+                bar: tabbed.then(|| BarTabs {
+                    views: bar.views.clone(),
+                    active,
+                }),
+            });
+        }
         LayoutNode::Row(children) => {
-            place_children(Direction::Horizontal, children, area, visible, out)
+            place_children(Direction::Horizontal, children, area, scene, out)
         }
         LayoutNode::Col(children) => {
-            place_children(Direction::Vertical, children, area, visible, out)
+            place_children(Direction::Vertical, children, area, scene, out)
         }
         // `content` has taken the size wrapper off.
         LayoutNode::Fixed(..) | LayoutNode::Percent(..) => {}
@@ -388,12 +588,12 @@ fn place_children(
     direction: Direction,
     children: &[LayoutNode],
     area: Rect,
-    visible: &dyn Fn(&ComponentKind) -> bool,
+    scene: &Scene<'_>,
     out: &mut Vec<Placement>,
 ) {
     let shown: Vec<&LayoutNode> = children
         .iter()
-        .filter(|child| child.has_visible(visible))
+        .filter(|child| child.has_visible(scene))
         .collect();
 
     let areas = Layout::default()
@@ -402,6 +602,6 @@ fn place_children(
         .split(area);
 
     for (child, child_area) in shown.iter().zip(areas.iter()) {
-        place(child, *child_area, visible, out);
+        place(child, *child_area, scene, out);
     }
 }

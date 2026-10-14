@@ -68,6 +68,14 @@ modifiers = ["bold"]
 ["tab.inactive"]
 text = "@dim"
 
+["bar.tab.active"]
+text = "@on_accent"
+background = "@accent_bg"
+modifiers = ["bold"]
+
+["bar.tab.inactive"]
+text = "@dim"
+
 ["tab.overflow"]
 text = "@dim"
 

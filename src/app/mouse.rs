@@ -141,6 +141,10 @@ impl App {
         if self.handle_palette_mouse(event) {
             return;
         }
+        if self.handle_bar_tab_mouse(event) {
+            self.needs_redraw = true;
+            return;
+        }
         if self.handle_terminal_mouse(event) {
             self.needs_redraw = true;
             return;

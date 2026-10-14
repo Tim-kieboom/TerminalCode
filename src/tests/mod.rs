@@ -1,5 +1,6 @@
 mod app_tests;
 mod background_tests;
+mod bar_tests;
 mod completion_tests;
 mod config_files_tests;
 mod config_tests;

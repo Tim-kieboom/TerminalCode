@@ -123,6 +123,9 @@ pub(crate) struct PaneFrame {
     title_align: TitleAlign,
     title_slot: Box<str>,
     border_slot: Box<str>,
+    /// The title row holds the tab strip of a bar with several views, drawn by
+    /// the bar and not as a title.
+    tabs: bool,
 }
 
 impl PaneFrame {
@@ -142,6 +145,7 @@ impl PaneFrame {
             title_align: TitleAlign::Left,
             title_slot: DEFAULT_TITLE_SLOT.into(),
             border_slot: DEFAULT_BORDER_SLOT.into(),
+            tabs: false,
         }
     }
 
@@ -155,6 +159,7 @@ impl PaneFrame {
             title_align: spec.title_align.unwrap_or(defaults.title_align),
             title_slot: spec.title_slot.clone().unwrap_or(defaults.title_slot),
             border_slot: spec.border_slot.clone().unwrap_or(defaults.border_slot),
+            tabs: false,
         }
     }
 
@@ -188,9 +193,30 @@ impl PaneFrame {
         &self.border_slot
     }
 
-    /// Whether the frame shows a title at all.
+    /// This frame with its title row given to a bar's tab strip.
+    pub(crate) fn with_tab_row(mut self) -> Self {
+        self.tabs = true;
+        self
+    }
+
+    /// Whether the frame has a title row, for a title or for tabs.
     pub(crate) fn shows_title(&self) -> bool {
-        self.title != Title::Hidden
+        self.tabs || self.title != Title::Hidden
+    }
+
+    /// Where a bar's tab strip may go: the title row, between the corners, as the
+    /// columns `from..to` of row `row`.
+    pub(crate) fn tab_row(&self, area: Rect) -> (u16, u16, u16) {
+        let from = area.x + u16::from(self.sides.contains(Borders::LEFT));
+        let to = area
+            .right()
+            .saturating_sub(u16::from(self.sides.contains(Borders::RIGHT)));
+        (area.y, from, to.max(from))
+    }
+
+    /// How the strip is aligned in the title row.
+    pub(crate) fn tab_align(&self) -> TitleAlign {
+        self.title_align
     }
 
     /// The title to draw, given the component's own `name`.
@@ -215,7 +241,7 @@ impl PaneFrame {
             .shell()
             .border_style(theme.style(&self.border_style_slot(theme, focused)));
 
-        if let Some(title) = title {
+        if let Some(title) = title.filter(|_| !self.tabs) {
             block = block
                 .title(title)
                 .title_alignment(self.alignment())

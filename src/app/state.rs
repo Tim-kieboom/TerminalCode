@@ -25,7 +25,7 @@ use crate::components::workspace::Workspace;
 use crate::event::action::Action;
 use crate::syntax::SyntaxWorker;
 use crate::ui::Hideable;
-use crate::ui::layout::LayoutTree;
+use crate::ui::layout::{LayoutTree, Placement, Scene};
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
 
@@ -48,6 +48,9 @@ pub(crate) struct AppState {
     focus: Focus,
     popup: Popup,
     layout: LayoutTree,
+    /// The view each bar shows, as an index into the bar's views; a bar is
+    /// named by its first view, and one that is not here shows its first.
+    bar_views: HashMap<ComponentKind, usize>,
     components: AppComponents,
     notifications: Notifications,
     /// The actions run from the palette lately, the latest first.
@@ -162,8 +165,52 @@ impl AppState {
         }
     }
 
-    /// Shows or hides the component of this kind, if it can be hidden.
+    /// Where the components go on a screen of `area`: the ones that are shown,
+    /// and for a bar the view it shows.
+    pub(crate) fn placements(&self, area: ratatui::layout::Rect) -> Vec<Placement> {
+        self.layout.resolve_scene(
+            area,
+            &Scene {
+                visible: &|kind| self.is_visible(kind),
+                active: &|first| self.bar_views.get(first).copied().unwrap_or(0),
+            },
+        )
+    }
+
+    /// The first view of the bar that holds `kind` and the place of `kind` in it.
+    fn bar_slot(&self, kind: &ComponentKind) -> Option<(ComponentKind, usize)> {
+        let views = self.layout.bar_views(kind)?;
+        let at = views.iter().position(|view| view == kind)?;
+        Some((views[0].clone(), at))
+    }
+
+    /// Whether the component is on screen: shown, and for a view of a bar the one
+    /// the bar shows.
+    pub(crate) fn is_showing(&self, kind: &ComponentKind) -> bool {
+        self.is_visible(kind) && self.is_active_view(kind)
+    }
+
+    /// Whether `kind` is the view its bar shows; true for a component not in a bar.
+    pub(crate) fn is_active_view(&self, kind: &ComponentKind) -> bool {
+        match self.bar_slot(kind) {
+            Some((first, at)) => self.bar_views.get(&first).copied().unwrap_or(0) == at,
+            None => true,
+        }
+    }
+
+    /// Makes the bar that holds `kind` show it. Does not show a hidden bar.
+    pub(crate) fn select_view(&mut self, kind: &ComponentKind) {
+        if let Some((first, at)) = self.bar_slot(kind) {
+            self.bar_views.insert(first, at);
+        }
+    }
+
+    /// Shows or hides the component of this kind, if it can be hidden. Showing a
+    /// view of a bar makes the bar show it.
     pub(crate) fn set_shown(&mut self, kind: &ComponentKind, shown: bool) {
+        if shown {
+            self.select_view(kind);
+        }
         match kind {
             ComponentKind::Explorer => self.components.explorer.set_shown(shown),
             ComponentKind::Terminal => self.components.terminal.set_shown(shown),
@@ -173,6 +220,7 @@ impl AppState {
     }
 
     pub(crate) fn show_explorer(&mut self) {
+        self.select_view(&ComponentKind::Explorer);
         self.components.explorer.show();
     }
 
@@ -254,9 +302,7 @@ impl AppState {
     /// Rows and columns the terminal pane has, or would have if it is shown
     /// now, going by the screen as of the last draw. `None` before the first.
     pub(crate) fn terminal_size_now(&self) -> Option<(u16, u16)> {
-        let placements = self
-            .layout
-            .resolve_visible(self.screen, &|kind| self.is_visible(kind));
+        let placements = self.placements(self.screen);
         let placement = placements
             .iter()
             .find(|placement| placement.kind == ComponentKind::Terminal)?;
@@ -265,6 +311,7 @@ impl AppState {
     }
 
     pub(crate) fn show_terminal(&mut self) {
+        self.select_view(&ComponentKind::Terminal);
         self.components.terminal.show();
     }
 

@@ -35,7 +35,7 @@ impl App {
             self.state.notify("the layout has no explorer");
             return;
         }
-        match self.state.is_visible(&ComponentKind::Explorer) {
+        match self.state.is_showing(&ComponentKind::Explorer) {
             true => {
                 self.state.hide_explorer();
                 if self.state.focus() == Focus::Explorer {
@@ -125,7 +125,7 @@ impl App {
     /// Mouse input for the explorer. Returns whether it was used up.
     pub(super) fn handle_explorer_mouse(&mut self, event: MouseEvent) -> bool {
         let (column, row) = (event.column, event.row);
-        let over = self.state.is_visible(&ComponentKind::Explorer)
+        let over = self.state.is_showing(&ComponentKind::Explorer)
             && self.state.explorer().contains(column, row);
         match event.kind {
             // A press only selects; what a click does waits for the release, so a
@@ -204,13 +204,13 @@ impl App {
                 best = Some((target, score));
             }
         };
-        if focus != Focus::Explorer && self.state.is_visible(&ComponentKind::Explorer) {
+        if focus != Focus::Explorer && self.state.is_showing(&ComponentKind::Explorer) {
             consider(Target::Explorer, self.state.explorer().area());
         }
         let shell_there = self.state.terminal().tab_count() > 0;
         if focus != Focus::Terminal
             && shell_there
-            && self.state.is_visible(&ComponentKind::Terminal)
+            && self.state.is_showing(&ComponentKind::Terminal)
         {
             consider(Target::Terminal, self.state.terminal().area());
         }

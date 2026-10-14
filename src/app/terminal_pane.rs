@@ -23,12 +23,18 @@ impl App {
     /// otherwise. The first time it is shown, and whenever every shell in it
     /// has ended, a shell starts in the project root.
     pub(in crate::app) fn toggle_terminal(&mut self) {
-        let shown = self.state.is_visible(&ComponentKind::Terminal);
+        let shown = self.state.is_showing(&ComponentKind::Terminal);
         if shown && self.state.focus() == Focus::Terminal {
             self.state.hide_terminal();
             self.state.set_focus(Focus::Editor);
             return;
         }
+        self.show_terminal_with_keyboard();
+    }
+
+    /// Shows the terminal pane and gives it the keyboard, starting a shell when
+    /// none is running. Does nothing when the layout has no terminal.
+    pub(in crate::app) fn show_terminal_with_keyboard(&mut self) {
         if !self.show_terminal_pane() {
             return;
         }
@@ -225,7 +231,7 @@ impl App {
     /// gives the pane the keyboard and the wheel moves through the history.
     pub(in crate::app) fn handle_terminal_mouse(&mut self, event: MouseEvent) -> bool {
         if self.modal_open()
-            || !self.state.is_visible(&ComponentKind::Terminal)
+            || !self.state.is_showing(&ComponentKind::Terminal)
             || !self.state.terminal().contains(event.column, event.row)
         {
             return false;

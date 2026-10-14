@@ -104,6 +104,11 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    /// Shows the next view of the bar that has the keyboard (the sidebar or the
+    /// bottom bar), giving it the keyboard.
+    NextBarView,
+    /// Shows the previous view of the bar that has the keyboard.
+    PreviousBarView,
     /// Swaps the line the cursor is on (or the selected lines) with the one above.
     MoveLineUp,
     /// Swaps the line the cursor is on (or the selected lines) with the one below.
@@ -312,6 +317,8 @@ impl Action {
             Self::DeleteWordBackward => "Edit: Delete Word Backward",
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
+            Self::NextBarView => "Bar: Next View",
+            Self::PreviousBarView => "Bar: Previous View",
             Self::MoveLineUp => "Edit: Move Line Up",
             Self::MoveLineDown => "Edit: Move Line Down",
             Self::AddCursorAbove => "Cursor: Add Cursor Above",
@@ -406,6 +413,8 @@ impl Action {
             Self::Copy,
             Self::Paste,
             Self::SelectAll,
+            Self::NextBarView,
+            Self::PreviousBarView,
             Self::MoveLineUp,
             Self::MoveLineDown,
             Self::AddCursorAbove,
