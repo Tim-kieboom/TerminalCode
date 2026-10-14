@@ -392,3 +392,32 @@ fn a_sequence_timeout_out_of_range_or_of_the_wrong_type_is_rejected_by_name() {
     }
     assert!(error_of(r#"{ "sequence_timeout": 5001 }"#).contains("200 and 5000"));
 }
+
+#[test]
+fn the_notification_seconds_default_to_four_and_are_read() {
+    use std::time::Duration;
+
+    assert_eq!(
+        parse("{}").settings.notification_lifetime,
+        Duration::from_secs(4)
+    );
+    for seconds in [1, 10, 60] {
+        let settings = parse(&format!(r#"{{ "notification_seconds": {seconds} }}"#)).settings;
+        assert_eq!(settings.notification_lifetime, Duration::from_secs(seconds));
+    }
+}
+
+#[test]
+fn notification_seconds_out_of_range_or_of_the_wrong_type_are_rejected_by_name() {
+    for source in [
+        r#"{ "notification_seconds": 0 }"#,
+        r#"{ "notification_seconds": 61 }"#,
+        r#"{ "notification_seconds": -1 }"#,
+        r#"{ "notification_seconds": "long" }"#,
+    ] {
+        assert!(
+            error_of(source).contains("notification_seconds"),
+            "{source}"
+        );
+    }
+}

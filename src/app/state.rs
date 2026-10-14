@@ -348,6 +348,11 @@ impl AppState {
         self.components.workspace.with_editor(f)
     }
 
+    /// Sets how long the info messages shown from now on stay.
+    pub(crate) fn set_notification_lifetime(&mut self, lifetime: std::time::Duration) {
+        self.notifications.set_lifetime(lifetime);
+    }
+
     /// Shows an info message that goes away by itself.
     pub(crate) fn notify(&mut self, message: impl Into<Box<str>>) {
         self.notifications

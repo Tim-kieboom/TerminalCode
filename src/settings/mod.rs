@@ -20,6 +20,10 @@ pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/set
 
 /// How long a half-typed key sequence waits when the setting says nothing.
 const SEQUENCE_TIMEOUT_DEFAULT: Duration = Duration::from_millis(1000);
+/// How long a plain message stays when the setting says nothing.
+const NOTIFICATION_LIFETIME_DEFAULT: Duration = crate::components::notifications::INFO_LIFETIME;
+/// The seconds `notification_seconds` may be.
+const NOTIFICATION_SECONDS_RANGE: std::ops::RangeInclusive<usize> = 1..=60;
 /// The milliseconds `sequence_timeout` may be, besides 0 (wait for ever).
 const SEQUENCE_TIMEOUT_RANGE: std::ops::RangeInclusive<usize> = 200..=5000;
 
@@ -42,6 +46,8 @@ pub(crate) struct Settings {
     /// How long a half-typed key sequence (`ctrl+k ctrl+i`) waits for its next chord;
     /// `None` waits for ever. When it runs out the sequence is dropped.
     pub(crate) sequence_timeout: Option<Duration>,
+    /// How long a plain message stays on screen. Errors stay until dismissed.
+    pub(crate) notification_lifetime: Duration,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -61,6 +67,7 @@ impl Default for Settings {
             indent_style: IndentKind::Spaces,
             detect_indent: true,
             sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
+            notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
             language_servers: LanguageServers::default(),
         }
     }
@@ -143,6 +150,14 @@ impl Settings {
             indent_style: take(&mut map, "indent_style")?.unwrap_or(defaults.indent_style),
             detect_indent: take(&mut map, "detect_indent")?.unwrap_or(defaults.detect_indent),
             sequence_timeout: take_sequence_timeout(&mut map)?.unwrap_or(defaults.sequence_timeout),
+            notification_lifetime: take_in_range(
+                &mut map,
+                "notification_seconds",
+                NOTIFICATION_SECONDS_RANGE,
+            )?
+            .map_or(defaults.notification_lifetime, |seconds| {
+                Duration::from_secs(seconds as u64)
+            }),
             language_servers: match map.remove("language_servers") {
                 Some(setting) => LanguageServers::with_settings(setting)?,
                 None => defaults.language_servers,

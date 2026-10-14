@@ -37,6 +37,11 @@
     // has its own wait of one second.
     "sequence_timeout": 1000,
 
+    // How many seconds a plain message (saved, copied, reloaded) stays on screen,
+    // from 1 to 60. A change applies to the messages shown after it. Errors stay
+    // until you press a key or click, whatever this is.
+    "notification_seconds": 4,
+
     // Language servers, by name. Rust is built in (rust-analyzer, found on your PATH),
     // so this is empty unless you want to change that. An entry with the name of a
     // built-in server replaces it whole, null turns it off, any other name adds one:

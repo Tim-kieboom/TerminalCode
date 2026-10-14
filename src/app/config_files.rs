@@ -202,6 +202,10 @@ impl App {
             self.keyboard
                 .set_sequence_timeout(self.settings.sequence_timeout);
         }
+        if self.settings.notification_lifetime != before.notification_lifetime {
+            self.state
+                .set_notification_lifetime(self.settings.notification_lifetime);
+        }
         if self.settings.mouse != before.mouse {
             self.mouse.set(self.settings.mouse);
         }

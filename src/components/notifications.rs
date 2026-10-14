@@ -15,7 +15,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::ui::theme::Theme;
 
-/// How long an info message stays.
+/// How long an info message stays when the settings do not say.
 pub(crate) const INFO_LIFETIME: Duration = Duration::from_secs(4);
 /// Messages kept. When there are more, the oldest info messages go first, then
 /// the oldest errors.
@@ -42,11 +42,23 @@ pub(crate) struct Notification {
     id: u64,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Notifications {
     /// Oldest first.
     items: Vec<Notification>,
     next_id: u64,
+    /// How long an info message stays, for the ones shown from now on.
+    lifetime: Duration,
+}
+
+impl Default for Notifications {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            next_id: 0,
+            lifetime: INFO_LIFETIME,
+        }
+    }
 }
 
 /// What a screen cell shown by [`Notifications::render`] belongs to.
@@ -59,6 +71,12 @@ pub(crate) enum Hit {
 }
 
 impl Notifications {
+    /// Sets how long the info messages shown from now on stay. Errors stay
+    /// until the user acts, whatever this is.
+    pub(crate) fn set_lifetime(&mut self, lifetime: Duration) {
+        self.lifetime = lifetime;
+    }
+
     /// Shows `text`. The same message shown again replaces the earlier one
     /// (and becomes the newest), so repeating an action does not pile up
     /// copies.
@@ -67,7 +85,7 @@ impl Notifications {
         self.items
             .retain(|item| !(item.level == level && item.text == text));
         let expires = match level {
-            Level::Info => Some(now + INFO_LIFETIME),
+            Level::Info => Some(now + self.lifetime),
             Level::Error => None,
         };
         self.next_id += 1;

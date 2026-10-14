@@ -781,3 +781,58 @@ fn saving_the_sequence_timeout_applies_it_to_the_next_sequence() {
 fn the_default_settings_file_documents_the_sequence_timeout() {
     assert!(DEFAULT_SETTINGS_JSONC.contains("\"sequence_timeout\""));
 }
+
+// ---- notification seconds
+
+#[test]
+fn the_notification_seconds_setting_sets_how_long_a_message_stays() {
+    use std::time::{Duration, Instant};
+
+    let dir = temp();
+    let mut app = started_with(dir.path(), r#"{ "notification_seconds": 20 }"#);
+    app.state_mut().notify("saved");
+    let now = Instant::now();
+
+    app.expire_notifications(now + Duration::from_secs(15));
+    assert_eq!(app.state().latest_notification(), Some("saved"));
+
+    app.expire_notifications(now + Duration::from_secs(25));
+    assert_eq!(app.state().latest_notification(), None);
+}
+
+#[test]
+fn an_error_stays_whatever_the_notification_seconds_are() {
+    use std::time::{Duration, Instant};
+
+    let dir = temp();
+    let mut app = started_with(dir.path(), r#"{ "notification_seconds": 1 }"#);
+    app.state_mut().notify_error("save failed");
+
+    app.expire_notifications(Instant::now() + Duration::from_secs(3600));
+
+    assert_eq!(app.state().latest_notification(), Some("save failed"));
+}
+
+#[test]
+fn saving_the_notification_seconds_applies_them_to_the_next_message() {
+    use std::time::{Duration, Instant};
+
+    let dir = temp();
+    let mut app = started_with(dir.path(), "{}");
+    write(
+        dir.path(),
+        "settings.json",
+        r#"{ "notification_seconds": 30 }"#,
+    );
+    reload(&mut app);
+    app.state_mut().notify("a later message");
+
+    app.expire_notifications(Instant::now() + Duration::from_secs(20));
+
+    assert_eq!(app.state().latest_notification(), Some("a later message"));
+}
+
+#[test]
+fn the_default_settings_file_documents_the_notification_seconds() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"notification_seconds\""));
+}
