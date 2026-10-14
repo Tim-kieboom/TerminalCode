@@ -110,6 +110,12 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    /// Opens one of the files in the main menu's Open Recent.
+    OpenRecentFile(Box<str>),
+    /// Opens one of the folders in Open Recent, by starting the editor again there.
+    OpenRecentFolder(Box<str>),
+    /// Forgets the files and folders Open Recent lists.
+    ClearRecent,
     /// Asks for the path of a file and opens it as a tab.
     OpenFile,
     /// Asks for the path of a folder and starts the editor again there.
@@ -217,6 +223,9 @@ impl Action {
                 | Self::ShowErrors
                 | Self::OpenMenu
                 | Self::OpenFile
+                | Self::OpenRecentFile(_)
+                | Self::OpenRecentFolder(_)
+                | Self::ClearRecent
                 | Self::OpenFolder
                 | Self::ToggleMenuBar
                 | Self::DeleteSelected
@@ -339,6 +348,7 @@ impl Action {
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
             Self::ShowErrors => "View: Show Errors",
+            Self::ClearRecent => "File: Clear Recent",
             Self::OpenFile => "File: Open File...",
             Self::OpenFolder => "File: Open Folder...",
             Self::OpenMenu => "View: Open Menu",
@@ -353,6 +363,7 @@ impl Action {
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) | Self::Errors(_) => return None,
+            Self::OpenRecentFile(_) | Self::OpenRecentFolder(_) => return None,
             Self::TogglePluginView(_) => return None,
             Self::Move(_)
             | Self::Select(_)
@@ -441,6 +452,7 @@ impl Action {
             Self::SelectAll,
             Self::OpenFile,
             Self::OpenFolder,
+            Self::ClearRecent,
             Self::OpenMenu,
             Self::ToggleMenuBar,
             Self::ShowErrors,

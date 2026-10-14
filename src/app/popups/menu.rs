@@ -276,7 +276,8 @@ impl App {
 
     /// What the main menu offers. Every item is an action the palette has too, with
     /// the keys it has now.
-    fn main_menu_entries(&self) -> Vec<Entry> {
+    fn main_menu_entries(&mut self) -> Vec<Entry> {
+        let recent = self.recent_entries();
         let item = |label: &'static str, action: Action| {
             let keys = self.keyboard.keys_for(&action, &EDITOR_CONTEXTS);
             Entry::Item {
@@ -296,6 +297,7 @@ impl App {
                     item("New File", Action::NewFile),
                     item("Open File", Action::OpenFile),
                     item("Open Folder", Action::OpenFolder),
+                    group("Open Recent", recent),
                     Entry::Separator,
                     item("Save", Action::Save),
                     item("Save All", Action::SaveAll),

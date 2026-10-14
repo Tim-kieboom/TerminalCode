@@ -291,6 +291,33 @@ fn a_state_file_that_is_not_valid_is_reported_and_the_layout_is_used() {
 }
 
 #[test]
+fn a_recent_file_that_is_not_valid_is_reported_and_the_list_starts_empty() {
+    let dir = temp();
+    write(dir.path(), "recent.json", "{ nope");
+
+    let (state, config) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "recent.json"), "{:?}", errors(&state));
+    assert!(config.recent.is_empty());
+}
+
+#[test]
+fn the_recent_list_is_read_from_its_file() {
+    let dir = temp();
+    write(
+        dir.path(),
+        "recent.json",
+        r#"{ "files": ["/p/a.rs"], "folders": ["/p"] }"#,
+    );
+
+    let (state, config) = load(Some(dir.path()));
+
+    assert!(errors(&state).is_empty());
+    assert_eq!(config.recent.files().len(), 1);
+    assert_eq!(config.recent.folders().len(), 1);
+}
+
+#[test]
 fn a_layout_field_with_the_wrong_type_is_a_layout_error() {
     let dir = temp();
     write(

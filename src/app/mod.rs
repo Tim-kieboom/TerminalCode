@@ -32,6 +32,8 @@ mod editing;
 mod errors_view;
 mod hover;
 mod open;
+mod recent;
+#[cfg(test)]
 pub(crate) use open::expand_path;
 mod jumps;
 mod keys;
@@ -103,6 +105,7 @@ pub(crate) struct App {
     front_view: Option<crate::components::workspace::ViewId>,
     /// The panes the user hid or showed, remembered for the next run.
     saved: Saved,
+    recent: recent::Recents,
     /// The language servers.
     lsp: lsp::Lsp,
 }
@@ -248,6 +251,7 @@ impl App {
             front_view: None,
             lsp: lsp::Lsp::default(),
             saved: Saved::new([true, false, true, true]),
+            recent: recent::Recents::default(),
         }
     }
 
@@ -392,6 +396,7 @@ impl App {
         self.notice_tab_switch();
         self.show_pending_keys();
         self.remember_panes();
+        self.remember_recent();
     }
 
     pub(crate) fn handle_event(&mut self, event: Event) {
@@ -443,6 +448,7 @@ impl App {
             }
         }
         self.remember_panes();
+        self.remember_recent();
     }
 
     /// Whether an overlay is open and taking all input.

@@ -113,11 +113,18 @@ pub(crate) fn load(dir: Option<&Path>) -> (SavedState, Option<ConfigWarning>) {
 /// of one.
 pub(crate) fn save(dir: &Path, state: &SavedState) -> io::Result<()> {
     let text = serde_json::to_string_pretty(state).map_err(io::Error::other)?;
-    fs::create_dir_all(dir)?;
-    let path = path_in(dir);
+    write_atomically(&path_in(dir), &format!("{text}\n"))
+}
+
+/// Writes `text` to `path` through a file beside it and a rename, making the
+/// folder when it is not there yet.
+pub(crate) fn write_atomically(path: &Path, text: &str) -> io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
     let temporary = path.with_extension("json.tmp");
-    fs::write(&temporary, format!("{text}\n"))?;
-    fs::rename(&temporary, &path).inspect_err(|_| {
+    fs::write(&temporary, text)?;
+    fs::rename(&temporary, path).inspect_err(|_| {
         let _ = fs::remove_file(&temporary);
     })
 }

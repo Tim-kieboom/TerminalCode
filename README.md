@@ -77,7 +77,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `tab`, `shift+tab` | Indent, outdent (a selection over several lines indents each line) |
 | arrows, `home`, `end`, `ctrl+home`, `ctrl+end` | Move; add `shift` to select |
 | `ctrl+o` | Open a file by its path (relative to the project, absolute, or from `~`); "File: Open Folder..." in the menu or the palette asks for a folder and starts the editor again in it (the open tabs are closed; unsaved ones are asked about first) |
-| `f10` | Open the main menu (the `≡` icon in the top row opens it too): File (new, open a file or a folder, save), View, Settings and Quit, each group opens a menu to its right with the keys its items have; `esc` closes it and the keyboard stays where it was |
+| `f10` | Open the main menu (the `≡` icon in the top row opens it too): File (new, open a file or a folder, open recent, save), View, Settings and Quit, each group opens a menu to its right with the keys its items have; `esc` closes it and the keyboard stays where it was |
 | `ctrl+k d` | Show the list of problems the language servers report (errors first), in the bottom bar next to the terminal; `enter` or a click opens one (`ctrl+click` also goes to where the word there is defined), `esc` goes back to the editor |
 | `alt+up`, `alt+down` | Move the line (or the selected lines) up or down |
 | `ctrl+up`, `ctrl+down` | Move to the previous or next blank line (a line of only spaces counts as blank); add `shift` to select up to it |
@@ -148,6 +148,7 @@ does the same for `state.json`.
   switch, or use `Bar: Next View` from the palette.
   A pane can say `hidden: true` to start hidden. What you hide or show while working is remembered in `state.json` in the same
   folder, written at every change, and wins over the layout at the next start; delete that file to go back to the layout.
+- **`recent.json`** is the list behind File > Open Recent, written by the editor (the last 10 files and 10 folders); delete it to forget them, or use Clear Recent.
 - **`themes/NAME.toml`** is a theme: a palette of colors and the style of every part of the screen. Choose one with
   `"theme": "NAME"`. The built-in Dark, Light, SolDark and SolLight are only templates: `Theme: New...` in the palette
   makes a theme from one, names it, chooses it and opens it. A built-in theme still stands behind every theme file and

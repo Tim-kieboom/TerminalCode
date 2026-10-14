@@ -819,6 +819,14 @@ impl Workspace {
         Some((tab.document, byte, buffer.snapshot()))
     }
 
+    /// The files of the open documents.
+    pub(crate) fn open_paths(&self) -> Vec<PathBuf> {
+        self.documents
+            .values()
+            .filter_map(|document| document.buffer.path().map(Path::to_path_buf))
+            .collect()
+    }
+
     /// The file, the name for a title and the text of an open document.
     pub(crate) fn document_info(
         &self,

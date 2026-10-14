@@ -35,6 +35,7 @@ mod palette_tests;
 mod paragraph_tests;
 mod perf_tests;
 mod quit_tests;
+mod recent_tests;
 mod rename_tests;
 mod reset_tests;
 mod root_save_tests;

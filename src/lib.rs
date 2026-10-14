@@ -35,6 +35,7 @@ mod keymap;
 mod lsp;
 mod paths;
 mod pty;
+mod recent;
 mod removal;
 mod rootsave;
 mod saved_state;
@@ -80,7 +81,8 @@ where
         .with_keyboard_support(capabilities.keyboard)
         .with_config_dir(config_dir)
         .with_settings(user.settings, user.theme)
-        .with_saved_state(user.saved);
+        .with_saved_state(user.saved)
+        .with_recent(user.recent);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
