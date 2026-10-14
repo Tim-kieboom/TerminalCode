@@ -20,6 +20,10 @@ pub(crate) enum EntryError {
     NotAPlace(String),
     #[error("{0} is not a usable theme name (no slashes, and not starting with a dot)")]
     BadThemeName(String),
+    #[error("{0} is not a file")]
+    NotAFile(String),
+    #[error("{0} is not a folder")]
+    NotAFolder(String),
     #[error("{name}: {source}")]
     Io { name: String, source: io::Error },
 }

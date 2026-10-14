@@ -294,6 +294,9 @@ impl App {
                 "File",
                 vec![
                     item("New File", Action::NewFile),
+                    item("Open File", Action::OpenFile),
+                    item("Open Folder", Action::OpenFolder),
+                    Entry::Separator,
                     item("Save", Action::Save),
                     item("Save All", Action::SaveAll),
                 ],

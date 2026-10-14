@@ -54,6 +54,10 @@ pub(crate) enum Purpose {
     GoToLine {
         lines: usize,
     },
+    /// A path of a file to open as a tab.
+    OpenFile,
+    /// A path of a folder to open as the project, by starting again in it.
+    OpenFolder,
     /// The name of a new theme that starts as a copy of the template with this name.
     NewTheme {
         template: String,
@@ -115,6 +119,25 @@ impl NamePrompt {
         }
     }
 
+    /// Asks for the path of a file to open; a relative one is from `root`.
+    pub(crate) fn open_file(root: PathBuf) -> Self {
+        Self {
+            purpose: Purpose::OpenFile,
+            dir: root,
+            name: String::new(),
+        }
+    }
+
+    /// Asks for the path of a folder to open as the project; a relative one is
+    /// from `root`.
+    pub(crate) fn open_folder(root: PathBuf) -> Self {
+        Self {
+            purpose: Purpose::OpenFolder,
+            dir: root,
+            name: String::new(),
+        }
+    }
+
     /// Asks for a line (`42`) or a line and column (`42:7`) of a file with `lines`
     /// lines.
     pub(crate) fn go_to_line(lines: usize) -> Self {
@@ -170,6 +193,10 @@ impl NamePrompt {
             Purpose::Move(_) => format!(" Move within {folder} "),
             Purpose::GoToLine { lines } => format!(" Go to line (1-{lines}, or line:column) "),
             Purpose::NewTheme { template } => format!(" New theme from {template}: name "),
+            Purpose::OpenFile => " Open file (a path, ~ is your home folder) ".to_owned(),
+            Purpose::OpenFolder => {
+                " Open folder (a path; starts the editor again there) ".to_owned()
+            }
         };
         let block = Block::new()
             .borders(Borders::ALL)

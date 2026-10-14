@@ -30,6 +30,7 @@ mod mouse_tests;
 mod move_tests;
 mod multicursor_tests;
 mod notification_tests;
+mod open_tests;
 mod palette_tests;
 mod paragraph_tests;
 mod perf_tests;

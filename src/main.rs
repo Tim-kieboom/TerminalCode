@@ -26,7 +26,29 @@ fn start() -> IdeResult {
     let (terminal, capabilities) = terminal::init();
     let result = terminal_code::run(terminal, &paths, capabilities);
     terminal::restore();
-    result
+    match result? {
+        Some(folder) => relaunch_in(&folder),
+        None => Ok(()),
+    }
+}
+
+/// Starts this program again with `folder` as its project, in the same terminal. On
+/// Unix the new program takes this one's place; elsewhere it runs as a child and
+/// this one waits for it.
+fn relaunch_in(folder: &std::path::Path) -> IdeResult {
+    let mut command = std::process::Command::new(std::env::current_exe()?);
+    // `--` so that a folder whose name starts with a dash is still a folder.
+    command.arg("--").arg(folder);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        Err(command.exec().into())
+    }
+    #[cfg(not(unix))]
+    {
+        command.status()?;
+        Ok(())
+    }
 }
 
 fn print(text: String) -> IdeResult {

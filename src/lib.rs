@@ -47,7 +47,14 @@ mod tests;
 mod ui;
 mod watcher;
 
-pub fn run<B>(mut terminal: Terminal<B>, paths: &[PathBuf], capabilities: Capabilities) -> IdeResult
+/// Runs the editor until it ends. It returns the folder to start again in when the
+/// user asked to open one (the caller restarts the program there), and `None` for
+/// a plain quit.
+pub fn run<B>(
+    mut terminal: Terminal<B>,
+    paths: &[PathBuf],
+    capabilities: Capabilities,
+) -> IdeResult<Option<PathBuf>>
 where
     B: Backend,
     B::Error: Into<IdeError>,

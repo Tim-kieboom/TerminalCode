@@ -270,6 +270,8 @@ impl App {
             Action::Errors(command) => self.errors_command(command),
             Action::ShowErrors => self.toggle_errors(),
             Action::OpenMenu => self.open_main_menu(),
+            Action::OpenFile => self.ask_for_file(),
+            Action::OpenFolder => self.ask_for_folder(),
             Action::ToggleMenuBar => self.state.toggle_menu_bar(),
             Action::DeleteSelected => self.delete_selected(),
             Action::CreateFile => self.create_entry(EntryKind::File),

@@ -31,6 +31,8 @@ mod definition;
 mod editing;
 mod errors_view;
 mod hover;
+mod open;
+pub(crate) use open::expand_path;
 mod jumps;
 mod keys;
 mod lsp;
@@ -64,6 +66,9 @@ pub(crate) struct App {
     state: AppState,
     /// Whether the loop is to go on or stop.
     flow: Flow,
+    /// The folder the program starts again in once the editor ends, when Open Folder
+    /// asked for it.
+    restart_in: Option<std::path::PathBuf>,
     needs_redraw: bool,
     keyboard: Keyboard,
     mouse: MouseInput,
@@ -149,7 +154,7 @@ impl App {
         mut self,
         terminal: &mut Terminal<B>,
         mut sources: Sources,
-    ) -> IdeResult
+    ) -> IdeResult<Option<std::path::PathBuf>>
     where
         B: Backend,
         B::Error: Into<IdeError>,
@@ -195,7 +200,7 @@ impl App {
                 input = sources.input.recv() => match input {
                     Some(Ok(input)) => self.handle_input(input),
                     Some(Err(err)) => return Err(err.into()),
-                    None => return Ok(()),
+                    None => return Ok(None),
                 },
                 Some(event) = sources.events.recv() => self.handle_event(event),
                 _ = sleep_until(sequence_deadline.unwrap_or_else(Instant::now)),
@@ -212,7 +217,7 @@ impl App {
             }
 
             if self.should_quit() {
-                return Ok(());
+                return Ok(self.restart_in.take());
             }
         }
     }
@@ -221,6 +226,7 @@ impl App {
         Self {
             state,
             flow: Flow::Continue,
+            restart_in: None,
             needs_redraw: true,
             keyboard: Keyboard::new(keymap),
             mouse: MouseInput::default(),

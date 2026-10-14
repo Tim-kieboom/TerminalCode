@@ -31,7 +31,11 @@ impl App {
         match command {
             quit_prompt::Command::Previous => prompt.select_previous(),
             quit_prompt::Command::Next => prompt.select_next(),
-            quit_prompt::Command::Cancel => keep_open = false,
+            quit_prompt::Command::Cancel => {
+                keep_open = false;
+                // Not quitting after all, so not starting again somewhere either.
+                self.restart_in = None;
+            }
             quit_prompt::Command::Discard => prompt.remove_selected(),
             quit_prompt::Command::DiscardAll => self.flow = Flow::Quit,
             quit_prompt::Command::Save => {

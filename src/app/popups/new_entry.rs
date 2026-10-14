@@ -110,6 +110,8 @@ impl App {
                 self.go_to_place(place);
             }
             Purpose::NewTheme { template } => self.make_theme(template, prompt.name())?,
+            Purpose::OpenFile => self.open_typed_file(prompt.dir(), prompt.name())?,
+            Purpose::OpenFolder => self.restart_in_typed_folder(prompt.dir(), prompt.name())?,
         }
         Ok(())
     }

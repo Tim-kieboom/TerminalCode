@@ -110,6 +110,10 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    /// Asks for the path of a file and opens it as a tab.
+    OpenFile,
+    /// Asks for the path of a folder and starts the editor again there.
+    OpenFolder,
     /// Opens the main menu, under the icon in the top row (at the top left when
     /// the row is hidden).
     OpenMenu,
@@ -212,6 +216,8 @@ impl Action {
                 | Self::Errors(_)
                 | Self::ShowErrors
                 | Self::OpenMenu
+                | Self::OpenFile
+                | Self::OpenFolder
                 | Self::ToggleMenuBar
                 | Self::DeleteSelected
                 | Self::CreateFile
@@ -333,6 +339,8 @@ impl Action {
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
             Self::ShowErrors => "View: Show Errors",
+            Self::OpenFile => "File: Open File...",
+            Self::OpenFolder => "File: Open Folder...",
             Self::OpenMenu => "View: Open Menu",
             Self::ToggleMenuBar => "View: Toggle Menu Bar",
             Self::NextBarView => "Bar: Next View",
@@ -431,6 +439,8 @@ impl Action {
             Self::Copy,
             Self::Paste,
             Self::SelectAll,
+            Self::OpenFile,
+            Self::OpenFolder,
             Self::OpenMenu,
             Self::ToggleMenuBar,
             Self::ShowErrors,
