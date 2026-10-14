@@ -206,3 +206,26 @@ fn a_theme_without_the_slot_still_dims_the_cursor() {
     assert!(!theme.contains("cursor.unfocused"));
     assert_eq!(theme.unfocused_cursor(), Style::new().bg(Color::DarkGray));
 }
+
+#[test]
+fn the_explorers_selected_row_is_dimmer_without_the_keyboard() {
+    let mut rig = rig("sleep 30");
+    // Every background in the explorer, which is at the left of the screen.
+    let colors = |rig: &Rig| {
+        let buffer = rig.terminal.backend().buffer();
+        let mut colors: Vec<_> = (0..buffer.area.height)
+            .flat_map(|y| (0..20).map(move |x| (x, y)))
+            .map(|cell| format!("{:?}", buffer[cell].bg))
+            .collect();
+        colors.sort();
+        colors.dedup();
+        colors
+    };
+
+    rig.alt('h');
+    let with_keyboard = colors(&rig);
+    rig.alt('l');
+    let without = colors(&rig);
+
+    assert_ne!(with_keyboard, without);
+}

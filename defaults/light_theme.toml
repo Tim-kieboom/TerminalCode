@@ -113,11 +113,10 @@ modifiers = ["bold"]
 background = "@accent_bg"
 
 ["explorer.selected.inactive"]
-background = "@accent_bg"
-modifiers = ["bold"]
+background = "@selection"
 
 ["cursor.unfocused"]
-background = "@accent_bg"
+background = "@selection"
 
 ["explorer.hint"]
 text = "@muted"
