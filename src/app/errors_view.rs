@@ -1,6 +1,6 @@
 //! The Errors view: showing it, its keys and its mouse.
 
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
 use crate::app::state::Focus;
@@ -57,8 +57,8 @@ impl App {
         self.needs_redraw = true;
     }
 
-    /// Mouse input over the Errors view: a click opens the problem under it, the
-    /// wheel scrolls. Returns whether the event was used up.
+    /// Mouse input over the Errors view: a click opens the problem under it (with
+    /// ctrl it then goes to where the word there is defined), the wheel scrolls. Returns whether the event was used up.
     pub(super) fn handle_errors_mouse(&mut self, event: MouseEvent) -> bool {
         if self.modal_open()
             || !self.state.is_showing(&ComponentKind::Errors)
@@ -76,6 +76,9 @@ impl App {
                     .select_at(event.column, event.row, count)
                 {
                     self.open_selected_error();
+                    if event.modifiers.contains(KeyModifiers::CONTROL) {
+                        self.go_to_definition();
+                    }
                 }
             }
             MouseEventKind::ScrollUp => self.state.errors_mut().scroll_by(-WHEEL_ROWS, count),

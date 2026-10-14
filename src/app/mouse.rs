@@ -141,11 +141,12 @@ impl App {
         if self.handle_palette_mouse(event) {
             return;
         }
-        if self.handle_errors_mouse(event) {
+        // The tabs of a bar come before what is inside it: they are in its frame.
+        if self.handle_bar_tab_mouse(event) {
             self.needs_redraw = true;
             return;
         }
-        if self.handle_bar_tab_mouse(event) {
+        if self.handle_errors_mouse(event) {
             self.needs_redraw = true;
             return;
         }

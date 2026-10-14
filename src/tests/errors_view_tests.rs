@@ -18,6 +18,8 @@ use crate::lsp::{Diagnostic, Severity};
 struct Rig {
     app: App,
     dir: tempfile::TempDir,
+    /// Keeps the channel the shell reports on open.
+    _events: tokio::sync::mpsc::Receiver<crate::event::Event>,
 }
 
 fn diagnostic(start: usize, severity: Severity, message: &str) -> Diagnostic {
@@ -55,9 +57,14 @@ fn rig() -> Rig {
         in_b,
         vec![diagnostic(0, Severity::Error, "cannot find value")],
     );
+    let (events, receiver) = tokio::sync::mpsc::channel(64);
+    let app = App::new(state)
+        .with_events(events)
+        .with_terminal_shell(crate::pty::Shell::script("sleep 30"));
     let mut rig = Rig {
-        app: App::new(state),
+        app,
         dir,
+        _events: receiver,
     };
     rig.draw();
     rig
@@ -260,4 +267,50 @@ fn a_layout_without_the_view_says_so() {
 
     assert_eq!(rig.app.state().focus(), Focus::Editor);
     let _ = &rig.dir;
+}
+
+#[test]
+fn a_click_on_the_other_tab_of_the_bar_goes_back_to_the_terminal() {
+    let mut rig = rig();
+    rig.show();
+    let placements = rig
+        .app
+        .state()
+        .placements(ratatui::layout::Rect::new(0, 0, 100, 30));
+    let bar = placements.iter().find(|p| p.bar.is_some()).unwrap();
+    let (rect, _) = crate::ui::bar::tab_rects(bar)
+        .into_iter()
+        .find(|(_, index)| *index == 0)
+        .unwrap();
+
+    rig.mouse(MouseEventKind::Down(MouseButton::Left), rect.x + 1, rect.y);
+
+    assert!(
+        rig.app
+            .state()
+            .is_showing(&crate::components::ComponentKind::Terminal)
+    );
+    assert!(
+        !rig.app
+            .state()
+            .is_showing(&crate::components::ComponentKind::Errors)
+    );
+}
+
+#[test]
+fn a_ctrl_click_on_a_row_opens_it_and_asks_where_the_word_is_defined() {
+    let mut rig = rig();
+    rig.show();
+    let body = rig.app.state().errors().body();
+
+    rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: body.x + 3,
+        row: body.y + 1,
+        modifiers: KeyModifiers::CONTROL,
+    }));
+
+    // No language server runs here, so nothing answers; the row was opened.
+    assert_eq!(rig.open_file(), "b.rs");
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
 }
