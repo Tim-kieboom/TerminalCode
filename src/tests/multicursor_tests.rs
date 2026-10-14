@@ -193,3 +193,14 @@ fn an_alt_click_adds_a_cursor_that_typing_reaches_and_a_plain_click_removes() {
     );
     assert_eq!(cursors(&app), 1);
 }
+
+#[test]
+fn alt_down_and_alt_up_move_the_line() {
+    let mut app = app("a\nb\nc");
+
+    press(&mut app, KeyCode::Down, KeyModifiers::ALT);
+    assert_eq!(text(&app), "b\na\nc");
+
+    press(&mut app, KeyCode::Up, KeyModifiers::ALT);
+    assert_eq!(text(&app), "a\nb\nc");
+}

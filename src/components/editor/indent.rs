@@ -262,7 +262,11 @@ impl Editor {
 
     /// Applies edits to separate lines as one undo step. `edits` must be in
     /// text order; they are applied last first so earlier offsets stay valid.
-    fn edit_lines(&mut self, edits: Vec<Edit>, after: Selections) -> Result<(), BufferError> {
+    pub(super) fn edit_lines(
+        &mut self,
+        edits: Vec<Edit>,
+        after: Selections,
+    ) -> Result<(), BufferError> {
         self.view.last_edit = None;
         let mut transaction = self.buffer.begin_transaction(self.view.selections.clone());
         for edit in edits.iter().rev() {
@@ -276,7 +280,7 @@ impl Editor {
 
 /// Lines a block operation covers: those the selection touches, except the
 /// last when the selection ends at its very start.
-fn selected_lines(selection: &Selection) -> std::ops::RangeInclusive<usize> {
+pub(super) fn selected_lines(selection: &Selection) -> std::ops::RangeInclusive<usize> {
     let (start, end) = (selection.start(), selection.end());
     let last = if end.line > start.line && end.column == 0 {
         end.line - 1
@@ -287,7 +291,7 @@ fn selected_lines(selection: &Selection) -> std::ops::RangeInclusive<usize> {
 }
 
 /// The selection with both ends moved by `shift`.
-fn remap(selection: &Selection, shift: impl Fn(Position) -> Position) -> Selections {
+pub(super) fn remap(selection: &Selection, shift: impl Fn(Position) -> Position) -> Selections {
     let moved = Selection::new(shift(selection.anchor()), shift(selection.head()))
         .with_desired_column(None);
     Selections::single(moved)

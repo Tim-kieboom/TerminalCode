@@ -15,6 +15,7 @@ mod clipboard_ops;
 mod indent;
 mod motion;
 mod mouse_ops;
+mod move_line;
 mod multi;
 pub(crate) mod render;
 mod replace;

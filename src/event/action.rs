@@ -104,6 +104,10 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    /// Swaps the line the cursor is on (or the selected lines) with the one above.
+    MoveLineUp,
+    /// Swaps the line the cursor is on (or the selected lines) with the one below.
+    MoveLineDown,
     /// Adds a cursor on the line above the primary one.
     AddCursorAbove,
     /// Adds a cursor on the line below the primary one.
@@ -308,6 +312,8 @@ impl Action {
             Self::DeleteWordBackward => "Edit: Delete Word Backward",
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
+            Self::MoveLineUp => "Edit: Move Line Up",
+            Self::MoveLineDown => "Edit: Move Line Down",
             Self::AddCursorAbove => "Cursor: Add Cursor Above",
             Self::AddCursorBelow => "Cursor: Add Cursor Below",
             Self::CollapseCursors => "Cursor: Back to One Cursor",
@@ -400,6 +406,8 @@ impl Action {
             Self::Copy,
             Self::Paste,
             Self::SelectAll,
+            Self::MoveLineUp,
+            Self::MoveLineDown,
             Self::AddCursorAbove,
             Self::AddCursorBelow,
             Self::CollapseCursors,
