@@ -218,3 +218,10 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Background in boxes and the terminal pane
 - [x] The popup boxes and the terminal pane follow the theme's `[background]` (and `transparent`): a box starts from `ui::backdrop::clear` (wipe, then paint the background again) instead of a bare `Clear`, and the terminal pane no longer copies the default colors of the shell's cells over the painted background (`src/tests/background_tests.rs`: the editor, the palette, the finder, project search and the terminal pane checked cell by cell, solid and transparent)
+
+## Settings, remembered state and reset (decisions in `design.md`)
+- [x] `sequence_timeout` (200 to 5000 ms, `0` waits for ever): a timed-out half-typed chord is dropped and the status bar shows the pending keys while it waits (the `ctrl+b` prefix of the terminal pane keeps its own fixed wait)
+- [x] `notification_seconds` (1 to 60): the lifetime of plain messages; errors stay until dismissed
+- [x] `hide_ignored`: the explorer leaves ignored entries out instead of dimming them (the file finder and project search already skip ignored files)
+- [x] What is hidden is remembered in `state.json` (one global file, written at every change through a temp file and a rename, one notification per run when writing fails); it wins over the new `hidden: true/false` field of a layout pane; a terminal that starts shown gets its shell at startup
+- [x] `Config: Reset ... to Default` for the settings, keymap, layout and theme files and `Config: Forget Hidden and Shown Panes`: asks first, keeps the old file as `NAME.bak` (an older backup is replaced), applies the default at once
