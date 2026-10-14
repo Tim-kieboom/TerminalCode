@@ -176,6 +176,7 @@ enum Target {
     Pane(PaneId),
     Explorer,
     Terminal,
+    Errors,
 }
 
 impl App {
@@ -188,6 +189,7 @@ impl App {
             Focus::Editor => self.state.workspace().focused_area(),
             Focus::Explorer => self.state.explorer().area(),
             Focus::Terminal => self.state.terminal().area(),
+            Focus::Errors => self.state.errors().area(),
         };
 
         let mut best = self
@@ -215,6 +217,10 @@ impl App {
             consider(Target::Terminal, self.state.terminal().area());
         }
 
+        if focus != Focus::Errors && self.state.is_showing(&ComponentKind::Errors) {
+            consider(Target::Errors, self.state.errors().area());
+        }
+
         match best {
             Some((Target::Pane(id), _)) => {
                 self.state.workspace_mut().focus_pane(id);
@@ -222,6 +228,7 @@ impl App {
             }
             Some((Target::Explorer, _)) => self.state.set_focus(Focus::Explorer),
             Some((Target::Terminal, _)) => self.state.set_focus(Focus::Terminal),
+            Some((Target::Errors, _)) => self.state.set_focus(Focus::Errors),
             None => {}
         }
     }

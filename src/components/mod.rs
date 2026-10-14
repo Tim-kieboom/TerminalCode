@@ -3,6 +3,7 @@ pub mod confirm;
 pub mod definition_list;
 pub mod diagnostic_popup;
 pub mod editor;
+pub mod errors;
 pub mod explorer;
 pub mod find;
 pub mod finder;
@@ -35,6 +36,8 @@ pub(crate) enum ComponentKind {
     Editor,
     Terminal,
     StatusBar,
+    /// What the language servers say is wrong with the open documents.
+    Errors,
     Plugin(PluginViewId),
 }
 impl ComponentKind {
@@ -45,6 +48,7 @@ impl ComponentKind {
             Self::Editor => Some(BackgroundPane::Editor),
             Self::Terminal => Some(BackgroundPane::Terminal),
             Self::StatusBar => Some(BackgroundPane::StatusBar),
+            Self::Errors => Some(BackgroundPane::Terminal),
             Self::Plugin(_) => None,
         }
     }
@@ -55,6 +59,7 @@ impl ComponentKind {
             Self::Editor => "Editor",
             Self::Terminal => "Terminal",
             Self::StatusBar => "Status",
+            Self::Errors => "Errors",
             Self::Plugin(id) => id.as_str(),
         }
     }

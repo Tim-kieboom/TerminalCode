@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::components::editor::Motion;
+use crate::components::errors::ErrorsCommand;
 use crate::components::explorer::ExplorerCommand;
 use crate::components::workspace::FocusDirection;
 use crate::config::ConfigFile;
@@ -94,6 +95,11 @@ pub(crate) enum Action {
     /// `state.json` kept as `state.json.bak`.
     ResetSavedState,
     Explorer(ExplorerCommand),
+    /// Moves in the Errors view, or opens the problem it is on.
+    Errors(ErrorsCommand),
+    /// Shows the Errors view and gives it the keyboard; with the keyboard in it,
+    /// hides it.
+    ShowErrors,
     Save,
     Undo,
     Redo,
@@ -198,6 +204,8 @@ impl Action {
                 | Self::NextSearchResult
                 | Self::PreviousSearchResult
                 | Self::Explorer(_)
+                | Self::Errors(_)
+                | Self::ShowErrors
                 | Self::DeleteSelected
                 | Self::CreateFile
                 | Self::CreateFolder
@@ -317,6 +325,7 @@ impl Action {
             Self::DeleteWordBackward => "Edit: Delete Word Backward",
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
+            Self::ShowErrors => "View: Show Errors",
             Self::NextBarView => "Bar: Next View",
             Self::PreviousBarView => "Bar: Previous View",
             Self::MoveLineUp => "Edit: Move Line Up",
@@ -326,7 +335,7 @@ impl Action {
             Self::CollapseCursors => "Cursor: Back to One Cursor",
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
-            Self::Explorer(_) => return None,
+            Self::Explorer(_) | Self::Errors(_) => return None,
             Self::TogglePluginView(_) => return None,
             Self::Move(_)
             | Self::Select(_)
@@ -413,6 +422,7 @@ impl Action {
             Self::Copy,
             Self::Paste,
             Self::SelectAll,
+            Self::ShowErrors,
             Self::NextBarView,
             Self::PreviousBarView,
             Self::MoveLineUp,

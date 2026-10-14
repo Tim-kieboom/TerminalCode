@@ -29,6 +29,7 @@ mod completion;
 mod config_files;
 mod definition;
 mod editing;
+mod errors_view;
 mod hover;
 mod jumps;
 mod keys;

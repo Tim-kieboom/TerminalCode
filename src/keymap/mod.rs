@@ -53,6 +53,7 @@ pub(crate) enum Context {
     Global,
     Editor,
     Explorer,
+    Errors,
 }
 
 #[derive(Debug, Deserialize)]

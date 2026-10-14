@@ -115,6 +115,19 @@ modifiers = ["bold"]
 ["tab.inactive"]
 text = "@dim"
 
+["errors.place"]
+text = "@dim"
+
+["errors.selected"]
+text = "@on_accent"
+background = "@accent_bg"
+
+["errors.selected.inactive"]
+background = "@selection"
+
+["errors.empty"]
+text = "@dim"
+
 ["bar.tab.active"]
 text = "@on_accent"
 background = "@accent_bg"

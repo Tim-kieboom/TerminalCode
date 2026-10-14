@@ -51,7 +51,7 @@ used `anyhow` everywhere instead of typed errors.
   the bar show that view, which is how the toggles, the remembered state and the startup do it. A click on a tab
   shows the view and gives it the keyboard (a middle click goes to the next view; "Bar: Next View" / "Bar:
   Previous View" do the same from the keyboard for the bar the keyboard is in). A view is named once in a layout, and
-  the editor and the status bar cannot be in a bar. Errors and Git are meant to be second views of these bars.
+  the editor and the status bar cannot be in a bar. The Errors view is the second view of the default BottomBar (`components/errors`): `ErrorsView` keeps only the selection and the scroll, and the rows (`ErrorRow`) are made from `AppState::diagnostics` and the open documents at every draw and every key, so they cannot go stale. It has its own `Focus::Errors`, keymap context `errors` and `Action::Errors(ErrorsCommand)`; the label of its tab gets the count in `AppState::placements` (`BarTabs::labels`). Git is meant to be a second view of the SideBar.
 - Theme is named style slots in TOML (`defaults/default_theme.toml`, embedded the same way). Components ask for a slot,
   never a color; unknown slots fall back to the default style.
 - Plugins push declarative `ViewNode` trees into their pane and never touch `Frame` or `Rect`.

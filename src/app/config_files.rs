@@ -280,6 +280,7 @@ impl App {
         let missing = match self.state.focus() {
             Focus::Explorer => !self.state.layout().contains(&ComponentKind::Explorer),
             Focus::Terminal => !self.state.layout().contains(&ComponentKind::Terminal),
+            Focus::Errors => !self.state.layout().contains(&ComponentKind::Errors),
             Focus::Editor => false,
         };
         if missing {

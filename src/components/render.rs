@@ -99,6 +99,11 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
         ComponentKind::Explorer => state.explorer_mut().prepare(placement),
         ComponentKind::StatusBar => state.status_bar_mut().prepare(placement),
         ComponentKind::Terminal => state.terminal_mut().prepare(placement),
+        ComponentKind::Errors => {
+            let count = state.error_rows().len();
+            let body = placement.frame.inner(placement.area);
+            state.errors_mut().prepare(placement.area, body, count);
+        }
         _ => (),
     }
 }
@@ -109,6 +114,10 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
         ComponentKind::Explorer => state.explorer().render(frame, state, placement),
         ComponentKind::StatusBar => state.status_bar().render(frame, state, placement),
         ComponentKind::Terminal => state.terminal().render(frame, state, placement),
+        ComponentKind::Errors => {
+            let rows = state.error_rows();
+            state.errors().render(frame, state, placement, &rows);
+        }
         _ => render_plain(frame, state, placement),
     }
 }

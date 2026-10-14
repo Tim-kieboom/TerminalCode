@@ -7,7 +7,7 @@
 //
 // A Pane shows one component: Explorer, Editor, Terminal, StatusBar or
 // Plugin("view.id"). A SideBar or a BottomBar holds a list of views (Explorer,
-// Terminal and Plugin("view.id")) and shows one at a time; with more than one it
+// Errors, Terminal and Plugin("view.id")) and shows one at a time; with more than one it
 // draws their names in the title row, `Files - Git`, the shown one highlighted,
 // and a click on a name (or the "Bar: Next View" action) switches. It takes the
 // same fields as a Pane except `view`, which is `views: [...]`. A view is listed
@@ -42,7 +42,7 @@ Col([
         Fixed(30, SideBar(views: [Explorer], sides: [Right], border: QuadrantInside, title: Hidden)),
         Col([
             Pane(view: Editor, sides: [], title: Hidden),
-            Fixed(12, BottomBar(views: [Terminal], sides: [Top], border: LightDoubleDashed, title: Name)),
+            Fixed(12, BottomBar(views: [Terminal, Errors], sides: [Top], border: LightDoubleDashed, title: Name)),
             Fixed(1, Pane(view: StatusBar)),
         ]),
     ]),

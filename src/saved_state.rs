@@ -35,7 +35,7 @@ impl Shown {
             ComponentKind::Explorer => Some(&mut self.explorer),
             ComponentKind::Terminal => Some(&mut self.terminal),
             ComponentKind::StatusBar => Some(&mut self.status_bar),
-            ComponentKind::Editor | ComponentKind::Plugin(_) => None,
+            ComponentKind::Editor | ComponentKind::Errors | ComponentKind::Plugin(_) => None,
         }
     }
 }

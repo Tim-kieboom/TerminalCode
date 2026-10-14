@@ -8,6 +8,7 @@ use crate::components::confirm::Confirm;
 use crate::components::definition_list::DefinitionList;
 use crate::components::diagnostic_popup::DiagnosticPopup;
 use crate::components::editor::{Editor, EditorRef};
+use crate::components::errors::{ErrorRow, ErrorsView};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::find::Find;
 use crate::components::finder::Finder;
@@ -39,6 +40,7 @@ pub(crate) enum Focus {
     Editor,
     Explorer,
     Terminal,
+    Errors,
 }
 
 /// Everything the UI renders from. Owned by the app loop alone.
@@ -103,6 +105,7 @@ struct AppComponents {
     explorer: Hideable<Explorer>,
     status_bar: Hideable<StatusBar>,
     terminal: Hideable<TerminalPane>,
+    errors: Hideable<ErrorsView>,
     plugin_views: HashMap<PluginViewId, Hideable<PluginView>>,
 }
 
@@ -114,6 +117,7 @@ impl Default for AppComponents {
             explorer: Hideable::new_show(Explorer::default()),
             status_bar: Hideable::new_show(StatusBar),
             terminal: Hideable::new_hidden(TerminalPane::default()),
+            errors: Hideable::new_hidden(ErrorsView::default()),
             plugin_views: HashMap::new(),
         }
     }
@@ -161,6 +165,7 @@ impl AppState {
                 .get(id)
                 .is_none_or(Hideable::is_shown),
             ComponentKind::Terminal => self.components.terminal.is_shown(),
+            ComponentKind::Errors => self.components.errors.is_shown(),
             ComponentKind::Editor => true,
         }
     }
@@ -168,13 +173,39 @@ impl AppState {
     /// Where the components go on a screen of `area`: the ones that are shown,
     /// and for a bar the view it shows.
     pub(crate) fn placements(&self, area: ratatui::layout::Rect) -> Vec<Placement> {
-        self.layout.resolve_scene(
+        let mut placements = self.layout.resolve_scene(
             area,
             &Scene {
                 visible: &|kind| self.is_visible(kind),
                 active: &|first| self.bar_views.get(first).copied().unwrap_or(0),
             },
-        )
+        );
+        self.count_problems_on_tabs(&mut placements);
+        placements
+    }
+
+    /// The Errors tab of a bar says how many problems there are.
+    fn count_problems_on_tabs(&self, placements: &mut [Placement]) {
+        let count: usize = self
+            .lsp_diagnostics
+            .documents()
+            .map(|(_, diagnostics)| diagnostics.len())
+            .sum();
+        if count == 0 {
+            return;
+        }
+        for bar in placements
+            .iter_mut()
+            .filter_map(|placement| placement.bar.as_mut())
+        {
+            if let Some(at) = bar
+                .views
+                .iter()
+                .position(|view| *view == ComponentKind::Errors)
+            {
+                bar.labels[at] = format!("Errors ({count})");
+            }
+        }
     }
 
     /// The first view of the bar that holds `kind` and the place of `kind` in it.
@@ -215,6 +246,7 @@ impl AppState {
             ComponentKind::Explorer => self.components.explorer.set_shown(shown),
             ComponentKind::Terminal => self.components.terminal.set_shown(shown),
             ComponentKind::StatusBar => self.components.status_bar.set_shown(shown),
+            ComponentKind::Errors => self.components.errors.set_shown(shown),
             ComponentKind::Editor | ComponentKind::Plugin(_) => {}
         }
     }
@@ -308,6 +340,51 @@ impl AppState {
             .find(|placement| placement.kind == ComponentKind::Terminal)?;
         let inner = placement.frame.inner(placement.area);
         Some((inner.height, inner.width))
+    }
+
+    pub(crate) fn errors(&self) -> &ErrorsView {
+        self.components.errors.node()
+    }
+
+    pub(crate) fn errors_mut(&mut self) -> &mut ErrorsView {
+        self.components.errors.node_mut()
+    }
+
+    pub(crate) fn show_errors(&mut self) {
+        self.select_view(&ComponentKind::Errors);
+        self.components.errors.show();
+    }
+
+    pub(crate) fn hide_errors(&mut self) {
+        self.components.errors.hide();
+    }
+
+    /// The problems the language servers report for the open documents, errors
+    /// first, then by file and place.
+    pub(crate) fn error_rows(&self) -> Vec<ErrorRow> {
+        let project = self.explorer().root_path();
+        let mut rows = Vec::new();
+        for (document, diagnostics) in self.lsp_diagnostics.documents() {
+            let Some((path, name, buffer)) = self.workspace().document_info(document) else {
+                continue;
+            };
+            for diagnostic in diagnostics {
+                let Ok(position) = buffer.byte_to_position(diagnostic.range.start) else {
+                    continue;
+                };
+                rows.push(ErrorRow::new(
+                    document,
+                    path,
+                    &name,
+                    project,
+                    position,
+                    diagnostic.severity,
+                    &diagnostic.message,
+                ));
+            }
+        }
+        crate::components::errors::sort(&mut rows);
+        rows
     }
 
     pub(crate) fn show_terminal(&mut self) {

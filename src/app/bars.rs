@@ -50,6 +50,7 @@ impl App {
         let current = match self.state.focus() {
             Focus::Explorer => ComponentKind::Explorer,
             Focus::Terminal => ComponentKind::Terminal,
+            Focus::Errors => ComponentKind::Errors,
             Focus::Editor => {
                 self.state.notify("the editor is not in a bar");
                 return;
@@ -74,6 +75,7 @@ impl App {
         match view {
             ComponentKind::Explorer => self.focus_explorer_shown(),
             ComponentKind::Terminal => self.show_terminal_with_keyboard(),
+            ComponentKind::Errors => self.show_errors_with_keyboard(),
             ComponentKind::Plugin(_) | ComponentKind::Editor | ComponentKind::StatusBar => {
                 self.state.set_shown(view, true);
                 self.state.set_focus(Focus::Editor);

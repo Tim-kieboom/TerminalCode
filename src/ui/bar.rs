@@ -10,15 +10,9 @@ use unicode_width::UnicodeWidthStr;
 use super::layout::Placement;
 use super::pane_frame::TitleAlign;
 use crate::app::state::AppState;
-use crate::components::ComponentKind;
 
 /// Between two labels.
 const SEPARATOR: &str = " - ";
-
-/// The label of a view in the strip.
-fn label(view: &ComponentKind) -> String {
-    view.title().to_owned()
-}
 
 /// Where each tab of the bar `placement` belongs to is drawn, with the index of
 /// its view. Empty for a placement that is not a bar with several views. Labels
@@ -28,8 +22,8 @@ pub(crate) fn tab_rects(placement: &Placement) -> Vec<(Rect, usize)> {
         return Vec::new();
     };
     let (row, from, to) = placement.frame.tab_row(placement.area);
-    let labels: Vec<String> = bar.views.iter().map(label).collect();
-    let widths: Vec<u16> = labels
+    let widths: Vec<u16> = bar
+        .labels
         .iter()
         .map(|label| u16::try_from(label.width()).unwrap_or(u16::MAX))
         .collect();
@@ -78,7 +72,7 @@ pub(crate) fn draw_tabs(frame: &mut Frame, state: &AppState, placement: &Placeme
         } else {
             "bar.tab.inactive"
         };
-        let text = fit(&label(&bar.views[index]), usize::from(rect.width));
+        let text = fit(&bar.labels[index], usize::from(rect.width));
         frame.render_widget(Paragraph::new(text).style(theme.style(slot)), rect);
         if index + 1 < bar.views.len() {
             let after = rect.right();

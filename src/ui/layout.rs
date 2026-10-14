@@ -175,6 +175,9 @@ impl From<BarFields> for BarSpec {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct BarTabs {
     pub(crate) views: Vec<ComponentKind>,
+    /// What each tab says, in the order of `views`: the view's name, which the
+    /// app may add to (the count on the Errors tab).
+    pub(crate) labels: Vec<String>,
     pub(crate) active: usize,
 }
 
@@ -569,6 +572,11 @@ fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, out: &mut Vec<Placeme
                 frame,
                 bar: tabbed.then(|| BarTabs {
                     views: bar.views.clone(),
+                    labels: bar
+                        .views
+                        .iter()
+                        .map(|view| view.title().to_owned())
+                        .collect(),
                     active,
                 }),
             });

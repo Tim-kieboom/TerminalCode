@@ -183,6 +183,13 @@ impl Diagnostics {
         self.documents.clear();
     }
 
+    /// Every document that has some, with what it has.
+    pub(crate) fn documents(&self) -> impl Iterator<Item = (DocumentId, &[Diagnostic])> {
+        self.documents
+            .iter()
+            .map(|(document, diagnostics)| (*document, diagnostics.as_slice()))
+    }
+
     /// What a document has, in the order of the text.
     pub(crate) fn of(&self, document: DocumentId) -> &[Diagnostic] {
         self.documents.get(&document).map_or(&[], Vec::as_slice)

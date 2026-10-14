@@ -819,6 +819,15 @@ impl Workspace {
         Some((tab.document, byte, buffer.snapshot()))
     }
 
+    /// The file, the name for a title and the text of an open document.
+    pub(crate) fn document_info(
+        &self,
+        document: DocumentId,
+    ) -> Option<(Option<&Path>, String, &Buffer)> {
+        let buffer = &self.documents.get(&document)?.buffer;
+        Some((buffer.path(), display_name(buffer), buffer))
+    }
+
     /// Whether the document is open in a tab.
     pub(crate) fn has_document(&self, document: DocumentId) -> bool {
         self.documents.contains_key(&document)
