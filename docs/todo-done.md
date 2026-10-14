@@ -211,3 +211,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Cursor follows focus
 - [x] Whoever gets the next keypress has the live cursor; every other place that has a cursor shows a dimmed static block at the same spot (`cursor.unfocused` theme slot in all four themes, dark grey when a custom theme lacks it; the explorer keeps its `explorer.selected.inactive` row). Editor, explorer, terminal (only while the program shows its cursor), find bar and popups; the completion box leaves the editor live; each pane of a split keeps its own cursor (`AppState::has_keyboard`, `ui::cursor::dim_cell`, `src/tests/cursor_tests.rs`)
+
+## JSONC files and command-line leftovers
+- [x] The JSON language server no longer flags comments and trailing commas in JSONC files: `language_id_of` (`src/lsp/language.rs`) sends `jsonc` for the settings file of the config folder (by full path) and `.vscode/*.json`, `tsconfig*.json`, `jsconfig.json`, `devcontainer.json` (by name), and a `language_ids` map in a `language_servers` entry (bare file name, wins over the built-ins) overrides them; no extra `didClose`/`didOpen`, because a change of `language_servers` restarts the servers. Documented in the README
+- [x] Command-line flags leftovers: the README documents `-h` / `--help`, `-v` / `--version` and `--`, and `Invocation` has parsing tests (`src/cli.rs`)

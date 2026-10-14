@@ -24,6 +24,9 @@ pub(crate) struct ServerConfig {
     pub(crate) root_files: Vec<String>,
     /// Sent to the server as it is, when initializing. `null` sends none.
     pub(crate) initialization_options: Value,
+    /// What the server is told a file is, by bare file name (`settings.json`:
+    /// `jsonc`), over the extension rule and the built-in names.
+    pub(crate) language_ids: BTreeMap<String, String>,
 }
 
 /// What a `language_servers` entry in the settings file may say. A word that is
@@ -39,6 +42,8 @@ struct Entry {
     root_files: Vec<String>,
     #[serde(default)]
     initialization_options: Value,
+    #[serde(default)]
+    language_ids: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -73,6 +78,7 @@ impl Default for LanguageServers {
             extensions: vec!["rs".to_owned()],
             root_files: vec!["Cargo.toml".to_owned()],
             initialization_options: Value::Null,
+            language_ids: BTreeMap::new(),
         };
         Self {
             servers: BTreeMap::from([("rust".to_owned(), rust)]),
@@ -167,12 +173,20 @@ impl Entry {
         {
             return Err(format!("\"{bad}\" is not a file name for \"root_files\""));
         }
+        if let Some((name, id)) = self.language_ids.iter().find(|(name, id)| {
+            name.trim().is_empty() || name.contains(['/', '\\']) || id.trim().is_empty()
+        }) {
+            return Err(format!(
+                "\"{name}\": \"{id}\" is not a file name and a language for \"language_ids\""
+            ));
+        }
         Ok(ServerConfig {
             command,
             args: self.args,
             extensions,
             root_files: self.root_files,
             initialization_options: self.initialization_options,
+            language_ids: self.language_ids,
         })
     }
 }

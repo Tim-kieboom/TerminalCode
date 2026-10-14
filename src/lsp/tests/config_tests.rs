@@ -416,3 +416,50 @@ fn a_file_no_server_wants_resolves_to_nothing() {
 
     assert!(resolved.is_none());
 }
+
+// ---- language_ids
+
+#[test]
+fn language_ids_are_read_from_an_entry() {
+    let servers = servers(json!({
+        "json": { "command": "vscode-json-language-server", "extensions": ["json"],
+                  "language_ids": { "settings.json": "jsonc" } }
+    }));
+
+    let ids = &servers.get("json").unwrap().language_ids;
+    assert_eq!(ids.get("settings.json").map(String::as_str), Some("jsonc"));
+}
+
+#[test]
+fn an_entry_without_language_ids_has_none() {
+    assert!(
+        servers(json!({}))
+            .get("rust")
+            .unwrap()
+            .language_ids
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_language_id_name_with_a_path_or_an_empty_id_is_refused() {
+    for ids in [
+        json!({ "a/settings.json": "jsonc" }),
+        json!({ "": "jsonc" }),
+        json!({ "settings.json": "" }),
+    ] {
+        let error = error_of(json!({
+            "j": { "command": "x", "extensions": ["json"], "language_ids": ids }
+        }));
+        assert!(error.contains("language_ids"), "{error}");
+    }
+}
+
+#[test]
+fn a_misspelled_language_ids_is_still_refused() {
+    let error = error_of(json!({
+        "j": { "command": "x", "extensions": ["json"], "language_id": {} }
+    }));
+
+    assert!(error.contains("language_id"), "{error}");
+}

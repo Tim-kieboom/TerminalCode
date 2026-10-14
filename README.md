@@ -118,7 +118,13 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   | `tab_size` | `4` | Columns a tab character draws (1 to 16) and columns of one level of space indentation |
   | `indent_style` | `"spaces"` | What the Tab key inserts: `"spaces"` or `"tabs"` |
   | `detect_indent` | `true` | A file that already has indentation keeps its own; the two settings above are for files with none |
-  | `language_servers` | Rust through `rust-analyzer` | Language servers by name: `command`, `args`, `extensions`, `root_files` and raw `initialization_options`. An entry with a built-in name replaces it, `null` turns it off. Needs the server installed |
+  | `language_servers` | Rust through `rust-analyzer` | Language servers by name: `command`, `args`, `extensions`, `root_files`, raw `initialization_options` and `language_ids` (what the server is told a file is, by file name: `{ "settings.json": "jsonc" }`; see below). An entry with a built-in name replaces it, `null` turns it off. Needs the server installed |
+
+  `language_ids` is for JSON files that allow comments: a JSON language server flags comments and trailing commas in a file it is
+  told is `json`. Files that are known to allow them are sent as `jsonc` already (`settings.json` in the config folder,
+  `.vscode/*.json`, `tsconfig*.json`, `jsconfig.json`, `devcontainer.json`); an entry of `language_ids` goes by the bare file
+  name, so `"settings.json"` matches every file with that name, and it wins over the built-in names. A change restarts the
+  servers.
 
   A mistake in the file (wrong type, a value out of range) is reported as a notification that names the setting,
   and the settings you had stay in force.

@@ -9,6 +9,7 @@ mod docs_tests;
 mod framing_tests;
 mod handshake_tests;
 mod hover_tests;
+mod language_tests;
 mod launch_tests;
 mod manager_tests;
 mod message_tests;

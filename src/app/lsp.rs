@@ -8,13 +8,14 @@ use std::sync::Arc;
 
 use crate::components::diagnostic_popup::{DiagnosticPopup, PopupKey};
 use crate::components::workspace::{DocumentId, LspDocument};
+use crate::config::user_config_dir;
 use crate::event::Event;
 #[cfg(not(test))]
 use crate::lsp::ProcessLauncher;
 use crate::lsp::uri::file_uri;
 use crate::lsp::{
     Diagnostic, DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice,
-    ServerKey, language_id, parse_published,
+    ServerKey, language_id_of, parse_published,
 };
 use crate::paths::{canonical, without_verbatim_prefix};
 
@@ -305,9 +306,12 @@ impl App {
             let target = match cached {
                 Some((_, target)) => target.clone(),
                 None => {
-                    let target = borrowed_target(&self.lsp.borrowed, &doc.path).or_else(|| {
-                        find_target(&self.settings.language_servers, &doc.path, &project)
-                    });
+                    let target = borrowed_target(
+                        &self.lsp.borrowed,
+                        &self.settings.language_servers,
+                        &doc.path,
+                    )
+                    .or_else(|| find_target(&self.settings.language_servers, &doc.path, &project));
                     self.lsp
                         .targets
                         .insert(doc.id, (doc.path.clone(), target.clone()));
@@ -352,13 +356,12 @@ impl App {
 
 /// The server for the file at `path` and how it names it, if there is one.
 fn find_target(servers: &LanguageServers, path: &Path, project: &Path) -> Option<Target> {
-    let (key, _) = servers.resolve(path, project)?;
+    let (key, server) = servers.resolve(path, project)?;
     let uri = file_uri(&without_verbatim_prefix(&canonical(path)))?;
-    let extension = path.extension()?.to_str()?;
     Some(Target {
         key,
         uri,
-        language_id: language_id(extension),
+        language_id: language_id_of(path, &server.language_ids, user_config_dir().as_deref())?,
     })
 }
 
@@ -573,13 +576,17 @@ impl App {
 /// The server and name of a file outside the project that a server pointed at.
 fn borrowed_target(
     borrowed: &HashMap<PathBuf, (ServerKey, String)>,
+    servers: &LanguageServers,
     path: &Path,
 ) -> Option<Target> {
     let (key, uri) = borrowed.get(&canonical(path))?;
-    let extension = path.extension()?.to_str()?;
+    let no_ids = Default::default();
+    let language_ids = servers
+        .get(&key.name)
+        .map_or(&no_ids, |server| &server.language_ids);
     Some(Target {
         key: key.clone(),
         uri: uri.clone(),
-        language_id: language_id(extension),
+        language_id: language_id_of(path, language_ids, user_config_dir().as_deref())?,
     })
 }
