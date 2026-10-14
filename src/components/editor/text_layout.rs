@@ -49,8 +49,17 @@ fn width_at(grapheme: &str, column: usize, tab: TabWidth) -> usize {
     grapheme.width()
 }
 
+/// Whether every character of `text` is one cell wide and one grapheme: printable
+/// ASCII, with no tab. Then a column is a byte offset and nothing needs walking.
+pub(super) fn is_plain(text: &str) -> bool {
+    text.bytes().all(|byte| (0x20..0x7f).contains(&byte))
+}
+
 /// Display column where the grapheme at `grapheme_column` starts.
 pub(super) fn display_column(text: &str, grapheme_column: usize, tab: TabWidth) -> usize {
+    if is_plain(text) {
+        return grapheme_column.min(text.len());
+    }
     text.graphemes(true)
         .take(grapheme_column)
         .fold(0, |column, grapheme| {
@@ -62,6 +71,9 @@ pub(super) fn display_column(text: &str, grapheme_column: usize, tab: TabWidth) 
 /// `display_column`: a click in the left half of a character lands before it,
 /// in the right half after it, and past the end of the line at the end.
 pub(super) fn column_at_display(text: &str, display_column: usize, tab: TabWidth) -> usize {
+    if is_plain(text) {
+        return display_column.min(text.len());
+    }
     let mut column = 0;
     for (index, grapheme) in text.graphemes(true).enumerate() {
         let width = width_at(grapheme, column, tab);
@@ -77,6 +89,15 @@ pub(super) fn column_at_display(text: &str, display_column: usize, tab: TabWidth
 /// Zero-width graphemes are skipped. A wide grapheme or tab cut by an edge of
 /// the window is replaced by spaces for its visible part.
 pub(super) fn visible_cells(text: &str, left: usize, width: usize, tab: TabWidth) -> Vec<Cell> {
+    if is_plain(text) {
+        let end = left.saturating_add(width).min(text.len());
+        return (left.min(end)..end)
+            .map(|index| Cell {
+                text: text[index..=index].to_owned(),
+                grapheme: index,
+            })
+            .collect();
+    }
     let right = left + width;
     let mut cells = Vec::new();
     let mut column = 0;

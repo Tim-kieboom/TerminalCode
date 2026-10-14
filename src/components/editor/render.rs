@@ -313,6 +313,9 @@ struct LineColors<'a> {
     /// Byte offset of the line in the text, and of each grapheme in the line.
     line_start: usize,
     grapheme_starts: Vec<usize>,
+    /// The length of the line when it is all ASCII, where a grapheme is a byte
+    /// and `grapheme_starts` is not needed.
+    ascii_len: Option<usize>,
 }
 
 impl<'a> LineColors<'a> {
@@ -322,7 +325,7 @@ impl<'a> LineColors<'a> {
         let touching = &spans[first..];
         let count = touching.partition_point(|span| span.range.start < line_end);
         let spans = &touching[..count];
-        let grapheme_starts = if spans.is_empty() {
+        let grapheme_starts = if spans.is_empty() || content.is_ascii() {
             Vec::new()
         } else {
             content.grapheme_indices(true).map(|(at, _)| at).collect()
@@ -331,12 +334,18 @@ impl<'a> LineColors<'a> {
             spans,
             line_start,
             grapheme_starts,
+            ascii_len: content.is_ascii().then_some(content.len()),
         }
     }
 
     fn style_of(&self, grapheme: usize) -> Style {
-        let Some(offset) = self.grapheme_starts.get(grapheme) else {
-            return Style::default();
+        let offset = match self.ascii_len {
+            Some(len) if grapheme < len => grapheme,
+            Some(_) => return Style::default(),
+            None => match self.grapheme_starts.get(grapheme) {
+                Some(offset) => *offset,
+                None => return Style::default(),
+            },
         };
         let byte = self.line_start + offset;
         self.spans

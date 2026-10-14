@@ -184,3 +184,77 @@ fn display_column_and_column_at_display_follow_the_width() {
 fn a_tab_cut_by_the_edge_of_the_window_shows_the_part_that_is_visible() {
     assert_eq!(drawn(&visible_cells("\tx", 5, 6, width(8))), "   x");
 }
+
+// ---- the fast path for plain ASCII lines must agree with the general one
+
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
+/// The walk every line used to take.
+fn slow_display_column(text: &str, grapheme_column: usize) -> usize {
+    text.graphemes(true)
+        .take(grapheme_column)
+        .map(UnicodeWidthStr::width)
+        .sum()
+}
+
+fn slow_column_at_display(text: &str, display_column: usize) -> usize {
+    let mut column = 0;
+    for (index, grapheme) in text.graphemes(true).enumerate() {
+        let width = grapheme.width();
+        if display_column < column + width.div_ceil(2) {
+            return index;
+        }
+        column += width;
+    }
+    text.graphemes(true).count()
+}
+
+#[test]
+fn plain_means_printable_ascii_without_tabs() {
+    assert!(is_plain(""));
+    assert!(is_plain("let x = \"a\";~"));
+    assert!(!is_plain("a\tb"));
+    assert!(!is_plain("caf\u{e9}"));
+    assert!(!is_plain("a\u{1}b"));
+    assert!(!is_plain("a\u{7f}"));
+}
+
+#[test]
+fn the_fast_path_matches_the_walk_for_plain_lines() {
+    let text = "fn main() { println!(\"hello, world\"); }";
+    let tab = TabWidth::default();
+
+    for column in [0, 1, 7, text.len(), text.len() + 5, usize::MAX] {
+        assert_eq!(
+            display_column(text, column, tab),
+            slow_display_column(text, column),
+            "display column of {column}"
+        );
+        assert_eq!(
+            column_at_display(text, column, tab),
+            slow_column_at_display(text, column),
+            "grapheme at {column}"
+        );
+    }
+}
+
+#[test]
+fn the_fast_path_gives_the_same_cells_for_every_window() {
+    let text = "0123456789abcdefghij";
+    let tab = TabWidth::default();
+    // The same text with a tab at the end takes the general path; its cells
+    // before the tab are what the fast path must give.
+    let general = format!("{text}\t");
+
+    for left in [0, 3, 19, 20, 25] {
+        for width in [0, 1, 5, 40] {
+            let fast = visible_cells(text, left, width, tab);
+            let slow: Vec<Cell> = visible_cells(&general, left, width, tab)
+                .into_iter()
+                .filter(|cell| cell.grapheme < text.len())
+                .collect();
+            assert_eq!(fast, slow, "left {left}, width {width}");
+        }
+    }
+}

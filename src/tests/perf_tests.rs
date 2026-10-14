@@ -200,15 +200,18 @@ fn how_long_a_single_line_can_get() {
     }
 }
 
-/// The guard: 10 MB of ordinary lines and of 1000 column lines stay inside the
-/// budgets. (A single line costs a frame time that grows with its length, about
-/// 59 ms for 1 MB, so it is measured above but not held to the budget.)
+/// The guard: 10 MB of ordinary lines and of 1000 column lines, and a single line
+/// of plain ASCII, stay inside the budgets. (A single line with other characters
+/// in it is walked grapheme by grapheme and costs a frame time that grows with its
+/// length, about 100 ms for 1 MB, so it is measured above but not held to the
+/// budget.)
 #[test]
 #[ignore = "measures; run in release"]
 fn the_budgets_hold_for_ten_megabytes_of_ordinary_and_long_lines() {
     for (what, text) in [
         ("budget: 80 columns", lines_of(TEN_MEGABYTES, 80)),
         ("budget: 1000 columns", lines_of(TEN_MEGABYTES, 1000)),
+        ("budget: one ASCII line", "x".repeat(TEN_MEGABYTES)),
     ] {
         let (opened, first, slowest) = measure(what, &text);
 

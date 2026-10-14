@@ -176,7 +176,28 @@ impl Buffer {
 
     /// Number of grapheme columns in `line`, not counting its line break.
     pub(crate) fn line_len(&self, line: usize) -> Result<usize, BufferError> {
+        if let Some(len) = self.ascii_line_len(line) {
+            return Ok(len);
+        }
         Ok(self.line_content(line)?.graphemes(true).count())
+    }
+
+    /// The length of `line` without its line break when it is all ASCII, where
+    /// a grapheme is a byte, so columns and byte offsets need no walk along the
+    /// line (a line of a megabyte would take milliseconds to walk).
+    fn ascii_line_len(&self, line: usize) -> Option<usize> {
+        let slice = self.rope.get_line(line)?;
+        if !slice.chunks().all(str::is_ascii) {
+            return None;
+        }
+        let len = slice.len_bytes();
+        let ends_with = |at: usize, byte: u8| len > at && slice.byte(len - 1 - at) == byte;
+        let line_break = match (ends_with(0, b'\n'), ends_with(1, b'\r')) {
+            (true, true) => 2,
+            (true, false) => 1,
+            _ => 0,
+        };
+        Some(len - line_break)
     }
 
     #[cfg(test)]
@@ -251,6 +272,16 @@ impl Buffer {
     /// is valid and points just before the line break.
     pub(crate) fn position_to_byte(&self, position: Position) -> Result<usize, BufferError> {
         let line_start = self.line_start(position.line)?;
+        if let Some(columns) = self.ascii_line_len(position.line) {
+            if position.column > columns {
+                return Err(BufferError::ColumnOutOfBounds {
+                    line: position.line,
+                    column: position.column,
+                    columns,
+                });
+            }
+            return Ok(line_start + position.column);
+        }
         let content = self.line_content(position.line)?;
 
         let mut graphemes = content.grapheme_indices(true);
@@ -277,6 +308,9 @@ impl Buffer {
 
         let line = self.rope.byte_to_line(byte);
         let offset = byte - self.line_start(line)?;
+        if let Some(columns) = self.ascii_line_len(line) {
+            return Ok(Position::new(line, offset.min(columns)));
+        }
         let content = self.line_content(line)?;
 
         let column = content

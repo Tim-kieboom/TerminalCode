@@ -153,10 +153,11 @@ does the same for `state.json`.
 
 ## Known limits
 
-- A single line longer than about 850 KB makes drawing slower than 50 ms (590 ms at 10 MB). Files made of many
-  ordinary lines are fine: 10 MB opens in about 10 ms.
+- A single line of plain ASCII (a minified bundle, a one-line JSON dump) is fine up to 10 MB (about 13 ms per key). A
+  single line with other characters in it (accents, CJK, emoji, a tab) is walked character by character and gets slower
+  than 50 ms at about 500 KB (100 ms at 1 MB). Files made of many ordinary lines are fine: 10 MB opens in about 10 ms.
 - Only UTF-8 files can be opened.
-- Undo is linear (no undo tree), and there is one cursor.
+- Undo is linear (no undo tree), and cursors beyond the first only take part in typing, deleting and moving.
 - A language server client is built in (Rust through `rust-analyzer`, set up in `settings.json` under `language_servers`); it shows diagnostics, suggestions as you type (with brackets and documentation) and what the server says about the word under the pointer or the cursor (hover), with no go to definition yet. No debugger or plugins yet; those are planned after 0.3.0 (see the backlog in
   [docs/todo.md](docs/todo.md)).
 - The vim layer is planned for after 0.3.0 too; the editor works like an IDE until then.

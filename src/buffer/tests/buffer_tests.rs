@@ -267,3 +267,51 @@ fn offsets_inside_a_replaced_range_collapse_to_its_start() {
     assert_eq!(info.remap_byte(3), 1);
     assert_eq!(info.remap_byte(5), 2);
 }
+
+// ---- the ASCII fast path agrees with the grapheme walk
+
+#[test]
+fn ascii_lines_have_the_length_of_their_content_with_any_line_break() {
+    let buffer = Buffer::from_text("abc\r\nde\nf\r\n\r\nlast");
+
+    let lengths: Vec<usize> = (0..buffer.len_lines())
+        .map(|line| buffer.line_len(line).unwrap())
+        .collect();
+
+    assert_eq!(lengths, vec![3, 2, 1, 0, 4]);
+}
+
+#[test]
+fn ascii_positions_and_bytes_convert_both_ways() {
+    let buffer = Buffer::from_text("abc\r\nde\n");
+
+    assert_eq!(buffer.position_to_byte(Position::new(0, 3)).unwrap(), 3);
+    assert_eq!(buffer.position_to_byte(Position::new(1, 2)).unwrap(), 7);
+    assert_eq!(buffer.position_to_byte(Position::new(2, 0)).unwrap(), 8);
+    assert_eq!(buffer.byte_to_position(4).unwrap(), Position::new(0, 3));
+    assert_eq!(buffer.byte_to_position(5).unwrap(), Position::new(1, 0));
+    assert_eq!(buffer.byte_to_position(7).unwrap(), Position::new(1, 2));
+    assert_eq!(buffer.byte_to_position(8).unwrap(), Position::new(2, 0));
+}
+
+#[test]
+fn an_ascii_column_past_the_end_of_the_line_is_an_error() {
+    let buffer = Buffer::from_text("abc\ndef");
+
+    assert!(matches!(
+        buffer.position_to_byte(Position::new(0, 4)),
+        Err(BufferError::ColumnOutOfBounds { columns: 3, .. })
+    ));
+}
+
+#[test]
+fn a_line_that_is_not_ascii_still_counts_graphemes() {
+    let buffer = Buffer::from_text(&format!("a{FLAG}{E_ACUTE}b\nabc"));
+
+    assert_eq!(buffer.line_len(0).unwrap(), 4);
+    assert_eq!(buffer.line_len(1).unwrap(), 3);
+    assert_eq!(
+        buffer.position_to_byte(Position::new(0, 4)).unwrap(),
+        1 + FLAG.len() + E_ACUTE.len() + 1
+    );
+}
