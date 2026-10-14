@@ -238,3 +238,23 @@ fn the_state_remembers_a_hidden_menu_bar() {
 
     assert_eq!(state.shown(&ComponentKind::MenuBar), Some(false));
 }
+
+#[test]
+fn toggling_the_menu_bar_of_a_layout_that_has_none_says_so_and_remembers_nothing() {
+    let mut app = app();
+    app.state_mut().set_layout(
+        crate::ui::layout::LayoutTree::from_ron(
+            r#"Col([Pane(view: Editor), Fixed(1, Pane(view: StatusBar))])"#,
+        )
+        .unwrap(),
+    );
+
+    app.do_action(Action::ToggleMenuBar);
+
+    assert!(
+        app.state().is_visible(&ComponentKind::MenuBar),
+        "the flag is as it was"
+    );
+    let told = app.state().notifications().texts().join("|");
+    assert!(told.contains("no menu bar"), "{told}");
+}

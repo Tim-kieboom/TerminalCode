@@ -332,6 +332,18 @@ impl App {
         ]
     }
 
+    /// Shows or hides the top row. A layout without one has nothing to show, and
+    /// saying so beats remembering a hidden row that was never there.
+    pub(in crate::app) fn toggle_menu_bar(&mut self) {
+        if !self.state.layout().contains(&ComponentKind::MenuBar) {
+            self.state.notify(
+                "the layout has no menu bar: add Fixed(1, Pane(view: MenuBar)) at the top of layout.ron",
+            );
+            return;
+        }
+        self.state.toggle_menu_bar();
+    }
+
     /// A click on the menu icon opens the main menu. Returns whether it was one.
     pub(in crate::app) fn handle_menu_bar_mouse(&mut self, event: MouseEvent) -> bool {
         if event.kind != MouseEventKind::Down(MouseButton::Left) || self.modal_open() {

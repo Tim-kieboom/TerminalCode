@@ -275,7 +275,7 @@ impl App {
             Action::OpenRecentFolder(path) => self.open_recent_folder(&path),
             Action::ClearRecent => self.clear_recent(),
             Action::OpenFolder => self.ask_for_folder(),
-            Action::ToggleMenuBar => self.state.toggle_menu_bar(),
+            Action::ToggleMenuBar => self.toggle_menu_bar(),
             Action::DeleteSelected => self.delete_selected(),
             Action::CreateFile => self.create_entry(EntryKind::File),
             Action::CreateFolder => self.create_entry(EntryKind::Folder),
