@@ -1,6 +1,6 @@
 # TODO
 
-See `design.md` for decisions. Everything finished is in `todo-done.md` (milestones M0 to M8, releases 0.1.0 to 0.4.0, the layout and theme rewrites, the finished backlog items); this file keeps only open work, grouped by area. The current version is 0.4.0.
+See `design.md` for decisions. Everything finished is in `todo-done.md` (milestones M0 to M8, releases 0.1.0 to 0.5.0, the layout and theme rewrites, the finished backlog items); this file keeps only open work, grouped by area. The current version is 0.5.0.
 
 ## Fixes
 

@@ -145,6 +145,9 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Version 0.4.0 (after 0.3.0: go to definition with `f12` and `ctrl+click`, the jump list with `alt+,` and `alt+.`, files outside the project read-only with the same server, the tab right-click menu with pinned tabs, save as root on Linux, the `./` explorer root fixed)
 - [x] Tag `v0.4.0` (tagged on 2dba452; Linux and Windows CI green, macOS only its known flood timing tests; the release run built Linux and Windows archives and SHA256SUMS, the macOS build was cancelled by the runner queue, so the draft has no macOS archive; to be published by hand)
 
+## Release 0.5.0
+- [x] Version 0.5.0 (after 0.4.0: the cursor follows focus with dimmed blocks, JSONC files for the JSON server with `language_ids`, boxes and the terminal pane follow the theme background, the settings `sequence_timeout`, `notification_seconds` and `hide_ignored`, remembered hidden panes in `state.json` with `hidden` in the layout, reset to default with a `.bak`, built-in themes only as templates). Changes to know when upgrading: the `theme` setting is now `null` or the name of a file in `themes/`, so an old `"theme": "dark"` warns and uses the fallback; the `Theme: Dark/Light/SolDark/SolLight` palette entries and the `use_theme` keymap action are gone
+
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
   - Cut decided for 0.1.0: `shell`, `mouse`, `tab_size`, `indent` (style, width, detection on or off). After 0.1.0: sequence timeout, remember what is hidden, notification lifetime, hidden-at-start layouts.
