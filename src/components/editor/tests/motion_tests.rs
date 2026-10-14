@@ -380,3 +380,87 @@ fn page_motion_before_anything_was_drawn_still_moves() {
 
     assert_eq!(head(&editor).line, 1);
 }
+
+const PARAGRAPHS: &str = "one\ntwo\n\nthree\n  \n\nfour\nfive";
+
+#[test]
+fn paragraph_down_stops_at_the_blank_line_after_the_paragraph() {
+    let mut editor = editor(PARAGRAPHS);
+
+    editor.move_cursor(Motion::ParagraphDown).unwrap();
+    assert_eq!(head(&editor), Position::new(2, 0));
+
+    editor.move_cursor(Motion::ParagraphDown).unwrap();
+    assert_eq!(
+        head(&editor),
+        Position::new(4, 0),
+        "a line of spaces is blank"
+    );
+}
+
+#[test]
+fn paragraph_down_skips_a_run_of_blank_lines_and_ends_at_the_document_end() {
+    let mut editor = editor(PARAGRAPHS);
+    goto(&mut editor, 4, 0);
+
+    editor.move_cursor(Motion::ParagraphDown).unwrap();
+    assert_eq!(
+        head(&editor),
+        Position::new(7, 4),
+        "four, five: no blank after"
+    );
+
+    editor.move_cursor(Motion::ParagraphDown).unwrap();
+    assert_eq!(head(&editor), Position::new(7, 4));
+}
+
+#[test]
+fn paragraph_up_stops_at_the_blank_line_before_the_paragraph() {
+    let mut editor = editor(PARAGRAPHS);
+    goto(&mut editor, 7, 2);
+
+    editor.move_cursor(Motion::ParagraphUp).unwrap();
+    assert_eq!(head(&editor), Position::new(5, 0));
+
+    editor.move_cursor(Motion::ParagraphUp).unwrap();
+    assert_eq!(
+        head(&editor),
+        Position::new(2, 0),
+        "skips the blank run above"
+    );
+}
+
+#[test]
+fn paragraph_up_ends_at_the_document_start() {
+    let mut editor = editor(PARAGRAPHS);
+    goto(&mut editor, 1, 2);
+
+    editor.move_cursor(Motion::ParagraphUp).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 0));
+
+    editor.move_cursor(Motion::ParagraphUp).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 0));
+}
+
+#[test]
+fn paragraph_motion_in_a_one_line_document_goes_to_its_ends() {
+    let mut editor = editor("abc");
+
+    editor.move_cursor(Motion::ParagraphDown).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 3));
+
+    editor.move_cursor(Motion::ParagraphUp).unwrap();
+    assert_eq!(head(&editor), Position::new(0, 0));
+}
+
+#[test]
+fn selecting_by_paragraph_extends_from_the_anchor() {
+    let mut editor = editor(PARAGRAPHS);
+    goto(&mut editor, 0, 1);
+
+    editor.select(Motion::ParagraphDown).unwrap();
+
+    let selection = editor.selections().primary();
+    assert_eq!(selection.anchor(), Position::new(0, 1));
+    assert_eq!(selection.head(), Position::new(2, 0));
+}

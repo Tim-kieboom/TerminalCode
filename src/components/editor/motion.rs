@@ -13,6 +13,8 @@ pub(crate) enum Motion {
     Down,
     WordLeft,
     WordRight,
+    ParagraphUp,
+    ParagraphDown,
     PageUp,
     PageDown,
     LineStart,
@@ -53,6 +55,8 @@ pub(super) fn target(
         Motion::PageDown => page_down(buffer, from, desired_column, page, last_line),
         Motion::WordLeft => word_left(buffer, from),
         Motion::WordRight => word_right(buffer, from, last_line),
+        Motion::ParagraphUp => paragraph_up(buffer, from),
+        Motion::ParagraphDown => paragraph_down(buffer, from, last_line),
         Motion::LineStart => Ok(Target::at(from.line, 0)),
         Motion::LineEnd => Ok(Target::at(from.line, buffer.line_len(from.line)?)),
         Motion::DocumentStart => Ok(Target::at(0, 0)),
@@ -199,6 +203,48 @@ fn word_right(buffer: &Buffer, from: Position, last_line: usize) -> Result<Targe
         }
     }
     Ok(Target::at(from.line, column))
+}
+
+fn is_blank(buffer: &Buffer, line: usize) -> Result<bool, BufferError> {
+    Ok(buffer.line_content(line)?.trim().is_empty())
+}
+
+/// The blank line before the paragraph the cursor is in or just after: skips
+/// the blank lines right above the cursor's line, then the text lines, and
+/// stops at the blank one. With none above it goes to the document start.
+fn paragraph_up(buffer: &Buffer, from: Position) -> Result<Target, BufferError> {
+    let mut line = from.line;
+    while line > 0 && is_blank(buffer, line - 1)? {
+        line -= 1;
+    }
+    while line > 0 {
+        line -= 1;
+        if is_blank(buffer, line)? {
+            return Ok(Target::at(line, 0));
+        }
+    }
+    Ok(Target::at(0, 0))
+}
+
+/// The blank line after the paragraph the cursor is in or just before: skips
+/// the blank lines at and below the cursor's line, then the text lines, and
+/// stops at the blank one. With none below it goes to the document end.
+fn paragraph_down(
+    buffer: &Buffer,
+    from: Position,
+    last_line: usize,
+) -> Result<Target, BufferError> {
+    let mut line = from.line;
+    while line < last_line && is_blank(buffer, line)? {
+        line += 1;
+    }
+    while line < last_line {
+        line += 1;
+        if is_blank(buffer, line)? {
+            return Ok(Target::at(line, 0));
+        }
+    }
+    Ok(Target::at(last_line, buffer.line_len(last_line)?))
 }
 
 /// Moves to `line`, aiming for the remembered column but stopping at the end

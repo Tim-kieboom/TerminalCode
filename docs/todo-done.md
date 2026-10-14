@@ -235,3 +235,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## A background color per pane
 - [x] `[background.editor]`, `explorer`, `terminal`, `statusbar` and `popup` (one table for every box) in the theme file: same `color` / `opacity` / `blend` keys as `[background]`, each key a table leaves out is the screen's, `color = "transparent"` lets the terminal show in that pane only; set in the theme, not the layout (decisions in `design.md`; tests in `ui/tests/theme_tests.rs` and `src/tests/background_tests.rs`)
+
+## Paragraph motion
+- [x] `ctrl+up/down` move to the previous or next blank line and `ctrl+shift+up/down` select up to it: new `Motion::ParagraphUp` / `ParagraphDown` (`move` / `select` targets `paragraph_up` / `paragraph_down`). A line of only whitespace is blank; the cursor lands in column 0 of the blank line, skipping the blank run it starts in, and goes to the document start or end when there is none. Still to check by hand: whether kitty and Windows Terminal pass `ctrl+shift+up/down` through

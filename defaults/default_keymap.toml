@@ -192,6 +192,27 @@ keys = "alt+shift+right"
 context = "editor"
 action = { select = "word_right" }
 
+# Paragraphs: the next or previous blank line
+[[binding]]
+keys = "ctrl+up"
+context = "editor"
+action = { move = "paragraph_up" }
+
+[[binding]]
+keys = "ctrl+down"
+context = "editor"
+action = { move = "paragraph_down" }
+
+[[binding]]
+keys = "ctrl+shift+up"
+context = "editor"
+action = { select = "paragraph_up" }
+
+[[binding]]
+keys = "ctrl+shift+down"
+context = "editor"
+action = { select = "paragraph_down" }
+
 [[binding]]
 keys = "ctrl+backspace"
 context = "editor"

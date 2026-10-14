@@ -76,6 +76,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+a` | Select all |
 | `tab`, `shift+tab` | Indent, outdent (a selection over several lines indents each line) |
 | arrows, `home`, `end`, `ctrl+home`, `ctrl+end` | Move; add `shift` to select |
+| `ctrl+up`, `ctrl+down` | Move to the previous or next blank line (a line of only spaces counts as blank); add `shift` to select up to it |
 | `ctrl+f`, `ctrl+r` | Find in the file, replace |
 | `ctrl+g` | Go to line (`line` or `line:column`) |
 | `ctrl+p` | Find a file by name (`name:42` opens it at line 42; `alt+enter` opens it beside this pane) |
