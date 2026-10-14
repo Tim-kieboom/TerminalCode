@@ -3,6 +3,7 @@ use ratatui::Frame;
 use crate::app::state::AppState;
 use crate::ui::layout::Placement;
 
+pub(crate) mod backdrop;
 pub(crate) mod cursor;
 pub mod fuzzy;
 pub(crate) mod hideable;

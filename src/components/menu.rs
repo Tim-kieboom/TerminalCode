@@ -10,7 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use crate::event::action::Action;
@@ -179,7 +179,7 @@ impl Menu {
             .border_style(theme.style("pane.border.focused"));
 
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
         let width = usize::from(inner.width);

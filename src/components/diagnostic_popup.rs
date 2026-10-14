@@ -11,7 +11,7 @@ use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthChar;
 
 use crate::components::editor::render::slot_of;
@@ -167,7 +167,7 @@ impl DiagnosticPopup {
             .border_style(theme.style("pane.border.focused"))
             .title(Line::styled(" Diagnostics ", theme.style("pane.title")));
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
         let body = Rect {

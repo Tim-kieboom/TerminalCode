@@ -7,7 +7,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
 use crate::ui::theme::Theme;
 
@@ -118,7 +118,7 @@ impl Confirm {
             .border_style(theme.style("pane.border.focused"))
             .title(Line::styled(&self.title, theme.style("pane.title")));
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
         let body = Rect {

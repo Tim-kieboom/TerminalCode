@@ -10,7 +10,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::editor::render::fit;
@@ -186,7 +186,7 @@ impl DefinitionList {
             .border_style(theme.style("pane.border.focused"))
             .title(Line::styled(title, theme.style("pane.title")));
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
         let columns = usize::from(inner.width).saturating_sub(2);

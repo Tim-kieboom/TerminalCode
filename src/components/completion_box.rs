@@ -9,7 +9,7 @@ use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use ropey::Rope;
 use unicode_width::UnicodeWidthStr;
 
@@ -177,7 +177,7 @@ impl CompletionBox {
             .border_type(BorderType::Rounded)
             .border_style(theme.style("pane.border.focused"));
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
         let first = self.scroll.get().min(self.completion.len() - 1);
@@ -301,7 +301,7 @@ fn render_docs(
         block = block.title_bottom(Line::from(label).right_aligned());
     }
     let inner = block.inner(area);
-    frame.render_widget(Clear, area);
+    crate::ui::backdrop::clear(frame, theme, area);
     frame.render_widget(block, area);
     let body = Rect {
         x: inner.x + 1,

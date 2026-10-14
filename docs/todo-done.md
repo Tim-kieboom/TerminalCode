@@ -215,3 +215,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 ## JSONC files and command-line leftovers
 - [x] The JSON language server no longer flags comments and trailing commas in JSONC files: `language_id_of` (`src/lsp/language.rs`) sends `jsonc` for the settings file of the config folder (by full path) and `.vscode/*.json`, `tsconfig*.json`, `jsconfig.json`, `devcontainer.json` (by name), and a `language_ids` map in a `language_servers` entry (bare file name, wins over the built-ins) overrides them; no extra `didClose`/`didOpen`, because a change of `language_servers` restarts the servers. Documented in the README
 - [x] Command-line flags leftovers: the README documents `-h` / `--help`, `-v` / `--version` and `--`, and `Invocation` has parsing tests (`src/cli.rs`)
+
+## Background in boxes and the terminal pane
+- [x] The popup boxes and the terminal pane follow the theme's `[background]` (and `transparent`): a box starts from `ui::backdrop::clear` (wipe, then paint the background again) instead of a bare `Clear`, and the terminal pane no longer copies the default colors of the shell's cells over the painted background (`src/tests/background_tests.rs`: the editor, the palette, the finder, project search and the terminal pane checked cell by cell, solid and transparent)

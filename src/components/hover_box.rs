@@ -9,7 +9,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::diagnostic_popup::{place, wrap_text};
@@ -120,7 +120,7 @@ impl HoverBox {
             block = block.title_bottom(Line::from(label).right_aligned());
         }
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
         let body = Rect {
             x: inner.x + 1,

@@ -128,9 +128,13 @@ pub(super) fn draw_screen(buffer: &mut Buffer, area: Rect, screen: &vt100::Scree
 }
 
 fn style_of(cell: &vt100::Cell) -> Style {
-    let mut style = Style::default()
-        .fg(color_of(cell.fgcolor()))
-        .bg(color_of(cell.bgcolor()));
+    // A default color is not copied: the cell keeps what the screen was painted
+    // with, so a default background shows the theme background, not the terminal's.
+    let mut style = Style {
+        fg: color_of(cell.fgcolor()),
+        bg: color_of(cell.bgcolor()),
+        ..Style::default()
+    };
     for (on, modifier) in [
         (cell.bold(), Modifier::BOLD),
         (cell.dim(), Modifier::DIM),
@@ -145,11 +149,11 @@ fn style_of(cell: &vt100::Cell) -> Style {
     style
 }
 
-fn color_of(color: vt100::Color) -> Color {
+fn color_of(color: vt100::Color) -> Option<Color> {
     match color {
-        vt100::Color::Default => Color::Reset,
-        vt100::Color::Idx(index) => Color::Indexed(index),
-        vt100::Color::Rgb(r, g, b) => Color::Rgb(r, g, b),
+        vt100::Color::Default => None,
+        vt100::Color::Idx(index) => Some(Color::Indexed(index)),
+        vt100::Color::Rgb(r, g, b) => Some(Color::Rgb(r, g, b)),
     }
 }
 

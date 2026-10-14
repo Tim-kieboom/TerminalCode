@@ -397,6 +397,10 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   not answer, the tint color is used as is. A blend needs a hex color, since a named ANSI color has no known RGB.
 - Painting is one `Block` over the whole frame at the start of every draw (`components::paint_background`); slots with
   their own `background` (selection, tabs, status bar) draw over it.
+- A box drawn over the text (palette, finder, search, menus, prompts, completion, hover, notifications) starts from
+  `ui::backdrop::clear`: it wipes the area and paints the same background again; a plain `Clear` would leave the
+  terminal's default there. The terminal pane copies only the colors a program set: a cell with the default
+  background keeps the painted one, so the shell's default looks like the theme.
 - `blend = "terminal"` (the default) paints a solid blended color, so the terminal's translucency and blur do not show
   in those cells: terminals only make their *default* background translucent. `blend = "none"` paints the exact
   color instead, for terminals that can make one exact color translucent (kitty 0.39+:

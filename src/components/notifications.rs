@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::theme::Theme;
@@ -205,7 +205,7 @@ impl Notifications {
                 height: 1,
             };
             let text = format!("[+{hidden} more]");
-            frame.render_widget(Clear, area);
+            crate::ui::backdrop::clear(frame, theme, area);
             frame.render_widget(
                 Paragraph::new(text)
                     .alignment(Alignment::Right)
@@ -258,7 +258,7 @@ fn draw_one(frame: &mut Frame, theme: &Theme, level: Level, lines: Vec<String>, 
         block = block.title(Line::styled(title, theme.style(slot)));
     }
     let inner = block.inner(area);
-    frame.render_widget(Clear, area);
+    crate::ui::backdrop::clear(frame, theme, area);
     frame.render_widget(block, area);
 
     let padded = Rect {

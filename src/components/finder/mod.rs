@@ -12,7 +12,7 @@ use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use crate::ui::fuzzy::Query;
@@ -366,7 +366,7 @@ impl Finder {
             .border_style(theme.style("pane.border.focused"))
             .title(Line::styled(" Go to File ", theme.style("pane.title")));
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
         if inner.height < 2 {
             return;

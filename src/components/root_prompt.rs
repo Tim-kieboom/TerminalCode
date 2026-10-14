@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use crate::components::workspace::DocumentId;
 use crate::rootsave::Secret;
@@ -135,7 +135,7 @@ impl RootPrompt {
             .border_style(theme.style("pane.border.focused"))
             .title(Line::styled(" Save as root ", theme.style("pane.title")));
         let inner = block.inner(area);
-        frame.render_widget(Clear, area);
+        crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
         let stars = "*".repeat(self.password.chars());
