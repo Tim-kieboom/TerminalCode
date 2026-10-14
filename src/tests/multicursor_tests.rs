@@ -1,7 +1,9 @@
 //! Several cursors through the keymap: adding one, typing at all of them,
 //! going back to one, and how they are drawn.
 
-use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    Event as InputEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
@@ -143,4 +145,51 @@ fn a_selection_is_drawn_for_every_cursor() {
         .filter(|cell| cell.bg == selection.bg.unwrap())
         .count();
     assert_eq!(selected, 2, "one cell on each of the two lines");
+}
+
+fn mouse_at(app: &mut App, kind: MouseEventKind, column: u16, row: u16, modifiers: KeyModifiers) {
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers,
+    }));
+}
+
+#[test]
+fn an_alt_click_adds_a_cursor_that_typing_reaches_and_a_plain_click_removes() {
+    let mut app = app("abc\ndef");
+    let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
+    terminal
+        .draw(|frame| prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    let area = app.state().editor().text_area().unwrap();
+
+    mouse_at(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        area.x + 1,
+        area.y,
+        KeyModifiers::NONE,
+    );
+    mouse_at(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        area.x + 2,
+        area.y + 1,
+        KeyModifiers::ALT,
+    );
+    type_str(&mut app, "-");
+
+    assert_eq!(text(&app), "a-bc\nde-f");
+    assert_eq!(cursors(&app), 2);
+
+    mouse_at(
+        &mut app,
+        MouseEventKind::Down(MouseButton::Left),
+        area.x,
+        area.y,
+        KeyModifiers::NONE,
+    );
+    assert_eq!(cursors(&app), 1);
 }

@@ -56,7 +56,7 @@ impl Editor {
         Ok(())
     }
 
-    #[allow(dead_code, reason = "alt+click uses it in the next step")]
+    #[cfg(test)]
     /// Adds a cursor at `position`, or the nearest place that exists, and makes
     /// it the primary one.
     pub(crate) fn add_cursor(&mut self, position: Position) {

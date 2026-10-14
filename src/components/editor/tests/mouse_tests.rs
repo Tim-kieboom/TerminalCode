@@ -359,3 +359,77 @@ fn a_frame_after_wheel_scrolling_does_not_snap_back_to_the_cursor() {
     let screen = terminal.backend().to_string();
     assert!(screen.contains("line 30"), "screen:\n{screen}");
 }
+
+fn alt_click(editor: &mut Editor, col: u16, row: u16) {
+    let (x, y) = cell(col, row);
+    editor.mouse_add_cursor(x, y, Clicks::Single).unwrap();
+}
+
+#[test]
+fn an_alt_click_adds_a_cursor_and_makes_it_primary() {
+    let mut editor = editor("hello\nworld");
+    click(&mut editor, 1, 0);
+
+    alt_click(&mut editor, 3, 1);
+
+    assert_eq!(editor.selections().len(), 2);
+    assert_eq!(head(&editor), Position::new(1, 3));
+}
+
+#[test]
+fn an_alt_drag_adds_a_selection_and_keeps_the_others() {
+    let mut editor = editor("hello\nworld");
+    click(&mut editor, 1, 0);
+
+    alt_click(&mut editor, 0, 1);
+    let (x, y) = cell(3, 1);
+    editor.mouse_drag(x, y).unwrap();
+    let (x, y) = cell(4, 1);
+    editor.mouse_drag(x, y).unwrap();
+    editor.mouse_release();
+
+    assert_eq!(
+        editor.selections().len(),
+        2,
+        "no cursor is added per drag step"
+    );
+    assert_eq!(
+        selected(&editor),
+        (Position::new(1, 0), Position::new(1, 4))
+    );
+}
+
+#[test]
+fn an_alt_double_click_adds_the_word() {
+    let mut editor = editor("one two");
+    let (x, y) = cell(5, 0);
+
+    editor.mouse_add_cursor(x, y, Clicks::Double).unwrap();
+
+    assert_eq!(editor.selections().len(), 2);
+    assert_eq!(
+        selected(&editor),
+        (Position::new(0, 4), Position::new(0, 7))
+    );
+}
+
+#[test]
+fn a_plain_click_goes_back_to_one_cursor() {
+    let mut editor = editor("hello\nworld");
+    alt_click(&mut editor, 3, 1);
+    alt_click(&mut editor, 2, 0);
+
+    click(&mut editor, 4, 1);
+
+    assert_eq!(editor.selections().len(), 1);
+    assert_eq!(head(&editor), Position::new(1, 4));
+}
+
+#[test]
+fn an_alt_click_outside_the_text_adds_nothing() {
+    let mut editor = editor("hello");
+
+    editor.mouse_add_cursor(2, 1, Clicks::Single).unwrap();
+
+    assert_eq!(editor.selections().len(), 1);
+}

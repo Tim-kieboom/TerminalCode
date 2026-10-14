@@ -51,6 +51,7 @@ impl Editor {
         clicks: Clicks,
     ) -> Result<(), BufferError> {
         self.view.drag_anchor = None;
+        self.view.drag_base = None;
         self.view.drag_lines = None;
         if let Some(line) = self.gutter_line_at(column, row) {
             return self.press_line_number(line, extend);
@@ -70,6 +71,35 @@ impl Editor {
         };
         self.view.drag_anchor = Some(selection.anchor());
         self.view.selections = Selections::single(selection);
+        Ok(())
+    }
+
+    /// A left button press with `alt`: adds a cursor at the cell (a double click
+    /// adds the word, a triple click the line), and a drag from there adds a
+    /// selection. A press outside the text does nothing.
+    pub(crate) fn mouse_add_cursor(
+        &mut self,
+        column: u16,
+        row: u16,
+        clicks: Clicks,
+    ) -> Result<(), BufferError> {
+        self.view.drag_anchor = None;
+        self.view.drag_base = None;
+        self.view.drag_lines = None;
+        let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
+            return Ok(());
+        };
+
+        self.view.last_edit = None;
+        let added = match clicks {
+            Clicks::Single => Selection::cursor(position),
+            Clicks::Double => self.word_at(position)?,
+            Clicks::Triple => self.line_at(position.line)?,
+        };
+        let base = self.view.selections.clone();
+        self.view.selections = base.with_added(added);
+        self.view.drag_anchor = Some(added.anchor());
+        self.view.drag_base = Some(base);
         Ok(())
     }
 
@@ -108,7 +138,11 @@ impl Editor {
         let Some(position) = self.position_at(column, row, Outside::Clamp)? else {
             return Ok(());
         };
-        self.view.selections = Selections::single(Selection::new(anchor, position));
+        let dragged = Selection::new(anchor, position);
+        self.view.selections = match &self.view.drag_base {
+            Some(base) => base.with_added(dragged),
+            None => Selections::single(dragged),
+        };
         Ok(())
     }
 
@@ -129,6 +163,7 @@ impl Editor {
 
     pub(crate) fn mouse_release(&mut self) {
         self.view.drag_anchor = None;
+        self.view.drag_base = None;
         self.view.drag_lines = None;
     }
 

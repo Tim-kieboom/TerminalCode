@@ -214,7 +214,10 @@ impl App {
         let result = match event.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 let clicks = self.mouse.register_click(Instant::now(), column, row);
-                workspace.mouse_press(column, row, extend, clicks)
+                match adds_cursor(event.modifiers) {
+                    true => workspace.mouse_press_adding(column, row, clicks),
+                    false => workspace.mouse_press(column, row, extend, clicks),
+                }
             }
             MouseEventKind::Drag(MouseButton::Left) => {
                 workspace.with_editor(|editor| editor.mouse_drag(column, row))
@@ -274,3 +277,9 @@ impl App {
 
 #[cfg(test)]
 mod tests;
+
+/// Whether a left press with these modifiers adds a cursor: `alt` alone.
+fn adds_cursor(modifiers: KeyModifiers) -> bool {
+    modifiers.contains(KeyModifiers::ALT)
+        && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+}

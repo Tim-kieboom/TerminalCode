@@ -733,6 +733,30 @@ impl Workspace {
         extend: bool,
         clicks: Clicks,
     ) -> Result<(), crate::buffer::BufferError> {
+        self.press_with(column, row, |editor| {
+            editor.mouse_press(column, row, extend, clicks)
+        })
+    }
+
+    /// Like [`Workspace::mouse_press`], but a press on the text adds a cursor
+    /// there instead of moving the one there is.
+    pub(crate) fn mouse_press_adding(
+        &mut self,
+        column: u16,
+        row: u16,
+        clicks: Clicks,
+    ) -> Result<(), crate::buffer::BufferError> {
+        self.press_with(column, row, |editor| {
+            editor.mouse_add_cursor(column, row, clicks)
+        })
+    }
+
+    fn press_with(
+        &mut self,
+        column: u16,
+        row: u16,
+        on_text: impl FnOnce(&mut Editor) -> Result<(), crate::buffer::BufferError>,
+    ) -> Result<(), crate::buffer::BufferError> {
         let Some(index) = self.pane_at(column, row) else {
             return Ok(());
         };
@@ -754,9 +778,7 @@ impl Workspace {
         if !contains(pane.editor_area, column, row) {
             return Ok(());
         }
-        self.with_editor_in(index, |editor| {
-            editor.mouse_press(column, row, extend, clicks)
-        })
+        self.with_editor_in(index, on_text)
     }
 
     /// A right button press: focuses the pane under the pointer and, if that is

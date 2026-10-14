@@ -87,7 +87,9 @@ used `anyhow` everywhere instead of typed errors.
   leaves one cursor, because it replaces the selection list with a single one. A line break with several cursors only
   copies the indentation (no smart indent after a bracket), and a closing bracket does not dedent. The primary cursor is
   the terminal's own cursor; the others are blocks in the `cursor.extra` theme slot (swapped colours when a theme has
-  none), and every selection is highlighted.
+  none), and every selection is highlighted. `alt+click` adds a cursor (the word on a double click, the line on a
+  triple click) and `alt+drag` a selection (`ViewState::drag_base` holds the selections it is added to); a plain click
+  puts the selection list back to one.
 - **Known limit:** grapheme-index to byte conversion is O(line length); extremely long single-line files
   will be slow.
 

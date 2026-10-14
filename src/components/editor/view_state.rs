@@ -16,6 +16,8 @@ pub(crate) struct ViewState {
     /// Where the line numbers are, left of the text.
     pub(super) gutter: Option<Rect>,
     pub(super) drag_anchor: Option<Position>,
+    /// The selections a drag that started with `alt` adds its selection to.
+    pub(super) drag_base: Option<Selections>,
     /// The line a drag that started on a line number began on.
     pub(super) drag_lines: Option<usize>,
     pub(super) seen_view: Option<(Position, u64, Rect)>,
@@ -74,6 +76,7 @@ impl ViewState {
             text_area: None,
             gutter: None,
             drag_anchor: None,
+            drag_base: None,
             drag_lines: None,
             seen_view: None,
             last_edit: None,
@@ -89,6 +92,7 @@ impl ViewState {
         self.selections = selections;
         self.last_edit = None;
         self.drag_anchor = None;
+        self.drag_base = None;
         if let Some((_, _, area)) = self.seen_view {
             let head = self.selections.primary().head();
             self.seen_view = Some((head, version, area));
