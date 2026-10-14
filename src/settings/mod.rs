@@ -29,8 +29,9 @@ const SEQUENCE_TIMEOUT_RANGE: std::ops::RangeInclusive<usize> = 200..=5000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Settings {
-    /// The theme to start with: a built-in theme or an installed one, by name.
-    pub(crate) theme: String,
+    /// The theme to start with: an installed one, by name (a file in the themes
+    /// folder). `None` is the fallback theme, which is not listed anywhere.
+    pub(crate) theme: Option<String>,
     /// The program the terminal pane runs; `None` is the user's own shell
     /// (`$SHELL`, or the platform's). New terminal tabs use it.
     pub(crate) shell: Option<String>,
@@ -63,7 +64,7 @@ pub(crate) struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            theme: "dark".to_owned(),
+            theme: None,
             shell: None,
             mouse: true,
             tab_size: TabWidth::default(),
@@ -142,7 +143,10 @@ impl Settings {
 
         let defaults = Self::default();
         let settings = Self {
-            theme: take(&mut map, "theme")?.unwrap_or(defaults.theme),
+            theme: take::<Option<String>>(&mut map, "theme")?
+                .flatten()
+                .map(|name| name.trim().to_owned())
+                .filter(|name| !name.is_empty()),
             shell: take::<Option<String>>(&mut map, "shell")?
                 .flatten()
                 .map(|shell| shell.trim().to_owned())

@@ -38,7 +38,7 @@ pub(crate) fn load_user_config(
     report(loaded.warning);
     let settings = loaded.settings.unwrap_or_default();
 
-    let (theme, warning) = config::startup_theme(&settings.theme, config_dir);
+    let (theme, warning) = config::startup_theme(settings.theme.as_deref(), config_dir);
     report(warning);
     let loaded_theme = config::load_chosen_theme(&theme, config_dir);
     report(loaded_theme.warning);

@@ -1,10 +1,12 @@
 // TerminalCode settings. Comments and trailing commas are allowed.
 // This file is read at startup and again whenever it is saved.
 {
-    // The theme to start with: "dark", "light", "soldark", "sollight", or the
-    // name of a file in the themes folder (without .toml). Choosing a theme from
-    // the command palette lasts for the run only; set it here to keep it.
-    "theme": "dark",
+    // The theme to start with: the name of a file in the themes folder (without
+    // .toml). null is the built-in fallback, which is not a theme you can choose.
+    // The built-in Dark, Light, SolDark and SolLight are templates: "Theme: New..."
+    // in the command palette makes a theme from one, and chooses it. Choosing a
+    // theme from the palette lasts for the run only; set it here to keep it.
+    "theme": null,
 
     // The program the terminal pane runs, for example "fish" or "/bin/zsh".
     // null is your own shell ($SHELL, or cmd.exe on Windows). A change applies

@@ -23,7 +23,9 @@ pub(crate) enum ConfigWarning {
     NoSuchSettings { path: PathBuf, names: Vec<String> },
     #[error("{}: set more than once, the last one counts: {}", path.display(), names.join(", "))]
     RepeatedSettings { path: PathBuf, names: Vec<String> },
-    #[error("settings.json: no theme called \"{0}\"")]
+    #[error(
+        "settings.json: no theme called \"{0}\" in the themes folder; using the built-in fallback (the built-in themes are templates for Theme: New...)"
+    )]
     NoSuchTheme(String),
     #[error("{}", join(.0))]
     Several(Vec<ConfigWarning>),

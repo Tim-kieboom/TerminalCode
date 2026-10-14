@@ -7,7 +7,6 @@ use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::error::IdeResult;
 use crate::pty::Shell;
 use crate::settings::Settings;
-use crate::ui::theme::ThemeVariant;
 
 use super::App;
 use crate::components::name_prompt::NamePrompt;
@@ -81,39 +80,31 @@ impl App {
 const KEEP_HINT: &str = " (this run only; set \"theme\" in settings.json to keep it)";
 
 impl App {
-    /// Opens the file of the theme in use in the themes folder, making the folder
-    /// and, for a built-in theme or an installed one whose file is gone, the file.
+    /// Opens the file of the theme in use. With none chosen (the fallback is in
+    /// use) there is no file, and it says how to make a theme.
     fn open_theme_in_use(&mut self) -> IdeResult {
         let Some(dir) = self.config_dir.clone() else {
             return Ok(());
         };
-        let variant = self.theme_choice.variant;
-        let name = self.theme_choice.name().to_owned();
+        let Some(name) = self.theme_choice.installed.clone() else {
+            self.state.notify(
+                "no theme is chosen, the built-in fallback is in use; \"Theme: New...\" makes one from a template",
+            );
+            return Ok(());
+        };
         let Some(path) = config::installed_theme_path(&dir, &name) else {
             self.state
                 .notify_error(format!("{name} is not a usable theme name"));
             return Ok(());
         };
-        let created = match ConfigFile::Theme.create_with(&path, variant.source()) {
-            Ok(created) => created,
-            Err(error) => {
-                self.show_defaults_copy(&path, variant.source(), &error);
-                return Ok(());
-            }
-        };
-        if self.theme_choice.installed.as_deref() != Some(name.as_str()) {
-            // The file is the theme in use from now on, so editing it shows.
-            self.theme_choice = ThemeChoice::installed(name);
-            self.apply_chosen_theme("");
+        if !path.exists() {
+            self.state.notify_error(format!(
+                "{}: the theme file is gone; \"Theme: New...\" makes a new one",
+                path.display()
+            ));
+            return Ok(());
         }
         self.state.workspace_mut().open_path(&path)?;
-        if created {
-            self.state.notify(format!(
-                "made {} from the built-in {} theme and chose it; changes apply when it is saved",
-                path.display(),
-                variant.name()
-            ));
-        }
         Ok(())
     }
 }
@@ -178,12 +169,15 @@ impl App {
     fn apply_settings(&mut self, mut settings: Settings) -> Option<ConfigWarning> {
         let mut warning = None;
         if settings.theme != self.settings.theme {
-            match config::resolve_theme(&settings.theme, self.config_dir.as_deref()) {
-                Some(choice) => self.theme_choice = choice,
-                None => {
-                    warning = Some(ConfigWarning::NoSuchTheme(settings.theme));
-                    settings.theme = self.settings.theme.clone();
-                }
+            match settings.theme.clone() {
+                None => self.theme_choice = ThemeChoice::default(),
+                Some(name) => match config::resolve_theme(&name, self.config_dir.as_deref()) {
+                    Some(choice) => self.theme_choice = choice,
+                    None => {
+                        warning = Some(ConfigWarning::NoSuchTheme(name));
+                        settings.theme = self.settings.theme.clone();
+                    }
+                },
             }
         }
         let before = std::mem::replace(&mut self.settings, settings);
@@ -223,13 +217,6 @@ impl App {
             self.state.workspace_mut().set_indent_prefs(prefs);
             self.needs_redraw = true;
         }
-    }
-
-    /// Switches to a built-in theme, with the user's theme file laid over it,
-    /// and keeps it across reloads. The choice is not saved for the next start.
-    pub(super) fn use_theme(&mut self, variant: ThemeVariant) {
-        self.theme_choice = ThemeChoice::built_in(variant);
-        self.apply_chosen_theme(KEEP_HINT);
     }
 
     /// Switches to the installed theme `name` (a file in the themes folder),

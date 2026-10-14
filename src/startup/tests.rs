@@ -24,6 +24,12 @@ fn load(dir: Option<&Path>) -> (AppState, UserConfig) {
     (state, user)
 }
 
+/// A theme the user made from the Light template.
+fn install_light(dir: &Path) {
+    fs::create_dir_all(dir.join("themes")).unwrap();
+    fs::write(dir.join("themes/light.toml"), ThemeVariant::Light.source()).unwrap();
+}
+
 fn errors(state: &AppState) -> Vec<String> {
     state
         .notifications()
@@ -60,11 +66,12 @@ fn an_empty_config_folder_says_nothing_either() {
 #[test]
 fn the_theme_the_settings_name_is_put_in_the_state_and_returned() {
     let dir = temp();
+    install_light(dir.path());
     write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
 
     let (state, user) = load(Some(dir.path()));
 
-    assert_eq!(user.theme, ThemeChoice::built_in(ThemeVariant::Light));
+    assert_eq!(user.theme, ThemeChoice::installed("light"));
     assert_eq!(*state.theme(), Theme::built_in(ThemeVariant::Light));
     assert!(errors(&state).is_empty());
 }
@@ -117,6 +124,7 @@ fn an_invalid_settings_file_gives_the_defaults_and_an_error() {
 #[test]
 fn an_unknown_setting_is_an_error_but_the_rest_of_the_file_applies() {
     let dir = temp();
+    install_light(dir.path());
     write(
         dir.path(),
         "settings.json",
@@ -125,13 +133,14 @@ fn an_unknown_setting_is_an_error_but_the_rest_of_the_file_applies() {
 
     let (state, user) = load(Some(dir.path()));
 
-    assert_eq!(user.theme, ThemeChoice::built_in(ThemeVariant::Light));
+    assert_eq!(user.theme, ThemeChoice::installed("light"));
     assert!(has_error(&state, "no such setting: colour"));
 }
 
 #[test]
 fn a_broken_keymap_is_an_error_and_the_other_files_still_apply() {
     let dir = temp();
+    install_light(dir.path());
     write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
     write(dir.path(), "keymap.toml", "this is not a keymap");
 
@@ -162,6 +171,7 @@ fn a_broken_layout_is_an_error() {
 #[test]
 fn a_broken_theme_file_is_an_error_and_the_chosen_theme_stands() {
     let dir = temp();
+    install_light(dir.path());
     write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
     write(dir.path(), "theme.toml", "[palette\n");
 
@@ -292,4 +302,52 @@ fn a_layout_field_with_the_wrong_type_is_a_layout_error() {
     let (state, _) = load(Some(dir.path()));
 
     assert!(has_error(&state, "layout"), "{:?}", errors(&state));
+}
+
+// ---- the built-in themes are templates, not themes to choose
+
+#[test]
+fn no_theme_setting_is_the_fallback_without_a_warning() {
+    let dir = temp();
+    write(dir.path(), "settings.json", "{ \"theme\": null }");
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.theme, ThemeChoice::default());
+    assert_eq!(*state.theme(), Theme::default());
+    assert!(errors(&state).is_empty(), "{:?}", errors(&state));
+}
+
+#[test]
+fn an_old_built_in_theme_name_with_no_theme_of_that_name_warns_and_uses_the_fallback() {
+    for name in ["dark", "light", "soldark", "sollight"] {
+        let dir = temp();
+        write(
+            dir.path(),
+            "settings.json",
+            &format!("{{ \"theme\": \"{name}\" }}"),
+        );
+
+        let (state, user) = load(Some(dir.path()));
+
+        assert_eq!(user.theme, ThemeChoice::default(), "{name}");
+        assert!(
+            has_error(&state, &format!("no theme called \"{name}\"")),
+            "{name}"
+        );
+        assert!(has_error(&state, "Theme: New"), "{name}");
+        assert_eq!(*state.theme(), Theme::default(), "{name}");
+    }
+}
+
+#[test]
+fn a_theme_the_user_made_from_a_template_is_chosen_by_name() {
+    let dir = temp();
+    install_light(dir.path());
+    write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.theme, ThemeChoice::installed("light"));
+    assert!(errors(&state).is_empty());
 }

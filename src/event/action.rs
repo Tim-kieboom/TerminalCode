@@ -4,7 +4,6 @@ use crate::components::editor::Motion;
 use crate::components::explorer::ExplorerCommand;
 use crate::components::workspace::FocusDirection;
 use crate::config::ConfigFile;
-use crate::ui::theme::ThemeVariant;
 
 /// Everything a key, menu or plugin can ask the editor to do. Keymaps bind
 /// keys to these, and the command palette lists them.
@@ -76,11 +75,9 @@ pub(crate) enum Action {
     RevealActiveFile,
     /// Reads the theme, layout and keymap files again and applies them.
     Reload,
-    /// Switches to a built-in theme (the user's theme file stays laid over it).
-    UseTheme(ThemeVariant),
     /// Switches to the installed theme with this name (a file in the themes folder).
     UseInstalledTheme(Box<str>),
-    /// Lists the built-in and installed themes to choose from.
+    /// Lists the installed themes to choose from.
     ChooseTheme,
     /// Asks which theme to start from, then for a name, and makes the new theme.
     NewTheme,
@@ -197,7 +194,6 @@ impl Action {
                 | Self::MoveEntry
                 | Self::OpenConfig(_)
                 | Self::Reload
-                | Self::UseTheme(_)
                 | Self::UseInstalledTheme(_)
                 | Self::ChooseTheme
                 | Self::NewTheme
@@ -273,10 +269,6 @@ impl Action {
             Self::ResetConfig(ConfigFile::Settings) => "Config: Reset Settings to Default",
             Self::ResetSavedState => "Config: Forget Hidden and Shown Panes",
             Self::Reload => "Config: Reload",
-            Self::UseTheme(ThemeVariant::Dark) => "Theme: Dark",
-            Self::UseTheme(ThemeVariant::Light) => "Theme: Light",
-            Self::UseTheme(ThemeVariant::SolDark) => "Theme: SolDark",
-            Self::UseTheme(ThemeVariant::SolLight) => "Theme: SolLight",
             Self::ChooseTheme => "Theme: Choose...",
             Self::NewTheme => "Theme: New...",
             Self::NewThemeFrom(_) => return None,
@@ -375,10 +367,6 @@ impl Action {
             Self::Reload,
             Self::ChooseTheme,
             Self::NewTheme,
-            Self::UseTheme(ThemeVariant::Dark),
-            Self::UseTheme(ThemeVariant::Light),
-            Self::UseTheme(ThemeVariant::SolDark),
-            Self::UseTheme(ThemeVariant::SolLight),
             Self::Save,
             Self::SaveAll,
             Self::CloseOtherTabs,

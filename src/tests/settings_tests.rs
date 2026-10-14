@@ -48,8 +48,17 @@ fn app_in(dir: &Path) -> App {
     App::default().with_config_dir(Some(dir.to_path_buf()))
 }
 
+fn install_templates(dir: &Path) {
+    for variant in ThemeVariant::ALL {
+        install(dir, variant.name(), variant.source());
+    }
+}
+
 /// An app started the way `run` starts one, with the settings file in `dir`.
+/// The user has made a theme from each template, named after it: the built-in themes
+/// are only templates, so the tests that need a theme to choose install these.
 fn started_with(dir: &Path, settings_text: &str) -> App {
+    install_templates(dir);
     write(dir, "settings.json", settings_text);
     let mut state = AppState::default();
     let user = startup::load_user_config(&mut state, Some(dir), KeyboardSupport::Enhanced);
@@ -139,7 +148,10 @@ fn an_unknown_setting_is_reported_and_the_rest_applies() {
     let loaded = config::load_settings(Some(&dir.path().join("settings.json")));
 
     assert_eq!(
-        loaded.settings.map(|settings| settings.theme).as_deref(),
+        loaded
+            .settings
+            .and_then(|settings| settings.theme)
+            .as_deref(),
         Some("light")
     );
     let warning = loaded.warning.map(|warning| warning.to_string());
@@ -161,7 +173,10 @@ fn a_setting_set_twice_is_reported_and_the_last_applies() {
     let loaded = config::load_settings(Some(&dir.path().join("settings.json")));
 
     assert_eq!(
-        loaded.settings.map(|settings| settings.theme).as_deref(),
+        loaded
+            .settings
+            .and_then(|settings| settings.theme)
+            .as_deref(),
         Some("soldark")
     );
     let warning = loaded.warning.map(|warning| warning.to_string());
@@ -193,11 +208,14 @@ fn an_unknown_and_a_repeated_setting_are_both_reported() {
 // ---- the theme setting
 
 #[test]
-fn a_built_in_theme_is_found_by_name_or_title_in_any_case() {
-    for name in ["soldark", "SolDark", "SOLDARK"] {
+fn a_built_in_theme_is_only_a_template_and_is_not_found_by_name() {
+    let dir = temp();
+
+    for name in ["dark", "light", "soldark", "SolDark", "sollight"] {
+        assert_eq!(config::resolve_theme(name, None), None, "{name}");
         assert_eq!(
-            config::resolve_theme(name, None),
-            Some(ThemeChoice::built_in(ThemeVariant::SolDark)),
+            config::resolve_theme(name, Some(dir.path())),
+            None,
             "{name}"
         );
     }
@@ -215,7 +233,7 @@ fn an_installed_theme_is_found_by_name() {
 }
 
 #[test]
-fn an_installed_theme_wins_over_a_built_in_one_of_the_same_name() {
+fn an_installed_theme_may_have_the_name_of_a_template() {
     let dir = temp();
     install(dir.path(), "dark", "");
 
@@ -237,12 +255,12 @@ fn a_name_that_is_no_theme_finds_nothing() {
 fn a_theme_choice_names_itself_and_finds_its_file() {
     let dir = temp();
 
-    let built_in = ThemeChoice::built_in(ThemeVariant::Light);
+    let fallback = ThemeChoice::default();
     let installed = ThemeChoice::installed("mine");
 
-    assert_eq!(built_in.name(), "light");
+    assert_eq!(fallback.name(), "default");
     assert_eq!(installed.name(), "mine");
-    assert_eq!(built_in.installed_path(Some(dir.path())), None);
+    assert_eq!(fallback.installed_path(Some(dir.path())), None);
     assert_eq!(
         installed.installed_path(Some(dir.path())),
         Some(dir.path().join("themes").join("mine.toml"))
@@ -275,6 +293,7 @@ fn a_reload_that_leaves_the_setting_alone_keeps_the_started_theme() {
 #[test]
 fn saving_the_settings_file_applies_its_theme() {
     let dir = temp();
+    install_templates(dir.path());
     let mut app = app_in(dir.path());
     write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
 
@@ -414,7 +433,9 @@ fn open_settings_opens_an_existing_file_as_it_is() {
 
 #[test]
 fn choosing_a_theme_says_it_lasts_for_this_run_and_how_to_keep_it() {
-    let mut app = App::default();
+    let dir = temp();
+    install_templates(dir.path());
+    let mut app = app_in(dir.path());
 
     run_from_palette(&mut app, "Theme: Light");
 

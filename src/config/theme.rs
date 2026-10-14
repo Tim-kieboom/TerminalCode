@@ -11,33 +11,25 @@ pub(crate) struct LoadedTheme {
     pub(crate) warning: Option<ConfigWarning>,
 }
 
-/// Which theme is in use: a built-in one, or an installed one by name (the
-/// built-in `variant` is then only a placeholder, as the dark theme is the
-/// floor under every installed theme).
+/// Which theme is in use: an installed one by name, or none, which is the
+/// fallback (the built-in dark theme, never listed). The built-in themes are
+/// only templates for new themes; the fallback is also the floor under every
+/// installed theme.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct ThemeChoice {
-    pub(crate) variant: ThemeVariant,
     pub(crate) installed: Option<String>,
 }
 
 impl ThemeChoice {
-    pub(crate) fn built_in(variant: ThemeVariant) -> Self {
-        Self {
-            variant,
-            installed: None,
-        }
-    }
-
     pub(crate) fn installed(name: impl Into<String>) -> Self {
         Self {
-            variant: ThemeVariant::default(),
             installed: Some(name.into()),
         }
     }
 
-    /// The name for messages: the installed theme's, else the built-in one's.
+    /// The name for messages: the installed theme's, else "default".
     pub(crate) fn name(&self) -> &str {
-        self.installed.as_deref().unwrap_or(self.variant.name())
+        self.installed.as_deref().unwrap_or("default")
     }
 
     /// The file of the installed theme, if one is in use.
@@ -46,33 +38,27 @@ impl ThemeChoice {
     }
 }
 
-/// The theme a `theme` setting names: the installed theme of that name, else
-/// the built-in one (by name or title, in any case). An installed theme comes
-/// first because "Config: Open Theme" keeps an edited copy of a built-in theme
-/// under its name. `None` when there is no such theme.
+/// The theme a `theme` setting names: the installed theme of that name, in the
+/// themes folder. `None` when there is no such theme; the built-in themes are
+/// not themes to choose, only templates.
 pub(crate) fn resolve_theme(name: &str, config_dir: Option<&Path>) -> Option<ThemeChoice> {
-    let installed = config_dir
+    config_dir
         .map(installed_themes)
         .unwrap_or_default()
         .into_iter()
-        .find(|installed| installed == name);
-    if let Some(installed) = installed {
-        return Some(ThemeChoice::installed(installed));
-    }
-    ThemeVariant::ALL
-        .into_iter()
-        .find(|variant| {
-            variant.name().eq_ignore_ascii_case(name) || variant.title().eq_ignore_ascii_case(name)
-        })
-        .map(ThemeChoice::built_in)
+        .find(|installed| installed == name)
+        .map(ThemeChoice::installed)
 }
 
-/// The theme to start with, from the `theme` setting. A name that is no theme
-/// gives the dark theme and a warning.
+/// The theme to start with, from the `theme` setting. No name is the fallback;
+/// a name that is no installed theme gives the fallback and a warning.
 pub(crate) fn startup_theme(
-    name: &str,
+    name: Option<&str>,
     config_dir: Option<&Path>,
 ) -> (ThemeChoice, Option<ConfigWarning>) {
+    let Some(name) = name else {
+        return (ThemeChoice::default(), None);
+    };
     match resolve_theme(name, config_dir) {
         Some(choice) => (choice, None),
         None => (
@@ -82,18 +68,19 @@ pub(crate) fn startup_theme(
     }
 }
 
-/// The built-in theme with the user's file laid over it (see
+/// The fallback (built-in dark) theme with the user's file laid over it (see
 /// [`Theme::layered`]). A missing file is normal; an unreadable or invalid one
 /// (a syntax error, a bad color, an unknown `@name`) is reported and the whole
 /// built-in theme is used, not a half-applied one. The built-in theme itself
 /// is not allowed to fail: it panics.
 #[cfg(test)]
 pub(crate) fn load_theme(user_file: Option<&Path>) -> LoadedTheme {
-    load_theme_for(ThemeVariant::Dark, user_file)
+    load_over_fallback(user_file)
 }
 
-/// Like [`load_theme`], over the built-in theme `variant` instead of the dark one.
-fn load_theme_for(variant: ThemeVariant, user_file: Option<&Path>) -> LoadedTheme {
+/// The fallback theme with the user's `theme.toml` over it, as [`load_theme`].
+fn load_over_fallback(user_file: Option<&Path>) -> LoadedTheme {
+    let variant = ThemeVariant::Dark;
     let fallback = |warning| LoadedTheme {
         theme: Theme::built_in(variant),
         warning,
@@ -152,7 +139,7 @@ pub(crate) fn installed_theme_path(config_dir: &Path, name: &str) -> Option<Path
 pub(crate) fn load_chosen_theme(choice: &ThemeChoice, config_dir: Option<&Path>) -> LoadedTheme {
     let user_file = config_dir.map(|dir| ConfigFile::Theme.path_in(dir));
     let Some(installed) = choice.installed_path(config_dir) else {
-        return load_theme_for(choice.variant, user_file.as_deref());
+        return load_over_fallback(user_file.as_deref());
     };
     let mut warnings = Vec::new();
     let mut layers = vec![ThemeVariant::Dark.source().to_owned()];

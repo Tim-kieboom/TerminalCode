@@ -225,3 +225,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] `hide_ignored`: the explorer leaves ignored entries out instead of dimming them (the file finder and project search already skip ignored files)
 - [x] What is hidden is remembered in `state.json` (one global file, written at every change through a temp file and a rename, one notification per run when writing fails); it wins over the new `hidden: true/false` field of a layout pane; a terminal that starts shown gets its shell at startup
 - [x] `Config: Reset ... to Default` for the settings, keymap, layout and theme files and `Config: Forget Hidden and Shown Panes`: asks first, keeps the old file as `NAME.bak` (an older backup is replaced), applies the default at once
+
+## Built-in themes are templates
+- [x] The built-in themes are only templates for `Theme: New...`; one hidden fallback (dark, called "default") stays under every theme file and is what `"theme": null` (the new default) shows. `Theme: Choose` and the `theme` setting know only `themes/*.toml`; an old `"theme": "dark"` with no such file warns once and uses the fallback; `Config: Open Theme` no longer makes `themes/dark.toml` (decisions in `design.md`)

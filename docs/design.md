@@ -233,9 +233,7 @@ used `anyhow` everywhere instead of typed errors.
   settings later.
 - `settings.json` first slice (built, `src/settings/`): `<config dir>/terminalcode/settings.json`, JSON with `//` and
   `/* */` comments and trailing commas (a small stripper turns them into spaces, so error line numbers match the file).
-  One setting so far, `theme` (a built-in theme by name or title in any case, or an installed theme by file name;
-  an installed theme wins on a name clash because `Config: Open Theme` keeps a copy of a built-in theme under its
-  name); the vim setting waits for the vim layer, which is after 0.1.0. Left-out settings keep their defaults. A setting with the
+  One setting so far, `theme` (the file name of an installed theme, or `null`; see "Built-in themes are templates"); the vim setting waits for the vim layer, which is after 0.1.0. Left-out settings keep their defaults. A setting with the
   wrong type makes the whole file unusable (reported with the setting's name, the defaults are used, and a reload keeps
   what is applied); a name that is not a setting, or is set twice (the last counts), is reported and the rest applies. `Config: Open Settings` makes the
   file from `defaults/settings.jsonc`. No project layer yet.
@@ -849,3 +847,16 @@ first `didOpen` of 10 MB takes about 17 ms (release build).
   search already leave ignored files out (they follow `.gitignore`), so the explorer is the only place that lists
   them; with `hide_ignored` on, an ignored file can only be opened by naming it on the command line or from a
   language server jump.
+
+## Built-in themes are templates (decided after a grill)
+- The four built-in themes (Dark, Light, SolDark, SolLight) are not themes to choose. They are templates for
+  `Theme: New...`, which copies one to `themes/NAME.toml`, chooses it and opens it. `Theme: Choose` and the `theme` setting
+  only know the files in `themes/`.
+- One built-in theme stays as a hidden fallback (the dark one, never listed, called "default" in messages): the floor under
+  every installed theme (a theme file may leave slots out), what the UI shows with no `theme` (`null`, the default) and what it
+  falls back to when a theme file is missing or broken. The `theme.toml` overlay still goes over whatever is chosen.
+- `"theme": "dark"` (or `light`, `soldark`, `sollight`) with no theme file of that name is an unknown theme like any other:
+  one warning at startup, naming the theme and `Theme: New...`, and the fallback. Nothing is written into the config folder
+  for the user and nothing guesses which template was meant.
+- `Config: Open Theme` opens the theme in use; with the fallback in use there is no file, so it says how to make a theme.
+  It no longer creates `themes/dark.toml`. Removed: the `Theme: Dark/Light/SolDark/SolLight` palette entries (`UseTheme`).

@@ -258,12 +258,12 @@ fn an_action_that_was_run_comes_first_next_time() {
 fn the_latest_comes_before_the_one_before() {
     let mut app = App::default();
     run(&mut app, "Toggle Status");
-    run(&mut app, "Theme: Light");
+    run(&mut app, "Tab: Previous");
 
     open(&mut app);
 
     let titles = titles(&app);
-    assert_eq!(&titles[..2], ["Theme: Light", "View: Toggle Status Bar"]);
+    assert_eq!(&titles[..2], ["Tab: Previous", "View: Toggle Status Bar"]);
 }
 
 #[test]
@@ -295,7 +295,7 @@ fn among_equal_matches_the_recent_one_wins() {
 #[test]
 fn a_better_match_still_beats_a_recent_one() {
     let mut app = App::default();
-    run(&mut app, "Theme: Light");
+    run(&mut app, "Tab: Previous");
 
     open(&mut app);
     type_str(&mut app, "quit");
@@ -307,20 +307,20 @@ fn a_better_match_still_beats_a_recent_one() {
 fn closing_the_palette_without_running_remembers_nothing() {
     let mut app = App::default();
     open(&mut app);
-    type_str(&mut app, "Theme: Light");
+    type_str(&mut app, "Tab: Previous");
     app.handle_input(press(KeyCode::Esc));
 
     open(&mut app);
 
-    assert_ne!(first_title(&app), "Theme: Light");
+    assert_ne!(first_title(&app), "Tab: Previous");
 }
 
 #[test]
 fn only_the_last_eight_actions_are_remembered() {
     let mut app = App::default();
     let queries = [
-        "Theme: Light",
-        "Theme: Dark",
+        "File: Save",
+        "Tab: Close Others",
         "Toggle Status",
         "Tab: Next",
         "Tab: Previous",
@@ -338,7 +338,7 @@ fn only_the_last_eight_actions_are_remembered() {
 
     let first_eight: Vec<String> = titles(&app).iter().take(8).map(|t| t.to_string()).collect();
     assert!(
-        !first_eight.contains(&"Theme: Light".to_owned()),
+        !first_eight.contains(&"File: Save".to_owned()),
         "{first_eight:?}"
     );
     assert!(
@@ -497,16 +497,15 @@ fn cell_of_nth(app: &mut App, text: &str, skip: usize) -> (u16, u16) {
 fn clicking_an_entry_runs_it() {
     let mut app = App::default();
     open(&mut app);
-    type_str(&mut app, "Theme: Light");
-    // The first is the query as typed; the entry is the second.
-    let at = cell_of_nth(&mut app, "Theme: Light", 1);
+    type_str(&mut app, "Toggle Status");
+    let at = cell_of_nth(&mut app, "View: Toggle Status Bar", 0);
 
     mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
 
     assert!(app.state().palette().is_none());
-    assert_eq!(
-        *app.state().theme(),
-        crate::ui::theme::Theme::built_in(crate::ui::theme::ThemeVariant::Light)
+    assert!(
+        !app.state()
+            .is_visible(&crate::components::ComponentKind::StatusBar)
     );
 }
 
@@ -514,27 +513,29 @@ fn clicking_an_entry_runs_it() {
 fn a_clicked_entry_is_remembered_too() {
     let mut app = App::default();
     open(&mut app);
-    type_str(&mut app, "Theme: Light");
-    // The first is the query as typed; the entry is the second.
-    let at = cell_of_nth(&mut app, "Theme: Light", 1);
+    type_str(&mut app, "Toggle Status");
+    let at = cell_of_nth(&mut app, "View: Toggle Status Bar", 0);
     mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
 
     open(&mut app);
 
-    assert_eq!(first_title(&app), "Theme: Light");
+    assert_eq!(first_title(&app), "View: Toggle Status Bar");
 }
 
 #[test]
 fn clicking_outside_the_palette_closes_it_and_runs_nothing() {
     let mut app = App::default();
     open(&mut app);
-    type_str(&mut app, "Theme: Light");
+    type_str(&mut app, "Toggle Status");
     let _ = draw(&mut app);
 
     mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (0, 29));
 
     assert!(app.state().palette().is_none());
-    assert_eq!(*app.state().theme(), crate::ui::theme::Theme::default());
+    assert!(
+        app.state()
+            .is_visible(&crate::components::ComponentKind::StatusBar)
+    );
 }
 
 #[test]

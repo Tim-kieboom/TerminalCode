@@ -277,7 +277,6 @@ impl App {
             Action::ResetConfig(file) => self.ask_to_reset_config(file),
             Action::ResetSavedState => self.ask_to_reset_saved_state(),
             Action::Reload => self.reload(),
-            Action::UseTheme(variant) => self.use_theme(variant),
             Action::UseInstalledTheme(name) => self.use_installed_theme(&name),
             Action::ChooseTheme => self.choose_theme(),
             Action::NewTheme => self.choose_theme_template(),

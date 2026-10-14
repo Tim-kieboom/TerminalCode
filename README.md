@@ -115,7 +115,7 @@ does the same for `state.json`.
 
   | Setting | Default | Meaning |
   |---|---|---|
-  | `theme` | `"dark"` | `"dark"`, `"light"`, `"soldark"`, `"sollight"`, or the name of a file in `themes/` |
+  | `theme` | `null` | The name of a file in `themes/` (without `.toml`). `null` is the built-in fallback theme, which is not listed as a theme to choose |
   | `shell` | `null` | The program the terminal runs; `null` is your own shell. Applies to new terminal tabs |
   | `mouse` | `true` | Whether the mouse is on at the start |
   | `tab_size` | `4` | Columns a tab character draws (1 to 16) and columns of one level of space indentation |
@@ -141,7 +141,9 @@ does the same for `state.json`.
   A pane can say `hidden: true` to start hidden. What you hide or show while working is remembered in `state.json` in the same
   folder, written at every change, and wins over the layout at the next start; delete that file to go back to the layout.
 - **`themes/NAME.toml`** is a theme: a palette of colors and the style of every part of the screen. Choose one with
-  `"theme": "NAME"`, or make a new one from a built-in theme with `Theme: New from ...` in the palette.
+  `"theme": "NAME"`. The built-in Dark, Light, SolDark and SolLight are only templates: `Theme: New...` in the palette
+  makes a theme from one, names it, chooses it and opens it. A built-in theme still stands behind every theme file and
+  is the fallback when `theme` is `null`; an old `"theme": "dark"` with no `themes/dark.toml` gives one warning and the fallback.
 
 ## Known limits
 
