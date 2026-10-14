@@ -80,6 +80,10 @@ impl From<Axis> for Direction {
 pub(crate) struct PaneSpec {
     pub(super) view: ComponentKind,
     pub(super) frame: FrameSpec,
+    /// Whether the component starts hidden (`hidden: true`) or shown
+    /// (`hidden: false`), when it is not remembered from the last run. Left
+    /// out, a component starts the way it always did.
+    pub(super) hidden: Option<bool>,
 }
 
 /// The fields of a `Pane(..)` as the file spells them, flat. They are read here
@@ -89,6 +93,7 @@ pub(crate) struct PaneSpec {
 #[serde(deny_unknown_fields)]
 struct PaneFields {
     view: ComponentKind,
+    hidden: Option<bool>,
     sides: Option<Vec<Side>>,
     border: Option<BorderStyle>,
     title: Option<Title>,
@@ -101,6 +106,7 @@ impl From<PaneFields> for PaneSpec {
     fn from(fields: PaneFields) -> Self {
         Self {
             view: fields.view,
+            hidden: fields.hidden,
             frame: FrameSpec {
                 sides: fields.sides,
                 border: fields.border,
@@ -168,6 +174,16 @@ impl LayoutNode {
                 children.iter().any(|child| child.has_visible(visible))
             }
             Self::Fixed(..) | Self::Percent(..) => false,
+        }
+    }
+
+    fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
+        match self.content() {
+            Self::Pane(pane) if pane.view == *kind => pane.hidden,
+            Self::Pane(_) | Self::Fixed(..) | Self::Percent(..) => None,
+            Self::Row(children) | Self::Col(children) => {
+                children.iter().find_map(|child| child.starts_hidden(kind))
+            }
         }
     }
 
@@ -244,6 +260,12 @@ impl LayoutTree {
     /// Whether the layout has a component of this kind.
     pub(crate) fn contains(&self, kind: &ComponentKind) -> bool {
         self.root.contains(kind)
+    }
+
+    /// What the layout says about the component of this kind starting hidden,
+    /// `None` when it has no such component or does not say.
+    pub(crate) fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
+        self.root.starts_hidden(kind)
     }
 
     /// Where every component goes.

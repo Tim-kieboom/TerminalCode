@@ -35,6 +35,7 @@ mod lsp;
 mod mouse;
 mod panels;
 mod popups;
+mod saved;
 pub(crate) mod state;
 mod terminal_keys;
 mod terminal_pane;
@@ -44,6 +45,7 @@ use background::Background;
 use keys::Keyboard;
 use mouse::MouseInput;
 use popups::{Remembered, Removal};
+use saved::Saved;
 use watching::Watching;
 
 /// Upper bound on redraw rate (about 60 fps).
@@ -91,6 +93,8 @@ pub(crate) struct App {
     /// The tab that was in front when the last input was handled, to notice a
     /// switch to another.
     front_view: Option<crate::components::workspace::ViewId>,
+    /// The panes the user hid or showed, remembered for the next run.
+    saved: Saved,
     /// The language servers.
     lsp: lsp::Lsp,
 }
@@ -234,6 +238,7 @@ impl App {
             config_applied: None,
             front_view: None,
             lsp: lsp::Lsp::default(),
+            saved: Saved::new([true, false, true]),
         }
     }
 
@@ -377,6 +382,7 @@ impl App {
         self.track_jump(&input, before);
         self.notice_tab_switch();
         self.show_pending_keys();
+        self.remember_panes();
     }
 
     pub(crate) fn handle_event(&mut self, event: Event) {
@@ -427,6 +433,7 @@ impl App {
                 self.needs_redraw = true;
             }
         }
+        self.remember_panes();
     }
 
     /// Whether an overlay is open and taking all input.

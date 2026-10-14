@@ -42,6 +42,17 @@ impl App {
         self.state.set_focus(Focus::Terminal);
     }
 
+    /// At startup: a pane that starts shown (the layout says so, or it was shown
+    /// last time) gets its shell, and the keyboard stays where it is.
+    pub(crate) fn start_terminal_if_shown(&mut self) {
+        if self.state.is_visible(&ComponentKind::Terminal)
+            && self.state.layout().contains(&ComponentKind::Terminal)
+            && !self.start_tab()
+        {
+            self.hide_pane_without_tabs();
+        }
+    }
+
     /// Opens a new tab with a shell in it, showing the pane if it is hidden.
     pub(in crate::app) fn new_terminal_tab(&mut self) {
         if !self.show_terminal_pane() {

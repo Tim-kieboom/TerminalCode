@@ -15,6 +15,7 @@ fn new_leaf(kind: ComponentKind) -> LayoutNode {
     LayoutNode::Pane(PaneSpec {
         view: kind,
         frame: FrameSpec::default(),
+        hidden: None,
     })
 }
 

@@ -30,7 +30,7 @@ pub(crate) enum ConfigWarning {
 }
 
 impl ConfigWarning {
-    pub(super) fn unusable(
+    pub(crate) fn unusable(
         path: &std::path::Path,
         source: impl Into<Source>,
         what: &'static str,

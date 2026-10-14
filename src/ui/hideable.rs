@@ -52,6 +52,14 @@ impl<T> Hideable<T> {
         self.visibility = Visibility::Hidden;
     }
 
+    /// Shows it when `shown` is true and hides it otherwise.
+    pub(crate) fn set_shown(&mut self, shown: bool) {
+        match shown {
+            true => self.show(),
+            false => self.hide(),
+        }
+    }
+
     /// Shows it if it is hidden and hides it if it is shown.
     pub(crate) fn toggle(&mut self) {
         self.visibility = match self.visibility {

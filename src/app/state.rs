@@ -162,6 +162,16 @@ impl AppState {
         }
     }
 
+    /// Shows or hides the component of this kind, if it can be hidden.
+    pub(crate) fn set_shown(&mut self, kind: &ComponentKind, shown: bool) {
+        match kind {
+            ComponentKind::Explorer => self.components.explorer.set_shown(shown),
+            ComponentKind::Terminal => self.components.terminal.set_shown(shown),
+            ComponentKind::StatusBar => self.components.status_bar.set_shown(shown),
+            ComponentKind::Editor | ComponentKind::Plugin(_) => {}
+        }
+    }
+
     pub(crate) fn show_explorer(&mut self) {
         self.components.explorer.show();
     }

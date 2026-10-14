@@ -37,6 +37,7 @@ mod paths;
 mod pty;
 mod removal;
 mod rootsave;
+mod saved_state;
 mod settings;
 mod startup;
 mod syntax;
@@ -71,7 +72,8 @@ where
         .with_clipboard(clipboard)
         .with_keyboard_support(capabilities.keyboard)
         .with_config_dir(config_dir)
-        .with_settings(user.settings, user.theme);
+        .with_settings(user.settings, user.theme)
+        .with_saved_state(user.saved);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -80,6 +82,7 @@ where
     runtime.block_on(async {
         let (sources, events) = Sources::spawn();
         app = app.with_events(events.clone());
+        app.start_terminal_if_shown();
         match FsWatcher::new(events) {
             Ok(watcher) => app = app.with_watcher(watcher),
             Err(error) => app.state_mut().notify_error(error.to_string()),

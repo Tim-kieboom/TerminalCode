@@ -10,6 +10,9 @@
 //
 //   Pane(
 //       view: Explorer,
+//       hidden: true,           // starts hidden (false: shown); for the Explorer, Terminal
+//                               // and StatusBar. What you hid or showed last time is
+//                               // remembered (state.json) and wins over this
 //       sides: [Top, Right],    // edges with a border line: Top, Right, Bottom,
 //                               // Left or All; [] for no border
 //       border: Rounded,        // Plain, Rounded, Double, Thick, QuadrantInside,

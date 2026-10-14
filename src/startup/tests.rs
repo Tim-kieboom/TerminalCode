@@ -182,3 +182,114 @@ fn every_problem_is_its_own_error() {
 
     assert_eq!(errors(&state).len(), 3, "{:?}", errors(&state));
 }
+
+// ---- what is hidden at the start
+
+const LAYOUT_WITH_HIDDEN_EXPLORER: &str = "Col([
+    Row([
+        Fixed(20, Pane(view: Explorer, hidden: true)),
+        Pane(view: Editor),
+    ]),
+    Fixed(1, Pane(view: StatusBar)),
+])";
+
+fn shown(state: &AppState) -> [bool; 3] {
+    [
+        ComponentKind::Explorer,
+        ComponentKind::Terminal,
+        ComponentKind::StatusBar,
+    ]
+    .map(|kind| state.is_visible(&kind))
+}
+
+#[test]
+fn without_a_layout_field_or_a_remembered_state_panes_start_as_they_always_did() {
+    let dir = temp();
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert_eq!(shown(&state), [true, false, true]);
+}
+
+#[test]
+fn a_layout_can_start_a_pane_hidden_or_shown() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    let (state, _) = load(Some(dir.path()));
+    assert_eq!(shown(&state), [false, false, true]);
+
+    write(
+        dir.path(),
+        "layout.ron",
+        "Col([Pane(view: Editor), Fixed(8, Pane(view: Terminal, hidden: false))])",
+    );
+    let (state, _) = load(Some(dir.path()));
+    assert!(state.is_visible(&ComponentKind::Terminal));
+}
+
+#[test]
+fn what_was_remembered_wins_over_the_layout_in_both_directions() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    write(
+        dir.path(),
+        "state.json",
+        r#"{ "shown": { "explorer": true } }"#,
+    );
+    let (state, _) = load(Some(dir.path()));
+    assert!(state.is_visible(&ComponentKind::Explorer));
+
+    write(
+        dir.path(),
+        "layout.ron",
+        "Col([Pane(view: Explorer), Pane(view: Editor)])",
+    );
+    write(
+        dir.path(),
+        "state.json",
+        r#"{ "shown": { "explorer": false } }"#,
+    );
+    let (state, _) = load(Some(dir.path()));
+    assert!(!state.is_visible(&ComponentKind::Explorer));
+}
+
+#[test]
+fn a_pane_with_nothing_remembered_follows_the_layout_while_another_is_remembered() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    write(
+        dir.path(),
+        "state.json",
+        r#"{ "shown": { "status_bar": false } }"#,
+    );
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert_eq!(shown(&state), [false, false, false]);
+}
+
+#[test]
+fn a_state_file_that_is_not_valid_is_reported_and_the_layout_is_used() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    write(dir.path(), "state.json", "{ nope");
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "state.json"), "{:?}", errors(&state));
+    assert_eq!(shown(&state), [false, false, true]);
+}
+
+#[test]
+fn a_layout_field_with_the_wrong_type_is_a_layout_error() {
+    let dir = temp();
+    write(
+        dir.path(),
+        "layout.ron",
+        "Col([Pane(view: Explorer, hidden: \"yes\"), Pane(view: Editor)])",
+    );
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "layout"), "{:?}", errors(&state));
+}

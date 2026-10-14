@@ -3,8 +3,10 @@
 use std::path::Path;
 
 use crate::app::state::AppState;
+use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::keymap::Keymap;
+use crate::saved_state::{self, SavedState};
 use crate::settings::Settings;
 use crate::terminal::KeyboardSupport;
 
@@ -13,6 +15,8 @@ pub(crate) struct UserConfig {
     pub(crate) settings: Settings,
     pub(crate) theme: ThemeChoice,
     pub(crate) keymap: Keymap,
+    /// Which panes the user hid or showed last time.
+    pub(crate) saved: SavedState,
 }
 
 /// Reads the settings, theme, layout and keymap files in `config_dir`, puts the
@@ -45,12 +49,32 @@ pub(crate) fn load_user_config(
     let loaded_keymap = config::load_keymap(path(ConfigFile::Keymap).as_deref(), keyboard);
     report(loaded_keymap.warning);
 
+    let (saved, warning) = saved_state::load(config_dir);
+    report(warning);
+    // What the user did last time wins over what the layout file says.
+    for kind in [
+        ComponentKind::Explorer,
+        ComponentKind::Terminal,
+        ComponentKind::StatusBar,
+    ] {
+        let shown = saved.shown(&kind).or_else(|| {
+            loaded_layout
+                .layout
+                .starts_hidden(&kind)
+                .map(|hidden| !hidden)
+        });
+        if let Some(shown) = shown {
+            state.set_shown(&kind, shown);
+        }
+    }
+
     state.set_theme(loaded_theme.theme);
     state.set_layout(loaded_layout.layout);
     UserConfig {
         settings,
         theme,
         keymap: loaded_keymap.keymap,
+        saved,
     }
 }
 

@@ -135,6 +135,8 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   [defaults/default_keymap.toml](defaults/default_keymap.toml) lists every action and key name.
 - **`layout.ron`** says which panes there are and how they are arranged: see
   [defaults/default_layout.ron](defaults/default_layout.ron).
+  A pane can say `hidden: true` to start hidden. What you hide or show while working is remembered in `state.json` in the same
+  folder, written at every change, and wins over the layout at the next start; delete that file to go back to the layout.
 - **`themes/NAME.toml`** is a theme: a palette of colors and the style of every part of the screen. Choose one with
   `"theme": "NAME"`, or make a new one from a built-in theme with `Theme: New from ...` in the palette.
 
