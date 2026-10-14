@@ -3,9 +3,11 @@
 //! motions and the extension of selections) know about several cursors; the
 //! others act on the primary one and so go back to a single cursor.
 
+use std::cell::Cell;
 use std::ops::Range;
 
 use crate::buffer::{BufferError, Edit, Position, Selection, Selections};
+use crate::clipboard::{Register, RegisterKind};
 
 use super::{EditKind, Editor, Motion};
 
@@ -113,6 +115,93 @@ impl Editor {
         })
     }
 
+    /// The selections joined by line breaks, a bare cursor giving its line (once
+    /// when cursors share it). Linewise only when no cursor has a selection.
+    pub(super) fn copy_every_cursor(&self) -> Result<Register, BufferError> {
+        let ending = self.buffer.line_ending().as_str();
+        let mut pieces: Vec<String> = Vec::new();
+        let mut any_selection = false;
+        let mut last_line = None;
+        for selection in self.view.selections.iter() {
+            if selection.is_empty() {
+                let line = selection.head().line;
+                if last_line.replace(line) == Some(line) {
+                    continue;
+                }
+                pieces.push(self.buffer.line_content(line)?.into_owned());
+            } else {
+                any_selection = true;
+                pieces.push(self.buffer.text_in(self.bytes_of(selection)?)?);
+            }
+        }
+        let mut text = pieces.join(ending);
+        if any_selection {
+            return Ok(Register::charwise(text));
+        }
+        text.push_str(ending);
+        Ok(Register::linewise(text))
+    }
+
+    /// Copies as above, then deletes every selection and every bare cursor's line.
+    pub(super) fn cut_every_cursor(&mut self) -> Result<Register, BufferError> {
+        let register = self.copy_every_cursor()?;
+        self.edit_each(None, |editor, selection| {
+            let range = if selection.is_empty() {
+                editor.line_range(selection.head().line)?
+            } else {
+                editor.bytes_of(selection)?
+            };
+            Ok((!range.is_empty()).then(|| (range, String::new())))
+        })?;
+        Ok(register)
+    }
+
+    /// Pastes `text` (its line breaks already the buffer's) at every cursor. When it
+    /// has as many lines as there are cursors, cursor number n gets line n;
+    /// otherwise every cursor gets all of it. Linewise text with no selection
+    /// anywhere goes above the cursor's line (above each distinct line when every
+    /// cursor gets all of it), the cursors staying where they were; otherwise it
+    /// replaces each selection or goes in at each cursor, as plain text.
+    pub(super) fn paste_at_every_cursor(
+        &mut self,
+        kind: RegisterKind,
+        text: &str,
+    ) -> Result<(), BufferError> {
+        let ending = self.buffer.line_ending().as_str();
+        let linewise = kind == RegisterKind::Linewise;
+        let text = if linewise {
+            text.strip_suffix(ending).unwrap_or(text)
+        } else {
+            text
+        };
+        let parts: Vec<&str> = text.split(ending).collect();
+        let split = parts.len() == self.view.selections.len();
+        let next = Cell::new(0usize);
+        let piece = |next: &Cell<usize>| -> &str {
+            let at = next.replace(next.get() + 1);
+            if split { parts[at] } else { text }
+        };
+
+        if linewise && self.view.selections.iter().all(Selection::is_empty) {
+            let last_line = Cell::new(None);
+            return self.edit_each_placing(None, true, |editor, selection| {
+                let mut lines = piece(&next).to_owned();
+                lines.push_str(ending);
+                let line = selection.head().line;
+                if last_line.replace(Some(line)) == Some(line) && !split {
+                    return Ok(None);
+                }
+                let start = editor.buffer.position_to_byte(Position::new(line, 0))?;
+                Ok(Some((start..start, lines)))
+            });
+        }
+        self.edit_each(None, |editor, selection| {
+            let text = piece(&next);
+            let range = editor.bytes_of(selection)?;
+            Ok((!(range.is_empty() && text.is_empty())).then(|| (range, text.to_owned())))
+        })
+    }
+
     fn bytes_of(&self, selection: &Selection) -> Result<Range<usize>, BufferError> {
         let start = self.buffer.position_to_byte(selection.start())?;
         let end = self.buffer.position_to_byte(selection.end())?;
@@ -160,6 +249,17 @@ impl Editor {
         kind: Option<EditKind>,
         plan: impl Fn(&Self, &Selection) -> Result<Planned, BufferError>,
     ) -> Result<(), BufferError> {
+        self.edit_each_placing(kind, false, plan)
+    }
+
+    /// `edit_each`; with `stay` every cursor keeps its place in the text instead of
+    /// going after its change.
+    fn edit_each_placing(
+        &mut self,
+        kind: Option<EditKind>,
+        stay: bool,
+        plan: impl Fn(&Self, &Selection) -> Result<Planned, BufferError>,
+    ) -> Result<(), BufferError> {
         let selections: Vec<Selection> = self.view.selections.iter().copied().collect();
         let mut planned = Vec::with_capacity(selections.len());
         for selection in &selections {
@@ -184,8 +284,8 @@ impl Editor {
         let mut cursors = Vec::with_capacity(selections.len());
         for ((plan, head), _) in planned.iter().zip(&heads).zip(&selections) {
             let byte = match plan {
-                Some((range, _)) => after_change(&changes, range),
-                None => moved_by(&changes, *head),
+                Some((range, _)) if !stay => after_change(&changes, range),
+                _ => moved_by(&changes, *head),
             };
             cursors.push(Selection::cursor(
                 transaction.buffer().byte_to_position(byte)?,

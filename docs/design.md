@@ -97,10 +97,10 @@ used `anyhow` everywhere instead of typed errors.
   selections joined (a cursor on the edge of a selection, or two cursors in one place, join too); one is primary.
   **Several cursors** (`components/editor/multi.rs`): `ctrl+alt+up/down` add a cursor above or below the primary one
   (it becomes the primary one), `esc` goes back to the primary one. Motions, selecting by motion, typing, a line break,
-  the four deletes and undo/redo act on every cursor; each of them plans one change per cursor against the text as it
+  the four deletes, copy, cut, paste and undo/redo act on every cursor; each of them plans one change per cursor against the text as it
   is, applies them last first in one transaction (so one `ctrl+z` takes back the whole burst, and typing bursts still
   merge into one step) and puts a cursor after each change (`Editor::edit_each`); deletes that run into each other are
-  joined. Every other operation (indent, outdent, clipboard, replace, completion, go to) acts on the primary cursor and
+  joined. **Clipboard with several cursors:** copy joins the selections with line breaks, and a bare cursor gives its whole line (once when cursors share a line); the register is linewise only when no cursor has a selection, otherwise charwise. Cut removes the selections and the bare cursors' lines. Paste with as many lines as cursors gives line n to cursor n; any other text goes whole to every cursor (a copy of `pub ` pastes at all of them). A linewise register with only bare cursors goes above each cursor's line (above each distinct line when every cursor gets all of it) and every cursor stays on its character; otherwise it is plain text replacing each selection. Every other operation (indent, outdent, replace, completion, go to) acts on the primary cursor and
   leaves one cursor, because it replaces the selection list with a single one. A line break with several cursors only
   copies the indentation (no smart indent after a bracket), and a closing bracket does not dedent. The primary cursor is
   the terminal's own cursor; the others are blocks in the `cursor.extra` theme slot (swapped colours when a theme has

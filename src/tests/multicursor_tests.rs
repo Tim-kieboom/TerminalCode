@@ -204,3 +204,163 @@ fn alt_down_and_alt_up_move_the_line() {
     press(&mut app, KeyCode::Up, KeyModifiers::ALT);
     assert_eq!(text(&app), "a\nb\nc");
 }
+
+// ---- copy, cut and paste
+
+fn clipboard_app(text: &str) -> App {
+    let memory = crate::clipboard::Memory::default();
+    let clipboard = crate::clipboard::Clipboard::new(crate::clipboard::System::Memory(memory));
+    app(text).with_clipboard(clipboard)
+}
+
+fn ctrl(app: &mut App, c: char) {
+    press(app, KeyCode::Char(c), KeyModifiers::CONTROL);
+}
+
+/// Cursors on the first `lines` lines.
+fn cursors_down(app: &mut App, lines: usize) {
+    for _ in 1..lines {
+        press(app, KeyCode::Down, ALT_CTRL);
+    }
+}
+
+fn select_two_letters(app: &mut App) {
+    press(app, KeyCode::Right, KeyModifiers::SHIFT);
+    press(app, KeyCode::Right, KeyModifiers::SHIFT);
+}
+
+#[test]
+fn copy_joins_the_selections_and_one_cursor_pastes_all_of_it() {
+    let mut app = clipboard_app("ab1\ncd2\nef3\n\n");
+    cursors_down(&mut app, 3);
+    select_two_letters(&mut app);
+    ctrl(&mut app, 'c');
+    press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+    app.state_mut()
+        .edit(|editor| editor.go_to(Position::new(3, 0)));
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(text(&app), "ab1\ncd2\nef3\nab\ncd\nef\n");
+}
+
+#[test]
+fn a_one_line_copy_is_pasted_at_every_cursor() {
+    let mut app = clipboard_app("pub \nmod app;\nmod buffer;\n");
+    press(&mut app, KeyCode::Right, KeyModifiers::SHIFT);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Right, KeyModifiers::SHIFT);
+    }
+    ctrl(&mut app, 'c');
+    app.state_mut()
+        .edit(|editor| editor.go_to(Position::new(1, 0)));
+    press(&mut app, KeyCode::Down, ALT_CTRL);
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(text(&app), "pub \npub mod app;\npub mod buffer;\n");
+    assert_eq!(cursors(&app), 2);
+}
+
+#[test]
+fn as_many_lines_as_cursors_go_one_to_each_cursor() {
+    let mut app = clipboard_app("ab1\ncd2\nef3\n\nx\ny\nz");
+    cursors_down(&mut app, 3);
+    select_two_letters(&mut app);
+    ctrl(&mut app, 'c');
+    press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+    app.state_mut()
+        .edit(|editor| editor.go_to(Position::new(4, 0)));
+    cursors_down(&mut app, 3);
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(text(&app), "ab1\ncd2\nef3\n\nabx\ncdy\nefz");
+}
+
+#[test]
+fn another_number_of_lines_goes_whole_to_every_cursor() {
+    let mut app = clipboard_app("ab1\ncd2\nef3");
+    cursors_down(&mut app, 3);
+    select_two_letters(&mut app);
+    ctrl(&mut app, 'c');
+    press(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+    app.state_mut()
+        .edit(|editor| editor.go_to(Position::new(0, 0)));
+    press(&mut app, KeyCode::Down, ALT_CTRL);
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(text(&app).matches("ab\ncd\nef").count(), 2);
+    assert_eq!(cursors(&app), 2);
+}
+
+#[test]
+fn cut_takes_the_selections_out_in_one_undo_step() {
+    let mut app = clipboard_app("ab1\ncd2\nef3");
+    cursors_down(&mut app, 3);
+    select_two_letters(&mut app);
+
+    ctrl(&mut app, 'x');
+    assert_eq!(text(&app), "1\n2\n3");
+    assert_eq!(cursors(&app), 3);
+
+    ctrl(&mut app, 'z');
+    assert_eq!(text(&app), "ab1\ncd2\nef3");
+}
+
+#[test]
+fn bare_cursors_copy_their_lines_and_paste_one_above_each_line() {
+    let mut app = clipboard_app("a\nb\nc");
+    cursors_down(&mut app, 2);
+    ctrl(&mut app, 'c');
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(text(&app), "a\na\nb\nb\nc");
+    assert_eq!(cursors(&app), 2);
+}
+
+#[test]
+fn bare_cursors_on_one_line_copy_it_once_and_paste_it_once() {
+    let mut app = clipboard_app("abcd\nz");
+    app.state_mut().edit(|editor| {
+        editor.add_cursor(Position::new(0, 2));
+    });
+    assert_eq!(cursors(&app), 2);
+    ctrl(&mut app, 'c');
+
+    ctrl(&mut app, 'v');
+
+    assert_eq!(text(&app), "abcd\nabcd\nz");
+}
+
+#[test]
+fn cut_with_bare_cursors_removes_their_lines() {
+    let mut app = clipboard_app("a\nb\nc\nd");
+    cursors_down(&mut app, 2);
+
+    ctrl(&mut app, 'x');
+    assert_eq!(text(&app), "c\nd");
+
+    ctrl(&mut app, 'z');
+    assert_eq!(text(&app), "a\nb\nc\nd");
+}
+
+#[test]
+fn a_copy_with_a_selection_and_a_bare_cursor_pastes_as_plain_text() {
+    let mut app = clipboard_app("ab\ncd\n\n");
+    press(&mut app, KeyCode::Right, KeyModifiers::SHIFT);
+    press(&mut app, KeyCode::Right, KeyModifiers::SHIFT);
+    app.state_mut()
+        .edit(|editor| editor.add_cursor(Position::new(1, 0)));
+    ctrl(&mut app, 'c');
+    app.state_mut().edit(|editor| editor.collapse_cursors());
+    press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+    press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+    press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+
+    ctrl(&mut app, 'v');
+
+    assert!(text(&app).ends_with("ab\ncd"), "{}", text(&app));
+}

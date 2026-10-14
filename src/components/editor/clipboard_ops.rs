@@ -12,6 +12,9 @@ impl Editor {
     /// The selected text, or the current line (with its line break) when
     /// nothing is selected.
     pub(crate) fn copy(&self) -> Result<Register, BufferError> {
+        if self.has_many_cursors() {
+            return self.copy_every_cursor();
+        }
         let selection = self.view.selections.primary();
         if !selection.is_empty() {
             let text = self.buffer.text_in(self.selection_bytes()?)?;
@@ -27,6 +30,9 @@ impl Editor {
     /// Copies, then deletes the selection, or the current line when nothing is
     /// selected.
     pub(crate) fn cut(&mut self) -> Result<Register, BufferError> {
+        if self.has_many_cursors() {
+            return self.cut_every_cursor();
+        }
         let register = self.copy()?;
         let range = if self.view.selections.primary().is_empty() {
             self.line_range(self.view.selections.primary().head().line)?
@@ -40,12 +46,16 @@ impl Editor {
     /// Pastes as one undo step. Line breaks in the text are converted to the
     /// buffer's style. Charwise text goes at the cursor (replacing the
     /// selection); linewise text goes above the current line and leaves the
-    /// cursor on the same character of the line it was on.
+    /// cursor on the same character of the line it was on. With several
+    /// cursors it happens at each of them.
     pub(crate) fn paste(&mut self, register: &Register) -> Result<(), BufferError> {
         let ending = self.buffer.line_ending();
         let selection = *self.view.selections.primary();
         let text = normalize_line_endings(register.text(), ending);
 
+        if self.has_many_cursors() {
+            return self.paste_at_every_cursor(register.kind(), &text);
+        }
         match register.kind() {
             RegisterKind::Charwise => self.replace(self.selection_bytes()?, &text, None),
             RegisterKind::Linewise if !selection.is_empty() => {
@@ -71,7 +81,7 @@ impl Editor {
 
     /// Byte range of `line` including its line break. The last line has none,
     /// so the break before it goes instead (unless it is the only line).
-    fn line_range(&self, line: usize) -> Result<Range<usize>, BufferError> {
+    pub(super) fn line_range(&self, line: usize) -> Result<Range<usize>, BufferError> {
         let start = self.buffer.position_to_byte(Position::new(line, 0))?;
         if line + 1 < self.buffer.len_lines() {
             let next = self.buffer.position_to_byte(Position::new(line + 1, 0))?;
