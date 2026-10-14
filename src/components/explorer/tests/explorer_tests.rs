@@ -600,3 +600,73 @@ fn the_filesystem_root_keeps_its_slash() {
 
     assert_eq!(root_row_name(&explorer), "/");
 }
+
+// ---- hiding the ignored entries
+
+/// The names of the rows, without the indent that shows the depth.
+fn plain(explorer: &Explorer) -> Vec<String> {
+    explorer.rows().iter().map(|row| row.name.clone()).collect()
+}
+
+#[test]
+fn hiding_the_ignored_entries_leaves_them_out_of_the_rows() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+
+    explorer.set_hide_ignored(true);
+
+    let listed = plain(&explorer);
+    assert!(!listed.contains(&"target".to_owned()), "{listed:?}");
+    assert!(!listed.contains(&"build.log".to_owned()), "{listed:?}");
+    assert!(listed.contains(&"src".to_owned()), "{listed:?}");
+    assert!(ignored(&explorer).is_empty());
+}
+
+#[test]
+fn showing_them_again_lists_them_dimmed_as_before() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+    explorer.set_hide_ignored(true);
+
+    explorer.set_hide_ignored(false);
+
+    assert_eq!(ignored(&explorer), ["target", "build.log"]);
+}
+
+#[test]
+fn hiding_keeps_the_selection_on_its_entry_and_moves_it_when_that_goes() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+    select(&mut explorer, "zeta.txt");
+    explorer.set_hide_ignored(true);
+    assert_eq!(explorer.selected_row().unwrap().name, "zeta.txt");
+
+    explorer.set_hide_ignored(false);
+    select(&mut explorer, "target");
+    explorer.set_hide_ignored(true);
+
+    assert!(explorer.selected() < explorer.rows().len());
+}
+
+#[test]
+fn an_ignored_folder_that_is_open_takes_its_children_out_with_it() {
+    let dir = project(false);
+    let mut explorer = open(&dir);
+    select(&mut explorer, "target");
+    apply(&mut explorer, ExplorerCommand::Expand);
+    assert!(names(&explorer).join("|").contains("debug.txt"));
+
+    explorer.set_hide_ignored(true);
+
+    assert!(!names(&explorer).join("|").contains("debug.txt"));
+}
+
+#[test]
+fn hiding_leaves_the_dotfile_setting_alone() {
+    let dir = project(true);
+    let mut explorer = open(&dir);
+
+    explorer.set_hide_ignored(true);
+
+    assert!(plain(&explorer).contains(&".gitignore".to_owned()));
+}

@@ -293,7 +293,10 @@ impl AppState {
 
     /// Shows the project in `root` in the explorer.
     pub(crate) fn open_project(&mut self, root: &std::path::Path) -> Result<(), ExplorerError> {
-        *self.components.explorer.node_mut() = Explorer::open(root)?;
+        let hide_ignored = self.components.explorer.node().hides_ignored();
+        let mut explorer = Explorer::open(root)?;
+        explorer.set_hide_ignored(hide_ignored);
+        *self.components.explorer.node_mut() = explorer;
         Ok(())
     }
 

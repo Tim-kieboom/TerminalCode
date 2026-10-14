@@ -61,6 +61,15 @@ impl Scope<'_> {
     }
 }
 
+/// Which entries the explorer leaves out of its rows.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct Hidden {
+    /// Names that start with a dot.
+    pub(super) dotfiles: bool,
+    /// Entries the project's ignore rules leave out.
+    pub(super) ignored: bool,
+}
+
 /// One line of the explorer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Row {
@@ -212,9 +221,9 @@ impl Node {
         merged
     }
     /// Appends this node and, if it is open, everything below it. Names that
-    /// start with a dot are left out when `hide_dotfiles` is set (the root is
-    /// always listed).
-    pub(super) fn push_rows(&self, depth: usize, hide_dotfiles: bool, rows: &mut Vec<Row>) {
+    /// start with a dot are left out when `hide_dotfiles` is set, and entries the
+    /// ignore rules leave out when `hide_ignored` is (the root is always listed).
+    pub(super) fn push_rows(&self, depth: usize, hide: Hidden, rows: &mut Vec<Row>) {
         rows.push(Row {
             depth,
             name: self.name.clone(),
@@ -228,10 +237,13 @@ impl Node {
             return;
         }
         for child in self.children.iter().flatten() {
-            if hide_dotfiles && child.name.starts_with('.') {
+            if hide.dotfiles && child.name.starts_with('.') {
                 continue;
             }
-            child.push_rows(depth + 1, hide_dotfiles, rows);
+            if hide.ignored && child.ignored {
+                continue;
+            }
+            child.push_rows(depth + 1, hide, rows);
         }
     }
 }

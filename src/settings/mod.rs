@@ -48,6 +48,9 @@ pub(crate) struct Settings {
     pub(crate) sequence_timeout: Option<Duration>,
     /// How long a plain message stays on screen. Errors stay until dismissed.
     pub(crate) notification_lifetime: Duration,
+    /// Whether the explorer leaves out the entries the ignore rules leave out,
+    /// instead of listing them dimmed.
+    pub(crate) hide_ignored: bool,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -68,6 +71,7 @@ impl Default for Settings {
             detect_indent: true,
             sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
             notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
+            hide_ignored: false,
             language_servers: LanguageServers::default(),
         }
     }
@@ -158,6 +162,7 @@ impl Settings {
             .map_or(defaults.notification_lifetime, |seconds| {
                 Duration::from_secs(seconds as u64)
             }),
+            hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
             language_servers: match map.remove("language_servers") {
                 Some(setting) => LanguageServers::with_settings(setting)?,
                 None => defaults.language_servers,

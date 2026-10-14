@@ -11,7 +11,7 @@ use serde::Deserialize;
 pub(crate) use drag::Release;
 use drag::{Drag, Press};
 pub(crate) use tree::{ExplorerError, NodeKind, Row};
-use tree::{Node, Scope};
+use tree::{Hidden, Node, Scope};
 
 mod drag;
 mod render;
@@ -52,6 +52,9 @@ pub(crate) struct Explorer {
     follow_selection: bool,
     /// Entries whose names start with a dot are left out of the rows.
     hide_dotfiles: bool,
+    /// Whether the entries the ignore rules leave out are left out of the rows
+    /// (otherwise they are listed dimmed).
+    hide_ignored: bool,
     /// The row a button is held on, and the drag it became, if it did.
     press: Option<Press>,
     drag: Option<Drag>,
@@ -247,6 +250,19 @@ impl Explorer {
         self.rebuild_keeping_selection();
     }
 
+    /// Leaves the ignored entries out of the rows, or lists them dimmed, keeping
+    /// the selection on its entry when that is still listed.
+    pub(crate) fn set_hide_ignored(&mut self, hide: bool) {
+        if self.hide_ignored != hide {
+            self.hide_ignored = hide;
+            self.rebuild_keeping_selection();
+        }
+    }
+
+    pub(crate) fn hides_ignored(&self) -> bool {
+        self.hide_ignored
+    }
+
     /// Whether the dot entries are left out.
     #[cfg(test)]
     pub(crate) fn hides_dotfiles(&self) -> bool {
@@ -371,7 +387,14 @@ impl Explorer {
         self.version += 1;
         self.rows.clear();
         if let Some(root) = &self.root {
-            root.push_rows(0, self.hide_dotfiles, &mut self.rows);
+            root.push_rows(
+                0,
+                Hidden {
+                    dotfiles: self.hide_dotfiles,
+                    ignored: self.hide_ignored,
+                },
+                &mut self.rows,
+            );
         }
     }
 }

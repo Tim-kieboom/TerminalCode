@@ -120,6 +120,7 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   | `detect_indent` | `true` | A file that already has indentation keeps its own; the two settings above are for files with none |
   | `sequence_timeout` | `1000` | Milliseconds (200 to 5000) a half-typed key sequence such as `ctrl+k ctrl+i` waits for its next key; then it is dropped, and the status bar shows the keys while it waits. `0` waits for ever |
   | `notification_seconds` | `4` | Seconds (1 to 60) a plain message stays on screen. Errors stay until you press a key or click |
+  | `hide_ignored` | `false` | `true` leaves the entries your ignore rules skip (`target/`, `node_modules/`) out of the explorer instead of listing them dimmed. The file finder and project search never list them |
   | `language_servers` | Rust through `rust-analyzer` | Language servers by name: `command`, `args`, `extensions`, `root_files`, raw `initialization_options` and `language_ids` (what the server is told a file is, by file name: `{ "settings.json": "jsonc" }`; see below). An entry with a built-in name replaces it, `null` turns it off. Needs the server installed |
 
   `language_ids` is for JSON files that allow comments: a JSON language server flags comments and trailing commas in a file it is

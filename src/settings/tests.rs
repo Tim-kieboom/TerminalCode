@@ -421,3 +421,10 @@ fn notification_seconds_out_of_range_or_of_the_wrong_type_are_rejected_by_name()
         );
     }
 }
+
+#[test]
+fn hide_ignored_defaults_to_false_and_is_read() {
+    assert!(!parse("{}").settings.hide_ignored);
+    assert!(parse(r#"{ "hide_ignored": true }"#).settings.hide_ignored);
+    assert!(error_of(r#"{ "hide_ignored": "yes" }"#).contains("hide_ignored"));
+}

@@ -836,3 +836,67 @@ fn saving_the_notification_seconds_applies_them_to_the_next_message() {
 fn the_default_settings_file_documents_the_notification_seconds() {
     assert!(DEFAULT_SETTINGS_JSONC.contains("\"notification_seconds\""));
 }
+
+// ---- hide ignored
+
+fn project_with_an_ignored_folder() -> tempfile::TempDir {
+    let dir = temp();
+    write(dir.path(), ".gitignore", "target/\n");
+    write(dir.path(), "kept.txt", "");
+    fs::create_dir_all(dir.path().join("target")).unwrap();
+    write(dir.path(), "target/out.txt", "");
+    dir
+}
+
+fn listed(app: &App) -> Vec<String> {
+    app.state()
+        .explorer()
+        .rows()
+        .iter()
+        .map(|row| row.name.clone())
+        .collect()
+}
+
+#[test]
+fn ignored_entries_are_listed_unless_the_setting_hides_them() {
+    let config = temp();
+    let project = project_with_an_ignored_folder();
+    let mut app = started_with(config.path(), "{}");
+    app.state_mut().open_project(project.path()).unwrap();
+    assert!(listed(&app).contains(&"target".to_owned()));
+
+    write(
+        config.path(),
+        "settings.json",
+        r#"{ "hide_ignored": true }"#,
+    );
+    reload(&mut app);
+
+    let rows = listed(&app);
+    assert!(!rows.contains(&"target".to_owned()), "{rows:?}");
+    assert!(rows.contains(&"kept.txt".to_owned()), "{rows:?}");
+}
+
+#[test]
+fn the_setting_survives_opening_another_project_and_turning_it_off_lists_them_again() {
+    let config = temp();
+    let project = project_with_an_ignored_folder();
+    let mut app = started_with(config.path(), r#"{ "hide_ignored": true }"#);
+
+    app.state_mut().open_project(project.path()).unwrap();
+    assert!(!listed(&app).contains(&"target".to_owned()));
+
+    write(
+        config.path(),
+        "settings.json",
+        r#"{ "hide_ignored": false }"#,
+    );
+    reload(&mut app);
+
+    assert!(listed(&app).contains(&"target".to_owned()));
+}
+
+#[test]
+fn the_default_settings_file_documents_hide_ignored() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"hide_ignored\""));
+}

@@ -206,6 +206,12 @@ impl App {
             self.state
                 .set_notification_lifetime(self.settings.notification_lifetime);
         }
+        if self.settings.hide_ignored != before.hide_ignored {
+            self.state
+                .explorer_mut()
+                .set_hide_ignored(self.settings.hide_ignored);
+            self.needs_redraw = true;
+        }
         if self.settings.mouse != before.mouse {
             self.mouse.set(self.settings.mouse);
         }

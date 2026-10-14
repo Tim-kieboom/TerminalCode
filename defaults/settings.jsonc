@@ -42,6 +42,11 @@
     // until you press a key or click, whatever this is.
     "notification_seconds": 4,
 
+    // true: the explorer leaves out the entries your .gitignore (and the other
+    // ignore rules) leave out, such as target/ and node_modules/. false: it lists
+    // them dimmed. The file finder and the project search never list them.
+    "hide_ignored": false,
+
     // Language servers, by name. Rust is built in (rust-analyzer, found on your PATH),
     // so this is empty unless you want to change that. An entry with the name of a
     // built-in server replaces it whole, null turns it off, any other name adds one:

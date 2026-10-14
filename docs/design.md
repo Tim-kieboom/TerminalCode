@@ -845,5 +845,7 @@ first `didOpen` of 10 MB takes about 17 ms (release build).
 - `sequence_timeout`: when a chord times out its first key is dropped, not sent on; the status bar shows the pending keys
   while it waits. 200 to 5000 ms, `0` waits forever.
 - `notification_seconds` is the lifetime of plain messages only; errors stay until dismissed.
-- `hide_ignored` hides ignored entries in the explorer only; the file finder and project search still reach them, so a
-  generated or vendored file can be opened by name.
+- `hide_ignored` hides ignored entries in the explorer only. Correction after building it: the file finder and project
+  search already leave ignored files out (they follow `.gitignore`), so the explorer is the only place that lists
+  them; with `hide_ignored` on, an ignored file can only be opened by naming it on the command line or from a
+  language server jump.
