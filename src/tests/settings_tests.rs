@@ -721,3 +721,63 @@ fn saving_a_bigger_tab_size_leaves_an_open_document_with_its_own_indentation_alo
 
     assert_eq!(app.state().editor().buffer().text(), "  a\n  b\n");
 }
+
+// ---- sequence timeout
+
+const SEQUENCE_KEYMAP: &str = r#"
+    [[binding]]
+    keys = "ctrl+k ctrl+i"
+    action = { insert_text = "X" }
+"#;
+
+fn started_with_sequence(dir: &Path, settings_text: &str) -> App {
+    write(dir, "keymap.toml", SEQUENCE_KEYMAP);
+    started_with(dir, settings_text)
+}
+
+fn begin_sequence(app: &mut App) {
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('k'),
+        KeyModifiers::CONTROL,
+    )));
+}
+
+#[test]
+fn the_sequence_timeout_setting_sets_how_long_a_sequence_waits() {
+    let dir = temp();
+    let mut app = started_with_sequence(dir.path(), r#"{ "sequence_timeout": 3000 }"#);
+    let before = std::time::Instant::now();
+
+    begin_sequence(&mut app);
+
+    let deadline = app.pending_deadline().expect("a deadline");
+    assert!(deadline >= before + std::time::Duration::from_millis(3000));
+}
+
+#[test]
+fn a_sequence_timeout_of_zero_never_gives_up() {
+    let dir = temp();
+    let mut app = started_with_sequence(dir.path(), r#"{ "sequence_timeout": 0 }"#);
+
+    begin_sequence(&mut app);
+
+    assert_eq!(app.pending_deadline(), None);
+    assert_eq!(app.state().pending_keys(), Some("ctrl+k"));
+}
+
+#[test]
+fn saving_the_sequence_timeout_applies_it_to_the_next_sequence() {
+    let dir = temp();
+    let mut app = started_with_sequence(dir.path(), "{}");
+    write(dir.path(), "settings.json", r#"{ "sequence_timeout": 0 }"#);
+    reload(&mut app);
+
+    begin_sequence(&mut app);
+
+    assert_eq!(app.pending_deadline(), None);
+}
+
+#[test]
+fn the_default_settings_file_documents_the_sequence_timeout() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"sequence_timeout\""));
+}

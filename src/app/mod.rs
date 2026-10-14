@@ -376,6 +376,7 @@ impl App {
         }
         self.track_jump(&input, before);
         self.notice_tab_switch();
+        self.show_pending_keys();
     }
 
     pub(crate) fn handle_event(&mut self, event: Event) {

@@ -316,6 +316,12 @@ const SEQUENCE_KEYMAP: &str = r#"
     action = { insert_text = "GG" }
 "#;
 
+const TYPED_PREFIX_KEYMAP: &str = r#"
+    [[binding]]
+    keys = "x y"
+    action = { insert_text = "XY" }
+"#;
+
 #[test]
 fn a_key_sequence_runs_its_action_after_the_last_chord() {
     let mut app = app_with_keymap(SEQUENCE_KEYMAP);
@@ -341,13 +347,47 @@ fn a_broken_sequence_does_not_swallow_typed_text() {
 }
 
 #[test]
-fn a_pending_sequence_alone_changes_nothing_on_screen() {
+fn a_pending_sequence_shows_its_keys_in_the_status_bar_until_it_ends() {
     let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+    assert_eq!(app.state().pending_keys(), None);
     app.mark_drawn();
 
     press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
+    assert_eq!(app.state().pending_keys(), Some("ctrl+k"));
+    assert!(app.needs_redraw());
 
-    assert!(!app.needs_redraw());
+    press(&mut app, KeyCode::Char('i'), KeyModifiers::CONTROL);
+    assert_eq!(app.state().pending_keys(), None);
+}
+
+#[test]
+fn a_timed_out_sequence_clears_the_status_bar() {
+    let mut app = app_with_keymap(SEQUENCE_KEYMAP);
+    press(&mut app, KeyCode::Char('k'), KeyModifiers::CONTROL);
+
+    app.expire_pending();
+
+    assert_eq!(app.state().pending_keys(), None);
+}
+
+#[test]
+fn a_typed_key_that_began_a_sequence_is_dropped_when_it_times_out() {
+    let mut app = app_with_keymap(TYPED_PREFIX_KEYMAP);
+    press(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
+    assert_eq!(app.state().pending_keys(), Some("x"));
+
+    app.expire_pending();
+
+    assert_eq!(buffer_text(&app), "", "the x is not typed");
+}
+
+#[test]
+fn a_typed_key_that_began_a_sequence_is_still_typed_when_the_next_key_breaks_it() {
+    let mut app = app_with_keymap(TYPED_PREFIX_KEYMAP);
+
+    type_str(&mut app, "xa");
+
+    assert_eq!(buffer_text(&app), "xa");
 }
 
 #[test]

@@ -351,3 +351,44 @@ fn the_template_has_an_empty_language_servers_that_changes_nothing() {
         LanguageServers::default()
     );
 }
+
+#[test]
+fn the_sequence_timeout_defaults_to_one_second_and_is_read_in_milliseconds() {
+    use std::time::Duration;
+
+    assert_eq!(
+        parse("{}").settings.sequence_timeout,
+        Some(Duration::from_millis(1000))
+    );
+    for (text, wanted) in [("200", 200), ("750", 750), ("5000", 5000)] {
+        let settings = parse(&format!(r#"{{ "sequence_timeout": {text} }}"#)).settings;
+        assert_eq!(
+            settings.sequence_timeout,
+            Some(Duration::from_millis(wanted))
+        );
+    }
+}
+
+#[test]
+fn a_sequence_timeout_of_zero_waits_for_ever() {
+    assert_eq!(
+        parse(r#"{ "sequence_timeout": 0 }"#)
+            .settings
+            .sequence_timeout,
+        None
+    );
+}
+
+#[test]
+fn a_sequence_timeout_out_of_range_or_of_the_wrong_type_is_rejected_by_name() {
+    for source in [
+        r#"{ "sequence_timeout": 199 }"#,
+        r#"{ "sequence_timeout": 5001 }"#,
+        r#"{ "sequence_timeout": -5 }"#,
+        r#"{ "sequence_timeout": "fast" }"#,
+        r#"{ "sequence_timeout": 1.5 }"#,
+    ] {
+        assert!(error_of(source).contains("sequence_timeout"), "{source}");
+    }
+    assert!(error_of(r#"{ "sequence_timeout": 5001 }"#).contains("200 and 5000"));
+}

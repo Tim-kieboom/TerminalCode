@@ -30,6 +30,13 @@
     // to files with none. false: the two settings above apply to every file.
     "detect_indent": true,
 
+    // How long, in milliseconds, a half-typed key sequence such as ctrl+k ctrl+i
+    // waits for its next key, from 200 to 5000. When it runs out the sequence is
+    // dropped (what you typed is not sent anywhere) and the status bar shows the
+    // keys while it waits. 0 waits for ever. The ctrl+b prefix of the terminal pane
+    // has its own wait of one second.
+    "sequence_timeout": 1000,
+
     // Language servers, by name. Rust is built in (rust-analyzer, found on your PATH),
     // so this is empty unless you want to change that. An entry with the name of a
     // built-in server replaces it whole, null turns it off, any other name adds one:

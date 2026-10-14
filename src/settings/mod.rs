@@ -6,6 +6,7 @@
 //! is reported but the rest of the file is still applied.
 
 use std::fmt;
+use std::time::Duration;
 
 use serde::de::{DeserializeOwned, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
@@ -16,6 +17,11 @@ use crate::components::editor::{IndentKind, IndentPrefs, TabWidth};
 use crate::lsp::{ConfigError, LanguageServers};
 
 pub(crate) const DEFAULT_SETTINGS_JSONC: &str = include_str!("../../defaults/settings.jsonc");
+
+/// How long a half-typed key sequence waits when the setting says nothing.
+const SEQUENCE_TIMEOUT_DEFAULT: Duration = Duration::from_millis(1000);
+/// The milliseconds `sequence_timeout` may be, besides 0 (wait for ever).
+const SEQUENCE_TIMEOUT_RANGE: std::ops::RangeInclusive<usize> = 200..=5000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Settings {
@@ -33,6 +39,9 @@ pub(crate) struct Settings {
     pub(crate) indent_style: IndentKind,
     /// Whether the indentation a file already has wins over the two settings above.
     pub(crate) detect_indent: bool,
+    /// How long a half-typed key sequence (`ctrl+k ctrl+i`) waits for its next chord;
+    /// `None` waits for ever. When it runs out the sequence is dropped.
+    pub(crate) sequence_timeout: Option<Duration>,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -51,6 +60,7 @@ impl Default for Settings {
             tab_size: TabWidth::default(),
             indent_style: IndentKind::Spaces,
             detect_indent: true,
+            sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
             language_servers: LanguageServers::default(),
         }
     }
@@ -132,6 +142,7 @@ impl Settings {
                 .unwrap_or(defaults.tab_size),
             indent_style: take(&mut map, "indent_style")?.unwrap_or(defaults.indent_style),
             detect_indent: take(&mut map, "detect_indent")?.unwrap_or(defaults.detect_indent),
+            sequence_timeout: take_sequence_timeout(&mut map)?.unwrap_or(defaults.sequence_timeout),
             language_servers: match map.remove("language_servers") {
                 Some(setting) => LanguageServers::with_settings(setting)?,
                 None => defaults.language_servers,
@@ -203,6 +214,28 @@ fn take_in_range(
             value,
             min: *range.start(),
             max: *range.end(),
+        }),
+    }
+}
+
+/// The `sequence_timeout` setting: milliseconds, `0` for no timeout. The outer
+/// `None` is a setting that is not there.
+fn take_sequence_timeout(
+    map: &mut Map<String, Value>,
+) -> Result<Option<Option<Duration>>, SettingsError> {
+    let Some(value) = take::<i64>(map, "sequence_timeout")? else {
+        return Ok(None);
+    };
+    match usize::try_from(value) {
+        Ok(0) => Ok(Some(None)),
+        Ok(millis) if SEQUENCE_TIMEOUT_RANGE.contains(&millis) => {
+            Ok(Some(Some(Duration::from_millis(millis as u64))))
+        }
+        _ => Err(SettingsError::OutOfRange {
+            key: "sequence_timeout",
+            value,
+            min: *SEQUENCE_TIMEOUT_RANGE.start(),
+            max: *SEQUENCE_TIMEOUT_RANGE.end(),
         }),
     }
 }

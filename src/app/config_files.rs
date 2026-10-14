@@ -198,6 +198,10 @@ impl App {
         if self.settings.shell != before.shell {
             self.terminal_shell = Shell::chosen(self.settings.shell.as_deref());
         }
+        if self.settings.sequence_timeout != before.sequence_timeout {
+            self.keyboard
+                .set_sequence_timeout(self.settings.sequence_timeout);
+        }
         if self.settings.mouse != before.mouse {
             self.mouse.set(self.settings.mouse);
         }

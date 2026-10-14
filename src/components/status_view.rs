@@ -13,6 +13,8 @@ impl Render for StatusBar {
         let text = if state.terminal_prefix_pending() {
             " ctrl+b ...  e: editor  x: explorer  t: hide  c: new tab  n/p/1-9: tabs  w: close tab  ctrl+b: send ctrl+b  esc: cancel"
                 .to_owned()
+        } else if let Some(keys) = state.pending_keys() {
+            format!(" {keys} ...  waiting for the next key")
         } else if state.workspace().has_tabs() {
             let editor = state.editor();
             let head = editor.selections().primary().head();

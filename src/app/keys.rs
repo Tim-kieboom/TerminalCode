@@ -11,6 +11,7 @@ use crate::entries::EntryKind;
 use crate::error::IdeResult;
 use crate::event::action::Action;
 use crate::keymap::{Context, Expiry, KeyChord, Keymap, Lookup, Outcome, Resolution, Resolver};
+use crate::settings::Settings;
 use crate::ui::layout::Axis;
 
 /// Shown when an editing action arrives while every tab is closed.
@@ -28,20 +29,22 @@ pub(super) const PALETTE_CONTEXTS: [Context; 3] =
 pub(super) struct Keyboard {
     keymap: Keymap,
     resolver: Resolver,
-    sequence_timeout: Duration,
-    /// When the half-typed sequence, if there is one, gives up waiting.
+    /// How long it waits for the next chord; `None` waits for ever.
+    sequence_timeout: Option<Duration>,
+    /// Whether a sequence is half typed.
+    pending: bool,
+    /// When the half-typed sequence, if there is one and the wait has an end,
+    /// gives up waiting.
     pending_deadline: Option<Instant>,
 }
 
 impl Keyboard {
-    /// How long a half-typed key sequence waits for its next chord.
-    const SEQUENCE_TIMEOUT: Duration = Duration::from_millis(1000);
-
     /// Uses `keymap` from now on. A half-typed sequence is dropped, since it
     /// belonged to the old one.
     pub(super) fn set_keymap(&mut self, keymap: Keymap) {
         self.keymap = keymap;
         self.resolver = Resolver::default();
+        self.pending = false;
         self.pending_deadline = None;
     }
 
@@ -49,15 +52,21 @@ impl Keyboard {
         Self {
             keymap,
             resolver: Resolver::default(),
-            sequence_timeout: Self::SEQUENCE_TIMEOUT,
+            sequence_timeout: Settings::default().sequence_timeout,
+            pending: false,
             pending_deadline: None,
         }
     }
 
     #[cfg(test)]
     pub(super) fn with_sequence_timeout(mut self, timeout: Duration) -> Self {
-        self.sequence_timeout = timeout;
+        self.sequence_timeout = Some(timeout);
         self
+    }
+
+    /// How long a half-typed sequence waits from now on; `None` for ever.
+    pub(super) fn set_sequence_timeout(&mut self, timeout: Option<Duration>) {
+        self.sequence_timeout = timeout;
     }
 
     /// When the half-typed key sequence, if any, gives up waiting.
@@ -75,20 +84,33 @@ impl Keyboard {
 
     /// Whether a key sequence is half typed, so the next key belongs to it.
     pub(super) fn is_pending(&self) -> bool {
-        self.pending_deadline.is_some()
+        self.pending
+    }
+
+    /// The chords of the half-typed sequence as typed, for the status bar.
+    pub(super) fn pending_keys(&self) -> Option<String> {
+        let chords = self.resolver.pending();
+        (!chords.is_empty()).then(|| {
+            let chords: Vec<String> = chords.iter().map(ToString::to_string).collect();
+            chords.join(" ")
+        })
     }
 
     /// Takes the next chord. The sequence starts waiting for its deadline when
     /// the chord left it half typed, and stops when it did not.
     pub(super) fn feed(&mut self, contexts: &[Context], chord: KeyChord) -> Resolution {
         let resolution = self.resolver.feed(&self.keymap, contexts, chord);
-        self.pending_deadline = matches!(resolution.outcome, Outcome::Pending)
-            .then(|| Instant::now() + self.sequence_timeout);
+        self.pending = matches!(resolution.outcome, Outcome::Pending);
+        self.pending_deadline = self
+            .pending
+            .then(|| self.sequence_timeout.map(|wait| Instant::now() + wait))
+            .flatten();
         resolution
     }
 
     /// Gives up on the half-typed sequence.
     fn expire(&mut self, contexts: &[Context]) -> Expiry {
+        self.pending = false;
         self.pending_deadline = None;
         self.resolver.expire(&self.keymap, contexts)
     }
@@ -176,8 +198,10 @@ impl App {
         match self.keyboard.expire(contexts) {
             Expiry::Nothing => {}
             Expiry::Fire(action) => self.run_action(action),
-            Expiry::Discard(chords) => chords.into_iter().for_each(|chord| self.type_chord(chord)),
+            // A half-typed sequence that ran out is dropped, not typed.
+            Expiry::Discard(_) => {}
         }
+        self.show_pending_keys();
     }
 
     /// The contexts whose bindings apply to the component with the keyboard.
@@ -306,6 +330,15 @@ impl App {
 fn typed_text(chord: &KeyChord) -> Option<Action> {
     let typed = chord.typed_char()?;
     Some(Action::InsertText(typed.to_string().into()))
+}
+
+impl App {
+    /// Tells the status bar which keys of a half-typed sequence there are.
+    pub(super) fn show_pending_keys(&mut self) {
+        if self.state.set_pending_keys(self.keyboard.pending_keys()) {
+            self.needs_redraw = true;
+        }
+    }
 }
 
 #[cfg(test)]

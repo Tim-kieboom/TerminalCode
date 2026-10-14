@@ -39,6 +39,11 @@ pub(crate) struct Resolver {
 }
 
 impl Resolver {
+    /// The chords typed so far of a sequence that is not finished.
+    pub(crate) fn pending(&self) -> &[KeyChord] {
+        &self.pending
+    }
+
     #[cfg(test)]
     pub(crate) fn is_pending(&self) -> bool {
         !self.pending.is_empty()

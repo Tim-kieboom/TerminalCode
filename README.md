@@ -118,6 +118,7 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
   | `tab_size` | `4` | Columns a tab character draws (1 to 16) and columns of one level of space indentation |
   | `indent_style` | `"spaces"` | What the Tab key inserts: `"spaces"` or `"tabs"` |
   | `detect_indent` | `true` | A file that already has indentation keeps its own; the two settings above are for files with none |
+  | `sequence_timeout` | `1000` | Milliseconds (200 to 5000) a half-typed key sequence such as `ctrl+k ctrl+i` waits for its next key; then it is dropped, and the status bar shows the keys while it waits. `0` waits for ever |
   | `language_servers` | Rust through `rust-analyzer` | Language servers by name: `command`, `args`, `extensions`, `root_files`, raw `initialization_options` and `language_ids` (what the server is told a file is, by file name: `{ "settings.json": "jsonc" }`; see below). An entry with a built-in name replaces it, `null` turns it off. Needs the server installed |
 
   `language_ids` is for JSON files that allow comments: a JSON language server flags comments and trailing commas in a file it is

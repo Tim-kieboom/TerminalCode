@@ -107,3 +107,26 @@ fn the_keys_for_an_action_are_looked_up_in_the_contexts_given() {
     );
     assert_eq!(keyboard.keys_for(&Action::Redo, &CONTEXTS), None);
 }
+
+#[test]
+fn without_a_timeout_a_half_typed_sequence_stays_pending_with_no_deadline() {
+    let mut keyboard = keyboard();
+    keyboard.set_sequence_timeout(None);
+
+    keyboard.feed(&CONTEXTS, chord("ctrl+k"));
+
+    assert!(keyboard.is_pending());
+    assert_eq!(keyboard.pending_deadline(), None);
+}
+
+#[test]
+fn the_pending_keys_are_the_chords_typed_so_far() {
+    let mut keyboard = keyboard();
+    assert_eq!(keyboard.pending_keys(), None);
+
+    keyboard.feed(&CONTEXTS, chord("ctrl+k"));
+    assert_eq!(keyboard.pending_keys().as_deref(), Some("ctrl+k"));
+
+    keyboard.feed(&CONTEXTS, chord("ctrl+s"));
+    assert_eq!(keyboard.pending_keys(), None);
+}

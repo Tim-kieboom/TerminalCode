@@ -59,6 +59,7 @@ pub(crate) struct AppState {
     screen: ratatui::layout::Rect,
     /// `ctrl+b` was pressed in the terminal and the key after it is awaited.
     terminal_prefix: bool,
+    pending_keys: Option<String>,
     /// How the language server of the file in front is doing, for the status bar.
     lsp_status: Option<String>,
     /// What the language servers say is wrong with the open documents.
@@ -183,6 +184,17 @@ impl AppState {
 
     pub(crate) fn terminal_prefix_pending(&self) -> bool {
         self.terminal_prefix
+    }
+
+    /// Sets the keys of a half-typed sequence the status bar shows; says whether that changed anything.
+    pub(crate) fn set_pending_keys(&mut self, keys: Option<String>) -> bool {
+        let changed = self.pending_keys != keys;
+        self.pending_keys = keys;
+        changed
+    }
+
+    pub(crate) fn pending_keys(&self) -> Option<&str> {
+        self.pending_keys.as_deref()
     }
 
     pub(crate) fn lsp_status(&self) -> Option<&str> {
