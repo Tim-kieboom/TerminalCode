@@ -14,8 +14,6 @@ use crate::watcher::FsWatcher;
 
 mod app;
 mod buffer;
-
-
 mod cli;
 mod clipboard;
 mod components;
