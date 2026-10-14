@@ -147,6 +147,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.5.0
 - [x] Version 0.5.0 (after 0.4.0: the cursor follows focus with dimmed blocks, JSONC files for the JSON server with `language_ids`, boxes and the terminal pane follow the theme background, the settings `sequence_timeout`, `notification_seconds` and `hide_ignored`, remembered hidden panes in `state.json` with `hidden` in the layout, reset to default with a `.bak`, built-in themes only as templates). Changes to know when upgrading: the `theme` setting is now `null` or the name of a file in `themes/`, so an old `"theme": "dark"` warns and uses the fallback; the `Theme: Dark/Light/SolDark/SolLight` palette entries and the `use_theme` keymap action are gone
+- [x] Tag `v0.5.0` (tagged on faff3bf; CI green on Linux and Windows, macOS only its known flood timing test; the release run built Linux, macOS and Windows archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
