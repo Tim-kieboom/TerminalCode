@@ -950,3 +950,99 @@ fn the_severities_are_told_apart_in_every_built_in_theme() {
         }
     }
 }
+
+// ---- [background.<pane>]
+
+const SCREEN: &str = "[background]\ncolor = \"#102030\"\nopacity = 0.5\n";
+
+#[test]
+fn a_pane_without_a_table_has_no_background_of_its_own() {
+    let theme = background(SCREEN).unwrap();
+
+    assert_eq!(theme.pane_background(BackgroundPane::Terminal), None);
+    assert_eq!(
+        theme.pane_color(BackgroundPane::Terminal),
+        theme.background_color()
+    );
+}
+
+#[test]
+fn a_pane_table_sets_that_panes_color_only() {
+    let theme = background(&format!(
+        "{SCREEN}\n[background.terminal]\ncolor = \"#000000\"\nopacity = 1\n"
+    ))
+    .unwrap();
+
+    assert_eq!(
+        theme.pane_background(BackgroundPane::Terminal),
+        Some(Some(Color::Rgb(0, 0, 0)))
+    );
+    assert_eq!(theme.pane_background(BackgroundPane::Editor), None);
+}
+
+#[test]
+fn a_pane_table_inherits_the_keys_it_leaves_out_from_the_screen() {
+    let mut theme = background(&format!(
+        "{SCREEN}\n[background.explorer]\ncolor = \"#ffffff\"\n"
+    ))
+    .unwrap();
+    theme.set_terminal_background(Some(rgb(0, 0, 0)));
+
+    // The screen's opacity of 0.5 applies to the explorer's own color.
+    assert_eq!(
+        theme.pane_background(BackgroundPane::Explorer),
+        Some(Some(Color::Rgb(128, 128, 128)))
+    );
+}
+
+#[test]
+fn a_pane_can_be_transparent_on_a_painted_screen() {
+    let theme = background(
+        "[background]\ncolor = \"#102030\"\n[background.terminal]\ncolor = \"transparent\"\n",
+    )
+    .unwrap();
+
+    assert_eq!(theme.pane_background(BackgroundPane::Terminal), Some(None));
+    assert_eq!(theme.pane_color(BackgroundPane::Terminal), None);
+    assert_eq!(
+        theme.pane_color(BackgroundPane::Editor),
+        theme.background_color()
+    );
+}
+
+#[test]
+fn a_pane_can_be_painted_on_a_transparent_screen() {
+    let theme = background("[background.popup]\ncolor = \"#102030\"\n").unwrap();
+
+    assert_eq!(theme.background_color(), None);
+    assert_eq!(
+        theme.pane_color(BackgroundPane::Popup),
+        Some(Color::Rgb(0x10, 0x20, 0x30))
+    );
+}
+
+#[test]
+fn a_pane_that_tints_needs_the_terminals_background() {
+    let theme = background("[background.statusbar]\ncolor = \"#102030\"\nopacity = 0.5\n").unwrap();
+
+    assert!(theme.needs_terminal_background());
+}
+
+#[test]
+fn an_unknown_pane_table_is_an_error() {
+    assert!(background("[background.sidebar]\ncolor = \"#102030\"\n").is_err());
+    assert!(background("[background.editor]\ncolour = \"#102030\"\n").is_err());
+}
+
+#[test]
+fn a_user_pane_table_is_merged_key_by_key_over_the_built_in_one() {
+    let base = "[background.terminal]\ncolor = \"#000000\"\nopacity = 1\n";
+    let user = "[background.terminal]\ncolor = \"#ffffff\"\n";
+
+    let theme = Theme::layered(base, user).unwrap();
+
+    assert_eq!(
+        theme.pane_background(BackgroundPane::Terminal),
+        Some(Some(Color::Rgb(255, 255, 255)))
+    );
+}

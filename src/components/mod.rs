@@ -22,6 +22,8 @@ pub mod workspace;
 pub use render::prepare_and_render;
 use serde::Deserialize;
 
+use crate::ui::theme::BackgroundPane;
+
 /// Every kind of pane that can appear in a layout.
 ///
 /// The enum is closed except for [`ComponentKind::Plugin`], the single hole
@@ -36,6 +38,17 @@ pub(crate) enum ComponentKind {
     Plugin(PluginViewId),
 }
 impl ComponentKind {
+    /// The `[background.<pane>]` table of the theme that colors this component.
+    pub(crate) fn background_pane(&self) -> Option<BackgroundPane> {
+        match self {
+            Self::Explorer => Some(BackgroundPane::Explorer),
+            Self::Editor => Some(BackgroundPane::Editor),
+            Self::Terminal => Some(BackgroundPane::Terminal),
+            Self::StatusBar => Some(BackgroundPane::StatusBar),
+            Self::Plugin(_) => None,
+        }
+    }
+
     pub(crate) fn title(&self) -> &str {
         match self {
             Self::Explorer => "Explorer",

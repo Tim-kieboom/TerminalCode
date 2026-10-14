@@ -170,3 +170,49 @@ fn a_transparent_background_paints_nothing_in_a_box_or_the_terminal_pane() {
 
     assert_eq!(rig.strays(Color::Reset), vec![], "palette");
 }
+
+const TERMINAL_DARKER: &str =
+    "[background]\ncolor = \"#102030\"\n[background.terminal]\ncolor = \"#000000\"\n";
+const DARKER: Color = Color::Rgb(0, 0, 0);
+
+#[test]
+fn a_pane_with_its_own_background_differs_from_the_rest() {
+    let mut rig = rig(TERMINAL_DARKER, "printf 'abc'; sleep 30");
+    rig.press(KeyCode::Char('`'), KeyModifiers::CONTROL);
+    rig.wait_for_text("abc");
+
+    let strays = rig.strays(PAINTED);
+
+    assert!(!strays.is_empty());
+    assert!(strays.iter().all(|(_, _, bg)| *bg == DARKER), "{strays:?}");
+    // The terminal pane is at the bottom; nothing above the middle is touched.
+    assert!(strays.iter().all(|(_, y, _)| *y > 15), "{strays:?}");
+}
+
+#[test]
+fn a_pane_transparent_on_its_own_leaves_the_others_painted() {
+    let theme =
+        "[background]\ncolor = \"#102030\"\n[background.explorer]\ncolor = \"transparent\"\n";
+    let rig = rig(theme, "sleep 30");
+
+    let strays = rig.strays(PAINTED);
+
+    assert!(!strays.is_empty());
+    assert!(
+        strays.iter().all(|(_, _, bg)| *bg == Color::Reset),
+        "{strays:?}"
+    );
+    assert!(strays.iter().all(|(x, _, _)| *x < 40), "{strays:?}");
+}
+
+#[test]
+fn the_popup_table_colors_every_box() {
+    let theme = "[background]\ncolor = \"#102030\"\n[background.popup]\ncolor = \"#000000\"\n";
+    let mut rig = rig(theme, "sleep 30");
+
+    rig.press(KeyCode::F(1), KeyModifiers::NONE);
+
+    let strays = rig.strays(PAINTED);
+    assert!(!strays.is_empty());
+    assert!(strays.iter().all(|(_, _, bg)| *bg == DARKER), "{strays:?}");
+}

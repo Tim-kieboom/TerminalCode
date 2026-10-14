@@ -393,6 +393,13 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   in between the color is blended per channel with the terminal's own background color, which the editor asks for once
   at startup (OSC 11, via `terminal-colorsaurus`, 500 ms timeout) and only when the theme needs it. If the terminal does
   not answer, the tint color is used as is. A blend needs a hex color, since a named ANSI color has no known RGB.
+- A pane can override it: `[background.editor]`, `explorer`, `terminal`, `statusbar` and `popup` (one table for every
+  box) take the same `color` / `opacity` / `blend` keys and inherit each key they leave out from the screen's table
+  (`LayerSpec::merged_with`, so a pane that only sets `color` keeps the screen's opacity; `color = "transparent"` lets
+  the terminal show in that pane). They are merged key by key across theme layers like `[background]`. The tables are
+  in the theme file, not the layout, so each theme picks shades that suit it. `ui::backdrop::paint_pane` paints a
+  pane's table over the screen's just before the component draws, and `backdrop::clear` takes the `popup` table for
+  boxes (`Theme::pane_color`). A tinted pane makes the theme ask for the terminal's background like the screen does.
 - Painting is one `Block` over the whole frame at the start of every draw (`components::paint_background`); slots with
   their own `background` (selection, tabs, status bar) draw over it.
 - A box drawn over the text (palette, finder, search, menus, prompts, completion, hover, notifications) starts from

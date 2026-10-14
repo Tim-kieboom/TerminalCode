@@ -13,6 +13,15 @@
 #                           `transparent_background_colors #1e1e2e@0.3` in kitty.conf;
 #                           the editor prints the exact line at startup).
 #
+# A pane can have a background of its own: [background.editor], [background.explorer],
+# [background.terminal], [background.statusbar] and [background.popup] (every box that
+# covers other text) take the same three keys. A key a pane leaves out is the screen's,
+# so `[background.terminal]` with just a color keeps the screen's opacity, and
+# `color = "transparent"` lets the terminal's own background show in that pane only.
+# For example a darker terminal pane:
+#   [background.terminal]
+#   color = "#181818"
+#
 # To see your terminal's blur and opacity through the editor, paint no background:
 # leave out [background] or write color = "transparent". Terminals only make their
 # default background translucent, never a color the program paints. A text program

@@ -9,7 +9,7 @@ use ratatui::{
 use crate::{
     app::state::{AppState, Focus, PluginView, Popup},
     components::ComponentKind,
-    ui::{Render, layout::Placement, view::ViewNode},
+    ui::{Render, backdrop, layout::Placement, view::ViewNode},
 };
 
 /// Draws every component of the layout: first all `prepare` steps, then all
@@ -26,6 +26,9 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     }
 
     for placement in &placements {
+        if let Some(pane) = placement.kind.background_pane() {
+            backdrop::paint_pane(frame, state.theme(), pane, placement.area);
+        }
         draw_component(frame, state, placement);
     }
 

@@ -232,3 +232,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Built-in themes are templates
 - [x] The built-in themes are only templates for `Theme: New...`; one hidden fallback (dark, called "default") stays under every theme file and is what `"theme": null` (the new default) shows. `Theme: Choose` and the `theme` setting know only `themes/*.toml`; an old `"theme": "dark"` with no such file warns once and uses the fallback; `Config: Open Theme` no longer makes `themes/dark.toml` (decisions in `design.md`)
+
+## A background color per pane
+- [x] `[background.editor]`, `explorer`, `terminal`, `statusbar` and `popup` (one table for every box) in the theme file: same `color` / `opacity` / `blend` keys as `[background]`, each key a table leaves out is the screen's, `color = "transparent"` lets the terminal show in that pane only; set in the theme, not the layout (decisions in `design.md`; tests in `ui/tests/theme_tests.rs` and `src/tests/background_tests.rs`)

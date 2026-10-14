@@ -85,6 +85,9 @@ impl ThemeVariant {
 pub(crate) struct Theme {
     slots: HashMap<Box<str>, Style>,
     background: Background,
+    /// The `[background.<pane>]` tables: what a pane paints over the screen's
+    /// background. A pane that is not here uses the screen's.
+    pane_backgrounds: HashMap<BackgroundPane, Background>,
     /// The terminal's own background color, when it was asked for; a tinted
     /// background blends with it.
     terminal_background: Option<Rgb>,
@@ -117,6 +120,18 @@ impl From<Rgb> for Color {
     fn from(rgb: Rgb) -> Self {
         Color::Rgb(rgb.r, rgb.g, rgb.b)
     }
+}
+
+/// The places that can have a background of their own: the `[background.<name>]`
+/// tables of a theme file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum BackgroundPane {
+    Editor,
+    Explorer,
+    Terminal,
+    StatusBar,
+    /// Every box that covers other text: menus, the palette, the finder, hover.
+    Popup,
 }
 
 /// What the whole screen is painted with before components draw on it.
@@ -242,6 +257,48 @@ impl BackgroundSpec {
             color: user.color.or(self.color),
             opacity: user.opacity.or(self.opacity),
             blend: user.blend.or(self.blend),
+            editor: merge_layers(self.editor, user.editor),
+            explorer: merge_layers(self.explorer, user.explorer),
+            terminal: merge_layers(self.terminal, user.terminal),
+            statusbar: merge_layers(self.statusbar, user.statusbar),
+            popup: merge_layers(self.popup, user.popup),
+        }
+    }
+
+    /// The screen's own keys, without the per-pane tables.
+    fn screen(&self) -> LayerSpec {
+        LayerSpec {
+            color: self.color.clone(),
+            opacity: self.opacity,
+            blend: self.blend,
+        }
+    }
+
+    fn panes(&self) -> [(BackgroundPane, Option<&LayerSpec>); 5] {
+        [
+            (BackgroundPane::Editor, self.editor.as_ref()),
+            (BackgroundPane::Explorer, self.explorer.as_ref()),
+            (BackgroundPane::Terminal, self.terminal.as_ref()),
+            (BackgroundPane::StatusBar, self.statusbar.as_ref()),
+            (BackgroundPane::Popup, self.popup.as_ref()),
+        ]
+    }
+}
+
+fn merge_layers(base: Option<LayerSpec>, user: Option<LayerSpec>) -> Option<LayerSpec> {
+    match (base, user) {
+        (Some(base), Some(user)) => Some(base.merged_with(user)),
+        (base, user) => user.or(base),
+    }
+}
+
+impl LayerSpec {
+    /// `user` over `self`, key by key.
+    fn merged_with(self, user: LayerSpec) -> Self {
+        Self {
+            color: user.color.or(self.color),
+            opacity: user.opacity.or(self.opacity),
+            blend: user.blend.or(self.blend),
         }
     }
 }
@@ -258,10 +315,26 @@ impl StyleSpec {
 }
 
 /// The `[background]` table. `color` is a color or `"transparent"`; `opacity`
-/// runs from 0 (nothing painted) to 1 (the color as is).
-#[derive(Debug, Deserialize)]
+/// runs from 0 (nothing painted) to 1 (the color as is). The sub-tables
+/// `[background.editor]`, `explorer`, `terminal`, `statusbar` and `popup` take
+/// the same keys for one pane; a key a pane leaves out is the screen's.
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct BackgroundSpec {
+    color: Option<Box<str>>,
+    opacity: Option<Number>,
+    blend: Option<Blend>,
+    editor: Option<LayerSpec>,
+    explorer: Option<LayerSpec>,
+    terminal: Option<LayerSpec>,
+    statusbar: Option<LayerSpec>,
+    popup: Option<LayerSpec>,
+}
+
+/// The keys of one background: the screen's, or one pane's.
+#[derive(Debug, Default, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LayerSpec {
     color: Option<Box<str>>,
     opacity: Option<Number>,
     blend: Option<Blend>,
@@ -363,9 +436,19 @@ impl Theme {
             let style = build_style(&slot, &spec, &palette)?;
             slots.insert(slot, style);
         }
+        let spec = file.background.unwrap_or_default();
+        let screen = spec.screen();
+        let mut pane_backgrounds = HashMap::new();
+        for (pane, layer) in spec.panes() {
+            if let Some(layer) = layer {
+                let merged = screen.clone().merged_with(layer.clone());
+                pane_backgrounds.insert(pane, build_background(merged, &palette)?);
+            }
+        }
         Ok(Self {
             slots,
-            background: build_background(file.background, &palette)?,
+            background: build_background(screen, &palette)?,
+            pane_backgrounds,
             terminal_background: None,
         })
     }
@@ -401,15 +484,22 @@ impl Theme {
     /// Whether painting the background needs the terminal's own background
     /// color (see [`Theme::set_terminal_background`]).
     pub(crate) fn needs_terminal_background(&self) -> bool {
-        matches!(self.background, Background::Tint { .. })
+        self.backgrounds()
+            .any(|background| matches!(background, Background::Tint { .. }))
+    }
+
+    /// The screen's background and every pane's own.
+    fn backgrounds(&self) -> impl Iterator<Item = Background> + '_ {
+        std::iter::once(self.background).chain(self.pane_backgrounds.values().copied())
     }
 
     /// A line to show at startup when the theme relies on the terminal to make
     /// its background color translucent, naming the setting to use.
     pub(crate) fn terminal_hint(&self) -> Option<String> {
-        let Background::Exact { color, alpha } = self.background else {
-            return None;
-        };
+        let (color, alpha) = self.backgrounds().find_map(|background| match background {
+            Background::Exact { color, alpha } => Some((color, alpha)),
+            _ => None,
+        })?;
         Some(format!(
             "see-through background: add `transparent_background_colors #{:02x}{:02x}{:02x}@{:.2}` to kitty.conf (kitty 0.39+)",
             color.r,
@@ -432,7 +522,27 @@ impl Theme {
     /// terminal's background alone. A tint blends with the terminal's
     /// background; when that is unknown the tint color is used as is.
     pub(crate) fn background_color(&self) -> Option<Color> {
-        match self.background {
+        self.paint(self.background)
+    }
+
+    /// What to paint over the screen's background in `pane`: `None` when the
+    /// pane has no background of its own, `Some(None)` when it is transparent
+    /// (the terminal's background shows), `Some(Some(color))` for a color.
+    pub(crate) fn pane_background(&self, pane: BackgroundPane) -> Option<Option<Color>> {
+        self.pane_backgrounds
+            .get(&pane)
+            .map(|background| self.paint(*background))
+    }
+
+    /// The color a box in `pane` starts from: its own background if the theme
+    /// gives it one, else the screen's.
+    pub(crate) fn pane_color(&self, pane: BackgroundPane) -> Option<Color> {
+        self.pane_background(pane)
+            .unwrap_or_else(|| self.background_color())
+    }
+
+    fn paint(&self, background: Background) -> Option<Color> {
+        match background {
             Background::Transparent => None,
             Background::Solid(color) => Some(color),
             Background::Exact { color, .. } => Some(color.into()),
@@ -485,13 +595,7 @@ impl Default for Theme {
     }
 }
 
-fn build_background(
-    spec: Option<BackgroundSpec>,
-    palette: &Palette,
-) -> Result<Background, ThemeError> {
-    let Some(spec) = spec else {
-        return Ok(Background::Transparent);
-    };
+fn build_background(spec: LayerSpec, palette: &Palette) -> Result<Background, ThemeError> {
     let opacity = spec.opacity.map_or(1.0, Number::as_f64);
     if !(0.0..=1.0).contains(&opacity) {
         return Err(ThemeError::InvalidOpacity(opacity));

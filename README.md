@@ -144,6 +144,9 @@ does the same for `state.json`.
   `"theme": "NAME"`. The built-in Dark, Light, SolDark and SolLight are only templates: `Theme: New...` in the palette
   makes a theme from one, names it, chooses it and opens it. A built-in theme still stands behind every theme file and
   is the fallback when `theme` is `null`; an old `"theme": "dark"` with no `themes/dark.toml` gives one warning and the fallback.
+  A pane can have its own background colour: `[background.editor]`, `explorer`, `terminal`, `statusbar` and `popup` (every
+  box) take the same keys as `[background]`, and a key left out is the screen's, so a darker terminal pane is
+  `[background.terminal]` with `color = "#181818"`.
 
 ## Known limits
 

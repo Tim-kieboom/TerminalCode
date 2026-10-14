@@ -5,7 +5,6 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 ## Fixes
 
 ## Settings
-- [ ] A background color per pane: an option to override the `[background]` color for one pane (the editor panes, the explorer, the terminal pane, the status bar, each popup kind), so for example the terminal can be a shade darker than the editor. Needs a decision first: where it is set, in the theme file (a `background` key in each component's slot or a `[background.<component>]` table, with the same `color` / `opacity` / `transparent` meaning as the global one) or in the layout file's `Framed(component: X, frame: (...))`, which already has per-component frames; it falls back to the global `[background]`, and blending with the terminal's own background is done once and shared. Do the "popup boxes and the terminal do not follow the background" fix above first, since a per-pane color needs every pane to paint through the same path. Tests: a pane with an override, one without, and `transparent` on one pane only; document it in the default theme file's comments
 
 ## Editor
 - [ ] Long single lines: lay out only the visible window of a line, so a line of 1 MB or more draws within the 50 ms budget (today 59 ms at 1 MB, 590 ms at 10 MB); needs a way from a display column to a grapheme without walking from the line start, such as a per-line index kept beside the rope; `perf_tests::how_long_a_single_line_can_get` measures it
