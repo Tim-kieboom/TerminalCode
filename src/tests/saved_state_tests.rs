@@ -153,6 +153,7 @@ fn a_failed_write_is_told_once_per_run_not_at_every_toggle() {
     assert_eq!(told(&app), Vec::<String>::new());
 }
 
+#[cfg(unix)]
 #[test]
 fn a_terminal_that_starts_shown_gets_its_shell_and_the_keyboard_stays_put() {
     let dir = tempfile::tempdir().unwrap();
