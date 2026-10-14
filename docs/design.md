@@ -832,3 +832,18 @@ first `didOpen` of 10 MB takes about 17 ms (release build).
 - A save that fails because the user may not write the file (`FileError::ReadOnly`) or its folder (`PermissionDenied` from the atomic write) opens a masked password prompt ("Save /etc/hosts as root"); a file the app locked on purpose (the standard library source opened by go to definition) never does. The text goes to a temporary file as the user (mode 0600, removed on every path), then one `sudo -S -k -p '' sh -c SCRIPT sh SRC DST` call makes a temporary name next to the target (`mktemp`), copies the owner and mode of the file it replaces (a new file gets `root:root 0644`) and moves it over the target; the password goes to `sudo` on its input, never in an argument, and `-k` makes `sudo` ask every time. It runs on a thread of its own (a wrong password makes `sudo` pause) and answers with `Event::RootSaved`. A wrong password empties the prompt and asks again until `Esc`; "not in the sudoers" and "no sudo" are told once and then every save says so at once; keys do nothing while `sudo` works; text typed after the save began keeps the buffer modified (the saved version is compared). The password lives in `Secret`, which overwrites its bytes when dropped.
 - A file that is read-only to the user is locked against edits, so nothing could be saved: the palette action `File: Edit Anyway (save as root)` lifts that lock for the buffer (`Buffer::unlock_for_root`; the file permissions do not lock it again), and the save then asks for the password. The quit prompt does not ask for a password: it says to close it and save with `ctrl+s`.
 - Not done: `doas`, a root save over a bind-mounted file (the inode is replaced), and saving all modified files as root in one go.
+
+## Settings, remembered state and reset (decided after a grill)
+- What is hidden between runs is remembered in `state.json` in the config folder: one global file, not per project, and not
+  `settings.json`, which the user edits by hand and trcode must never write. The remembered state wins over the layout
+  file's "starts hidden"; the layout value is only the starting point when nothing is remembered for that pane.
+- It is written on every toggle (a crash or a closed window loses nothing), through a temp file and a rename. A failed
+  write (read-only config folder, a managed `~/.config`) is one notification per run, not one per toggle. A corrupt file
+  is ignored with a notification and the layout is used.
+- Reset to default exists for the theme, keymap, layout and settings files and for the remembered state: confirm, then
+  the old file is renamed to `NAME.bak` (an older backup is overwritten) and the built-in default is written.
+- `sequence_timeout`: when a chord times out its first key is dropped, not sent on; the status bar shows the pending keys
+  while it waits. 200 to 5000 ms, `0` waits forever.
+- `notification_seconds` is the lifetime of plain messages only; errors stay until dismissed.
+- `hide_ignored` hides ignored entries in the explorer only; the file finder and project search still reach them, so a
+  generated or vendored file can be opened by name.
