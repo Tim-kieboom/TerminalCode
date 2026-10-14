@@ -186,6 +186,7 @@ fn the_terminal_cursor_is_dimmed_while_the_editor_has_the_keyboard() {
     assert_eq!(rig.dimmed_cursors(), vec![(live.x, live.y)]);
 }
 
+#[cfg(unix)]
 #[test]
 fn a_terminal_cursor_the_program_hid_is_not_marked() {
     let mut rig = rig("printf 'abc\\033[?25l'; sleep 30");
