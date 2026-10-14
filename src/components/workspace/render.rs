@@ -3,7 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::app::state::AppState;
+use crate::app::state::{AppState, Focus};
 use crate::components::editor::{EditorRef, display_name, render as editor_render};
 use crate::ui::Render;
 use crate::ui::layout::Placement;
@@ -76,6 +76,7 @@ impl Render for Workspace {
                 editor,
                 syntax: document.syntax.spans(),
                 focused,
+                live: focused && state.has_keyboard(Focus::Editor),
                 find: state.find().filter(|_| focused),
                 diagnostics: state.diagnostics().of(tab.document),
             };

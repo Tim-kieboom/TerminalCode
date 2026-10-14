@@ -112,6 +112,9 @@ background = "@accent_bg"
 background = "@accent_bg"
 modifiers = ["bold"]
 
+["cursor.unfocused"]
+background = "@accent_bg"
+
 ["explorer.hint"]
 text = "@muted"
 

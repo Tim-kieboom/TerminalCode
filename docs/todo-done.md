@@ -208,3 +208,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Open questions (answered)
 - [x] Project search implementation: the `grep-searcher` crates, no `rg` dependency (M4)
+
+## Cursor follows focus
+- [x] Whoever gets the next keypress has the live cursor; every other place that has a cursor shows a dimmed static block at the same spot (`cursor.unfocused` theme slot in all four themes, dark grey when a custom theme lacks it; the explorer keeps its `explorer.selected.inactive` row). Editor, explorer, terminal (only while the program shows its cursor), find bar and popups; the completion box leaves the editor live; each pane of a split keeps its own cursor (`AppState::has_keyboard`, `ui::cursor::dim_cell`, `src/tests/cursor_tests.rs`)

@@ -1,12 +1,13 @@
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
+use ratatui::layout::{Position, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
 
 use super::TerminalPane;
 use crate::app::state::{AppState, Focus};
+use crate::ui::cursor::dim_cell;
 use crate::ui::layout::Placement;
 
 /// Draws the frame, the tab bar when there is more than one tab, and the
@@ -58,11 +59,15 @@ pub(super) fn draw(
             (!screen.hide_cursor() && screen.scrollback() == 0).then(|| screen.cursor_position())
         });
 
-        if let (true, Some((row, column))) = (focused, cursor)
+        if let Some((row, column)) = cursor
             && row < inner.height
             && column < inner.width
         {
-            frame.set_cursor_position((inner.x + column, inner.y + row));
+            let cell = Position::new(inner.x + column, inner.y + row);
+            match state.has_keyboard(Focus::Terminal) {
+                true => frame.set_cursor_position(cell),
+                false => dim_cell(frame, theme, cell),
+            }
         }
     }
 }

@@ -33,6 +33,7 @@ impl Render for Explorer {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
         let theme = state.theme();
         let focused = state.focus() == Focus::Explorer;
+        let live = state.has_keyboard(Focus::Explorer);
         let title = placement.frame.title_text(placement.kind.title());
         let block = placement.frame.block(theme, title, focused);
         let inner = block.inner(placement.area);
@@ -55,7 +56,7 @@ impl Render for Explorer {
             .map(|(index, row)| {
                 let active = active_path.is_some_and(|path| path == row.path);
                 let drop = drop_target.is_some_and(|path| path == row.path);
-                line(row, index == self.selected, active, drop, focused, theme)
+                line(row, index == self.selected, active, drop, live, theme)
             })
             .collect();
 

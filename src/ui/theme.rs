@@ -443,6 +443,15 @@ impl Theme {
         }
     }
 
+    /// The block that marks where the cursor is in a place that does not have the
+    /// keyboard. A theme without the `cursor.unfocused` slot gets a dark grey.
+    pub(crate) fn unfocused_cursor(&self) -> Style {
+        self.slots
+            .get("cursor.unfocused")
+            .copied()
+            .unwrap_or_else(|| Style::new().bg(Color::DarkGray))
+    }
+
     /// Whether the theme defines `slot`.
     pub(crate) fn contains(&self, slot: &str) -> bool {
         self.slots.contains_key(slot)

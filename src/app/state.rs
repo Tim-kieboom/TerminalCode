@@ -289,6 +289,13 @@ impl AppState {
         self.focus
     }
 
+    /// Whether typing goes to `focus` right now: it has the focus and no popup
+    /// has taken the keys. The completion box is not a popup, the editor keeps
+    /// the keyboard while it is open.
+    pub(crate) fn has_keyboard(&self, focus: Focus) -> bool {
+        self.focus == focus && matches!(self.popup, Popup::None)
+    }
+
     pub(crate) fn set_focus(&mut self, focus: Focus) {
         self.focus = focus;
     }

@@ -16,6 +16,7 @@ use crate::components::editor::{EditorRef, ViewState, display_name};
 use crate::components::find::Find;
 use crate::lsp::{Diagnostic, Severity};
 use crate::syntax::Span as SyntaxSpan;
+use crate::ui::cursor::dim_cell;
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 use unicode_segmentation::UnicodeSegmentation;
@@ -45,6 +46,9 @@ pub(crate) struct Content<'a> {
     /// Only the focused editor gets the terminal cursor and the highlighted
     /// border.
     pub(crate) focused: bool,
+    /// Whether typing goes to this editor: it gets the terminal cursor. Any
+    /// other editor marks its cursor with a dimmed block.
+    pub(crate) live: bool,
     pub(crate) find: Option<&'a Find>,
     /// What a language server says is wrong, in the order of the text.
     pub(crate) diagnostics: &'a [Diagnostic],
@@ -62,6 +66,7 @@ pub(crate) fn draw(
         editor,
         syntax,
         focused,
+        live,
         find,
         diagnostics,
     } = content;
@@ -78,8 +83,10 @@ pub(crate) fn draw(
         diagnostics,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
-    if focused {
-        place_cursor(frame, buffer, view, &geometry);
+    match (cursor_cell(buffer, view, &geometry), live) {
+        (Some(cell), true) => frame.set_cursor_position(cell),
+        (Some(cell), false) => dim_cell(frame, theme, cell),
+        (None, _) => {}
     }
 }
 
@@ -250,11 +257,12 @@ fn selected_columns(
     Some((from..to, line < end.line))
 }
 
-fn place_cursor(frame: &mut Frame, buffer: &Buffer, view: &ViewState, geometry: &Geometry) {
+/// The screen cell of the primary cursor, when it is in view.
+fn cursor_cell(buffer: &Buffer, view: &ViewState, geometry: &Geometry) -> Option<ScreenPosition> {
     let head = view.selections().primary().head();
     let scroll = view.scroll();
     let Ok(content) = buffer.line_content(head.line) else {
-        return;
+        return None;
     };
     let column = text_layout::display_column(&content, head.column, view.tab_width());
 
@@ -262,15 +270,15 @@ fn place_cursor(frame: &mut Frame, buffer: &Buffer, view: &ViewState, geometry: 
         head.line.checked_sub(scroll.top),
         column.checked_sub(scroll.left),
     ) else {
-        return;
+        return None;
     };
     if row >= usize::from(geometry.text.height) || col >= usize::from(geometry.text.width) {
-        return;
+        return None;
     }
-    frame.set_cursor_position(ScreenPosition::new(
+    Some(ScreenPosition::new(
         geometry.text.x + col as u16,
         geometry.text.y + row as u16,
-    ));
+    ))
 }
 
 /// The syntax colors of one line, by grapheme column.
