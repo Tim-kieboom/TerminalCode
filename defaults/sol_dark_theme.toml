@@ -114,6 +114,10 @@ background = "@selection"
 ["cursor.unfocused"]
 background = "@selection"
 
+["cursor.extra"]
+text = "@surface"
+background = "@text"
+
 ["explorer.hint"]
 text = "@muted"
 

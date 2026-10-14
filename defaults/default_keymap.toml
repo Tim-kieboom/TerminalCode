@@ -5,7 +5,7 @@
 # context: "global" (default), "editor" or "explorer". Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "command_palette", "find_file", "find_in_project", "next_search_result", "previous_search_result", "next_diagnostic", "previous_diagnostic", "show_diagnostics", "show_hover", "jump_back", "jump_forward", "go_to_definition", "find_in_file", "replace_in_file", "go_to_line", "save", "undo", "redo", "insert_newline", "delete_backward",
-#   "delete_word_backward", "delete_word_forward", "select_all", "copy", "cut", "paste",
+#   "delete_word_backward", "delete_word_forward", "select_all", "add_cursor_above", "add_cursor_below", "collapse_cursors", "copy", "cut", "paste",
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_tabs_to_left", "close_tabs_to_right", "toggle_pin_tab", "close_all_tabs", "reopen_closed_tab", "save_all", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
@@ -13,8 +13,8 @@
 #   { toggle_plugin_view = "view.id" }, { explorer = command }, { plugin = "name" }.
 # Explorer commands: up, down, page_up, page_down, first, last, expand, collapse, open, refresh,
 #   toggle_hidden.
-# Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, document_start,
-#   document_end.
+# Motions: left, right, up, down, page_up, page_down, word_left, word_right, line_start, line_end, paragraph_up,
+#   paragraph_down, document_start, document_end.
 # Plain printable keys with no binding are typed into the editor.
 
 # Application
@@ -212,6 +212,22 @@ action = { select = "paragraph_up" }
 keys = "ctrl+shift+down"
 context = "editor"
 action = { select = "paragraph_down" }
+
+# More cursors: one on the line above or below; esc goes back to one
+[[binding]]
+keys = "ctrl+alt+up"
+context = "editor"
+action = "add_cursor_above"
+
+[[binding]]
+keys = "ctrl+alt+down"
+context = "editor"
+action = "add_cursor_below"
+
+[[binding]]
+keys = "esc"
+context = "editor"
+action = "collapse_cursors"
 
 [[binding]]
 keys = "ctrl+backspace"

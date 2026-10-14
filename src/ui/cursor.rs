@@ -12,3 +12,12 @@ pub(crate) fn dim_cell(frame: &mut Frame, theme: &Theme, cell: Position) {
         target.set_style(theme.unfocused_cursor());
     }
 }
+
+/// Marks the cell at `cell` as one of the further cursors of a document that has
+/// several: the text stays, the cell gets the theme's `cursor.extra` look. The
+/// primary cursor is the terminal's own.
+pub(crate) fn extra_cell(frame: &mut Frame, theme: &Theme, cell: Position) {
+    if let Some(target) = frame.buffer_mut().cell_mut(cell) {
+        target.set_style(theme.extra_cursor());
+    }
+}

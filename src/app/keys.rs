@@ -296,6 +296,12 @@ impl App {
             }
             Action::DeleteWordForward => self.state.edit(|editor| editor.delete_word_forward())?,
             Action::SelectAll => self.state.edit(|editor| editor.select_all())?,
+            Action::AddCursorAbove => self.state.edit(|editor| editor.add_cursor_vertically(-1))?,
+            Action::AddCursorBelow => self.state.edit(|editor| editor.add_cursor_vertically(1))?,
+            Action::CollapseCursors => self.state.edit(|editor| {
+                editor.collapse_cursors();
+                Ok::<(), crate::buffer::BufferError>(())
+            })?,
             Action::Indent => self.state.edit(|editor| editor.indent())?,
             Action::Outdent => self.state.edit(|editor| editor.outdent())?,
             Action::Copy => self.copy()?,

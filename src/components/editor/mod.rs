@@ -15,6 +15,7 @@ mod clipboard_ops;
 mod indent;
 mod motion;
 mod mouse_ops;
+mod multi;
 pub(crate) mod render;
 mod replace;
 mod smart_indent;
@@ -136,8 +137,9 @@ enum EditKind {
 
 /// One open document with its selection and viewport.
 ///
-/// Only the primary selection is edited for now; multi-cursor editing comes
-/// after 0.1.0.
+/// There can be several cursors (see `multi.rs`): typing, line breaks, deletes,
+/// motions and selecting by motion act on each of them; everything else acts on
+/// the primary one and leaves a single cursor.
 #[derive(Debug, Default)]
 pub(crate) struct Editor {
     buffer: Buffer,
@@ -187,39 +189,52 @@ impl Editor {
         self.buffer.take_edit_log()
     }
 
-    /// Moves the cursor. With a selection, left and right collapse it to its
+    /// Moves every cursor. With a selection, left and right collapse it to its
     /// start and end instead of moving.
     pub(crate) fn move_cursor(&mut self, motion: Motion) -> Result<(), BufferError> {
         self.view.last_edit = None;
-        let selection = *self.view.selections.primary();
+        let primary = *self.view.selections.primary();
+        let mut moved = Vec::with_capacity(self.view.selections.len());
+        for selection in self.view.selections.iter() {
+            moved.push(self.moved(selection, motion)?);
+        }
+        let target = self.moved(&primary, motion)?;
+        self.follow_page_motion(motion, primary.head().line, target.head().line);
+        self.view.selections = Selections::from_items(moved, self.view.selections.primary_index());
+        Ok(())
+    }
+
+    fn moved(&self, selection: &Selection, motion: Motion) -> Result<Selection, BufferError> {
         let collapse_to = match motion {
             Motion::Left if !selection.is_empty() => Some(selection.start()),
             Motion::Right if !selection.is_empty() => Some(selection.end()),
             _ => None,
         };
-
-        let moved = match collapse_to {
+        Ok(match collapse_to {
             Some(position) => Selection::cursor(position),
             None => {
-                let target = self.target(&selection, motion)?;
-                self.follow_page_motion(motion, selection.head().line, target.position.line);
+                let target = self.target(selection, motion)?;
                 Selection::cursor(target.position).with_desired_column(target.desired_column)
             }
-        };
-        self.view.selections = Selections::single(moved);
-        Ok(())
+        })
     }
 
-    /// Moves the head of the selection, keeping the anchor.
+    /// Moves the head of every selection, keeping the anchors.
     pub(crate) fn select(&mut self, motion: Motion) -> Result<(), BufferError> {
         self.view.last_edit = None;
-        let selection = *self.view.selections.primary();
-        let target = self.target(&selection, motion)?;
-        self.follow_page_motion(motion, selection.head().line, target.position.line);
-        let extended = Selection::new(selection.anchor(), target.position)
-            .with_desired_column(target.desired_column);
-
-        self.view.selections = Selections::single(extended);
+        let primary = *self.view.selections.primary();
+        let mut extended = Vec::with_capacity(self.view.selections.len());
+        for selection in self.view.selections.iter() {
+            let target = self.target(selection, motion)?;
+            extended.push(
+                Selection::new(selection.anchor(), target.position)
+                    .with_desired_column(target.desired_column),
+            );
+        }
+        let target = self.target(&primary, motion)?;
+        self.follow_page_motion(motion, primary.head().line, target.position.line);
+        self.view.selections =
+            Selections::from_items(extended, self.view.selections.primary_index());
         Ok(())
     }
 
@@ -250,6 +265,9 @@ impl Editor {
 
     /// Replaces the selection (or inserts at the cursor) with `text`.
     pub(crate) fn insert_text(&mut self, text: &str) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.insert_at_every_cursor(text);
+        }
         let range = self.selection_bytes()?;
         if range.is_empty() && text.is_empty() {
             return Ok(());
@@ -272,6 +290,9 @@ impl Editor {
     /// Deletes the selection, or the grapheme before the cursor. At the start
     /// of a line it joins the line with the previous one.
     pub(crate) fn delete_backward(&mut self) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.delete_at_every_cursor(multi::Delete::Backward);
+        }
         let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
@@ -291,6 +312,9 @@ impl Editor {
     /// Deletes the selection, or the grapheme after the cursor. At the end of
     /// a line it joins the next line onto it.
     pub(crate) fn delete_forward(&mut self) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.delete_at_every_cursor(multi::Delete::Forward);
+        }
         let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
@@ -309,6 +333,9 @@ impl Editor {
 
     /// Deletes the selection, or back to the start of the previous word.
     pub(crate) fn delete_word_backward(&mut self) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.delete_at_every_cursor(multi::Delete::WordBackward);
+        }
         let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);
@@ -324,6 +351,9 @@ impl Editor {
 
     /// Deletes the selection, or forward to the end of the next word.
     pub(crate) fn delete_word_forward(&mut self) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.delete_at_every_cursor(multi::Delete::WordForward);
+        }
         let selection = *self.view.selections.primary();
         if !selection.is_empty() {
             return self.replace(self.selection_bytes()?, "", None);

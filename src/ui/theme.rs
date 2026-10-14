@@ -562,6 +562,15 @@ impl Theme {
             .unwrap_or_else(|| Style::new().bg(Color::DarkGray))
     }
 
+    /// The block that marks a further cursor when there are several. A theme
+    /// without the `cursor.extra` slot swaps the cell's colors.
+    pub(crate) fn extra_cursor(&self) -> Style {
+        self.slots
+            .get("cursor.extra")
+            .copied()
+            .unwrap_or_else(|| Style::new().add_modifier(Modifier::REVERSED))
+    }
+
     /// Whether the theme defines `slot`.
     pub(crate) fn contains(&self, slot: &str) -> bool {
         self.slots.contains_key(slot)

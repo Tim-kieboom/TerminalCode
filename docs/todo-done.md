@@ -238,3 +238,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Paragraph motion
 - [x] `ctrl+up/down` move to the previous or next blank line and `ctrl+shift+up/down` select up to it: new `Motion::ParagraphUp` / `ParagraphDown` (`move` / `select` targets `paragraph_up` / `paragraph_down`). A line of only whitespace is blank; the cursor lands in column 0 of the blank line, skipping the blank run it starts in, and goes to the document start or end when there is none. Still to check by hand: whether kitty and Windows Terminal pass `ctrl+shift+up/down` through
+
+## Several cursors (core)
+- [x] `Selections` is a sorted list with overlapping selections joined; `ctrl+alt+up/down` add a cursor, `esc` goes back to one. Motions, selecting, typing, line breaks, the four deletes and undo act on every cursor as one undo step; other operations act on the primary cursor and leave one (decisions in `design.md`; tests in `buffer/tests/selection_tests.rs`, `components/editor/tests/multi_tests.rs`, `src/tests/multicursor_tests.rs`). The extra cursors are drawn in the new `cursor.extra` theme slot

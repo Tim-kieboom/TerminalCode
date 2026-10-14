@@ -25,6 +25,7 @@ mod lsp_tests;
 mod menu_tests;
 mod mouse_tests;
 mod move_tests;
+mod multicursor_tests;
 mod notification_tests;
 mod palette_tests;
 mod paragraph_tests;

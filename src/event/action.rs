@@ -104,6 +104,12 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    /// Adds a cursor on the line above the primary one.
+    AddCursorAbove,
+    /// Adds a cursor on the line below the primary one.
+    AddCursorBelow,
+    /// Goes back to the primary cursor alone.
+    CollapseCursors,
     Indent,
     Outdent,
     Copy,
@@ -302,6 +308,9 @@ impl Action {
             Self::DeleteWordBackward => "Edit: Delete Word Backward",
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
+            Self::AddCursorAbove => "Cursor: Add Cursor Above",
+            Self::AddCursorBelow => "Cursor: Add Cursor Below",
+            Self::CollapseCursors => "Cursor: Back to One Cursor",
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) => return None,
@@ -391,6 +400,9 @@ impl Action {
             Self::Copy,
             Self::Paste,
             Self::SelectAll,
+            Self::AddCursorAbove,
+            Self::AddCursorBelow,
+            Self::CollapseCursors,
             Self::Indent,
             Self::Outdent,
             Self::DeleteWordBackward,

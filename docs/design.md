@@ -76,8 +76,18 @@ used `anyhow` everywhere instead of typed errors.
 - **Position:** `(line, grapheme_index)` using `unicode-segmentation`. The buffer layer converts to and
   from byte/char offsets. Only the view layer knows display width (`unicode-width`) and tab expansion.
 - **Cursor/Selection:** selections are the primary model (a cursor is an empty selection). Core cursor
-  stores `desired_column` for Up/Down. Multi-cursor is not in 0.1.0 but the type is a list of
-  selections from day one to avoid a later rewrite.
+  stores `desired_column` for Up/Down. `Selections` is a list kept sorted with overlapping
+  selections joined (a cursor on the edge of a selection, or two cursors in one place, join too); one is primary.
+  **Several cursors** (`components/editor/multi.rs`): `ctrl+alt+up/down` add a cursor above or below the primary one
+  (it becomes the primary one), `esc` goes back to the primary one. Motions, selecting by motion, typing, a line break,
+  the four deletes and undo/redo act on every cursor; each of them plans one change per cursor against the text as it
+  is, applies them last first in one transaction (so one `ctrl+z` takes back the whole burst, and typing bursts still
+  merge into one step) and puts a cursor after each change (`Editor::edit_each`); deletes that run into each other are
+  joined. Every other operation (indent, outdent, clipboard, replace, completion, go to) acts on the primary cursor and
+  leaves one cursor, because it replaces the selection list with a single one. A line break with several cursors only
+  copies the indentation (no smart indent after a bracket), and a closing bracket does not dedent. The primary cursor is
+  the terminal's own cursor; the others are blocks in the `cursor.extra` theme slot (swapped colours when a theme has
+  none), and every selection is highlighted.
 - **Known limit:** grapheme-index to byte conversion is O(line length); extremely long single-line files
   will be slow.
 

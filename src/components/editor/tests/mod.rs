@@ -4,6 +4,7 @@ mod editor_view_tests;
 mod indent_tests;
 mod motion_tests;
 mod mouse_tests;
+mod multi_tests;
 mod property_tests;
 mod scroll_tests;
 mod smart_indent_tests;

@@ -167,6 +167,9 @@ impl Editor {
     /// deeper, and a closing bracket right after the cursor goes to a line of
     /// its own below.
     pub(crate) fn insert_newline_indented(&mut self) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.newline_at_every_cursor();
+        }
         let selection = *self.view.selections.primary();
         let start = selection.start();
         let content = self.buffer.line_content(start.line)?;

@@ -10,13 +10,13 @@ use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use crate::buffer::{Buffer, Selection};
+use crate::buffer::{Buffer, Position, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
 use crate::components::find::Find;
 use crate::lsp::{Diagnostic, Severity};
 use crate::syntax::Span as SyntaxSpan;
-use crate::ui::cursor::dim_cell;
+use crate::ui::cursor::{dim_cell, extra_cell as extra_cursor_cell};
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 use unicode_segmentation::UnicodeSegmentation;
@@ -83,6 +83,14 @@ pub(crate) fn draw(
         diagnostics,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
+    for selection in view.selections().iter() {
+        if std::ptr::eq(selection, view.selections().primary()) {
+            continue;
+        }
+        if let Some(cell) = cell_of(buffer, view, &geometry, selection.head()) {
+            extra_cursor_cell(frame, theme, cell);
+        }
+    }
     match (cursor_cell(buffer, view, &geometry), live) {
         (Some(cell), true) => frame.set_cursor_position(cell),
         (Some(cell), false) => dim_cell(frame, theme, cell),
@@ -148,8 +156,7 @@ fn draw_lines(
         diagnostics,
     } = *overlays;
     let scroll = view.scroll();
-    let selection = view.selections().primary();
-    let head_line = selection.head().line;
+    let head_line = view.selections().primary().head().line;
 
     let mut numbers = Vec::new();
     let mut texts = Vec::new();
@@ -182,7 +189,12 @@ fn draw_lines(
             usize::from(geometry.text.width),
             view.tab_width(),
         );
-        let selected = selected_columns(selection, line, buffer.line_len(line).unwrap_or(0));
+        let line_len = buffer.line_len(line).unwrap_or(0);
+        let selected: Vec<(Range<usize>, bool)> = view
+            .selections()
+            .iter()
+            .filter_map(|selection| selected_columns(selection, line, line_len))
+            .collect();
         let colors = LineColors::new(syntax, buffer.line_start_byte(line), &content);
 
         let selection_style = theme.style("editor.selection");
@@ -193,7 +205,11 @@ fn draw_lines(
             .map(|cell| {
                 let base = colors.style_of(cell.grapheme);
                 let style = match &selected {
-                    Some((range, _)) if range.contains(&cell.grapheme) => {
+                    selected
+                        if selected
+                            .iter()
+                            .any(|(range, _)| range.contains(&cell.grapheme)) =>
+                    {
                         base.patch(selection_style)
                     }
                     _ if found
@@ -207,7 +223,7 @@ fn draw_lines(
                 Span::styled(cell.text, underlines.apply(cell.grapheme, style))
             })
             .collect();
-        let spacer = matches!(selected, Some((_, true)));
+        let spacer = selected.iter().any(|(_, continues)| *continues);
         if spacer {
             spans.push(Span::styled(" ", selection_style));
         }
@@ -259,7 +275,16 @@ fn selected_columns(
 
 /// The screen cell of the primary cursor, when it is in view.
 fn cursor_cell(buffer: &Buffer, view: &ViewState, geometry: &Geometry) -> Option<ScreenPosition> {
-    let head = view.selections().primary().head();
+    cell_of(buffer, view, geometry, view.selections().primary().head())
+}
+
+/// The screen cell of `head`, when it is in view.
+fn cell_of(
+    buffer: &Buffer,
+    view: &ViewState,
+    geometry: &Geometry,
+    head: Position,
+) -> Option<ScreenPosition> {
     let scroll = view.scroll();
     let Ok(content) = buffer.line_content(head.line) else {
         return None;
