@@ -10,7 +10,10 @@ use ratatui::layout::Position;
 use crate::app::App;
 use crate::app::keys::{EDITOR_CONTEXTS, EXPLORER_CONTEXTS};
 use crate::app::state::Focus;
+use crate::components::ComponentKind;
 use crate::components::menu::{self, Entry, Menu};
+use crate::components::menu_bar::MenuBar;
+use crate::config::ConfigFile;
 use crate::event::action::Action;
 
 impl App {
@@ -81,25 +84,18 @@ impl App {
             return;
         };
         self.needs_redraw = true;
-        match command {
-            menu::Command::Previous => menu.select_previous(),
-            menu::Command::Next => menu.select_next(),
-            menu::Command::Cancel => return,
-            menu::Command::Run => {
-                if let Some(action) = menu.selected_action().cloned() {
-                    self.run_menu_action(menu.target(), action);
-                }
-                return;
-            }
+        match menu.key(command) {
+            menu::Step::Stay => self.state.open_menu(menu),
+            menu::Step::Run(action) => self.run_menu_action(&menu, action),
+            menu::Step::Close | menu::Step::Outside => {}
         }
-        self.state.open_menu(menu);
     }
 
     /// A mouse event while the menu is open. Returns whether the menu used
     /// it up: a press outside only closes the menu and is then handled as if
     /// the menu had not been there, and the wheel just closes it.
     pub(in crate::app) fn handle_menu_mouse(&mut self, event: MouseEvent) -> bool {
-        let Some(menu) = self.state.take_menu() else {
+        let Some(mut menu) = self.state.take_menu() else {
             return false;
         };
         let position = Position::new(event.column, event.row);
@@ -109,13 +105,10 @@ impl App {
             | MouseEventKind::ScrollDown
             | MouseEventKind::ScrollLeft
             | MouseEventKind::ScrollRight => {}
-            MouseEventKind::Down(MouseButton::Left) => {
-                if let Some(action) = menu.action_at(position).cloned() {
-                    self.run_menu_action(menu.target(), action);
-                } else {
-                    self.state.open_menu(menu);
-                }
-            }
+            MouseEventKind::Down(MouseButton::Left) => match menu.click(position) {
+                menu::Step::Run(action) => self.run_menu_action(&menu, action),
+                _ => self.state.open_menu(menu),
+            },
             _ => self.state.open_menu(menu),
         }
         true
@@ -123,9 +116,10 @@ impl App {
 
     /// Runs a menu item: on the path the menu was opened on, or, for a menu on
     /// the editor, on the editor.
-    fn run_menu_action(&mut self, target: Option<&Path>, action: Action) {
-        match target {
+    fn run_menu_action(&mut self, menu: &Menu, action: Action) {
+        match menu.target() {
             Some(target) => self.run_on_target(target, action),
+            None if menu.keeps_focus() => self.run_action(action),
             None => {
                 self.state.set_focus(Focus::Editor);
                 self.run_action(action);
@@ -159,10 +153,10 @@ impl App {
 /// What the menu on the editor text offers, with the keys each item has there.
 impl App {
     fn editor_entries(&self) -> Vec<Entry> {
-        let item = |label, action: Action| {
+        let item = |label: &'static str, action: Action| {
             let keys = self.keyboard.keys_for(&action, &EDITOR_CONTEXTS);
             Entry::Item {
-                label,
+                label: label.into(),
                 action,
                 keys,
             }
@@ -185,10 +179,10 @@ impl App {
 /// it only gets the entries that add to it.
 impl App {
     fn explorer_entries(&self, is_root: bool) -> Vec<Entry> {
-        let item = |label, action: Action| {
+        let item = |label: &'static str, action: Action| {
             let keys = self.keyboard.keys_for(&action, &EXPLORER_CONTEXTS);
             Entry::Item {
-                label,
+                label: label.into(),
                 action,
                 keys,
             }
@@ -219,10 +213,10 @@ fn name_of(path: &Path) -> String {
 /// so the items work on the tab in front.
 impl App {
     fn tab_entries(&self) -> Vec<Entry> {
-        let item = |label, action: Action| {
+        let item = |label: &'static str, action: Action| {
             let keys = self.keyboard.keys_for(&action, &EDITOR_CONTEXTS);
             Entry::Item {
-                label,
+                label: label.into(),
                 action,
                 keys,
             }
@@ -253,5 +247,101 @@ impl App {
         self.state
             .open_menu(Menu::on_editor(entries, Position::new(column, row)));
         true
+    }
+}
+
+/// The main menu: the icon in the top row, `f10` or the palette opens it.
+impl App {
+    /// Opens the main menu under the icon, or at the top left when the top row is
+    /// hidden. The keyboard stays where it was, and closing the menu leaves it there.
+    pub(in crate::app) fn open_main_menu(&mut self) {
+        let screen = self.state.screen();
+        let icon = self
+            .state
+            .placements(screen)
+            .iter()
+            .find(|placement| placement.kind == ComponentKind::MenuBar)
+            .map(|placement| MenuBar::icon_rect(placement.area));
+        let entries = self.main_menu_entries();
+        let menu = match icon {
+            Some(icon) => Menu::on_app(entries, Position::new(icon.x, icon.y)),
+            // No row to hang from: the menu starts at the top left.
+            None => {
+                Menu::on_app(entries, Position::new(screen.x, screen.y)).starting_on_anchor_row()
+            }
+        };
+        self.state.open_menu(menu);
+        self.needs_redraw = true;
+    }
+
+    /// What the main menu offers. Every item is an action the palette has too, with
+    /// the keys it has now.
+    fn main_menu_entries(&self) -> Vec<Entry> {
+        let item = |label: &'static str, action: Action| {
+            let keys = self.keyboard.keys_for(&action, &EDITOR_CONTEXTS);
+            Entry::Item {
+                label: label.into(),
+                action,
+                keys,
+            }
+        };
+        let group = |label: &'static str, entries: Vec<Entry>| Entry::Group {
+            label: label.into(),
+            entries,
+        };
+        vec![
+            group(
+                "File",
+                vec![
+                    item("New File", Action::NewFile),
+                    item("Save", Action::Save),
+                    item("Save All", Action::SaveAll),
+                ],
+            ),
+            group(
+                "View",
+                vec![
+                    item("Toggle Explorer", Action::ToggleExplorer),
+                    item("Toggle Terminal", Action::ToggleTerminal),
+                    item("Toggle Status Bar", Action::ToggleStatusBar),
+                    item("Toggle Menu Bar", Action::ToggleMenuBar),
+                    item("Show Errors", Action::ShowErrors),
+                    item("Toggle Mouse", Action::ToggleMouse),
+                ],
+            ),
+            group(
+                "Settings",
+                vec![
+                    item("Open Settings", Action::OpenConfig(ConfigFile::Settings)),
+                    item("Open Keymap", Action::OpenConfig(ConfigFile::Keymap)),
+                    item("Open Layout", Action::OpenConfig(ConfigFile::Layout)),
+                    item("Open Theme", Action::OpenConfig(ConfigFile::Theme)),
+                    item("Reload", Action::Reload),
+                    Entry::Separator,
+                    item("Choose Theme", Action::ChooseTheme),
+                    item("New Theme", Action::NewTheme),
+                ],
+            ),
+            Entry::Separator,
+            item("Quit", Action::Quit),
+        ]
+    }
+
+    /// A click on the menu icon opens the main menu. Returns whether it was one.
+    pub(in crate::app) fn handle_menu_bar_mouse(&mut self, event: MouseEvent) -> bool {
+        if event.kind != MouseEventKind::Down(MouseButton::Left) || self.modal_open() {
+            return false;
+        }
+        let at = Position::new(event.column, event.row);
+        let on_icon = self
+            .state
+            .placements(self.state.screen())
+            .iter()
+            .filter(|placement| placement.kind == ComponentKind::MenuBar)
+            .any(|placement| MenuBar::icon_rect(placement.area).contains(at));
+        if on_icon {
+            self.open_main_menu();
+        }
+        on_icon
     }
 }

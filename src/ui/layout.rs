@@ -472,11 +472,12 @@ fn validate(
                     path: LayoutPath(path.clone()),
                 });
             }
-            if let Some(view) = bar
-                .views
-                .iter()
-                .find(|view| matches!(view, ComponentKind::Editor | ComponentKind::StatusBar))
-            {
+            if let Some(view) = bar.views.iter().find(|view| {
+                matches!(
+                    view,
+                    ComponentKind::Editor | ComponentKind::StatusBar | ComponentKind::MenuBar
+                )
+            }) {
                 return Err(LayoutError::NotABarView {
                     path: LayoutPath(path.clone()),
                     view: view.title().into(),

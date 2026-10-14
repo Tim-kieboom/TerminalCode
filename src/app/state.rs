@@ -14,6 +14,7 @@ use crate::components::find::Find;
 use crate::components::finder::Finder;
 use crate::components::hover_box::HoverBox;
 use crate::components::menu::Menu;
+use crate::components::menu_bar::MenuBar;
 use crate::components::name_prompt::NamePrompt;
 use crate::components::notifications::{Hit, Level, Notifications};
 use crate::components::palette::Palette;
@@ -105,6 +106,7 @@ struct AppComponents {
     explorer: Hideable<Explorer>,
     status_bar: Hideable<StatusBar>,
     terminal: Hideable<TerminalPane>,
+    menu_bar: Hideable<MenuBar>,
     errors: Hideable<ErrorsView>,
     plugin_views: HashMap<PluginViewId, Hideable<PluginView>>,
 }
@@ -117,6 +119,7 @@ impl Default for AppComponents {
             explorer: Hideable::new_show(Explorer::default()),
             status_bar: Hideable::new_show(StatusBar),
             terminal: Hideable::new_hidden(TerminalPane::default()),
+            menu_bar: Hideable::new_show(MenuBar),
             errors: Hideable::new_hidden(ErrorsView::default()),
             plugin_views: HashMap::new(),
         }
@@ -166,6 +169,7 @@ impl AppState {
                 .is_none_or(Hideable::is_shown),
             ComponentKind::Terminal => self.components.terminal.is_shown(),
             ComponentKind::Errors => self.components.errors.is_shown(),
+            ComponentKind::MenuBar => self.components.menu_bar.is_shown(),
             ComponentKind::Editor => true,
         }
     }
@@ -247,6 +251,7 @@ impl AppState {
             ComponentKind::Terminal => self.components.terminal.set_shown(shown),
             ComponentKind::StatusBar => self.components.status_bar.set_shown(shown),
             ComponentKind::Errors => self.components.errors.set_shown(shown),
+            ComponentKind::MenuBar => self.components.menu_bar.set_shown(shown),
             ComponentKind::Editor | ComponentKind::Plugin(_) => {}
         }
     }
@@ -396,6 +401,10 @@ impl AppState {
         self.components.terminal.hide();
     }
 
+    pub(crate) fn toggle_menu_bar(&mut self) {
+        self.components.menu_bar.toggle();
+    }
+
     pub(crate) fn toggle_status_bar(&mut self) {
         self.components.status_bar.toggle();
     }
@@ -407,6 +416,10 @@ impl AppState {
         };
         view.toggle();
         true
+    }
+
+    pub(crate) fn menu_bar(&self) -> &MenuBar {
+        self.components.menu_bar.node()
     }
 
     pub(crate) fn status_bar(&self) -> &StatusBar {

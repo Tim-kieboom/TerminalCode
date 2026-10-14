@@ -128,6 +128,14 @@ background = "@selection"
 ["errors.empty"]
 text = "@dim"
 
+["menubar"]
+background = "@surface"
+text = "@dim"
+
+["menubar.icon"]
+text = "@accent_text"
+modifiers = ["bold"]
+
 ["bar.tab.active"]
 text = "@on_accent"
 background = "@accent_bg"

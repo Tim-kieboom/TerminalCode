@@ -348,8 +348,9 @@ fn clicking_a_file_in_the_explorer_opens_it_and_keeps_the_keyboard_there() {
         .position(|row| row.name == "a.txt")
         .unwrap() as u16;
 
-    // The default layout hides the explorer title, so the tree starts on the first row.
-    click_through(&mut app, 3, row);
+    // The default layout hides the explorer title, so the tree starts on the row
+    // under the menu bar.
+    click_through(&mut app, 3, row + 1);
 
     assert_eq!(app.state().focus(), Focus::Explorer);
     assert_eq!(editor_text(&app), "alpha\n");

@@ -5,10 +5,11 @@ use crate::components::ComponentKind;
 use crate::saved_state::{self, SavedState};
 
 /// The panes that can be hidden and are remembered.
-const PANES: [ComponentKind; 3] = [
+const PANES: [ComponentKind; 4] = [
     ComponentKind::Explorer,
     ComponentKind::Terminal,
     ComponentKind::StatusBar,
+    ComponentKind::MenuBar,
 ];
 
 /// What is remembered, and what was on screen the last time it was looked at.
@@ -16,14 +17,14 @@ const PANES: [ComponentKind; 3] = [
 pub(super) struct Saved {
     state: SavedState,
     /// Whether each of [`PANES`] was shown when last looked at.
-    seen: [bool; 3],
+    seen: [bool; PANES.len()],
     /// Whether a failure to write the file has been told, so it is said once
     /// per run and not at every toggle.
     failure_told: bool,
 }
 
 impl Saved {
-    pub(super) fn new(shown: [bool; 3]) -> Self {
+    pub(super) fn new(shown: [bool; PANES.len()]) -> Self {
         Self {
             state: SavedState::default(),
             seen: shown,
@@ -48,7 +49,7 @@ impl App {
         self.saved.state = SavedState::default();
     }
 
-    fn panes_shown(&self) -> [bool; 3] {
+    fn panes_shown(&self) -> [bool; PANES.len()] {
         PANES.map(|kind| self.state.is_visible(&kind))
     }
 

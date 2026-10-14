@@ -49,6 +49,7 @@ fn default_layout_places_every_builtin_component() {
     assert_eq!(
         kinds,
         [
+            ComponentKind::MenuBar,
             ComponentKind::Explorer,
             ComponentKind::Editor,
             ComponentKind::Terminal,

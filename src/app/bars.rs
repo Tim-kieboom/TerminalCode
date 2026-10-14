@@ -76,7 +76,10 @@ impl App {
             ComponentKind::Explorer => self.focus_explorer_shown(),
             ComponentKind::Terminal => self.show_terminal_with_keyboard(),
             ComponentKind::Errors => self.show_errors_with_keyboard(),
-            ComponentKind::Plugin(_) | ComponentKind::Editor | ComponentKind::StatusBar => {
+            ComponentKind::Plugin(_)
+            | ComponentKind::Editor
+            | ComponentKind::StatusBar
+            | ComponentKind::MenuBar => {
                 self.state.set_shown(view, true);
                 self.state.set_focus(Focus::Editor);
             }

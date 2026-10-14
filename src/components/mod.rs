@@ -9,6 +9,7 @@ pub mod find;
 pub mod finder;
 pub mod hover_box;
 pub mod menu;
+pub mod menu_bar;
 pub mod name_prompt;
 pub mod notifications;
 pub mod palette;
@@ -36,6 +37,8 @@ pub(crate) enum ComponentKind {
     Editor,
     Terminal,
     StatusBar,
+    /// The row at the top with the icon that opens the main menu.
+    MenuBar,
     /// What the language servers say is wrong with the open documents.
     Errors,
     Plugin(PluginViewId),
@@ -48,6 +51,7 @@ impl ComponentKind {
             Self::Editor => Some(BackgroundPane::Editor),
             Self::Terminal => Some(BackgroundPane::Terminal),
             Self::StatusBar => Some(BackgroundPane::StatusBar),
+            Self::MenuBar => Some(BackgroundPane::StatusBar),
             Self::Errors => Some(BackgroundPane::Terminal),
             Self::Plugin(_) => None,
         }
@@ -59,6 +63,7 @@ impl ComponentKind {
             Self::Editor => "Editor",
             Self::Terminal => "Terminal",
             Self::StatusBar => "Status",
+            Self::MenuBar => "Menu",
             Self::Errors => "Errors",
             Self::Plugin(id) => id.as_str(),
         }

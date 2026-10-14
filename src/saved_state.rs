@@ -27,6 +27,8 @@ pub(crate) struct Shown {
     terminal: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     status_bar: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    menu_bar: Option<bool>,
 }
 
 impl Shown {
@@ -35,6 +37,7 @@ impl Shown {
             ComponentKind::Explorer => Some(&mut self.explorer),
             ComponentKind::Terminal => Some(&mut self.terminal),
             ComponentKind::StatusBar => Some(&mut self.status_bar),
+            ComponentKind::MenuBar => Some(&mut self.menu_bar),
             ComponentKind::Editor | ComponentKind::Errors | ComponentKind::Plugin(_) => None,
         }
     }

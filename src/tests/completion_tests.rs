@@ -872,6 +872,10 @@ fn with_room_for_only_part_of_the_documentation_it_shows_what_fits() {
         "\n\n\n\n\n\n\n",
         answering(json!([call_item("pop", "pop()$0", Some(&long.join("\n")))])),
     );
+    // The row for the menu icon is not what is being measured.
+    rig.app
+        .state_mut()
+        .set_shown(&crate::components::ComponentKind::MenuBar, false);
     rig.type_text("p");
     rig.wait_for_box();
 

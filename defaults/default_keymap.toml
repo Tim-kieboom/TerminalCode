@@ -9,7 +9,7 @@
 #   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_tabs_to_left", "close_tabs_to_right", "toggle_pin_tab", "close_all_tabs", "reopen_closed_tab", "save_all", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
-#   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "context_menu", "toggle_explorer", "toggle_status_bar", "toggle_terminal", "next_bar_view", "previous_bar_view", "show_errors", { errors = "up"|"down"|"page_up"|"page_down"|"first"|"last"|"open"|"leave" }, "terminal_new_tab", "terminal_next_tab", "terminal_previous_tab", "terminal_close_tab",
+#   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "context_menu", "toggle_explorer", "toggle_status_bar", "toggle_terminal", "open_menu", "toggle_menu_bar", "next_bar_view", "previous_bar_view", "show_errors", { errors = "up"|"down"|"page_up"|"page_down"|"first"|"last"|"open"|"leave" }, "terminal_new_tab", "terminal_next_tab", "terminal_previous_tab", "terminal_close_tab",
 #   { toggle_plugin_view = "view.id" }, { explorer = command }, { plugin = "name" }.
 # Explorer commands: up, down, page_up, page_down, first, last, expand, collapse, open, refresh,
 #   toggle_hidden.
@@ -523,6 +523,11 @@ action = "toggle_status_bar"
 [[binding]]
 keys = "ctrl+`"
 action = "toggle_terminal"
+
+# The main menu: the icon in the top row opens it too
+[[binding]]
+keys = "f10"
+action = "open_menu"
 
 # Problems: the Errors view and its keys
 [[binding]]

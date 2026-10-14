@@ -56,6 +56,7 @@ pub(crate) fn load_user_config(
         ComponentKind::Explorer,
         ComponentKind::Terminal,
         ComponentKind::StatusBar,
+        ComponentKind::MenuBar,
     ] {
         let shown = saved.shown(&kind).or_else(|| {
             loaded_layout

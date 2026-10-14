@@ -144,7 +144,7 @@ impl Screen {
         self.app.state().editor().buffer().text()
     }
 
-    fn menu_labels(&self) -> Vec<&'static str> {
+    fn menu_labels(&self) -> Vec<&str> {
         self.app
             .state()
             .menu()
@@ -152,7 +152,7 @@ impl Screen {
             .entries()
             .iter()
             .map(|entry| match entry {
-                Entry::Item { label, .. } => *label,
+                Entry::Item { label, .. } | Entry::Group { label, .. } => label.as_ref(),
                 Entry::Separator => "---",
             })
             .collect()
@@ -426,7 +426,7 @@ fn the_menu_items_show_their_keys() {
         .iter()
         .filter_map(|entry| match entry {
             Entry::Item { keys, .. } => Some(keys.clone()),
-            Entry::Separator => None,
+            Entry::Group { .. } | Entry::Separator => None,
         })
         .collect();
     assert_eq!(keys[0].as_deref(), Some("ctrl+x"));

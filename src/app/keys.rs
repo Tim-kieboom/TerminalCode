@@ -269,6 +269,8 @@ impl App {
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Errors(command) => self.errors_command(command),
             Action::ShowErrors => self.toggle_errors(),
+            Action::OpenMenu => self.open_main_menu(),
+            Action::ToggleMenuBar => self.state.toggle_menu_bar(),
             Action::DeleteSelected => self.delete_selected(),
             Action::CreateFile => self.create_entry(EntryKind::File),
             Action::CreateFolder => self.create_entry(EntryKind::Folder),

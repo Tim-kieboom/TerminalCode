@@ -135,7 +135,7 @@ impl PaneFrame {
     pub(crate) fn default_for(kind: &ComponentKind) -> Self {
         let (sides, title) = match kind {
             ComponentKind::Editor => (Borders::ALL, Title::Hidden),
-            ComponentKind::StatusBar => (Borders::NONE, Title::Hidden),
+            ComponentKind::StatusBar | ComponentKind::MenuBar => (Borders::NONE, Title::Hidden),
             _ => (Borders::ALL, Title::Name),
         };
         Self {

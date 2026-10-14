@@ -241,7 +241,7 @@ impl App {
             config_applied: None,
             front_view: None,
             lsp: lsp::Lsp::default(),
-            saved: Saved::new([true, false, true]),
+            saved: Saved::new([true, false, true, true]),
         }
     }
 

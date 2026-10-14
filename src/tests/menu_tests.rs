@@ -69,23 +69,23 @@ fn select(app: &mut App, name: &str) {
     panic!("no row called {name}");
 }
 
-fn labels(app: &App) -> Vec<&'static str> {
+fn labels(app: &App) -> Vec<&str> {
     app.state()
         .menu()
         .unwrap()
         .entries()
         .iter()
         .map(|entry| match entry {
-            Entry::Item { label, .. } => *label,
+            Entry::Item { label, .. } | Entry::Group { label, .. } => label.as_ref(),
             Entry::Separator => "---",
         })
         .collect()
 }
 
-fn selected_label(app: &App) -> &'static str {
+fn selected_label(app: &App) -> &str {
     let menu = app.state().menu().unwrap();
     match &menu.entries()[menu.selected()] {
-        Entry::Item { label, .. } => label,
+        Entry::Item { label, .. } | Entry::Group { label, .. } => label,
         Entry::Separator => "---",
     }
 }
@@ -551,4 +551,127 @@ action = { explorer = "down" }
 
     assert!(line_with(&terminal, "Rename").contains(" f6 "));
     assert!(!line_with(&terminal, "Delete").contains("delete"));
+}
+
+// ---- groups: items that open a menu of their own to the right
+
+mod groups {
+    use ratatui::layout::{Position, Rect};
+
+    use crate::components::menu::{Command, Entry, Menu, Step};
+    use crate::event::action::Action;
+
+    fn item(label: &'static str, action: Action) -> Entry {
+        Entry::Item {
+            label: label.into(),
+            action,
+            keys: None,
+        }
+    }
+
+    fn main_menu() -> Menu {
+        let mut menu = Menu::on_app(
+            vec![
+                Entry::Group {
+                    label: "File".into(),
+                    entries: vec![
+                        item("Save", Action::Save),
+                        item("Save All", Action::SaveAll),
+                    ],
+                },
+                Entry::Separator,
+                item("Quit", Action::Quit),
+            ],
+            Position::new(2, 0),
+        );
+        menu.place(Rect::new(0, 0, 80, 24));
+        menu
+    }
+
+    #[test]
+    fn right_or_enter_on_a_group_opens_its_menu_and_the_keys_go_there() {
+        let mut menu = main_menu();
+
+        assert_eq!(menu.key(Command::Right), Step::Stay);
+        assert!(menu.submenu().is_some());
+        assert_eq!(menu.key(Command::Next), Step::Stay);
+        assert_eq!(menu.key(Command::Run), Step::Run(Action::SaveAll));
+    }
+
+    #[test]
+    fn enter_on_a_group_opens_it_and_does_not_run_anything() {
+        let mut menu = main_menu();
+
+        assert_eq!(menu.key(Command::Run), Step::Stay);
+
+        assert!(menu.submenu().is_some());
+    }
+
+    #[test]
+    fn left_and_escape_close_the_submenu_first_and_the_menu_after() {
+        let mut menu = main_menu();
+        menu.key(Command::Right);
+
+        assert_eq!(menu.key(Command::Left), Step::Stay);
+        assert!(menu.submenu().is_none());
+
+        menu.key(Command::Right);
+        assert_eq!(menu.key(Command::Cancel), Step::Stay);
+        assert!(menu.submenu().is_none());
+        assert_eq!(menu.key(Command::Cancel), Step::Close);
+    }
+
+    #[test]
+    fn right_on_a_plain_item_does_nothing() {
+        let mut menu = main_menu();
+        menu.key(Command::Next);
+
+        assert_eq!(menu.key(Command::Right), Step::Stay);
+
+        assert!(menu.submenu().is_none());
+    }
+
+    #[test]
+    fn the_submenu_is_drawn_to_the_right_of_the_menu_level_with_its_group() {
+        let mut menu = main_menu();
+        menu.key(Command::Right);
+        menu.place(Rect::new(0, 0, 80, 24));
+
+        let sub = menu.submenu().unwrap();
+        // The group is on row 2; the submenu's first item is on that row, to the
+        // right of the menu.
+        assert!(menu.contains(Position::new(3, 2)));
+        assert!(!sub.contains(Position::new(3, 2)));
+        assert!(sub.contains(Position::new(20, 2)));
+        assert_eq!(sub.action_at(Position::new(20, 2)), Some(&Action::Save));
+    }
+
+    #[test]
+    fn a_click_on_a_group_opens_it_and_a_click_on_its_item_runs_it() {
+        let mut menu = main_menu();
+
+        // The menu hangs from row 0, so its frame is row 1 and the first item row 2.
+        assert_eq!(menu.click(Position::new(3, 2)), Step::Stay);
+        menu.place(Rect::new(0, 0, 80, 24));
+        assert!(menu.submenu().is_some());
+
+        assert_eq!(menu.click(Position::new(20, 2)), Step::Run(Action::Save));
+    }
+
+    #[test]
+    fn a_click_off_the_menu_is_outside_and_one_on_the_frame_is_nothing() {
+        let mut menu = main_menu();
+
+        assert_eq!(menu.click(Position::new(70, 20)), Step::Outside);
+        assert_eq!(menu.click(Position::new(2, 1)), Step::Stay, "the frame");
+    }
+
+    #[test]
+    fn the_selection_skips_the_separator_between_a_group_and_an_item() {
+        let mut menu = main_menu();
+
+        menu.key(Command::Next);
+
+        assert_eq!(menu.selected_action(), Some(&Action::Quit));
+    }
 }

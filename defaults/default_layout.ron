@@ -5,8 +5,8 @@
 // Percent(0..=100), written Fixed(30, child). Only one child of a Row or Col
 // may be left without a size.
 //
-// A Pane shows one component: Explorer, Editor, Terminal, StatusBar or
-// Plugin("view.id"). A SideBar or a BottomBar holds a list of views (Explorer,
+// A Pane shows one component: Explorer, Editor, Terminal, StatusBar, MenuBar (the
+// row with the menu icon; leave it out for no row) or Plugin("view.id"). A SideBar or a BottomBar holds a list of views (Explorer,
 // Errors, Terminal and Plugin("view.id")) and shows one at a time; with more than one it
 // draws their names in the title row, `Files - Git`, the shown one highlighted,
 // and a click on a name (or the "Bar: Next View" action) switches. It takes the
@@ -38,6 +38,7 @@
 // StatusBar has no border.
 
 Col([
+    Fixed(1, Pane(view: MenuBar)),
     Row([
         Fixed(30, SideBar(views: [Explorer], sides: [Right], border: QuadrantInside, title: Hidden)),
         Col([

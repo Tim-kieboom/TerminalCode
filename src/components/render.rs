@@ -113,6 +113,7 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
         ComponentKind::Editor => state.workspace().render(frame, state, placement),
         ComponentKind::Explorer => state.explorer().render(frame, state, placement),
         ComponentKind::StatusBar => state.status_bar().render(frame, state, placement),
+        ComponentKind::MenuBar => state.menu_bar().render(frame, state, placement),
         ComponentKind::Terminal => state.terminal().render(frame, state, placement),
         ComponentKind::Errors => {
             let rows = state.error_rows();

@@ -110,6 +110,11 @@ pub(crate) enum Action {
     DeleteWordBackward,
     DeleteWordForward,
     SelectAll,
+    /// Opens the main menu, under the icon in the top row (at the top left when
+    /// the row is hidden).
+    OpenMenu,
+    /// Shows or hides the row at the top with the menu icon.
+    ToggleMenuBar,
     /// Shows the next view of the bar that has the keyboard (the sidebar or the
     /// bottom bar), giving it the keyboard.
     NextBarView,
@@ -206,6 +211,8 @@ impl Action {
                 | Self::Explorer(_)
                 | Self::Errors(_)
                 | Self::ShowErrors
+                | Self::OpenMenu
+                | Self::ToggleMenuBar
                 | Self::DeleteSelected
                 | Self::CreateFile
                 | Self::CreateFolder
@@ -326,6 +333,8 @@ impl Action {
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
             Self::ShowErrors => "View: Show Errors",
+            Self::OpenMenu => "View: Open Menu",
+            Self::ToggleMenuBar => "View: Toggle Menu Bar",
             Self::NextBarView => "Bar: Next View",
             Self::PreviousBarView => "Bar: Previous View",
             Self::MoveLineUp => "Edit: Move Line Up",
@@ -422,6 +431,8 @@ impl Action {
             Self::Copy,
             Self::Paste,
             Self::SelectAll,
+            Self::OpenMenu,
+            Self::ToggleMenuBar,
             Self::ShowErrors,
             Self::NextBarView,
             Self::PreviousBarView,
