@@ -9,6 +9,7 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
+use crate::config::ConfigFile;
 use crate::ui::theme::Theme;
 
 const HELP: &str = "y: yes | esc, enter: cancel";
@@ -22,6 +23,10 @@ pub(crate) enum Purpose {
     DiscardAndDelete(PathBuf),
     /// Delete `path` for good, because it could not be moved to the trash.
     DeletePermanently(PathBuf),
+    /// Put the built-in default in place of this config file, keeping the old one as `.bak`.
+    ResetConfig(ConfigFile),
+    /// Forget which panes were hidden or shown, keeping `state.json` as `.bak`.
+    ResetSavedState,
 }
 
 /// What a key press answers.
@@ -84,6 +89,30 @@ impl Confirm {
                 "Delete it permanently? This cannot be undone.".to_owned(),
             ],
             purpose: Purpose::DeletePermanently(path.to_path_buf()),
+        }
+    }
+
+    /// Asks whether to put the built-in default in place of the config file `name`.
+    pub(crate) fn reset_config(file: ConfigFile) -> Self {
+        Self::reset(file.file_name(), Purpose::ResetConfig(file))
+    }
+
+    /// Asks whether to forget which panes were hidden or shown.
+    pub(crate) fn reset_saved_state(name: &str) -> Self {
+        Self::reset(name, Purpose::ResetSavedState)
+    }
+
+    fn reset(name: &str, purpose: Purpose) -> Self {
+        Self {
+            title: " Reset to default ".to_owned(),
+            lines: vec![
+                format!("Reset {name} to the built-in default?"),
+                String::new(),
+                format!(
+                    "The file you have now is kept as {name}.bak; an older {name}.bak is replaced."
+                ),
+            ],
+            purpose,
         }
     }
 

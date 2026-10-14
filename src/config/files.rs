@@ -27,7 +27,8 @@ impl ConfigFile {
     /// Every file, for looking through them.
     pub(crate) const ALL: [Self; 4] = [Self::Theme, Self::Keymap, Self::Layout, Self::Settings];
 
-    fn file_name(self) -> &'static str {
+    /// The name of the file inside the config directory.
+    pub(crate) fn file_name(self) -> &'static str {
         match self {
             Self::Theme => THEME_FILE,
             Self::Keymap => KEYMAP_FILE,
@@ -78,4 +79,37 @@ impl ConfigFile {
             Err(error) => Err(error),
         }
     }
+}
+
+/// Where the backup of the file at `path` goes: beside it, with `.bak` added.
+pub(crate) fn backup_path(path: &Path) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    path.with_file_name(name)
+}
+
+/// Puts `default` in the place of the file at `path`, keeping what was there as
+/// its `.bak` (an older backup is replaced). Returns the backup, when there was a
+/// file to keep. If the old file cannot be moved nothing is touched; if the
+/// default cannot be written, the old file is put back.
+pub(crate) fn reset_with_backup(path: &Path, default: &str) -> io::Result<Option<PathBuf>> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let backup = backup_path(path);
+    let kept = match fs::symlink_metadata(path) {
+        Ok(_) => {
+            fs::rename(path, &backup)?;
+            Some(backup.clone())
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error),
+    };
+    if let Err(error) = fs::write(path, default) {
+        if kept.is_some() {
+            let _ = fs::rename(&backup, path);
+        }
+        return Err(error);
+    }
+    Ok(kept)
 }

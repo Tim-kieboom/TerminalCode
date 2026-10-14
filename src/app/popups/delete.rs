@@ -70,6 +70,8 @@ impl App {
         match confirm.purpose() {
             Purpose::DiscardAndDelete(path) => self.trash(path),
             Purpose::DeletePermanently(path) => self.delete_for_good(path),
+            Purpose::ResetConfig(file) => self.reset_config(*file),
+            Purpose::ResetSavedState => self.reset_saved_state(),
         }
     }
 

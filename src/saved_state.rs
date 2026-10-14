@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::components::ComponentKind;
 use crate::config::ConfigWarning;
 
-const STATE_FILE: &str = "state.json";
+pub(crate) const STATE_FILE: &str = "state.json";
 
 /// Whether each pane that can be hidden was last shown (`true`) or hidden.
 /// `None` is a pane the user never changed.
@@ -69,6 +69,12 @@ impl SavedState {
 /// Where the file is inside the config folder `dir`.
 pub(crate) fn path_in(dir: &Path) -> PathBuf {
     dir.join(STATE_FILE)
+}
+
+/// The text of a file that remembers nothing.
+pub(crate) fn empty_text() -> String {
+    let text = serde_json::to_string_pretty(&SavedState::default()).unwrap_or_default();
+    format!("{text}\n")
 }
 
 /// The remembered state in `dir`. A missing file is normal; a file that cannot

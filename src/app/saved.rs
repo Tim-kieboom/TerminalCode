@@ -43,6 +43,11 @@ impl App {
         self
     }
 
+    /// Forgets what was remembered. The panes stay as they are on screen.
+    pub(super) fn forget_saved_panes(&mut self) {
+        self.saved.state = SavedState::default();
+    }
+
     fn panes_shown(&self) -> [bool; 3] {
         PANES.map(|kind| self.state.is_visible(&kind))
     }

@@ -13,7 +13,7 @@ mod settings;
 mod theme;
 mod warning;
 
-pub(crate) use files::ConfigFile;
+pub(crate) use files::{ConfigFile, reset_with_backup};
 pub(crate) use keymap::load_keymap;
 pub(crate) use layout::load_layout;
 pub(crate) use settings::load_settings;

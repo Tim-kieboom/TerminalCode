@@ -107,6 +107,9 @@ The files live in the `terminalcode` folder of your config directory (`~/.config
 `~/Library/Application Support/terminalcode` on macOS, `%APPDATA%\terminalcode` on Windows). Every one is optional,
 and TerminalCode applies a file as soon as you save it. From the command palette, `Config: Open Settings`, `Open
 Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-in default first when it is missing.
+`Config: Reset Settings to Default` (and the same for the keymap, layout and theme) asks first, keeps the file you have as
+`NAME.bak` (an older backup is replaced) and puts the built-in default in its place; `Config: Forget Hidden and Shown Panes`
+does the same for `state.json`.
 
 - **`settings.json`** (comments and trailing commas are allowed). A setting you leave out keeps its default.
 

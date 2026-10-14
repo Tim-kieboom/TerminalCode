@@ -30,6 +30,7 @@ mod palette_tests;
 mod perf_tests;
 mod quit_tests;
 mod rename_tests;
+mod reset_tests;
 mod root_save_tests;
 mod saved_state_tests;
 mod search_tests;

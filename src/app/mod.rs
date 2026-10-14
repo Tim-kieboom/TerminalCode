@@ -35,6 +35,7 @@ mod lsp;
 mod mouse;
 mod panels;
 mod popups;
+mod reset;
 mod saved;
 pub(crate) mod state;
 mod terminal_keys;

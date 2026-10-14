@@ -90,6 +90,12 @@ pub(crate) enum Action {
     /// Opens one of the user's config files, first making it from the built-in
     /// default if there is none yet.
     OpenConfig(ConfigFile),
+    /// Asks, then puts the built-in default in place of one of the user's config
+    /// files; the old file is kept beside it as `NAME.bak`.
+    ResetConfig(ConfigFile),
+    /// Asks, then forgets which panes were hidden or shown, with the old
+    /// `state.json` kept as `state.json.bak`.
+    ResetSavedState,
     Explorer(ExplorerCommand),
     Save,
     Undo,
@@ -143,6 +149,10 @@ impl Action {
         matches!(
             self,
             Self::NewFile
+                | Self::OpenConfig(_)
+                | Self::ResetConfig(_)
+                | Self::ResetSavedState
+                | Self::Reload
                 | Self::CloseOtherTabs
                 | Self::CloseTabsToLeft
                 | Self::CloseTabsToRight
@@ -257,6 +267,11 @@ impl Action {
             Self::OpenConfig(ConfigFile::Keymap) => "Config: Open Keymap",
             Self::OpenConfig(ConfigFile::Layout) => "Config: Open Layout",
             Self::OpenConfig(ConfigFile::Settings) => "Config: Open Settings",
+            Self::ResetConfig(ConfigFile::Theme) => "Config: Reset Theme to Default",
+            Self::ResetConfig(ConfigFile::Keymap) => "Config: Reset Keymap to Default",
+            Self::ResetConfig(ConfigFile::Layout) => "Config: Reset Layout to Default",
+            Self::ResetConfig(ConfigFile::Settings) => "Config: Reset Settings to Default",
+            Self::ResetSavedState => "Config: Forget Hidden and Shown Panes",
             Self::Reload => "Config: Reload",
             Self::UseTheme(ThemeVariant::Dark) => "Theme: Dark",
             Self::UseTheme(ThemeVariant::Light) => "Theme: Light",
@@ -352,6 +367,11 @@ impl Action {
             Self::OpenConfig(ConfigFile::Keymap),
             Self::OpenConfig(ConfigFile::Layout),
             Self::OpenConfig(ConfigFile::Settings),
+            Self::ResetConfig(ConfigFile::Theme),
+            Self::ResetConfig(ConfigFile::Keymap),
+            Self::ResetConfig(ConfigFile::Layout),
+            Self::ResetConfig(ConfigFile::Settings),
+            Self::ResetSavedState,
             Self::Reload,
             Self::ChooseTheme,
             Self::NewTheme,
