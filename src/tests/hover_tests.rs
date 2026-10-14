@@ -348,7 +348,7 @@ fn f6_away_from_any_word_says_so() {
 
     assert!(rig.hover_text().is_none());
     let told = rig.app.state().notifications().texts().join("|");
-    assert!(told.contains("no word at the cursor"), "{told}");
+    assert!(told.contains("no word or problem at the cursor"), "{told}");
 }
 
 #[test]
@@ -655,4 +655,201 @@ fn real_rust_analyzer_says_what_a_method_is_under_the_pointer_and_what_a_type_is
     let said = rig.hover_text().unwrap();
     eprintln!("at the cursor:\n{said}");
     assert!(said.contains("Vec"), "{said}");
+}
+
+// ---- diagnostics in the box
+
+use crate::lsp::{Diagnostic, Severity};
+
+fn problem(range: std::ops::Range<usize>, severity: Severity, message: &str) -> Diagnostic {
+    Diagnostic {
+        range,
+        severity,
+        message: message.to_owned(),
+        source: Some("rustc".to_owned()),
+        code: Some("E0308".to_owned()),
+    }
+}
+
+/// `value` of `SOURCE` is bytes 20 to 25 and the `;` is byte 36.
+const VALUE: std::ops::Range<usize> = 20..25;
+const SEMICOLON: std::ops::Range<usize> = 36..37;
+
+impl Rig {
+    fn set_problems(&mut self, problems: Vec<Diagnostic>) {
+        let document = self.app.state().workspace().active_document_id().unwrap();
+        self.app
+            .state_mut()
+            .diagnostics_mut()
+            .set(document, problems);
+    }
+
+    /// The pointer rests exactly on the cell of `needle`'s first character.
+    fn rest_exactly_on(&mut self, needle: &str) {
+        let (column, row) = self.cell_of(needle);
+        self.pointer_to(column, row);
+        std::thread::sleep(LONG_ENOUGH);
+        self.app.hover_due();
+    }
+
+    fn problem_headers(&self) -> Vec<String> {
+        self.app
+            .state()
+            .hover_box()
+            .map(|hover| hover.problems().iter().map(|e| e.header.clone()).collect())
+            .unwrap_or_default()
+    }
+}
+
+#[test]
+fn a_word_with_a_problem_and_documentation_shows_the_problem_first_then_a_rule_then_the_docs() {
+    let mut rig = rig_saying("the type of value");
+    rig.set_problems(vec![problem(VALUE, Severity::Error, "mismatched types")]);
+
+    rig.rest_on("value");
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert_eq!(rig.problem_headers(), ["error[E0308] (rustc)"]);
+    assert_eq!(rig.hover_text().as_deref(), Some("the type of value"));
+    let lines = rig.app.state().hover_box().unwrap().drawn_lines(40);
+    let row = |wanted: &dyn Fn(&str) -> bool| lines.iter().position(|line| wanted(line)).unwrap();
+    let header = row(&|line| line == "error[E0308] (rustc)");
+    let message = row(&|line| line == "mismatched types");
+    let rule = row(&|line| !line.is_empty() && line.chars().all(|c| c == '─'));
+    let docs = row(&|line| line == "the type of value");
+    assert!(
+        header < message && message < rule && rule < docs,
+        "{lines:?}"
+    );
+}
+
+#[test]
+fn a_pointer_outside_the_range_of_the_problem_shows_only_the_docs() {
+    let mut rig = rig_saying("about other");
+    rig.set_problems(vec![problem(VALUE, Severity::Error, "mismatched types")]);
+
+    rig.rest_on("other");
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert!(rig.problem_headers().is_empty());
+    assert_eq!(rig.hover_text().as_deref(), Some("about other"));
+}
+
+#[test]
+fn a_problem_alone_is_shown_when_the_server_has_nothing_to_say() {
+    let mut rig = Rig::start(hover_provider(), SOURCE, answering(Value::Null));
+    rig.screen();
+    rig.set_problems(vec![problem(VALUE, Severity::Warning, "unused variable")]);
+
+    rig.rest_on("value");
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert_eq!(rig.problem_headers(), ["warning[E0308] (rustc)"]);
+    assert_eq!(rig.hover_text().as_deref(), Some(""));
+    let lines = rig.app.state().hover_box().unwrap().drawn_lines(40);
+    assert!(
+        !lines.iter().any(|line| line.contains('─')),
+        "no rule without docs: {lines:?}"
+    );
+}
+
+#[test]
+fn a_problem_is_shown_without_asking_when_the_server_does_not_answer_hover() {
+    let mut rig = Rig::start(json!({ "textDocumentSync": 2 }), SOURCE, saying("said"));
+    rig.screen();
+    rig.set_problems(vec![problem(VALUE, Severity::Error, "mismatched types")]);
+
+    rig.rest_on("value");
+
+    assert!(rig.hover_requests().is_empty());
+    assert_eq!(rig.problem_headers().len(), 1);
+}
+
+#[test]
+fn a_spot_that_is_not_a_word_but_is_in_a_problem_still_shows_it() {
+    let mut rig = Rig::start(hover_provider(), SOURCE, answering(Value::Null));
+    rig.screen();
+    rig.set_problems(vec![problem(
+        SEMICOLON,
+        Severity::Error,
+        "expected something",
+    )]);
+
+    rig.rest_exactly_on(";");
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert_eq!(rig.problem_headers().len(), 1);
+}
+
+#[test]
+fn problems_that_overlap_are_ordered_worst_first() {
+    let mut rig = Rig::start(hover_provider(), SOURCE, answering(Value::Null));
+    rig.screen();
+    rig.set_problems(vec![
+        problem(VALUE, Severity::Warning, "a warning"),
+        problem(21..24, Severity::Error, "an error"),
+        problem(20..25, Severity::Hint, "a hint"),
+    ]);
+
+    rig.rest_on("value");
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert_eq!(
+        rig.problem_headers(),
+        [
+            "error[E0308] (rustc)",
+            "warning[E0308] (rustc)",
+            "hint[E0308] (rustc)"
+        ]
+    );
+}
+
+#[test]
+fn neither_a_problem_nor_docs_shows_nothing() {
+    let mut rig = Rig::start(hover_provider(), SOURCE, answering(Value::Null));
+    rig.screen();
+    rig.set_problems(vec![problem(VALUE, Severity::Error, "mismatched types")]);
+
+    rig.rest_on("other");
+    std::thread::sleep(Duration::from_millis(200));
+    while let Ok(event) = rig.events.try_recv() {
+        rig.app.handle_event(event);
+    }
+
+    assert!(rig.app.state().hover_box().is_none());
+}
+
+#[test]
+fn f6_on_a_problem_pins_a_box_with_the_problem_and_the_docs() {
+    let mut rig = rig_saying("docs");
+    rig.set_problems(vec![problem(VALUE, Severity::Error, "mismatched types")]);
+    rig.app.state_mut().edit(|editor| {
+        editor.go_to(crate::buffer::Position::new(1, 10));
+    });
+    rig.screen();
+
+    rig.press(KeyCode::F(6));
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert_eq!(rig.problem_headers().len(), 1);
+    assert!(rig.app.state().hover_box().unwrap().is_pinned());
+}
+
+#[test]
+fn f6_on_a_problem_that_is_not_on_a_word_shows_it() {
+    let mut rig = Rig::start(hover_provider(), SOURCE, answering(Value::Null));
+    rig.set_problems(vec![problem(
+        SEMICOLON,
+        Severity::Error,
+        "expected something",
+    )]);
+    rig.app.state_mut().edit(|editor| {
+        editor.go_to(crate::buffer::Position::new(1, 24));
+    });
+    rig.screen();
+
+    rig.press(KeyCode::F(6));
+    rig.pump_until(|app| app.state().hover_box().is_some());
+
+    assert_eq!(rig.problem_headers().len(), 1);
 }

@@ -12,6 +12,7 @@ use ropey::Rope;
 
 use super::App;
 use super::state::Popup;
+use crate::components::diagnostic_popup::Entry;
 use crate::components::hover_box::HoverBox;
 use crate::components::workspace::DocumentId;
 use crate::event::action::Action;
@@ -43,6 +44,8 @@ impl std::fmt::Debug for Hovering {
 
 struct Candidate {
     document: DocumentId,
+    /// What the pointer rests on: the word, or the range of the diagnostic when
+    /// it is not on a word. The wait goes on while it stays the same.
     word: Range<usize>,
     /// The byte under the pointer, which is what the server is asked about.
     byte: usize,
@@ -57,6 +60,8 @@ struct Pending {
     document: DocumentId,
     /// The word asked about, when it was the pointer that asked.
     word: Option<Range<usize>>,
+    /// The diagnostics there, which the box shows before what the server says.
+    problems: Vec<Entry>,
     anchor: Position,
     /// Asked for with `f6`: the box stays until a key.
     pinned: bool,
@@ -86,7 +91,9 @@ impl App {
             self.clear_hover();
             return;
         };
-        let Some(word) = word_around(&text, byte) else {
+        // A word, or a spot a diagnostic covers (a `;`, a bracket).
+        let word = word_around(&text, byte).or_else(|| self.problem_range_at(document, byte));
+        let Some(word) = word else {
             self.clear_hover();
             return;
         };
@@ -130,8 +137,28 @@ impl App {
         self.ask_hover(document, byte, cell, word, false);
     }
 
+    /// The diagnostics whose range holds `byte`, worst first.
+    fn problems_at(&self, document: DocumentId, byte: usize) -> Vec<Entry> {
+        let found: Vec<_> = self
+            .state
+            .diagnostics()
+            .overlapping(document, byte..byte + 1)
+            .collect();
+        Entry::of_all(&found)
+    }
+
+    /// The range of the worst diagnostic that holds `byte`, if any.
+    fn problem_range_at(&self, document: DocumentId, byte: usize) -> Option<Range<usize>> {
+        self.state
+            .diagnostics()
+            .overlapping(document, byte..byte + 1)
+            .min_by_key(|diagnostic| (diagnostic.severity, diagnostic.range.start))
+            .map(|diagnostic| diagnostic.range.clone())
+    }
+
     /// Sends the request for the thing at `byte` of `document`; the box will
-    /// hang from `anchor`.
+    /// hang from `anchor`. The diagnostics there are in the box too, and when no
+    /// server can be asked they are all it has.
     fn ask_hover(
         &mut self,
         document: DocumentId,
@@ -140,10 +167,17 @@ impl App {
         word: Option<Range<usize>>,
         pinned: bool,
     ) {
-        let Some((key, uri)) = self.hover_target(document) else {
+        let problems = self.problems_at(document, byte);
+        let Some(version) = self.state.workspace().document_version(document) else {
             return;
         };
-        let Some(version) = self.state.workspace().document_version(document) else {
+        let Some((key, uri)) = self.hover_target(document) else {
+            if !problems.is_empty() {
+                let shown =
+                    HoverBox::new(String::new(), problems, anchor, document, version, pinned);
+                self.state.set_hover_box(Some(shown));
+                self.needs_redraw = true;
+            }
             return;
         };
         // The server has to know the text as it is before it is asked about it.
@@ -159,6 +193,7 @@ impl App {
             request,
             document,
             word,
+            problems,
             anchor,
             pinned,
             version,
@@ -185,9 +220,11 @@ impl App {
         let Some(pending) = self.lsp.hovering.pending.take() else {
             return;
         };
-        let Ok(Some(text)) = result else {
+        // What the server says, or nothing: the diagnostics are shown either way.
+        let text = result.ok().flatten().unwrap_or_default();
+        if text.is_empty() && pending.problems.is_empty() {
             return;
-        };
+        }
         let version = self.state.workspace().document_version(pending.document);
         let still_there = version == Some(pending.version)
             && matches!(self.state.popup(), Popup::None)
@@ -208,6 +245,7 @@ impl App {
         }
         let shown = HoverBox::new(
             text,
+            pending.problems,
             pending.anchor,
             pending.document,
             pending.version,
@@ -278,14 +316,19 @@ impl App {
             return;
         };
         let text = editor.buffer().snapshot();
-        // On a word, or just after one (the cursor stays at the end of what was typed).
-        let on = word_around(&text, cursor).map(|_| cursor).or_else(|| {
-            cursor
-                .checked_sub(1)
-                .filter(|&before| word_around(&text, before).is_some())
-        });
+        // On a word, or just after one (the cursor stays at the end of what was typed),
+        // or in the range of a diagnostic.
+        let on = word_around(&text, cursor)
+            .map(|_| cursor)
+            .or_else(|| {
+                cursor
+                    .checked_sub(1)
+                    .filter(|&before| word_around(&text, before).is_some())
+            })
+            .or_else(|| self.problem_range_at(document, cursor).map(|_| cursor));
         let Some(byte) = on else {
-            self.state.notify("no word at the cursor to ask about");
+            self.state
+                .notify("no word or problem at the cursor to ask about");
             return;
         };
         let screen = self.state.screen();
@@ -294,7 +337,7 @@ impl App {
             .unwrap_or_else(|| Position::new(screen.width / 4, screen.height / 3));
         self.close_hover();
         self.ask_hover(document, byte, anchor, None, true);
-        if self.lsp.hovering.pending.is_none() {
+        if self.lsp.hovering.pending.is_none() && self.state.hover_box().is_none() {
             self.state
                 .notify("no language server answers for this file");
         }

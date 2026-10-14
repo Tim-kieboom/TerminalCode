@@ -54,11 +54,29 @@ impl PopupKey {
     }
 }
 
+/// One diagnostic as the boxes show it: a header line and the message.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Entry {
-    severity: Severity,
-    header: String,
-    message: String,
+pub(crate) struct Entry {
+    pub(crate) severity: Severity,
+    /// `error[E0308] (rustc)`.
+    pub(crate) header: String,
+    pub(crate) message: String,
+}
+
+impl Entry {
+    /// The entries for `diagnostics`, worst first.
+    pub(crate) fn of_all(diagnostics: &[&Diagnostic]) -> Vec<Self> {
+        let mut ordered: Vec<&&Diagnostic> = diagnostics.iter().collect();
+        ordered.sort_by_key(|diagnostic| (diagnostic.severity, diagnostic.range.start));
+        ordered
+            .into_iter()
+            .map(|diagnostic| Self {
+                severity: diagnostic.severity,
+                header: header_of(diagnostic),
+                message: diagnostic.message.trim_end().to_owned(),
+            })
+            .collect()
+    }
 }
 
 #[derive(Debug)]
@@ -77,18 +95,8 @@ pub(crate) struct DiagnosticPopup {
 impl DiagnosticPopup {
     /// The box for `diagnostics`, worst first.
     pub(crate) fn new(diagnostics: &[&Diagnostic], anchor: Position) -> Self {
-        let mut ordered: Vec<&&Diagnostic> = diagnostics.iter().collect();
-        ordered.sort_by_key(|diagnostic| (diagnostic.severity, diagnostic.range.start));
-        let entries = ordered
-            .into_iter()
-            .map(|diagnostic| Entry {
-                severity: diagnostic.severity,
-                header: header_of(diagnostic),
-                message: diagnostic.message.trim_end().to_owned(),
-            })
-            .collect();
         Self {
-            entries,
+            entries: Entry::of_all(diagnostics),
             anchor,
             scroll: Cell::new(0),
             max_scroll: Cell::new(0),

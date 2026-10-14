@@ -8,13 +8,16 @@
 
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
-use ratatui::text::Line;
+use ratatui::style::Modifier;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
-use crate::components::diagnostic_popup::{place, wrap_text};
+use crate::components::diagnostic_popup::{Entry, place, wrap_text};
+use crate::components::editor::render::slot_of;
 use crate::components::scroll_text::TextScroll;
 use crate::components::workspace::DocumentId;
+use crate::lsp::Severity;
 use crate::ui::theme::Theme;
 
 /// The widest the box gets, and the narrowest when the screen allows.
@@ -25,9 +28,21 @@ const MOST_LINES: usize = 14;
 /// How many lines of a text are kept, however long it is.
 const KEPT_LINES: usize = 500;
 
+/// What a line of the box is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Header(Severity),
+    Rule,
+    Text,
+}
+
 #[derive(Debug)]
 pub(crate) struct HoverBox {
+    /// What the server says about the thing; empty when it says nothing.
     text: String,
+    /// The diagnostics whose range holds the thing, worst first. They come before
+    /// the text, with a rule between.
+    problems: Vec<Entry>,
     /// The cell the box hangs from: under the pointer, or under the cursor.
     anchor: Position,
     /// What the text was about, so that an edit or another tab takes it away.
@@ -41,6 +56,7 @@ pub(crate) struct HoverBox {
 impl HoverBox {
     pub(crate) fn new(
         text: String,
+        problems: Vec<Entry>,
         anchor: Position,
         document: DocumentId,
         version: u64,
@@ -48,6 +64,7 @@ impl HoverBox {
     ) -> Self {
         Self {
             text,
+            problems,
             anchor,
             document,
             version,
@@ -67,6 +84,46 @@ impl HoverBox {
     #[cfg(test)]
     pub(crate) fn text(&self) -> &str {
         &self.text
+    }
+
+    #[cfg(test)]
+    pub(crate) fn problems(&self) -> &[Entry] {
+        &self.problems
+    }
+
+    /// The lines as drawn for `width` columns, as plain text.
+    #[cfg(test)]
+    pub(crate) fn drawn_lines(&self, width: usize) -> Vec<String> {
+        self.lines(width)
+            .into_iter()
+            .map(|(_, text)| text)
+            .collect()
+    }
+
+    /// The text as it is drawn for `width` columns: the problems, a rule, the
+    /// documentation.
+    fn lines(&self, width: usize) -> Vec<(Kind, String)> {
+        let mut lines = Vec::new();
+        for (index, entry) in self.problems.iter().enumerate() {
+            if index > 0 {
+                lines.push((Kind::Text, String::new()));
+            }
+            lines.push((Kind::Header(entry.severity), entry.header.clone()));
+            lines.extend(
+                wrap_text(&entry.message, width)
+                    .into_iter()
+                    .map(|text| (Kind::Text, text)),
+            );
+        }
+        if !self.problems.is_empty() && !self.text.is_empty() {
+            lines.push((Kind::Rule, "─".repeat(width)));
+        }
+        lines.extend(
+            wrap_text(&self.text, width)
+                .into_iter()
+                .map(|text| (Kind::Text, text)),
+        );
+        lines
     }
 
     pub(crate) fn is_pinned(&self) -> bool {
@@ -89,6 +146,11 @@ impl HoverBox {
         let longest = self
             .text
             .lines()
+            .chain(
+                self.problems
+                    .iter()
+                    .flat_map(|entry| entry.message.lines().chain([entry.header.as_str()])),
+            )
             .map(UnicodeWidthStr::width)
             .max()
             .unwrap_or(0);
@@ -97,7 +159,7 @@ impl HoverBox {
             .clamp(NARROWEST, WIDEST)
             .min(screen.width);
         let text_width = usize::from(width.saturating_sub(4)).max(1);
-        let mut lines = wrap_text(&self.text, text_width);
+        let mut lines = self.lines(text_width);
         lines.truncate(KEPT_LINES);
         let rows = lines
             .len()
@@ -131,7 +193,14 @@ impl HoverBox {
             .into_iter()
             .skip(first)
             .take(rows)
-            .map(Line::from)
+            .map(|(kind, text)| match kind {
+                Kind::Header(severity) => Line::from(Span::styled(
+                    text,
+                    theme.style(slot_of(severity)).add_modifier(Modifier::BOLD),
+                )),
+                Kind::Rule => Line::from(Span::styled(text, theme.style("pane.border"))),
+                Kind::Text => Line::from(text),
+            })
             .collect();
         frame.render_widget(Paragraph::new(shown).style(theme.style("hover.text")), body);
     }
