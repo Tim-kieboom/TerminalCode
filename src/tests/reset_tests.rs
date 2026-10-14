@@ -225,3 +225,16 @@ fn what_is_hidden_after_a_forget_is_written_again() {
     assert!(text.contains("status_bar"), "{text}");
     assert!(!text.contains("explorer"), "{text}");
 }
+
+#[test]
+fn a_reset_works_with_every_tab_closed() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join("settings.json"), "mine").unwrap();
+    let mut app = app_in(dir.path());
+    run_from_palette(&mut app, "Close All");
+    assert!(!app.state().workspace().has_tabs() || app.state().editor().buffer().path().is_none());
+
+    reset(&mut app, "Reset Settings");
+
+    assert!(dir.path().join("settings.json.bak").exists());
+}

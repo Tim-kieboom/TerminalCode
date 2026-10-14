@@ -146,10 +146,6 @@ impl Action {
         matches!(
             self,
             Self::NewFile
-                | Self::OpenConfig(_)
-                | Self::ResetConfig(_)
-                | Self::ResetSavedState
-                | Self::Reload
                 | Self::CloseOtherTabs
                 | Self::CloseTabsToLeft
                 | Self::CloseTabsToRight
@@ -193,6 +189,8 @@ impl Action {
                 | Self::Rename
                 | Self::MoveEntry
                 | Self::OpenConfig(_)
+                | Self::ResetConfig(_)
+                | Self::ResetSavedState
                 | Self::Reload
                 | Self::UseInstalledTheme(_)
                 | Self::ChooseTheme
