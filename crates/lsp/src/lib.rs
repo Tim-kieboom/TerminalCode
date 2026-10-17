@@ -24,6 +24,10 @@ pub use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartError};
 pub use manager::{Manager, ServerNotification};
 pub use message::{Id, Message, RpcError};
 pub use position::{LspPosition, from_lsp, to_lsp};
+pub use rename::{
+    FileEdits, PendingPrepare, PendingRename, Prepared, RenameEdit, WorkspaceEdit, parse_prepare,
+    parse_workspace_edit,
+};
 pub use supervisor::{Effect, Notice, Supervisor};
 pub use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
@@ -37,7 +41,9 @@ mod tests;
 
 // The files of each group are named from here, so `crate::hover` and the like
 // keep working from inside the client.
-use features::{completion, completion_state, definition, diagnostics, docs, hover, snippet};
+use features::{
+    completion, completion_state, definition, diagnostics, docs, hover, rename, snippet,
+};
 pub use protocol::uri;
 use protocol::{connection, error, framing, handshake, message, position, replies};
 use session::{cargo, config, diff, language, launch, manager, progress, supervisor, sync};

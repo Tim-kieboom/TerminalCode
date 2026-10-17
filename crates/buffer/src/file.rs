@@ -194,35 +194,74 @@ impl Buffer {
 }
 
 fn write_atomic(path: &Path, text: &str) -> Result<(), FileError> {
-    if let Some(error) = folder_gone(path) {
-        return Err(error);
-    }
-    if let Some(error) = read_only(path) {
-        return Err(error);
-    }
-    // Write through symlinks instead of replacing them.
-    let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    let temp = temp_path_for(&target).ok_or_else(|| {
-        FileError::io(
-            path,
-            io::Error::new(io::ErrorKind::InvalidInput, "path has no file name"),
-        )
-    })?;
-
-    let result = write_then_replace(&temp, &target, text);
-    if result.is_err() {
-        // Best effort: the original error matters more than a leftover file.
-        let _ = fs::remove_file(&temp);
-    }
-    result.map_err(|source| FileError::io(path, source))
+    StagedWrite::stage(path, text)?.commit()
 }
 
-fn write_then_replace(temp: &Path, target: &Path, text: &str) -> io::Result<()> {
-    fs::write(temp, text)?;
-    if let Ok(metadata) = fs::metadata(target) {
-        fs::set_permissions(temp, metadata.permissions())?;
+/// A file written to a temporary file beside its target, and not yet put in
+/// its place: [`StagedWrite::commit`] does that, and nothing else touches the
+/// target. Dropping it without that removes the temporary file. Staging every
+/// file of a change first means a failure to write one leaves all of them as
+/// they were.
+#[derive(Debug)]
+pub struct StagedWrite {
+    path: PathBuf,
+    temp: PathBuf,
+    target: PathBuf,
+}
+
+impl StagedWrite {
+    /// Writes `text` for `path`, which is written through when it is a symlink.
+    /// Fails when the folder is gone or the file is read-only (see
+    /// [`FileError`]), as saving does.
+    pub fn stage(path: &Path, text: &str) -> Result<Self, FileError> {
+        if let Some(error) = folder_gone(path) {
+            return Err(error);
+        }
+        if let Some(error) = read_only(path) {
+            return Err(error);
+        }
+        // Write through symlinks instead of replacing them.
+        let target = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        let temp = temp_path_for(&target).ok_or_else(|| {
+            FileError::io(
+                path,
+                io::Error::new(io::ErrorKind::InvalidInput, "path has no file name"),
+            )
+        })?;
+        let staged = Self {
+            path: path.to_path_buf(),
+            temp,
+            target,
+        };
+        staged.write_temp(text)?;
+        Ok(staged)
     }
-    fs::rename(temp, target)
+
+    fn write_temp(&self, text: &str) -> Result<(), FileError> {
+        let result = fs::write(&self.temp, text).and_then(|()| match fs::metadata(&self.target) {
+            Ok(metadata) => fs::set_permissions(&self.temp, metadata.permissions()),
+            Err(_) => Ok(()),
+        });
+        result.map_err(|source| FileError::io(&self.path, source))
+    }
+
+    /// The file this will replace.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Puts the written file in the place of the target.
+    pub fn commit(self) -> Result<(), FileError> {
+        fs::rename(&self.temp, &self.target).map_err(|source| FileError::io(&self.path, source))
+    }
+}
+
+impl Drop for StagedWrite {
+    fn drop(&mut self) {
+        // Best effort: nothing is left after a commit, and a leftover file after
+        // a failure matters less than the failure.
+        let _ = fs::remove_file(&self.temp);
+    }
 }
 
 fn temp_path_for(target: &Path) -> Option<PathBuf> {

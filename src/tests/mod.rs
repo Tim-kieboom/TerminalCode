@@ -39,6 +39,7 @@ mod paths_tests;
 mod perf_tests;
 mod quit_tests;
 mod recent_tests;
+mod rename_symbol_tests;
 mod rename_tests;
 mod reset_tests;
 #[cfg(target_os = "linux")]

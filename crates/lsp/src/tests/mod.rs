@@ -14,6 +14,7 @@ mod manager_tests;
 mod message_tests;
 mod position_tests;
 mod progress_tests;
+mod rename_tests;
 mod replies_tests;
 mod snippet_tests;
 mod supervisor_tests;

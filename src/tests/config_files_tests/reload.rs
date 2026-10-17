@@ -43,13 +43,13 @@ fn reload_applies_a_changed_keymap() {
     write(
         dir.path(),
         "keymap.toml",
-        "[[binding]]\nkeys = \"f2\"\naction = \"quit\"\n",
+        "[[binding]]\nkeys = \"f9\"\naction = \"quit\"\n",
     );
-    press(&mut app, KeyCode::F(2));
+    press(&mut app, KeyCode::F(9));
     assert!(!app.should_quit(), "not bound before the reload");
 
     reload(&mut app);
-    press(&mut app, KeyCode::F(2));
+    press(&mut app, KeyCode::F(9));
 
     assert!(app.should_quit());
 }

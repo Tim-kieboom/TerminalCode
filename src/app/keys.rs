@@ -254,6 +254,7 @@ impl App {
             Action::JumpBack => self.jump_back(),
             Action::JumpForward => self.jump_forward(),
             Action::GoToDefinition => self.go_to_definition(),
+            Action::RenameSymbol => self.rename_symbol(),
             Action::PreviousSearchResult => self.step_search_result(-1),
             Action::FindInFile => self.open_find(),
             Action::ReplaceInFile => self.open_replace(),

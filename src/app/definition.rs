@@ -50,25 +50,27 @@ struct Pending {
 impl App {
     /// `f12`: where the word at the cursor is defined (or the word just before it).
     pub(super) fn go_to_definition(&mut self) {
-        let Some(document) = self.state.workspace().active_document_id() else {
+        let Some((document, byte)) = self.word_near_cursor() else {
+            self.state.notify("no word at the cursor to look up");
             return;
         };
+        self.ask_definition(document, byte);
+    }
+
+    /// The active document and a byte of the word at the cursor, or of the word
+    /// just before it.
+    pub(super) fn word_near_cursor(&self) -> Option<(DocumentId, usize)> {
+        let document = self.state.workspace().active_document_id()?;
         let editor = self.state.editor();
         let head = editor.selections().primary().head();
-        let Ok(cursor) = editor.buffer().position_to_byte(head) else {
-            return;
-        };
+        let cursor = editor.buffer().position_to_byte(head).ok()?;
         let text = editor.buffer().snapshot();
         let on = word_at(&text, cursor).then_some(cursor).or_else(|| {
             cursor
                 .checked_sub(1)
                 .filter(|&before| word_at(&text, before))
         });
-        let Some(byte) = on else {
-            self.state.notify("no word at the cursor to look up");
-            return;
-        };
-        self.ask_definition(document, byte);
+        Some((document, on?))
     }
 
     /// `ctrl+click`: where the word under the pointer is defined. The cursor
@@ -290,7 +292,7 @@ fn line_text(path: &Path, line: usize) -> String {
 }
 
 /// Whether the character at `byte` is part of a word.
-fn word_at(text: &Rope, byte: usize) -> bool {
+pub(super) fn word_at(text: &Rope, byte: usize) -> bool {
     if byte >= text.len_bytes() {
         return false;
     }

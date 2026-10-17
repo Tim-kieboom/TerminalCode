@@ -3,7 +3,7 @@ use std::fs;
 use crate::edit::Edit;
 use crate::line_ending::LineEnding;
 use crate::selection::Selections;
-use crate::{Buffer, DiskChange, FileError, Position};
+use crate::{Buffer, DiskChange, FileError, Position, StagedWrite};
 
 fn type_text(buffer: &mut Buffer, text: &str) {
     let mut transaction = buffer.begin_transaction(Selections::default());
@@ -276,4 +276,49 @@ fn clamp_position_moves_to_the_nearest_place_in_the_text() {
         buffer.clamp_position(Position::new(9, 9)),
         Position::new(2, 0)
     );
+}
+
+#[test]
+fn a_staged_write_changes_nothing_until_it_is_committed() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.txt");
+    fs::write(&path, "old").unwrap();
+
+    let staged = StagedWrite::stage(&path, "new").unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), "old");
+
+    staged.commit().unwrap();
+    assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1, "no temp file");
+}
+
+#[test]
+fn a_staged_write_that_is_dropped_leaves_the_file_and_no_temp_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.txt");
+    fs::write(&path, "old").unwrap();
+
+    drop(StagedWrite::stage(&path, "new").unwrap());
+
+    assert_eq!(fs::read_to_string(&path).unwrap(), "old");
+    assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn staging_refuses_a_read_only_file_and_a_missing_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.txt");
+    fs::write(&path, "old").unwrap();
+    let mut permissions = fs::metadata(&path).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&path, permissions).unwrap();
+
+    assert!(matches!(
+        StagedWrite::stage(&path, "new"),
+        Err(FileError::ReadOnly { .. })
+    ));
+    assert!(matches!(
+        StagedWrite::stage(&dir.path().join("gone/b.txt"), "new"),
+        Err(FileError::FolderGone { .. })
+    ));
 }

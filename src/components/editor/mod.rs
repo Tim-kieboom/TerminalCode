@@ -176,7 +176,6 @@ impl Editor {
         &self.buffer
     }
 
-    #[cfg(test)]
     pub(crate) fn selections(&self) -> &Selections {
         &self.view.selections
     }

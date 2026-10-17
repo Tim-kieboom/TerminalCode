@@ -65,6 +65,12 @@ pub fn client_capabilities() -> Value {
                     "resolveSupport": { "properties": ["additionalTextEdits"] },
                 },
             },
+            "rename": {
+                "dynamicRegistration": false,
+                // Whether there is a symbol to rename is asked first, which also
+                // gives the name to start from.
+                "prepareSupport": true,
+            },
             "publishDiagnostics": {
                 "versionSupport": true,
             },
@@ -74,6 +80,9 @@ pub fn client_capabilities() -> Value {
         },
         "workspace": {
             "workspaceFolders": true,
+            // Edits come as a list of documents, and no operation on files is
+            // taken (a rename that needs one is refused by the client).
+            "workspaceEdit": { "documentChanges": true },
         },
     })
 }

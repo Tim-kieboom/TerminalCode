@@ -3,6 +3,7 @@
 use super::{EditEvent, Workspace};
 use crate::buffer::{EditInfo, Selection, Selections};
 use crate::components::editor::{Editor, EditorRef};
+use crate::ids::DocumentId;
 
 impl Workspace {
     /// The focused pane's active tab, for reading.
@@ -36,12 +37,37 @@ impl Workspace {
     }
 
     pub(super) fn with_editor_in<R>(&mut self, pane: usize, f: impl FnOnce(&mut Editor) -> R) -> R {
-        self.reset_confirmations();
         if self.panes[pane].tabs.is_empty() {
+            self.reset_confirmations();
             // Nothing to edit: the closure gets a throwaway editor.
             return f(&mut Editor::default());
         }
         let tab_index = self.panes[pane].active;
+        self.with_tab_editor(pane, tab_index, f)
+    }
+
+    /// Runs `f` on the editor of an open document through the first tab that
+    /// shows it, whether or not that tab is in front, as one edit of that
+    /// document. `None` when no tab shows it.
+    pub(crate) fn edit_document<R>(
+        &mut self,
+        document: DocumentId,
+        f: impl FnOnce(&mut Editor) -> R,
+    ) -> Option<R> {
+        let (pane, tab) = self.panes.iter().enumerate().find_map(|(pane, tabs)| {
+            let tab = tabs.tabs.iter().position(|tab| tab.document == document)?;
+            Some((pane, tab))
+        })?;
+        Some(self.with_tab_editor(pane, tab, f))
+    }
+
+    fn with_tab_editor<R>(
+        &mut self,
+        pane: usize,
+        tab_index: usize,
+        f: impl FnOnce(&mut Editor) -> R,
+    ) -> R {
+        self.reset_confirmations();
         let tab = &self.panes[pane].tabs[tab_index];
         let (document, view_id) = (tab.document, tab.id);
         let others = self.other_tabs(document, (pane, tab_index));

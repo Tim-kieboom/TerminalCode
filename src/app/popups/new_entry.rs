@@ -116,6 +116,7 @@ impl App {
                     .ok_or_else(|| EntryError::NotAPlace(prompt.name().trim().to_owned()))?;
                 self.go_to_place(place);
             }
+            Purpose::RenameSymbol { .. } => self.submit_rename(prompt.name())?,
             Purpose::NewTheme { template } => self.make_theme(template, prompt.name())?,
             Purpose::OpenFile => self.open_typed_file(prompt.dir(), prompt.name())?,
             Purpose::OpenFolder => self.restart_in_typed_folder(prompt.dir(), prompt.name())?,

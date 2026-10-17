@@ -54,6 +54,7 @@ pub(crate) enum Action {
     JumpForward,
     /// Goes to where the word at the cursor is defined.
     GoToDefinition,
+    RenameSymbol,
     /// Opens the find bar for the open file.
     FindInFile,
     /// Opens the find bar with the row for replacing.
@@ -298,6 +299,7 @@ impl Action {
             Self::JumpBack => "Navigate: Back",
             Self::JumpForward => "Navigate: Forward",
             Self::GoToDefinition => "Navigate: Go to Definition",
+            Self::RenameSymbol => "Language: Rename Symbol",
             Self::FindInFile => "Search: Find in File",
             Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
@@ -404,6 +406,7 @@ impl Action {
             Self::JumpBack,
             Self::JumpForward,
             Self::GoToDefinition,
+            Self::RenameSymbol,
             Self::FindInFile,
             Self::ReplaceInFile,
             Self::FocusExplorer,

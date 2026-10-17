@@ -39,9 +39,16 @@ pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script
                 Some((id, method, params))
                     if method == "textDocument/completion"
                         || method == "textDocument/hover"
-                        || method == "textDocument/definition" =>
+                        || method == "textDocument/definition"
+                        || method == "textDocument/prepareRename"
+                        || method == "textDocument/rename" =>
                 {
-                    session.respond(id, answer(&params));
+                    let value = answer(&params);
+                    // An answer that says `__error` is an error of the server.
+                    match value.get("__error").and_then(Value::as_str) {
+                        Some(message) => session.respond_error(id, -32803, message),
+                        None => session.respond(id, value),
+                    }
                 }
                 // The item comes back with the edits its `data` says it needs, or
                 // the server refuses when `data` says so.

@@ -77,6 +77,10 @@ pub(crate) enum Purpose {
     NewTheme {
         template: String,
     },
+    /// The new name of the symbol that is called `old`.
+    RenameSymbol {
+        old: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +168,11 @@ impl NamePrompt {
     /// lines.
     pub(crate) fn go_to_line(lines: usize) -> Self {
         Self::with(Purpose::GoToLine { lines }, PathBuf::new(), String::new())
+    }
+
+    /// Asks for the new name of the symbol called `old`, starting from `start`.
+    pub(crate) fn rename_symbol(old: String, start: String) -> Self {
+        Self::with(Purpose::RenameSymbol { old }, PathBuf::new(), start)
     }
 
     pub(crate) fn purpose(&self) -> &Purpose {
@@ -351,6 +360,7 @@ impl NamePrompt {
             Purpose::Move(_) => format!(" Move within {folder} "),
             Purpose::GoToLine { lines } => format!(" Go to line (1-{lines}, or line:column) "),
             Purpose::NewTheme { template } => format!(" New theme from {template}: name "),
+            Purpose::RenameSymbol { old } => format!(" Rename {old} to "),
             Purpose::OpenFile => " Open file (a path, ~ is your home folder) ".to_owned(),
             Purpose::OpenFolder => {
                 " Open folder (a path; starts the editor again there) ".to_owned()

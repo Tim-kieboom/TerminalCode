@@ -258,3 +258,44 @@ impl Manager {
         crate::definition::request(&session.connection, uri, position).ok()
     }
 }
+
+impl Manager {
+    /// Whether the server `key` runs and renames symbols.
+    pub fn offers_rename(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| crate::rename::offered(&session.server.capabilities))
+    }
+
+    /// Whether the server `key` also says whether a position can be renamed.
+    pub fn offers_prepare_rename(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| crate::rename::prepare_offered(&session.server.capabilities))
+    }
+
+    /// Asks the server `key` whether the thing at `position` of `uri` can be
+    /// renamed. `None` when it is not running or the request could not be sent.
+    pub fn request_prepare_rename(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::position::LspPosition,
+    ) -> Option<crate::PendingPrepare> {
+        let session = self.sessions.get(key)?;
+        crate::rename::request_prepare(&session.connection, uri, position).ok()
+    }
+
+    /// Asks the server `key` for the edits that rename the thing at `position`
+    /// of `uri` to `new_name`.
+    pub fn request_rename(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::position::LspPosition,
+        new_name: &str,
+    ) -> Option<crate::PendingRename> {
+        let session = self.sessions.get(key)?;
+        crate::rename::request_rename(&session.connection, uri, position, new_name).ok()
+    }
+}

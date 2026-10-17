@@ -7,6 +7,7 @@ use unicode_segmentation::UnicodeSegmentation;
 pub use error::BufferError;
 pub use file::DiskChange;
 pub use file::FileError;
+pub use file::StagedWrite;
 
 use edit::AppliedEdit;
 pub use edit::Edit;

@@ -43,6 +43,8 @@ pub(super) struct Lsp {
     pub(super) hovering: super::hover::Hovering,
     /// Where the definitions the servers gave are asked for.
     pub(super) defining: super::definition::Defining,
+    /// What a rename of a symbol waits for.
+    pub(super) renaming: super::rename::Renaming,
     /// Files outside the project that a server pointed at (the source of the
     /// standard library), with the server that did: they stay with it, instead
     /// of getting a server of their own.
@@ -61,6 +63,7 @@ impl Default for Lsp {
             completion: super::completion::Asking::default(),
             hovering: super::hover::Hovering::default(),
             defining: super::definition::Defining::default(),
+            renaming: super::rename::Renaming::default(),
             borrowed: HashMap::new(),
         }
     }
@@ -135,6 +138,7 @@ impl App {
         self.completion_answer();
         self.hover_answer();
         self.definition_answer();
+        self.rename_answer();
         self.refresh_lsp_status();
         self.needs_redraw = true;
     }

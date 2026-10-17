@@ -34,6 +34,7 @@ mod errors_view;
 mod hover;
 mod open;
 mod recent;
+mod rename;
 #[cfg(test)]
 pub(crate) use open::expand_path;
 mod jumps;
@@ -184,6 +185,7 @@ impl App {
                 self.hover_step();
                 self.hover_forget_stale();
                 self.definition_forget_stale();
+                self.rename_forget_stale();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;

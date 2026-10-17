@@ -225,6 +225,14 @@ impl Workspace {
         Some(self.documents.get(&document)?.buffer.version())
     }
 
+    /// The version of the text of every open document.
+    pub(crate) fn document_versions(&self) -> std::collections::HashMap<DocumentId, u64> {
+        self.documents
+            .iter()
+            .map(|(id, doc)| (*id, doc.buffer.version()))
+            .collect()
+    }
+
     pub(super) fn add_document(&mut self, buffer: Buffer) -> DocumentId {
         let mut buffer = buffer;
         let read_only = buffer.sync_read_only();
