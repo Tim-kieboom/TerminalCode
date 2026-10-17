@@ -3,10 +3,10 @@
 
 use serde_json::{Value, json};
 
-use super::message::RpcError;
+use crate::lsp::message::RpcError;
 
 /// The answer to the request `method` with `params`.
-pub(super) fn answer(method: &str, params: &Value) -> Result<Value, RpcError> {
+pub(in crate::lsp) fn answer(method: &str, params: &Value) -> Result<Value, RpcError> {
     match method {
         // The progress of a long job (indexing) is reported with notifications
         // after the server made a token for it; agreeing is all it needs.

@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use super::position::LspPosition;
-use super::{Connection, LspError, PendingReply};
+use crate::lsp::position::LspPosition;
+use crate::lsp::{Connection, LspError, PendingReply};
 
 const METHOD: &str = "textDocument/completion";
 
@@ -313,7 +313,7 @@ fn parse_item(value: &Value) -> Option<CompletionItem> {
         documentation: value
             .get("documentation")
             .and_then(|docs| docs.as_str().or_else(|| docs.get("value")?.as_str()))
-            .map(super::docs::plain_text)
+            .map(crate::lsp::docs::plain_text)
             .filter(|docs| !docs.is_empty()),
         raw: value.clone(),
         label,

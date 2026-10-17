@@ -14,9 +14,9 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use super::config::ServerKey;
-use super::launch::{LaunchSpec, StartError};
-use super::progress::Progress;
+use crate::lsp::config::ServerKey;
+use crate::lsp::launch::{LaunchSpec, StartError};
+use crate::lsp::progress::Progress;
 
 /// How many times a server that keeps dying is started again.
 pub(crate) const MAX_RESTARTS: usize = 3;

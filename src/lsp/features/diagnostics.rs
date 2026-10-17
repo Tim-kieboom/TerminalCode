@@ -11,9 +11,9 @@ use std::ops::Range;
 
 use serde_json::Value;
 
-use super::diff::ByteChange;
-use super::position::LspPosition;
 use crate::ids::DocumentId;
+use crate::lsp::diff::ByteChange;
+use crate::lsp::position::LspPosition;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum Severity {

@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use super::uri::file_uri;
-use super::{Connection, LspError};
+use crate::lsp::uri::file_uri;
+use crate::lsp::{Connection, LspError};
 
 /// What the server told us about itself in its answer to `initialize`.
 #[derive(Debug, Clone, PartialEq)]
@@ -19,8 +19,8 @@ pub(crate) struct Server {
 
 impl Server {
     /// What the server offers for completion; `None` when it offers none.
-    pub(crate) fn completion(&self) -> Option<super::Provider> {
-        super::Provider::from_capabilities(&self.capabilities)
+    pub(crate) fn completion(&self) -> Option<crate::lsp::Provider> {
+        crate::lsp::Provider::from_capabilities(&self.capabilities)
     }
 }
 

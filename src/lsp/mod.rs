@@ -27,29 +27,15 @@ pub(crate) use position::{LspPosition, from_lsp, to_lsp};
 pub(crate) use supervisor::{Effect, Notice, Supervisor};
 pub(crate) use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
-mod cargo;
-mod completion;
-mod completion_state;
-mod config;
-mod connection;
-mod definition;
-mod diagnostics;
-mod diff;
-mod docs;
-mod error;
-mod framing;
-mod handshake;
-mod hover;
-mod language;
-mod launch;
-mod manager;
-mod message;
-mod position;
-mod progress;
-mod replies;
-mod snippet;
-mod supervisor;
-mod sync;
+mod features;
+mod protocol;
+mod session;
 #[cfg(test)]
 pub(crate) mod tests;
-pub(crate) mod uri;
+
+// The files of each group are named from here, so `crate::lsp::hover` and the like
+// keep working from inside the client.
+use features::{completion, completion_state, definition, diagnostics, docs, hover, snippet};
+pub(crate) use protocol::uri;
+use protocol::{connection, error, framing, handshake, message, position, replies};
+use session::{cargo, config, diff, language, launch, manager, progress, supervisor, sync};

@@ -7,7 +7,7 @@
 
 use ropey::Rope;
 
-use super::position::{LspPosition, to_lsp};
+use crate::lsp::position::{LspPosition, to_lsp};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Change {

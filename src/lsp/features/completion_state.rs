@@ -12,12 +12,12 @@ use std::ops::Range;
 
 use ropey::Rope;
 
-use super::completion::Kind;
-use super::diagnostics::map_range;
-use super::diff::ByteChange;
-use super::position::{LspPosition, from_lsp};
-use super::snippet::expand;
-use super::{CompletionItem, CompletionList};
+use crate::lsp::completion::Kind;
+use crate::lsp::diagnostics::map_range;
+use crate::lsp::diff::ByteChange;
+use crate::lsp::position::{LspPosition, from_lsp};
+use crate::lsp::snippet::expand;
+use crate::lsp::{CompletionItem, CompletionList};
 
 /// A stretch of text to replace.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -326,7 +326,7 @@ impl Completion {
 }
 
 /// `edits` of the server, in bytes of `rope`, the text they were made for.
-pub(crate) fn byte_edits(edits: &[super::TextEdit], rope: &Rope) -> Vec<ByteEdit> {
+pub(crate) fn byte_edits(edits: &[crate::lsp::TextEdit], rope: &Rope) -> Vec<ByteEdit> {
     edits
         .iter()
         .map(|edit| (from_lsp(rope, edit.start)..from_lsp(rope, edit.end), edit))

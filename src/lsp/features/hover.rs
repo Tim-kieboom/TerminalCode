@@ -3,9 +3,9 @@
 
 use serde_json::{Value, json};
 
-use super::docs::plain_text;
-use super::position::LspPosition;
-use super::{Connection, LspError, PendingReply};
+use crate::lsp::docs::plain_text;
+use crate::lsp::position::LspPosition;
+use crate::lsp::{Connection, LspError, PendingReply};
 
 const METHOD: &str = "textDocument/hover";
 

@@ -10,10 +10,10 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use super::LspError;
-use super::framing::{read_message, write_message};
-use super::message::{Id, Message, RpcError};
-use super::replies;
+use crate::lsp::LspError;
+use crate::lsp::framing::{read_message, write_message};
+use crate::lsp::message::{Id, Message, RpcError};
+use crate::lsp::replies;
 
 /// What the server said that is for the app, not for a request in progress.
 #[derive(Debug, Clone, PartialEq)]

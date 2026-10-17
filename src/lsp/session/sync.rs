@@ -15,11 +15,11 @@ use std::ops::Range;
 use ropey::Rope;
 use serde_json::{Value, json};
 
-use super::config::ServerKey;
-use super::diagnostics::map_range;
-use super::diff::{ByteChange, change_between};
-use super::position::{LspPosition, from_lsp};
 use crate::ids::DocumentId;
+use crate::lsp::config::ServerKey;
+use crate::lsp::diagnostics::map_range;
+use crate::lsp::diff::{ByteChange, change_between};
+use crate::lsp::position::{LspPosition, from_lsp};
 
 /// How many of the texts a server was sent are kept, for placing an answer
 /// that is about an older one.
@@ -281,7 +281,7 @@ fn did_open(doc: &DocSnapshot) -> Outgoing {
     }
 }
 
-fn did_change(doc: &DocSnapshot, change: &super::diff::Change) -> Outgoing {
+fn did_change(doc: &DocSnapshot, change: &crate::lsp::diff::Change) -> Outgoing {
     Outgoing {
         method: "textDocument/didChange",
         params: json!({

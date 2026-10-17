@@ -5,8 +5,8 @@
 
 use serde_json::{Value, json};
 
-use super::position::LspPosition;
-use super::{Connection, LspError, PendingReply};
+use crate::lsp::position::LspPosition;
+use crate::lsp::{Connection, LspError, PendingReply};
 
 const METHOD: &str = "textDocument/definition";
 

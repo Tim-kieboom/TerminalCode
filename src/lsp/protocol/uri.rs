@@ -24,7 +24,7 @@ pub(crate) fn uri_to_path(uri: &str) -> Option<PathBuf> {
 
 /// A Windows path (`C:\a b\c` or `\\host\share\c`) as a URI. Compiled on every
 /// platform so that it can be tested on every one.
-pub(super) fn windows_file_uri(path: &str) -> Option<String> {
+pub(in crate::lsp) fn windows_file_uri(path: &str) -> Option<String> {
     let slashed = path.replace('\\', "/");
     if let Some(share) = slashed.strip_prefix("//") {
         let (host, rest) = share.split_once('/').unwrap_or((share, ""));
@@ -37,7 +37,7 @@ pub(super) fn windows_file_uri(path: &str) -> Option<String> {
 
 /// The path part of a `file:` URI as text: for Windows `C:\...` or `\\host\...`,
 /// otherwise `/...`. `None` for anything that is not a local file URI.
-pub(super) fn path_from_uri(uri: &str, windows: bool) -> Option<String> {
+pub(in crate::lsp) fn path_from_uri(uri: &str, windows: bool) -> Option<String> {
     let rest = uri.strip_prefix("file://")?;
     let (authority, path) = match rest.find('/') {
         Some(slash) => rest.split_at(slash),

@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::message::RpcError;
+use crate::lsp::message::RpcError;
 
 #[derive(Debug, Error)]
 pub(crate) enum LspError {

@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use super::{Connection, Incoming, LspError, Server, initialize};
+use crate::lsp::{Connection, Incoming, LspError, Server, initialize};
 
 /// How long a server may take to answer `initialize`. Indexing a project comes
 /// after it and is reported as progress, so this is only the start of the program.

@@ -15,7 +15,7 @@ const DEPTH: usize = 8;
 /// Whether the crate in the folder `inner` is part of the project whose `Cargo.toml`
 /// is in the folder `outer`: it is that crate, a member of its workspace, or reached
 /// from either by path dependencies.
-pub(super) fn includes(outer: &Path, inner: &Path) -> bool {
+pub(in crate::lsp) fn includes(outer: &Path, inner: &Path) -> bool {
     let inner = tidy(inner);
     let mut seen = HashSet::new();
     reaches(&tidy(outer), &inner, &mut seen, DEPTH)

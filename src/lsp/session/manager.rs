@@ -7,10 +7,10 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
-use super::Incoming;
-use super::config::ServerKey;
-use super::launch::{LaunchSpec, Launcher, Session, StartError};
-use super::supervisor::{Effect, Notice, Supervisor};
+use crate::lsp::Incoming;
+use crate::lsp::config::ServerKey;
+use crate::lsp::launch::{LaunchSpec, Launcher, Session, StartError};
+use crate::lsp::supervisor::{Effect, Notice, Supervisor};
 
 type Wake = Arc<dyn Fn() + Send + Sync>;
 type Started = (ServerKey, Result<Session, StartError>);
@@ -188,7 +188,7 @@ impl Manager {
 impl Manager {
     /// What the server `key` offers for completion; `None` when it is not
     /// running or offers none.
-    pub(crate) fn completion_provider(&self, key: &ServerKey) -> Option<super::Provider> {
+    pub(crate) fn completion_provider(&self, key: &ServerKey) -> Option<crate::lsp::Provider> {
         self.sessions.get(key)?.server.completion()
     }
 
@@ -199,11 +199,11 @@ impl Manager {
         &self,
         key: &ServerKey,
         uri: &str,
-        position: super::position::LspPosition,
-        trigger: super::Trigger,
-    ) -> Option<super::PendingCompletion> {
+        position: crate::lsp::position::LspPosition,
+        trigger: crate::lsp::Trigger,
+    ) -> Option<crate::lsp::PendingCompletion> {
         let session = self.sessions.get(key)?;
-        super::completion::request(&session.connection, uri, position, trigger).ok()
+        crate::lsp::completion::request(&session.connection, uri, position, trigger).ok()
     }
 }
 
@@ -213,10 +213,10 @@ impl Manager {
     pub(crate) fn resolve_completion(
         &self,
         key: &ServerKey,
-        item: &super::CompletionItem,
-    ) -> Option<super::PendingResolve> {
+        item: &crate::lsp::CompletionItem,
+    ) -> Option<crate::lsp::PendingResolve> {
         let session = self.sessions.get(key)?;
-        super::completion::resolve(&session.connection, item).ok()
+        crate::lsp::completion::resolve(&session.connection, item).ok()
     }
 }
 
@@ -225,7 +225,7 @@ impl Manager {
     pub(crate) fn offers_hover(&self, key: &ServerKey) -> bool {
         self.sessions
             .get(key)
-            .is_some_and(|session| super::hover::offered(&session.server.capabilities))
+            .is_some_and(|session| crate::lsp::hover::offered(&session.server.capabilities))
     }
 
     /// Asks the server `key` what it can say about `position` of `uri`. `None`
@@ -234,10 +234,10 @@ impl Manager {
         &self,
         key: &ServerKey,
         uri: &str,
-        position: super::position::LspPosition,
-    ) -> Option<super::PendingHover> {
+        position: crate::lsp::position::LspPosition,
+    ) -> Option<crate::lsp::PendingHover> {
         let session = self.sessions.get(key)?;
-        super::hover::request(&session.connection, uri, position).ok()
+        crate::lsp::hover::request(&session.connection, uri, position).ok()
     }
 }
 
@@ -246,7 +246,7 @@ impl Manager {
     pub(crate) fn offers_definition(&self, key: &ServerKey) -> bool {
         self.sessions
             .get(key)
-            .is_some_and(|session| super::definition::offered(&session.server.capabilities))
+            .is_some_and(|session| crate::lsp::definition::offered(&session.server.capabilities))
     }
 
     /// Asks the server `key` where the thing at `position` of `uri` is defined.
@@ -255,9 +255,9 @@ impl Manager {
         &self,
         key: &ServerKey,
         uri: &str,
-        position: super::position::LspPosition,
-    ) -> Option<super::PendingDefinition> {
+        position: crate::lsp::position::LspPosition,
+    ) -> Option<crate::lsp::PendingDefinition> {
         let session = self.sessions.get(key)?;
-        super::definition::request(&session.connection, uri, position).ok()
+        crate::lsp::definition::request(&session.connection, uri, position).ok()
     }
 }
