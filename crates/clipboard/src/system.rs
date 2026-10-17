@@ -22,15 +22,15 @@ pub enum ClipboardError {
 }
 
 /// Test double with switches for what works.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Memory {
-    pub(crate) content: Option<String>,
-    pub(crate) readable: bool,
-    pub(crate) writable: bool,
+pub struct Memory {
+    pub content: Option<String>,
+    pub readable: bool,
+    pub writable: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-support"))]
 impl Default for Memory {
     fn default() -> Self {
         Self {
@@ -42,7 +42,7 @@ impl Default for Memory {
 }
 
 /// The operating system's clipboard, as far as we can reach it.
-pub(crate) enum System {
+pub enum System {
     /// A real clipboard (X11, Wayland, Windows, macOS).
     Native(arboard::Clipboard),
     /// Write-only through the terminal: OSC 52 sets the clipboard of the
@@ -50,13 +50,13 @@ pub(crate) enum System {
     Terminal,
     /// Nothing reachable; only the editor's own register works.
     Unavailable,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-support"))]
     Memory(Memory),
 }
 
 impl System {
     /// The best clipboard this environment offers.
-    pub(crate) fn detect() -> Self {
+    pub fn detect() -> Self {
         match arboard::Clipboard::new() {
             Ok(clipboard) => Self::Native(clipboard),
             Err(_) => Self::Terminal,
@@ -64,7 +64,7 @@ impl System {
     }
 
     /// `Ok(None)` means the clipboard is readable but holds no text.
-    pub(crate) fn read(&mut self) -> Result<Option<String>, ClipboardError> {
+    pub fn read(&mut self) -> Result<Option<String>, ClipboardError> {
         match self {
             Self::Native(clipboard) => match clipboard.get_text() {
                 Ok(text) => Ok(Some(text)),
@@ -72,24 +72,24 @@ impl System {
                 Err(error) => Err(error.into()),
             },
             Self::Terminal | Self::Unavailable => Err(ClipboardError::Unreadable),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Memory(memory) if memory.readable => Ok(memory.content.clone()),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Memory(_) => Err(ClipboardError::Unreadable),
         }
     }
 
-    pub(crate) fn write(&mut self, text: &str) -> Result<(), ClipboardError> {
+    pub fn write(&mut self, text: &str) -> Result<(), ClipboardError> {
         match self {
             Self::Native(clipboard) => Ok(clipboard.set_text(text)?),
             Self::Terminal => write_osc52(&mut io::stdout(), text),
             Self::Unavailable => Err(ClipboardError::Unavailable),
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Memory(memory) if memory.writable => {
                 memory.content = Some(text.to_owned());
                 Ok(())
             }
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             Self::Memory(_) => Err(ClipboardError::Unavailable),
         }
     }

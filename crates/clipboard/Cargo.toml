@@ -1,0 +1,16 @@
+[package]
+name = "trcode-clipboard"
+description = "The clipboard of TerminalCode: the system clipboard, OSC 52 and the editor's own register"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+# An in-memory clipboard with switches for what works, for the tests of other crates.
+test-support = []
+
+[dependencies]
+arboard.workspace = true
+base64.workspace = true
+thiserror.workspace = true

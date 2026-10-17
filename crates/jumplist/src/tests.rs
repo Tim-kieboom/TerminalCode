@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::{Change, JumpList, LIMIT, Place};
-use crate::ids::DocumentId;
+use trcode_ids::DocumentId;
 
 fn doc(number: u32) -> DocumentId {
     DocumentId::new(number)

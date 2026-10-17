@@ -2274,8 +2274,10 @@ dependencies = [
  "toml",
  "trash",
  "trcode-buffer",
+ "trcode-clipboard",
  "trcode-files",
  "trcode-ids",
+ "trcode-jumplist",
  "trcode-lsp",
  "trcode-pty",
  "trcode-syntax",
@@ -2504,6 +2506,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "trcode-clipboard"
+version = "0.6.1"
+dependencies = [
+ "arboard",
+ "base64 0.23.1",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "trcode-files"
 version = "0.6.1"
 dependencies = [
@@ -2518,6 +2529,13 @@ dependencies = [
 [[package]]
 name = "trcode-ids"
 version = "0.6.1"
+
+[[package]]
+name = "trcode-jumplist"
+version = "0.6.1"
+dependencies = [
+ "trcode-ids",
+]
 
 [[package]]
 name = "trcode-lsp"

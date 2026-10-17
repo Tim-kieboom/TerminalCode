@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use crate::ids::DocumentId;
+use trcode_ids::DocumentId;
 
 /// The most places the list keeps; the oldest go first.
 const LIMIT: usize = 100;
@@ -15,23 +15,23 @@ const LIMIT: usize = 100;
 /// A place in a document: the document, the file it came from (so that it can
 /// be opened again after its tab was closed), and a byte of its text.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Place {
-    pub(crate) document: DocumentId,
-    pub(crate) path: Option<PathBuf>,
-    pub(crate) byte: usize,
+pub struct Place {
+    pub document: DocumentId,
+    pub path: Option<PathBuf>,
+    pub byte: usize,
 }
 
 /// An edit of a document: the bytes `start..old_end` became `start..new_end`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Change {
-    pub(crate) start: usize,
-    pub(crate) old_end: usize,
-    pub(crate) new_end: usize,
+pub struct Change {
+    pub start: usize,
+    pub old_end: usize,
+    pub new_end: usize,
 }
 
 impl Place {
     /// This place after an edit of its document.
-    pub(crate) fn moved(mut self, document: DocumentId, change: Change) -> Self {
+    pub fn moved(mut self, document: DocumentId, change: Change) -> Self {
         if self.document == document {
             self.byte = shifted(self.byte, change);
         }
@@ -41,15 +41,15 @@ impl Place {
 
 /// A place the list went to.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Step {
-    pub(crate) place: Place,
+pub struct Step {
+    pub place: Place,
     /// How many places were passed over and forgotten on the way, because they
     /// were not usable (their file is gone).
-    pub(crate) skipped: usize,
+    pub skipped: usize,
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct JumpList {
+pub struct JumpList {
     entries: Vec<Place>,
     /// The entry the list is at, or `entries.len()` when it is at the present
     /// (nothing has gone back since the last jump).
@@ -59,7 +59,7 @@ pub(crate) struct JumpList {
 impl JumpList {
     /// Notes the place a jump leaves. What was ahead after going back is
     /// dropped. The same place twice in a row is kept once.
-    pub(crate) fn record(&mut self, left: Place) {
+    pub fn record(&mut self, left: Place) {
         self.entries.truncate(self.at);
         if self.entries.last() != Some(&left) {
             self.entries.push(left);
@@ -73,7 +73,7 @@ impl JumpList {
     /// Goes back from `here`, to the nearest older place that is `usable`;
     /// the ones passed that are not are forgotten. `None` when there is none.
     /// `here` is remembered, so that going forward comes back to it.
-    pub(crate) fn back(&mut self, here: Place, usable: impl Fn(&Place) -> bool) -> Option<Step> {
+    pub fn back(&mut self, here: Place, usable: impl Fn(&Place) -> bool) -> Option<Step> {
         if self.entries.is_empty() {
             return None;
         }
@@ -112,7 +112,7 @@ impl JumpList {
 
     /// Goes forward, after going back, to the nearest newer place that is
     /// `usable`; the ones passed that are not are forgotten.
-    pub(crate) fn forward(&mut self, usable: impl Fn(&Place) -> bool) -> Option<Step> {
+    pub fn forward(&mut self, usable: impl Fn(&Place) -> bool) -> Option<Step> {
         let mut skipped = 0;
         let index = self.at + 1;
         while index < self.entries.len() {
@@ -131,7 +131,7 @@ impl JumpList {
 
     /// Moves the places of `document` through an edit of it. A place inside
     /// what was replaced goes to the start of it.
-    pub(crate) fn remap(&mut self, document: DocumentId, change: Change) {
+    pub fn remap(&mut self, document: DocumentId, change: Change) {
         for place in self
             .entries
             .iter_mut()
@@ -143,7 +143,7 @@ impl JumpList {
 
     /// Gives a place its document back: the tab of a file was closed and the
     /// file is open again under a new document.
-    pub(crate) fn reopened(&mut self, path: &PathBuf, document: DocumentId) {
+    pub fn reopened(&mut self, path: &PathBuf, document: DocumentId) {
         for place in self
             .entries
             .iter_mut()
@@ -153,13 +153,11 @@ impl JumpList {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 }

@@ -1,5 +1,5 @@
-use crate::clipboard::ClipboardError;
-use crate::clipboard::system::write_osc52;
+use crate::ClipboardError;
+use crate::system::write_osc52;
 
 #[test]
 fn osc52_writes_base64_between_the_escape_codes() {

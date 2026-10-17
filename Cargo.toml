@@ -20,6 +20,10 @@ trcode-files = { path = "crates/files" }
 trcode-pty = { path = "crates/pty" }
 trcode-lsp = { path = "crates/lsp" }
 trcode-syntax = { path = "crates/syntax" }
+trcode-clipboard = { path = "crates/clipboard" }
+trcode-jumplist = { path = "crates/jumplist" }
+arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
+base64 = "0.23.1"
 ratatui = "0.30.2"
 tree-sitter = "0.27.1"
 tree-sitter-rust = "0.24.2"
@@ -56,7 +60,7 @@ toml.workspace = true
 dirs = "7.0.0"
 trash.workspace = true
 regex = "1.13.1"
-base64 = "0.23.1"
+base64.workspace = true
 ignore = "0.4.33"
 futures = "0.3.34"
 ratatui.workspace = true
@@ -86,8 +90,10 @@ trcode-files.workspace = true
 trcode-pty.workspace = true
 trcode-lsp.workspace = true
 trcode-syntax.workspace = true
+trcode-clipboard.workspace = true
+trcode-jumplist.workspace = true
 tokio.workspace = true
-arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
+arboard.workspace = true
 serde_json.workspace = true
 
 [target.'cfg(unix)'.dependencies]
@@ -95,5 +101,6 @@ libc = "0.2"
 
 [dev-dependencies]
 trcode-lsp = { workspace = true, features = ["test-support"] }
+trcode-clipboard = { workspace = true, features = ["test-support"] }
 proptest.workspace = true
 tempfile.workspace = true

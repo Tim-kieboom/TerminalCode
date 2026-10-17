@@ -1,0 +1,10 @@
+[package]
+name = "trcode-jumplist"
+description = "The jump list of TerminalCode: where the cursor was before it jumped"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+trcode-ids.workspace = true

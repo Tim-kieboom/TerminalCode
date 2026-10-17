@@ -1,11 +1,11 @@
-use crate::clipboard::system::Memory;
-use crate::clipboard::{Clipboard, Notice, Register, RegisterKind, System};
+use crate::system::Memory;
+use crate::{Clipboard, Notice, Register, RegisterKind, System};
 
 fn clipboard(memory: Memory) -> Clipboard {
     Clipboard::new(System::Memory(memory))
 }
 
-fn text(fetched: Option<crate::clipboard::Fetched>) -> Option<String> {
+fn text(fetched: Option<crate::Fetched>) -> Option<String> {
     fetched.map(|fetched| fetched.register.text().to_owned())
 }
 

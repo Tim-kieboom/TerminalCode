@@ -1,10 +1,9 @@
 //! The editor's register plus a best-effort link to the system clipboard.
 
-#[cfg(test)]
-pub(crate) use system::ClipboardError;
-#[cfg(test)]
-pub(crate) use system::Memory;
-pub(crate) use system::System;
+pub use system::ClipboardError;
+#[cfg(any(test, feature = "test-support"))]
+pub use system::Memory;
+pub use system::System;
 
 mod system;
 #[cfg(test)]
@@ -12,7 +11,7 @@ mod tests;
 
 /// How copied text is meant to be pasted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RegisterKind {
+pub enum RegisterKind {
     /// Inserted at the cursor, replacing the selection.
     Charwise,
     /// Whole lines, each ending in a line break; inserted above the cursor's
@@ -23,38 +22,38 @@ pub(crate) enum RegisterKind {
 /// Copied text and how to paste it. The system clipboard only carries the
 /// text, so the kind lives here.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Register {
+pub struct Register {
     text: String,
     kind: RegisterKind,
 }
 
 impl Register {
-    pub(crate) fn charwise(text: impl Into<String>) -> Self {
+    pub fn charwise(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
             kind: RegisterKind::Charwise,
         }
     }
 
-    pub(crate) fn linewise(text: impl Into<String>) -> Self {
+    pub fn linewise(text: impl Into<String>) -> Self {
         Self {
             text: text.into(),
             kind: RegisterKind::Linewise,
         }
     }
 
-    pub(crate) fn text(&self) -> &str {
+    pub fn text(&self) -> &str {
         &self.text
     }
 
-    pub(crate) fn kind(&self) -> RegisterKind {
+    pub fn kind(&self) -> RegisterKind {
         self.kind
     }
 }
 
 /// Something worth telling the user about a paste.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Notice {
+pub enum Notice {
     /// The system clipboard could not be read, so the editor's own copy was
     /// pasted. Shown once.
     SystemUnreadable,
@@ -65,9 +64,9 @@ pub(crate) enum Notice {
 
 /// What a paste should insert.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Fetched {
-    pub(crate) register: Register,
-    pub(crate) notice: Option<Notice>,
+pub struct Fetched {
+    pub register: Register,
+    pub notice: Option<Notice>,
 }
 
 /// The editor's own register, mirrored to the system clipboard when possible.
@@ -77,7 +76,7 @@ pub(crate) struct Fetched {
 /// we last wrote, another program changed it and that text wins; otherwise
 /// (same text, empty, or unreadable) the register is used, which keeps its
 /// kind.
-pub(crate) struct Clipboard {
+pub struct Clipboard {
     register: Option<Register>,
     last_written: Option<String>,
     system: System,
@@ -86,7 +85,7 @@ pub(crate) struct Clipboard {
 }
 
 impl Clipboard {
-    pub(crate) fn new(system: System) -> Self {
+    pub fn new(system: System) -> Self {
         Self {
             register: None,
             last_written: None,
@@ -98,13 +97,13 @@ impl Clipboard {
 
     /// Only the editor's own register; used where touching the real clipboard
     /// would be wrong, such as tests.
-    pub(crate) fn internal_only() -> Self {
+    pub fn internal_only() -> Self {
         Self::new(System::Unavailable)
     }
 
     /// Returns what to tell the user when the system clipboard could not be
     /// written: once per run, since a machine without one fails every time.
-    pub(crate) fn set(&mut self, register: Register) -> Option<Notice> {
+    pub fn set(&mut self, register: Register) -> Option<Notice> {
         // Remember what we tried to write even if it failed: a read that
         // differs from it must come from somewhere else.
         self.last_written = Some(register.text().to_owned());
@@ -117,7 +116,7 @@ impl Clipboard {
         Some(Notice::SystemUnwritable(error.to_string()))
     }
 
-    pub(crate) fn get(&mut self) -> Option<Fetched> {
+    pub fn get(&mut self) -> Option<Fetched> {
         let (foreign, notice) = match self.system.read() {
             Ok(Some(text)) if self.last_written.as_deref() != Some(text.as_str()) => {
                 (Some(text), None)

@@ -14,22 +14,18 @@ use crate::terminal::Capabilities;
 
 mod app;
 use trcode_buffer as buffer;
+use trcode_clipboard as clipboard;
 use trcode_files as files;
 use trcode_ids as ids;
+use trcode_jumplist as jumplist;
 use trcode_lsp as lsp;
 use trcode_pty as pty;
 use trcode_syntax as syntax;
 mod cli;
-mod clipboard;
 mod components;
 mod config;
 pub mod error;
 mod event;
-#[allow(
-    dead_code,
-    reason = "the jump list is wired into the app in the next step"
-)]
-mod jumplist;
 mod keymap;
 mod persist;
 mod settings;
