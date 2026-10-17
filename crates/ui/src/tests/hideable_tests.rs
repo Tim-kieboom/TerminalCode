@@ -4,9 +4,9 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
-use crate::ui::ComponentKind;
-use crate::ui::layout::Placement;
-use crate::ui::{Hideable, Render};
+use crate::ComponentKind;
+use crate::layout::Placement;
+use crate::{Hideable, Render};
 
 /// Counts how often it is prepared and drawn.
 #[derive(Debug, Default)]

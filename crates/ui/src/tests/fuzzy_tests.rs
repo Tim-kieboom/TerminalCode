@@ -1,4 +1,4 @@
-use crate::ui::fuzzy::score;
+use crate::fuzzy::score;
 
 #[test]
 fn an_empty_query_matches_everything() {
@@ -46,7 +46,7 @@ fn an_earlier_match_beats_a_later_one() {
 
 // ---- positions
 
-use crate::ui::fuzzy::Query;
+use crate::fuzzy::Query;
 
 #[test]
 fn positions_are_where_the_query_matched() {

@@ -9,25 +9,25 @@ use thiserror::Error;
 const PALETTE_PREFIX: char = '@';
 
 /// Built-in theme, embedded at compile time.
-pub(crate) const DEFAULT_THEME_TOML: &str = include_str!(concat!(
+pub const DEFAULT_THEME_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/default_theme.toml"
 ));
 
 /// Built-in light theme, embedded at compile time.
-pub(crate) const LIGHT_THEME_TOML: &str = include_str!(concat!(
+pub const LIGHT_THEME_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/light_theme.toml"
 ));
 
 /// Built-in dark theme with the Sol colors for the interface.
-pub(crate) const SOL_DARK_THEME_TOML: &str = include_str!(concat!(
+pub const SOL_DARK_THEME_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/sol_dark_theme.toml"
 ));
 
 /// Built-in light theme with the Sol colors for the interface.
-pub(crate) const SOL_LIGHT_THEME_TOML: &str = include_str!(concat!(
+pub const SOL_LIGHT_THEME_TOML: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/sol_light_theme.toml"
 ));
@@ -35,7 +35,7 @@ pub(crate) const SOL_LIGHT_THEME_TOML: &str = include_str!(concat!(
 /// Which built-in theme the user's `theme.toml` is laid over.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub(crate) enum ThemeVariant {
+pub enum ThemeVariant {
     #[default]
     Dark,
     Light,
@@ -45,9 +45,9 @@ pub(crate) enum ThemeVariant {
 
 impl ThemeVariant {
     /// Every built-in theme.
-    pub(crate) const ALL: [Self; 4] = [Self::Dark, Self::Light, Self::SolDark, Self::SolLight];
+    pub const ALL: [Self; 4] = [Self::Dark, Self::Light, Self::SolDark, Self::SolLight];
 
-    pub(crate) fn source(self) -> &'static str {
+    pub fn source(self) -> &'static str {
         match self {
             Self::Dark => DEFAULT_THEME_TOML,
             Self::Light => LIGHT_THEME_TOML,
@@ -57,7 +57,7 @@ impl ThemeVariant {
     }
 
     /// The name for messages and for the file of a copy of the theme.
-    pub(crate) fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Self::Dark => "dark",
             Self::Light => "light",
@@ -67,7 +67,7 @@ impl ThemeVariant {
     }
 
     /// The name the palette shows.
-    pub(crate) fn title(self) -> &'static str {
+    pub fn title(self) -> &'static str {
         match self {
             Self::Dark => "Dark",
             Self::Light => "Light",
@@ -82,7 +82,7 @@ impl ThemeVariant {
 /// fall back to the default style, which lets plugins use slots a theme does
 /// not know about yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Theme {
+pub struct Theme {
     slots: HashMap<Box<str>, Style>,
     background: Background,
     /// The `[background.<pane>]` tables: what a pane paints over the screen's
@@ -95,10 +95,10 @@ pub(crate) struct Theme {
 
 /// A 24-bit color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Rgb {
-    pub(crate) r: u8,
-    pub(crate) g: u8,
-    pub(crate) b: u8,
+pub struct Rgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }
 
 impl Rgb {
@@ -125,7 +125,7 @@ impl From<Rgb> for Color {
 /// The places that can have a background of their own: the `[background.<name>]`
 /// tables of a theme file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum BackgroundPane {
+pub enum BackgroundPane {
     Editor,
     Explorer,
     Terminal,
@@ -412,7 +412,7 @@ impl From<ModifierName> for Modifier {
 impl Theme {
     /// Parses a theme described as TOML. Colors are names such as `"red"` or
     /// `"dark_gray"`, or hex values such as `"#1e1e2e"`.
-    pub(crate) fn from_toml(source: &str) -> Result<Self, ThemeError> {
+    pub fn from_toml(source: &str) -> Result<Self, ThemeError> {
         Self::build(toml::from_str(source)?)
     }
 
@@ -423,7 +423,7 @@ impl Theme {
     /// replace, `modifiers` replaces the whole list. `"reset"` clears a color and
     /// `modifiers = []` clears the modifiers. Slots the user leaves out stay as
     /// the base has them, and `[background]` is merged key by key too.
-    pub(crate) fn layered(base: &str, user: &str) -> Result<Self, ThemeError> {
+    pub fn layered(base: &str, user: &str) -> Result<Self, ThemeError> {
         let base: ThemeFile = toml::from_str(base)?;
         let user: ThemeFile = toml::from_str(user)?;
         Self::build(base.merged_with(user))
@@ -455,7 +455,7 @@ impl Theme {
 
     /// Theme files laid one over the next, the first being the base; see
     /// [`Theme::layered`], which this is for any number of them.
-    pub(crate) fn layered_many(sources: &[&str]) -> Result<Self, ThemeError> {
+    pub fn layered_many(sources: &[&str]) -> Result<Self, ThemeError> {
         let mut files = sources
             .iter()
             .map(|source| toml::from_str::<ThemeFile>(source));
@@ -470,12 +470,12 @@ impl Theme {
     }
 
     /// A user theme file laid over a built-in theme; see [`Theme::layered`].
-    pub(crate) fn layered_over(variant: ThemeVariant, user: &str) -> Result<Self, ThemeError> {
+    pub fn layered_over(variant: ThemeVariant, user: &str) -> Result<Self, ThemeError> {
         Self::layered(variant.source(), user)
     }
 
     /// A built-in theme as it is, with no user file.
-    pub(crate) fn built_in(variant: ThemeVariant) -> Self {
+    pub fn built_in(variant: ThemeVariant) -> Self {
         Self::from_toml(variant.source()).unwrap_or_else(|err| {
             panic!("while parsing the built-in {} theme: {err}", variant.name())
         })
@@ -483,7 +483,7 @@ impl Theme {
 
     /// Whether painting the background needs the terminal's own background
     /// color (see [`Theme::set_terminal_background`]).
-    pub(crate) fn needs_terminal_background(&self) -> bool {
+    pub fn needs_terminal_background(&self) -> bool {
         self.backgrounds()
             .any(|background| matches!(background, Background::Tint { .. }))
     }
@@ -495,7 +495,7 @@ impl Theme {
 
     /// A line to show at startup when the theme relies on the terminal to make
     /// its background color translucent, naming the setting to use.
-    pub(crate) fn terminal_hint(&self) -> Option<String> {
+    pub fn terminal_hint(&self) -> Option<String> {
         let (color, alpha) = self.backgrounds().find_map(|background| match background {
             Background::Exact { color, alpha } => Some((color, alpha)),
             _ => None,
@@ -509,26 +509,26 @@ impl Theme {
         ))
     }
 
-    pub(crate) fn set_terminal_background(&mut self, color: Option<Rgb>) {
+    pub fn set_terminal_background(&mut self, color: Option<Rgb>) {
         self.terminal_background = color;
     }
 
     /// The terminal's own background, if it was asked for.
-    pub(crate) fn terminal_background(&self) -> Option<Rgb> {
+    pub fn terminal_background(&self) -> Option<Rgb> {
         self.terminal_background
     }
 
     /// The color to paint the whole screen with, or `None` to leave the
     /// terminal's background alone. A tint blends with the terminal's
     /// background; when that is unknown the tint color is used as is.
-    pub(crate) fn background_color(&self) -> Option<Color> {
+    pub fn background_color(&self) -> Option<Color> {
         self.paint(self.background)
     }
 
     /// What to paint over the screen's background in `pane`: `None` when the
     /// pane has no background of its own, `Some(None)` when it is transparent
     /// (the terminal's background shows), `Some(Some(color))` for a color.
-    pub(crate) fn pane_background(&self, pane: BackgroundPane) -> Option<Option<Color>> {
+    pub fn pane_background(&self, pane: BackgroundPane) -> Option<Option<Color>> {
         self.pane_backgrounds
             .get(&pane)
             .map(|background| self.paint(*background))
@@ -536,7 +536,7 @@ impl Theme {
 
     /// The color a box in `pane` starts from: its own background if the theme
     /// gives it one, else the screen's.
-    pub(crate) fn pane_color(&self, pane: BackgroundPane) -> Option<Color> {
+    pub fn pane_color(&self, pane: BackgroundPane) -> Option<Color> {
         self.pane_background(pane)
             .unwrap_or_else(|| self.background_color())
     }
@@ -555,7 +555,7 @@ impl Theme {
 
     /// The block that marks where the cursor is in a place that does not have the
     /// keyboard. A theme without the `cursor.unfocused` slot gets a dark grey.
-    pub(crate) fn unfocused_cursor(&self) -> Style {
+    pub fn unfocused_cursor(&self) -> Style {
         self.slots
             .get("cursor.unfocused")
             .copied()
@@ -564,7 +564,7 @@ impl Theme {
 
     /// The block that marks a further cursor when there are several. A theme
     /// without the `cursor.extra` slot swaps the cell's colors.
-    pub(crate) fn extra_cursor(&self) -> Style {
+    pub fn extra_cursor(&self) -> Style {
         self.slots
             .get("cursor.extra")
             .copied()
@@ -572,11 +572,11 @@ impl Theme {
     }
 
     /// Whether the theme defines `slot`.
-    pub(crate) fn contains(&self, slot: &str) -> bool {
+    pub fn contains(&self, slot: &str) -> bool {
         self.slots.contains_key(slot)
     }
 
-    pub(crate) fn style(&self, slot: &str) -> Style {
+    pub fn style(&self, slot: &str) -> Style {
         self.slots.get(slot).copied().unwrap_or_default()
     }
 
@@ -584,7 +584,7 @@ impl Theme {
     /// specific of `syntax.function.builtin`, `syntax.function` and `syntax`
     /// the theme defines. `None` when it defines none of them, which leaves
     /// the text plain.
-    pub(crate) fn syntax_style(&self, capture: &str) -> Option<Style> {
+    pub fn syntax_style(&self, capture: &str) -> Option<Style> {
         let mut slot = format!("syntax.{capture}");
         loop {
             if let Some(style) = self.slots.get(slot.as_str()) {

@@ -3,12 +3,12 @@
 /// A query prepared for matching many texts: lowercased once, whitespace
 /// dropped.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Query {
+pub struct Query {
     wanted: Vec<char>,
 }
 
 impl Query {
-    pub(crate) fn new(query: &str) -> Self {
+    pub fn new(query: &str) -> Self {
         let wanted = query
             .chars()
             .filter(|c| !c.is_whitespace())
@@ -22,7 +22,7 @@ impl Query {
     /// ignoring case. Higher is better: runs of consecutive characters and
     /// matches at the start of a word score extra, and a match that starts
     /// early beats one that starts late.
-    pub(crate) fn score(&self, text: &str) -> Option<i32> {
+    pub fn score(&self, text: &str) -> Option<i32> {
         let mut wanted = self.wanted.iter().peekable();
         if wanted.peek().is_none() {
             return Some(0);
@@ -62,7 +62,7 @@ impl Query {
     /// The character positions (counted in characters, from 0) of `text` that the
     /// match uses, in order: the same ones [`Query::score`] counts. `None` when
     /// the query does not match; empty for an empty query.
-    pub(crate) fn positions(&self, text: &str) -> Option<Vec<usize>> {
+    pub fn positions(&self, text: &str) -> Option<Vec<usize>> {
         let mut wanted = self.wanted.iter().peekable();
         let mut found = Vec::with_capacity(self.wanted.len());
         for (index, c) in text.chars().enumerate() {
@@ -86,6 +86,6 @@ fn lowercase(c: char) -> char {
 }
 
 /// [`Query::score`] for a query used once.
-pub(crate) fn score(query: &str, text: &str) -> Option<i32> {
+pub fn score(query: &str, text: &str) -> Option<i32> {
     Query::new(query).score(text)
 }

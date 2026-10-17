@@ -1,11 +1,11 @@
 use ratatui::layout::Rect;
 
-use crate::ui::{ComponentKind, PluginViewId};
+use crate::{ComponentKind, PluginViewId};
 
 use super::super::layout::*;
 use ratatui::widgets::Borders;
 
-use crate::ui::pane_frame::{BorderStyle, FrameSpec, PaneFrame, Title, TitleAlign};
+use crate::pane_frame::{BorderStyle, FrameSpec, PaneFrame, Title, TitleAlign};
 
 fn editor_only() -> LayoutNode {
     new_leaf(ComponentKind::Editor)
@@ -627,7 +627,7 @@ fn a_misspelled_bar_field_is_an_error() {
 
 #[test]
 fn the_tab_rectangles_follow_the_labels_and_lie_in_the_title_row() {
-    use crate::ui::bar::tab_rects;
+    use crate::bar::tab_rects;
     let tree = LayoutTree::from_ron(BARS).unwrap();
     let placements = resolved(&tree, 0);
     let bottom = &placements[2];
@@ -649,7 +649,7 @@ fn the_tab_rectangles_follow_the_labels_and_lie_in_the_title_row() {
 
 #[test]
 fn a_placement_that_is_not_a_bar_has_no_tabs() {
-    use crate::ui::bar::tab_rects;
+    use crate::bar::tab_rects;
     let placement = Placement::new(ComponentKind::Editor, Rect::new(0, 0, 40, 10));
 
     assert!(tab_rects(&placement).is_empty());

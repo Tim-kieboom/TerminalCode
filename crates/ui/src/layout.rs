@@ -4,8 +4,8 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::ui::ComponentKind;
-use crate::ui::pane_frame::{BorderStyle, FrameSpec, PaneFrame, Side, Title, TitleAlign};
+use crate::ComponentKind;
+use crate::pane_frame::{BorderStyle, FrameSpec, PaneFrame, Side, Title, TitleAlign};
 
 /// One step of a [`LayoutPath`]: a node and, when its parent holds several,
 /// its position there.
@@ -67,7 +67,7 @@ pub enum LayoutError {
 
 /// Direction in which panes are laid out; the workspace splits its editor panes along one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Axis {
+pub enum Axis {
     Horizontal,
     Vertical,
 }
@@ -85,7 +85,7 @@ impl From<Axis> for Direction {
 /// Anything left out of the frame takes the component's default.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(from = "PaneFields")]
-pub(crate) struct PaneSpec {
+pub struct PaneSpec {
     pub(super) view: ComponentKind,
     pub(super) frame: FrameSpec,
     /// Whether the component starts hidden (`hidden: true`) or shown
@@ -132,7 +132,7 @@ impl From<PaneFields> for PaneSpec {
 /// title when it has more than one.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(from = "BarFields")]
-pub(crate) struct BarSpec {
+pub struct BarSpec {
     pub(super) views: Vec<ComponentKind>,
     pub(super) frame: FrameSpec,
     /// Whether the bar starts hidden, when that is not remembered; the first
@@ -173,19 +173,19 @@ impl From<BarFields> for BarSpec {
 
 /// Which views a bar has and which one it shows, for the tab strip.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BarTabs {
-    pub(crate) views: Vec<ComponentKind>,
+pub struct BarTabs {
+    pub views: Vec<ComponentKind>,
     /// What each tab says, in the order of `views`: the view's name, which the
     /// app may add to (the count on the Errors tab).
-    pub(crate) labels: Vec<String>,
-    pub(crate) active: usize,
+    pub labels: Vec<String>,
+    pub active: usize,
 }
 
 /// What a layout is resolved against: which components are shown, and which view
 /// each bar shows (the bar is named by its first view).
-pub(crate) struct Scene<'a> {
-    pub(crate) visible: &'a dyn Fn(&ComponentKind) -> bool,
-    pub(crate) active: &'a dyn Fn(&ComponentKind) -> usize,
+pub struct Scene<'a> {
+    pub visible: &'a dyn Fn(&ComponentKind) -> bool,
+    pub active: &'a dyn Fn(&ComponentKind) -> usize,
 }
 
 impl BarSpec {
@@ -199,7 +199,7 @@ impl BarSpec {
 /// A node of the layout tree. `Fixed` and `Percent` give the node they wrap a
 /// size inside a `Row` or `Col`; a node without one fills what is left.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub(crate) enum LayoutNode {
+pub enum LayoutNode {
     /// Children side by side.
     Row(Vec<LayoutNode>),
     /// Children stacked.
@@ -302,19 +302,18 @@ impl LayoutNode {
 
 /// Where a component ended up on screen.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Placement {
-    pub(crate) kind: ComponentKind,
-    pub(crate) area: Rect,
-    pub(crate) frame: PaneFrame,
+pub struct Placement {
+    pub kind: ComponentKind,
+    pub area: Rect,
+    pub frame: PaneFrame,
     /// The views of the bar this component is the shown one of, when it has
     /// more than one (the tab strip is drawn for them).
-    pub(crate) bar: Option<BarTabs>,
+    pub bar: Option<BarTabs>,
 }
 
 impl Placement {
     /// A placement with the component's default frame.
-    #[cfg(test)]
-    pub(crate) fn new(kind: ComponentKind, area: Rect) -> Self {
+    pub fn new(kind: ComponentKind, area: Rect) -> Self {
         let frame = PaneFrame::default_for(&kind);
         Self {
             kind,
@@ -326,7 +325,7 @@ impl Placement {
 }
 
 /// Built-in layout, embedded at compile time.
-pub(crate) const DEFAULT_LAYOUT_RON: &str = include_str!(concat!(
+pub const DEFAULT_LAYOUT_RON: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/defaults/default_layout.ron"
 ));
@@ -334,12 +333,12 @@ pub(crate) const DEFAULT_LAYOUT_RON: &str = include_str!(concat!(
 /// Declarative layout. Today it only has a built-in default; a settings file
 /// can produce the same structure after 0.1.0.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LayoutTree {
+pub struct LayoutTree {
     pub(super) root: LayoutNode,
 }
 impl LayoutTree {
     /// Parses and validates a layout described as RON.
-    pub(crate) fn from_ron(source: &str) -> Result<Self, LayoutError> {
+    pub fn from_ron(source: &str) -> Result<Self, LayoutError> {
         let root: LayoutNode = ron::Options::default()
             .with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME)
             .with_default_extension(ron::extensions::Extensions::UNWRAP_VARIANT_NEWTYPES)
@@ -348,7 +347,7 @@ impl LayoutTree {
     }
 
     /// Rejects layouts the editor cannot work with.
-    pub(crate) fn new(root: LayoutNode) -> Result<Self, LayoutError> {
+    pub fn new(root: LayoutNode) -> Result<Self, LayoutError> {
         let mut path = vec![Step {
             name: root.name(),
             index: None,
@@ -372,33 +371,31 @@ impl LayoutTree {
     }
 
     /// Whether the layout has a component of this kind.
-    pub(crate) fn contains(&self, kind: &ComponentKind) -> bool {
+    pub fn contains(&self, kind: &ComponentKind) -> bool {
         self.root.contains(kind)
     }
 
     /// The views of the bar that holds `kind`, in the order the layout lists them;
     /// `None` when `kind` is not in a bar.
-    pub(crate) fn bar_views(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
+    pub fn bar_views(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
         self.root.bar_of(kind)
     }
 
     /// What the layout says about the component of this kind starting hidden,
     /// `None` when it has no such component or does not say.
-    pub(crate) fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
+    pub fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
         self.root.starts_hidden(kind)
     }
 
     /// Where every component goes.
-    #[cfg(test)]
-    pub(crate) fn resolve(&self, area: Rect) -> Vec<Placement> {
+    pub fn resolve(&self, area: Rect) -> Vec<Placement> {
         self.resolve_visible(area, &|_| true)
     }
 
     /// Where the components for which `visible` says yes go. A hidden
     /// component takes no space: the others in its split share it, and a split
     /// whose components are all hidden takes none either.
-    #[cfg(test)]
-    pub(crate) fn resolve_visible(
+    pub fn resolve_visible(
         &self,
         area: Rect,
         visible: &dyn Fn(&ComponentKind) -> bool,
@@ -414,7 +411,7 @@ impl LayoutTree {
 
     /// Where the components of `scene` go: those it shows, and for a bar the
     /// view it shows.
-    pub(crate) fn resolve_scene(&self, area: Rect, scene: &Scene<'_>) -> Vec<Placement> {
+    pub fn resolve_scene(&self, area: Rect, scene: &Scene<'_>) -> Vec<Placement> {
         let mut placements = Vec::new();
         place(&self.root, area, scene, &mut placements);
         placements

@@ -4,8 +4,8 @@ use ratatui::layout::{Alignment, Rect};
 use ratatui::widgets::{Block, BorderType, Borders};
 use serde::Deserialize;
 
-use crate::ui::ComponentKind;
-use crate::ui::theme::Theme;
+use crate::ComponentKind;
+use crate::theme::Theme;
 
 /// Theme slot of the border by default; the border of a focused pane uses
 /// the slot with `.focused` appended when the theme has one.
@@ -15,7 +15,7 @@ const DEFAULT_TITLE_SLOT: &str = "pane.title";
 /// An edge of a frame that has a border line. A layout file lists them in
 /// `sides`; an empty list means no border at all.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-pub(crate) enum Side {
+pub enum Side {
     Top,
     Right,
     Bottom,
@@ -44,7 +44,7 @@ fn borders_of(sides: &[Side]) -> Borders {
 
 /// How the border lines are drawn: one of ratatui's border types.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-pub(crate) enum BorderStyle {
+pub enum BorderStyle {
     #[default]
     Plain,
     Rounded,
@@ -80,7 +80,7 @@ impl From<BorderStyle> for BorderType {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
-pub(crate) enum Title {
+pub enum Title {
     /// Nothing is shown.
     Hidden,
     /// The component's own name: `Explorer`, the plugin's id, the file name
@@ -91,7 +91,7 @@ pub(crate) enum Title {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-pub(crate) enum TitleAlign {
+pub enum TitleAlign {
     #[default]
     Left,
     Center,
@@ -102,21 +102,21 @@ pub(crate) enum TitleAlign {
 /// the component's default (see [`PaneFrame::default_for`]).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub(crate) struct FrameSpec {
+pub struct FrameSpec {
     /// The edges that have a border line; empty for none.
-    pub(crate) sides: Option<Vec<Side>>,
-    pub(crate) border: Option<BorderStyle>,
-    pub(crate) title: Option<Title>,
-    pub(crate) title_align: Option<TitleAlign>,
+    pub sides: Option<Vec<Side>>,
+    pub border: Option<BorderStyle>,
+    pub title: Option<Title>,
+    pub title_align: Option<TitleAlign>,
     /// Theme slot that styles the title.
-    pub(crate) title_slot: Option<Box<str>>,
+    pub title_slot: Option<Box<str>>,
     /// Theme slot that styles the border.
-    pub(crate) border_slot: Option<Box<str>>,
+    pub border_slot: Option<Box<str>>,
 }
 
 /// A component's frame with everything filled in.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PaneFrame {
+pub struct PaneFrame {
     sides: Borders,
     border: BorderStyle,
     title: Title,
@@ -132,7 +132,7 @@ impl PaneFrame {
     /// How a component is framed when the layout does not say: panes get a
     /// plain border and their name; the editor shows file names in its tabs
     /// instead of a title; the status bar is a bare line.
-    pub(crate) fn default_for(kind: &ComponentKind) -> Self {
+    pub fn default_for(kind: &ComponentKind) -> Self {
         let (sides, title) = match kind {
             ComponentKind::Editor => (Borders::ALL, Title::Hidden),
             ComponentKind::StatusBar | ComponentKind::MenuBar => (Borders::NONE, Title::Hidden),
@@ -150,7 +150,7 @@ impl PaneFrame {
     }
 
     /// `spec` laid over the defaults of `kind`.
-    pub(crate) fn resolve(spec: &FrameSpec, kind: &ComponentKind) -> Self {
+    pub fn resolve(spec: &FrameSpec, kind: &ComponentKind) -> Self {
         let defaults = Self::default_for(kind);
         Self {
             sides: spec.sides.as_deref().map_or(defaults.sides, borders_of),
@@ -163,50 +163,44 @@ impl PaneFrame {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn sides(&self) -> Borders {
+    pub fn sides(&self) -> Borders {
         self.sides
     }
 
-    #[cfg(test)]
-    pub(crate) fn border(&self) -> BorderStyle {
+    pub fn border(&self) -> BorderStyle {
         self.border
     }
 
-    #[cfg(test)]
-    pub(crate) fn title(&self) -> &Title {
+    pub fn title(&self) -> &Title {
         &self.title
     }
 
-    #[cfg(test)]
-    pub(crate) fn title_align(&self) -> TitleAlign {
+    pub fn title_align(&self) -> TitleAlign {
         self.title_align
     }
 
-    #[cfg(test)]
-    pub(crate) fn title_slot(&self) -> &str {
+    pub fn title_slot(&self) -> &str {
         &self.title_slot
     }
 
-    #[cfg(test)]
-    pub(crate) fn border_slot(&self) -> &str {
+    pub fn border_slot(&self) -> &str {
         &self.border_slot
     }
 
     /// This frame with its title row given to a bar's tab strip.
-    pub(crate) fn with_tab_row(mut self) -> Self {
+    pub fn with_tab_row(mut self) -> Self {
         self.tabs = true;
         self
     }
 
     /// Whether the frame has a title row, for a title or for tabs.
-    pub(crate) fn shows_title(&self) -> bool {
+    pub fn shows_title(&self) -> bool {
         self.tabs || self.title != Title::Hidden
     }
 
     /// Where a bar's tab strip may go: the title row, between the corners, as the
     /// columns `from..to` of row `row`.
-    pub(crate) fn tab_row(&self, area: Rect) -> (u16, u16, u16) {
+    pub fn tab_row(&self, area: Rect) -> (u16, u16, u16) {
         let from = area.x + u16::from(self.sides.contains(Borders::LEFT));
         let to = area
             .right()
@@ -215,12 +209,12 @@ impl PaneFrame {
     }
 
     /// How the strip is aligned in the title row.
-    pub(crate) fn tab_align(&self) -> TitleAlign {
+    pub fn tab_align(&self) -> TitleAlign {
         self.title_align
     }
 
     /// The title to draw, given the component's own `name`.
-    pub(crate) fn title_text<'a>(&'a self, name: &'a str) -> Option<&'a str> {
+    pub fn title_text<'a>(&'a self, name: &'a str) -> Option<&'a str> {
         match &self.title {
             Title::Hidden => None,
             Title::Name => Some(name),
@@ -231,12 +225,7 @@ impl PaneFrame {
     /// The frame as a widget. `title` is already resolved (see
     /// [`PaneFrame::title_text`]). A focused frame uses the `.focused`
     /// variant of its border slot when the theme defines one.
-    pub(crate) fn block<'a>(
-        &self,
-        theme: &Theme,
-        title: Option<&'a str>,
-        focused: bool,
-    ) -> Block<'a> {
+    pub fn block<'a>(&self, theme: &Theme, title: Option<&'a str>, focused: bool) -> Block<'a> {
         let mut block = self
             .shell()
             .border_style(theme.style(&self.border_style_slot(theme, focused)));
@@ -252,7 +241,7 @@ impl PaneFrame {
 
     /// The area left for the content inside the frame, as [`PaneFrame::block`]
     /// draws it. A title costs a row even without a border.
-    pub(crate) fn inner(&self, area: Rect) -> Rect {
+    pub fn inner(&self, area: Rect) -> Rect {
         let mut shell = self.shell();
         if self.shows_title() {
             shell = shell.title(" ");

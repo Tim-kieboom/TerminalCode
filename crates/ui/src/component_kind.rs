@@ -2,7 +2,7 @@
 
 use serde::Deserialize;
 
-use crate::ui::theme::BackgroundPane;
+use crate::theme::BackgroundPane;
 
 /// Every kind of pane that can appear in a layout.
 ///
@@ -10,7 +10,7 @@ use crate::ui::theme::BackgroundPane;
 /// through which plugins add their own panes. Component state lives in
 /// `AppState`, never in the component itself.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
-pub(crate) enum ComponentKind {
+pub enum ComponentKind {
     Explorer,
     Editor,
     Terminal,
@@ -23,7 +23,7 @@ pub(crate) enum ComponentKind {
 }
 impl ComponentKind {
     /// The `[background.<pane>]` table of the theme that colors this component.
-    pub(crate) fn background_pane(&self) -> Option<BackgroundPane> {
+    pub fn background_pane(&self) -> Option<BackgroundPane> {
         match self {
             Self::Explorer => Some(BackgroundPane::Explorer),
             Self::Editor => Some(BackgroundPane::Editor),
@@ -35,7 +35,7 @@ impl ComponentKind {
         }
     }
 
-    pub(crate) fn title(&self) -> &str {
+    pub fn title(&self) -> &str {
         match self {
             Self::Explorer => "Explorer",
             Self::Editor => "Editor",
@@ -51,13 +51,13 @@ impl ComponentKind {
 /// Identifies a view registered by a plugin. Layout files reference it by name.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
 #[serde(transparent)]
-pub(crate) struct PluginViewId(Box<str>);
+pub struct PluginViewId(Box<str>);
 impl PluginViewId {
-    pub(crate) fn new(id: impl Into<Box<str>>) -> Self {
+    pub fn new(id: impl Into<Box<str>>) -> Self {
         Self(id.into())
     }
 
-    pub(crate) fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         &self.0
     }
 }

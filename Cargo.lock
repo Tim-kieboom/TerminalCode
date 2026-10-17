@@ -2281,6 +2281,7 @@ dependencies = [
  "trcode-lsp",
  "trcode-pty",
  "trcode-syntax",
+ "trcode-ui",
  "tree-sitter",
  "tree-sitter-json",
  "tree-sitter-md",
@@ -2579,6 +2580,19 @@ dependencies = [
  "tree-sitter-nix",
  "tree-sitter-rust",
  "tree-sitter-toml-ng",
+]
+
+[[package]]
+name = "trcode-ui"
+version = "0.6.1"
+dependencies = [
+ "ratatui",
+ "ron",
+ "serde",
+ "thiserror 2.0.21",
+ "toml",
+ "trcode-syntax",
+ "unicode-width",
 ]
 
 [[package]]

@@ -1,13 +1,13 @@
 use ratatui::Frame;
 
-use crate::ui::layout::Placement;
+use crate::layout::Placement;
 
-pub(crate) mod backdrop;
-pub(crate) mod bar;
+pub mod backdrop;
+pub mod bar;
 mod component_kind;
-pub(crate) mod cursor;
+pub mod cursor;
 pub mod fuzzy;
-pub(crate) mod hideable;
+pub mod hideable;
 pub mod layout;
 pub mod pane_frame;
 #[cfg(test)]
@@ -31,5 +31,5 @@ pub trait Render<S> {
     fn render(&self, frame: &mut Frame, state: &S, placement: &Placement);
 }
 
-pub(crate) use component_kind::{ComponentKind, PluginViewId};
-pub(crate) use hideable::Hideable;
+pub use component_kind::{ComponentKind, PluginViewId};
+pub use hideable::Hideable;

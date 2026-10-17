@@ -1,0 +1,16 @@
+[package]
+name = "trcode-ui"
+description = "The look of TerminalCode: themes, layouts, frames, the view tree and the Render trait"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+ratatui.workspace = true
+ron.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+trcode-syntax.workspace = true
+unicode-width.workspace = true

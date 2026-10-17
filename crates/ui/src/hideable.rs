@@ -4,7 +4,7 @@
 use ratatui::Frame;
 
 use super::Render;
-use crate::ui::layout::Placement;
+use crate::layout::Placement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Visibility {
@@ -18,13 +18,13 @@ enum Visibility {
 /// There is deliberately no `Default`: a component starts shown, and that is
 /// spelled out with [`Hideable::new_show`]; [`Hideable::hide`] hides it.
 #[derive(Debug, Clone)]
-pub(crate) struct Hideable<T> {
+pub struct Hideable<T> {
     node: T,
     visibility: Visibility,
 }
 
 impl<T> Hideable<T> {
-    pub(crate) fn new_show(node: T) -> Self {
+    pub fn new_show(node: T) -> Self {
         Self {
             node,
             visibility: Visibility::Shown,
@@ -32,27 +32,27 @@ impl<T> Hideable<T> {
     }
 
     /// A component that starts out hidden; [`Hideable::show`] shows it.
-    pub(crate) fn new_hidden(node: T) -> Self {
+    pub fn new_hidden(node: T) -> Self {
         Self {
             node,
             visibility: Visibility::Hidden,
         }
     }
 
-    pub(crate) fn is_shown(&self) -> bool {
+    pub fn is_shown(&self) -> bool {
         self.visibility == Visibility::Shown
     }
 
-    pub(crate) fn show(&mut self) {
+    pub fn show(&mut self) {
         self.visibility = Visibility::Shown;
     }
 
-    pub(crate) fn hide(&mut self) {
+    pub fn hide(&mut self) {
         self.visibility = Visibility::Hidden;
     }
 
     /// Shows it when `shown` is true and hides it otherwise.
-    pub(crate) fn set_shown(&mut self, shown: bool) {
+    pub fn set_shown(&mut self, shown: bool) {
         match shown {
             true => self.show(),
             false => self.hide(),
@@ -60,7 +60,7 @@ impl<T> Hideable<T> {
     }
 
     /// Shows it if it is hidden and hides it if it is shown.
-    pub(crate) fn toggle(&mut self) {
+    pub fn toggle(&mut self) {
         self.visibility = match self.visibility {
             Visibility::Shown => Visibility::Hidden,
             Visibility::Hidden => Visibility::Shown,
@@ -69,11 +69,11 @@ impl<T> Hideable<T> {
 
     /// The component, shown or not. Its state is kept while it is hidden, so
     /// this is how to read or change that state.
-    pub(crate) fn node(&self) -> &T {
+    pub fn node(&self) -> &T {
         &self.node
     }
 
-    pub(crate) fn node_mut(&mut self) -> &mut T {
+    pub fn node_mut(&mut self) -> &mut T {
         &mut self.node
     }
 }

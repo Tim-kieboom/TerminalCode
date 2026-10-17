@@ -21,6 +21,7 @@ use trcode_jumplist as jumplist;
 use trcode_lsp as lsp;
 use trcode_pty as pty;
 use trcode_syntax as syntax;
+use trcode_ui as ui;
 mod cli;
 mod components;
 mod config;
@@ -33,7 +34,6 @@ mod startup;
 pub mod terminal;
 #[cfg(test)]
 mod tests;
-mod ui;
 
 /// Runs the editor until it ends. It returns the folder to start again in when the
 /// user asked to open one (the caller restarts the program there), and `None` for

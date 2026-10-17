@@ -145,7 +145,7 @@ does the same for `state.json`.
 - **`keymap.toml`** adds to or removes from the default key bindings.
   [defaults/default_keymap.toml](defaults/default_keymap.toml) lists every action and key name.
 - **`layout.ron`** says which panes there are and how they are arranged: see
-  [defaults/default_layout.ron](defaults/default_layout.ron). A `SideBar` or `BottomBar` holds a list of views (the
+  [crates/ui/defaults/default_layout.ron](crates/ui/defaults/default_layout.ron). A `SideBar` or `BottomBar` holds a list of views (the
   explorer, the terminal, plugin views) and shows one at a time, with their names in its title row; click a name to
   switch, or use `Bar: Next View` from the palette.
   A pane can say `hidden: true` to start hidden. What you hide or show while working is remembered in `state.json` in the same

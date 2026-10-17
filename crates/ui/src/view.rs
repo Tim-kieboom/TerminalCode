@@ -1,7 +1,7 @@
 /// Declarative content a plugin pushes into its pane. The host renders it;
 /// plugins never see `Frame` or `Rect`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ViewNode {
+pub enum ViewNode {
     Lines(Vec<ViewLine>),
     List {
         items: Vec<Box<str>>,
@@ -17,7 +17,7 @@ impl Default for ViewNode {
 
 /// One line of text and the theme slot that styles it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ViewLine {
-    pub(crate) text: Box<str>,
-    pub(crate) slot: Box<str>,
+pub struct ViewLine {
+    pub text: Box<str>,
+    pub slot: Box<str>,
 }

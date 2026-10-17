@@ -4,9 +4,9 @@ use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::widgets::Borders;
 
-use crate::ui::pane_frame::*;
-use crate::ui::theme::Theme;
-use crate::ui::{ComponentKind, PluginViewId};
+use crate::pane_frame::*;
+use crate::theme::Theme;
+use crate::{ComponentKind, PluginViewId};
 
 fn spec(border: Option<BorderStyle>, title: Option<Title>) -> FrameSpec {
     FrameSpec {

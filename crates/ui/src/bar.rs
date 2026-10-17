@@ -17,7 +17,7 @@ const SEPARATOR: &str = " - ";
 /// Where each tab of the bar `placement` belongs to is drawn, with the index of
 /// its view. Empty for a placement that is not a bar with several views. Labels
 /// that do not fit are cut at the edge or left out.
-pub(crate) fn tab_rects(placement: &Placement) -> Vec<(Rect, usize)> {
+pub fn tab_rects(placement: &Placement) -> Vec<(Rect, usize)> {
     let Some(bar) = &placement.bar else {
         return Vec::new();
     };
@@ -60,7 +60,7 @@ pub(crate) fn tab_rects(placement: &Placement) -> Vec<(Rect, usize)> {
 
 /// Draws the strip over the title row of a bar with several views. The frame
 /// reserved the row and left it empty.
-pub(crate) fn draw_tabs(frame: &mut Frame, theme: &Theme, placement: &Placement) {
+pub fn draw_tabs(frame: &mut Frame, theme: &Theme, placement: &Placement) {
     let Some(bar) = &placement.bar else {
         return;
     };

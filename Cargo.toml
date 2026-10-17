@@ -22,6 +22,9 @@ trcode-lsp = { path = "crates/lsp" }
 trcode-syntax = { path = "crates/syntax" }
 trcode-clipboard = { path = "crates/clipboard" }
 trcode-jumplist = { path = "crates/jumplist" }
+trcode-ui = { path = "crates/ui" }
+ron = "0.12.2"
+unicode-width = "0.2.2"
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 base64 = "0.23.1"
 ratatui = "0.30.2"
@@ -55,7 +58,7 @@ name = "trcode"
 path = "src/main.rs"
 
 [dependencies]
-ron = "0.12.2"
+ron.workspace = true
 toml.workspace = true
 dirs = "7.0.0"
 trash.workspace = true
@@ -68,7 +71,7 @@ renamore.workspace = true
 thiserror.workspace = true
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
-unicode-width = "0.2.2"
+unicode-width.workspace = true
 grep-searcher = "0.1.17"
 terminal-colorsaurus = "1.0.3"
 unicode-segmentation.workspace = true
@@ -92,6 +95,7 @@ trcode-lsp.workspace = true
 trcode-syntax.workspace = true
 trcode-clipboard.workspace = true
 trcode-jumplist.workspace = true
+trcode-ui.workspace = true
 tokio.workspace = true
 arboard.workspace = true
 serde_json.workspace = true
