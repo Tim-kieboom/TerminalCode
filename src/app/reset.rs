@@ -2,7 +2,7 @@
 //! file as `NAME.bak`, then apply the default.
 
 use super::App;
-use crate::components::confirm::Confirm;
+use crate::components::popups::confirm::Confirm;
 use crate::config::{self, ConfigFile};
 use crate::saved_state;
 

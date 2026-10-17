@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
-use crate::components::search::worker::SearchHandle;
-use crate::components::search::{Command, Hit, Options, Search, Status};
+use crate::components::popups::search::worker::SearchHandle;
+use crate::components::popups::search::{Command, Hit, Options, Search, Status};
 
 fn search() -> Search {
     Search::new(PathBuf::from("/project"), String::new(), Options::default())

@@ -9,7 +9,7 @@ use ratatui::backend::TestBackend;
 
 use crate::app::App;
 use crate::app::state::AppState;
-use crate::components::menu::Entry;
+use crate::components::popups::menu::Entry;
 use crate::components::prepare_and_render;
 use crate::removal;
 
@@ -558,7 +558,7 @@ action = { explorer = "down" }
 mod groups {
     use ratatui::layout::{Position, Rect};
 
-    use crate::components::menu::{Command, Entry, Menu, Step};
+    use crate::components::popups::menu::{Command, Entry, Menu, Step};
     use crate::event::action::Action;
 
     fn item(label: &'static str, action: Action) -> Entry {

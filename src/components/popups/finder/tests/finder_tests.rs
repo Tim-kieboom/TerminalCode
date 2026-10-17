@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::components::finder::{Finder, Walk};
+use crate::components::popups::finder::{Finder, Walk};
 
 fn finder() -> Finder {
     Finder::new(PathBuf::from("/project"), 1, None)

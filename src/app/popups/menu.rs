@@ -11,8 +11,8 @@ use crate::app::App;
 use crate::app::keys::{EDITOR_CONTEXTS, EXPLORER_CONTEXTS};
 use crate::app::state::Focus;
 use crate::components::ComponentKind;
-use crate::components::menu::{self, Entry, Menu};
 use crate::components::menu_bar::MenuBar;
+use crate::components::popups::menu::{self, Entry, Menu};
 use crate::config::ConfigFile;
 use crate::event::action::Action;
 

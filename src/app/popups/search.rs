@@ -6,7 +6,7 @@ use super::SavedQuery;
 use super::SavedResults;
 use crate::app::App;
 use crate::app::state::Focus;
-use crate::components::search::{self, Hit, Search};
+use crate::components::popups::search::{self, Hit, Search};
 
 impl App {
     /// Opens the project search with the last query and options, and runs it.

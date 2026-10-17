@@ -6,7 +6,7 @@ use super::SavedQuery;
 use crate::app::App;
 use crate::buffer::Position;
 use crate::components::editor::Replacement;
-use crate::components::find::{self, Find};
+use crate::components::popups::find::{self, Find};
 use unicode_segmentation::UnicodeSegmentation;
 
 impl App {

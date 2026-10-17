@@ -15,7 +15,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::buffer::{Buffer, Position};
 use crate::components::editor::Replacement;
-use crate::components::search::Options;
+use crate::components::popups::search::Options;
 use crate::ui::theme::Theme;
 
 #[cfg(test)]

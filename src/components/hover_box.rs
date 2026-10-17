@@ -13,8 +13,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
-use crate::components::diagnostic_popup::{Entry, place, wrap_text};
 use crate::components::editor::render::slot_of;
+use crate::components::popups::diagnostic_popup::{Entry, place, wrap_text};
 use crate::components::scroll_text::TextScroll;
 use crate::ids::DocumentId;
 use crate::lsp::Severity;

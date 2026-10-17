@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use ropey::Rope;
 
 use super::App;
-use crate::components::definition_list::{Command, DefinitionList, Entry, short_path};
+use crate::components::popups::definition_list::{Command, DefinitionList, Entry, short_path};
 use crate::ids::DocumentId;
 use crate::lsp::uri::uri_to_path;
 use crate::lsp::{Location, PendingDefinition, ServerKey, from_lsp, to_lsp};

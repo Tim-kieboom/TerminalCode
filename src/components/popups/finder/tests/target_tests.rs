@@ -1,4 +1,4 @@
-use crate::components::finder::target::{Parsed, parse};
+use crate::components::popups::finder::target::{Parsed, parse};
 
 fn parsed(text: &str, line: Option<usize>, column: Option<usize>) -> Parsed<'_> {
     Parsed { text, line, column }

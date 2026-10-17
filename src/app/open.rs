@@ -7,7 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::App;
-use crate::components::name_prompt::NamePrompt;
+use crate::components::popups::name_prompt::NamePrompt;
 use crate::entries::EntryError;
 
 /// `text` as a path: `~` and `~/` stand for the home folder and a relative path

@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::App;
-use crate::components::menu::Entry;
+use crate::components::popups::menu::Entry;
 use crate::event::action::Action;
 use crate::paths::canonical;
 use crate::recent::{self, Recent};

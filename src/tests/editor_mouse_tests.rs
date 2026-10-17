@@ -13,7 +13,7 @@ use crate::app::state::AppState;
 use crate::buffer::{Buffer, Position};
 use crate::clipboard::{Clipboard, Memory, System};
 use crate::components::editor::Editor;
-use crate::components::menu::Entry;
+use crate::components::popups::menu::Entry;
 use crate::components::prepare_and_render;
 
 struct Screen {

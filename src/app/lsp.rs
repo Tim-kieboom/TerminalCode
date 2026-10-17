@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::components::diagnostic_popup::{DiagnosticPopup, PopupKey};
+use crate::components::popups::diagnostic_popup::{DiagnosticPopup, PopupKey};
 use crate::components::workspace::LspDocument;
 use crate::config::user_config_dir;
 use crate::event::Event;

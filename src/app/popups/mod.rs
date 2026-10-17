@@ -3,7 +3,7 @@
 //! the one that was open (see [`Popup`](crate::state::Popup)).
 
 use super::App;
-use crate::components::search::{Hit, Options as SearchOptions};
+use crate::components::popups::search::{Hit, Options as SearchOptions};
 
 pub(super) use delete::Removal;
 pub(super) use root_save::Root;

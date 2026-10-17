@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::finder::Walk;
+use crate::components::popups::finder::Walk;
 use crate::components::prepare_and_render;
 use crate::event::Event;
 

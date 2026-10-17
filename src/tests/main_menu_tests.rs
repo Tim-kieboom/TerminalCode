@@ -8,7 +8,7 @@ use ratatui::backend::TestBackend;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::menu::Entry;
+use crate::components::popups::menu::Entry;
 use crate::components::{ComponentKind, prepare_and_render};
 use crate::event::action::Action;
 

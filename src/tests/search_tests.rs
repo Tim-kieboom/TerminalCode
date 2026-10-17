@@ -11,8 +11,8 @@ use tokio::sync::mpsc;
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
 use crate::buffer::Position;
+use crate::components::popups::search::Status;
 use crate::components::prepare_and_render;
-use crate::components::search::Status;
 use crate::event::Event;
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> InputEvent {
@@ -317,7 +317,7 @@ fn results_of_an_old_search_are_ignored() {
 
     app.handle_event(Event::SearchBatch {
         search: 999,
-        hits: vec![crate::components::search::Hit::new(
+        hits: vec![crate::components::popups::search::Hit::new(
             "stale.rs".into(),
             1,
             "x",

@@ -1,17 +1,17 @@
 //! The one popup that has the keyboard: opening, reading and taking it back.
 
 use super::{AppState, Popup};
-use crate::components::confirm::Confirm;
-use crate::components::definition_list::DefinitionList;
-use crate::components::diagnostic_popup::DiagnosticPopup;
-use crate::components::find::Find;
-use crate::components::finder::Finder;
-use crate::components::menu::Menu;
-use crate::components::name_prompt::NamePrompt;
-use crate::components::palette::Palette;
-use crate::components::quit_prompt::QuitPrompt;
-use crate::components::root_prompt::RootPrompt;
-use crate::components::search::Search;
+use crate::components::popups::confirm::Confirm;
+use crate::components::popups::definition_list::DefinitionList;
+use crate::components::popups::diagnostic_popup::DiagnosticPopup;
+use crate::components::popups::find::Find;
+use crate::components::popups::finder::Finder;
+use crate::components::popups::menu::Menu;
+use crate::components::popups::name_prompt::NamePrompt;
+use crate::components::popups::palette::Palette;
+use crate::components::popups::quit_prompt::QuitPrompt;
+use crate::components::popups::root_prompt::RootPrompt;
+use crate::components::popups::search::Search;
 
 impl AppState {
     /// The popup that is open, which has all the keys.

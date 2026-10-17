@@ -1,8 +1,8 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use crate::buffer::{Buffer, Position};
-use crate::components::find::{Command, Find, MAX_MATCHES, Match};
-use crate::components::search::Options;
+use crate::components::popups::find::{Command, Find, MAX_MATCHES, Match};
+use crate::components::popups::search::Options;
 
 const TEXT: &str = "one two\nTwo three two\nnothing\nfour TWO";
 

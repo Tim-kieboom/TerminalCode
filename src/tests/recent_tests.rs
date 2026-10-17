@@ -8,7 +8,7 @@ use ratatui::backend::TestBackend;
 
 use crate::app::App;
 use crate::app::state::AppState;
-use crate::components::menu::Entry;
+use crate::components::popups::menu::Entry;
 use crate::components::prepare_and_render;
 use crate::event::action::Action;
 use crate::paths::canonical;
@@ -85,7 +85,7 @@ fn label(entry: &Entry) -> String {
     }
 }
 
-fn file_group(menu: &crate::components::menu::Menu) -> &Entry {
+fn file_group(menu: &crate::components::popups::menu::Menu) -> &Entry {
     let Entry::Group { entries, .. } = &menu.entries()[0] else {
         panic!("the first entry is the File group")
     };

@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use tokio::sync::mpsc;
 
-use crate::components::search::worker::{MAX_HITS, SearchHandle};
-use crate::components::search::{Hit, Options, start_search};
+use crate::components::popups::search::worker::{MAX_HITS, SearchHandle};
+use crate::components::popups::search::{Hit, Options, start_search};
 use crate::event::Event;
 
 fn write(root: &Path, relative: &str, text: &str) {

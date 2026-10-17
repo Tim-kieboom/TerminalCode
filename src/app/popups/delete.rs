@@ -5,7 +5,7 @@ use crossterm::event::KeyEvent;
 use std::path::{Path, PathBuf};
 
 use crate::app::App;
-use crate::components::confirm::{Answer, Confirm, Purpose};
+use crate::components::popups::confirm::{Answer, Confirm, Purpose};
 use crate::removal::{self, TrashFn};
 
 /// How the app takes files away; tests swap the trash for a stand-in.

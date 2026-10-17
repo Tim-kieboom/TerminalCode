@@ -5,8 +5,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use crate::app::App;
 use crate::app::state::Focus;
 use crate::buffer::Position;
-use crate::components::finder::{self, Finder, Target};
-use crate::components::palette;
+use crate::components::popups::finder::{self, Finder, Target};
+use crate::components::popups::palette;
 use crate::ui::layout::Axis;
 
 impl App {

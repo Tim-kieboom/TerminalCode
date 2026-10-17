@@ -13,7 +13,7 @@ use ratatui::widgets::Paragraph;
 use crate::buffer::{Buffer, Position, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
-use crate::components::find::Find;
+use crate::components::popups::find::Find;
 use crate::lsp::{Diagnostic, Severity};
 use crate::syntax::Span as SyntaxSpan;
 use crate::ui::cursor::{dim_cell, extra_cell as extra_cursor_cell};

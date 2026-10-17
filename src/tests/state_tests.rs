@@ -95,11 +95,11 @@ mod popups {
 
     use crate::app::state::{AppState, Popup};
     use crate::buffer::{Buffer, Position};
-    use crate::components::find::Find;
-    use crate::components::finder::Finder;
-    use crate::components::palette::Palette;
-    use crate::components::quit_prompt::QuitPrompt;
-    use crate::components::search::{Options, Search};
+    use crate::components::popups::find::Find;
+    use crate::components::popups::finder::Finder;
+    use crate::components::popups::palette::Palette;
+    use crate::components::popups::quit_prompt::QuitPrompt;
+    use crate::components::popups::search::{Options, Search};
 
     fn quit_prompt() -> QuitPrompt {
         QuitPrompt::new(Vec::new())

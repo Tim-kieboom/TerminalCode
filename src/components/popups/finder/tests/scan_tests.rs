@@ -4,7 +4,7 @@ use std::path::Path;
 
 use tokio::sync::mpsc;
 
-use crate::components::finder::start_scan;
+use crate::components::popups::finder::start_scan;
 use crate::event::Event;
 
 fn write(root: &Path, relative: &str) {

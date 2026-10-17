@@ -9,7 +9,7 @@ use crate::pty::Shell;
 use crate::settings::Settings;
 
 use super::App;
-use crate::components::name_prompt::NamePrompt;
+use crate::components::popups::name_prompt::NamePrompt;
 use crate::entries::EntryError;
 
 impl App {

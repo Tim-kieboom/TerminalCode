@@ -259,7 +259,7 @@ fn the_finders_walk_of_fifty_thousand_files() {
     let (tx, mut rx) = tokio::sync::mpsc::channel(64);
 
     let start = Instant::now();
-    let _handle = crate::components::finder::start_scan(dir.path().to_path_buf(), 1, tx);
+    let _handle = crate::components::popups::finder::start_scan(dir.path().to_path_buf(), 1, tx);
     let (mut first, mut found) = (None, 0);
     let total = loop {
         match rx.blocking_recv() {
@@ -285,7 +285,7 @@ fn the_finders_walk_of_fifty_thousand_files() {
 #[test]
 #[ignore = "measures; run in release"]
 fn a_project_search_over_twenty_thousand_files() {
-    use crate::components::search::{Options, start_search};
+    use crate::components::popups::search::{Options, start_search};
     use crate::event::Event;
     let dir = tempfile::tempdir().unwrap();
     let body = "fn function() {\n    let value = compute(alpha, beta);\n}\n".repeat(20);

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::components::search::Hit;
+use crate::components::popups::search::Hit;
 
 fn hit(line: &str, needle: &str) -> Hit {
     let start = line.find(needle).unwrap();

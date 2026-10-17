@@ -8,7 +8,7 @@ use ratatui::layout::Rect;
 use serde::Deserialize;
 
 use crate::buffer::Position;
-use crate::components::definition_list::short_path;
+use crate::components::popups::definition_list::short_path;
 use crate::ids::DocumentId;
 use crate::lsp::Severity;
 

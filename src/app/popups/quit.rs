@@ -4,7 +4,7 @@ use crossterm::event::KeyEvent;
 
 use crate::app::editing::{deleted_warning, overwrite_warning};
 use crate::app::{App, Flow};
-use crate::components::quit_prompt::{self, QuitPrompt};
+use crate::components::popups::quit_prompt::{self, QuitPrompt};
 use crate::components::workspace::SaveOutcome;
 use crate::ids::DocumentId;
 
