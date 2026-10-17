@@ -727,3 +727,71 @@ fn the_edits_of_the_server_are_turned_into_bytes_of_the_text_they_were_made_for(
         }]
     );
 }
+
+// ---- two items with the same label
+
+/// A module and a type, both called `Json`, that write different things.
+fn two_json() -> CompletionList {
+    list(json!([
+        { "label": "Json", "kind": 9, "detail": "module", "insertText": "json_mod" },
+        { "label": "Json", "kind": 7, "detail": "type", "insertText": "json_type" },
+        { "label": "Jsonish", "kind": 3, "insertText": "jsonish" },
+    ]))
+}
+
+fn written(completion: &Completion, cursor: usize) -> String {
+    completion.accept(cursor).unwrap().edits[0].text.clone()
+}
+
+#[test]
+fn the_second_of_two_equal_labels_can_be_highlighted_and_is_the_one_accepted() {
+    let mut completion = open(two_json(), "J", 0, 1);
+    assert_eq!(written(&completion, 1), "json_mod");
+
+    completion.select_next();
+
+    assert_eq!(completion.selected_index(), 1);
+    assert_eq!(written(&completion, 1), "json_type");
+}
+
+#[test]
+fn typing_on_keeps_the_second_of_two_equal_labels_highlighted() {
+    let mut completion = open(two_json(), "J", 0, 1);
+    completion.select_next();
+
+    let text = rope("Js");
+    completion.apply_change(&typed(1, 1));
+    assert_eq!(completion.retarget(&text, 2), Refresh::Open);
+
+    assert_eq!(completion.selected_index(), 1);
+    assert_eq!(written(&completion, 2), "json_type");
+}
+
+#[test]
+fn a_new_list_keeps_the_highlight_on_the_item_that_had_it() {
+    let mut old = open(two_json(), "J", 0, 1);
+    old.select_next();
+    let mut new = open(two_json(), "Js", 0, 2);
+
+    new.keep_highlight_of(&old);
+
+    assert_eq!(new.selected_index(), 1);
+    assert_eq!(written(&new, 2), "json_type");
+}
+
+#[test]
+fn equal_in_everything_but_the_place_the_highlight_still_follows_the_place() {
+    let twins = || {
+        list(json!([
+            { "label": "same", "sort_text": "1", "insertText": "first" },
+            { "label": "same", "sort_text": "2", "insertText": "second" },
+        ]))
+    };
+    let mut old = open(twins(), "s", 0, 1);
+    old.select_next();
+    let mut new = open(twins(), "sa", 0, 2);
+
+    new.keep_highlight_of(&old);
+
+    assert_eq!(new.selected_index(), 1);
+}

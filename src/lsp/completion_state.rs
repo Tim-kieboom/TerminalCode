@@ -12,6 +12,7 @@ use std::ops::Range;
 
 use ropey::Rope;
 
+use super::completion::Kind;
 use super::diagnostics::map_range;
 use super::diff::ByteChange;
 use super::position::{LspPosition, from_lsp};
@@ -59,6 +60,21 @@ struct Entry {
     extra: Vec<ByteEdit>,
     /// What the typed text is compared with, in lower case.
     filter: String,
+}
+
+/// An item told apart from the others: two can share a label (a module and a type
+/// both called `Json`), so the kind and the detail count too, and when even those are
+/// equal, which of them it is.
+#[derive(Debug)]
+struct Highlight {
+    label: String,
+    kind: Kind,
+    detail: Option<String>,
+    nth: usize,
+}
+
+fn same_item(a: &CompletionItem, b: &CompletionItem) -> bool {
+    a.label == b.label && a.kind == b.kind && a.detail == b.detail
 }
 
 #[derive(Debug)]
@@ -150,11 +166,12 @@ impl Completion {
         if !word.chars().all(is_word_char) {
             return Refresh::Closed;
         }
-        let kept = self.selected_item().map(|item| item.label.clone());
+        // The entry itself, not its label: two entries can have the same one.
+        let kept = self.shown.get(self.selected).copied();
         self.prefix = word;
         self.filter();
-        if let Some(label) = kept {
-            self.select_label(&label);
+        if let Some(position) = kept.and_then(|kept| self.shown.iter().position(|&i| i == kept)) {
+            self.selected = position;
         }
         Refresh::Open
     }
@@ -167,12 +184,35 @@ impl Completion {
         self.selected = 0;
     }
 
-    fn select_label(&mut self, label: &str) {
-        if let Some(position) = self
+    /// What tells the highlighted item apart in another list for the same word.
+    fn highlight(&self) -> Option<Highlight> {
+        let item = &self.entries[*self.shown.get(self.selected)?].item;
+        let nth = self.shown[..self.selected]
+            .iter()
+            .filter(|&&index| same_item(&self.entries[index].item, item))
+            .count();
+        Some(Highlight {
+            label: item.label.clone(),
+            kind: item.kind,
+            detail: item.detail.clone(),
+            nth,
+        })
+    }
+
+    fn select_like(&mut self, wanted: &Highlight) {
+        let position = self
             .shown
             .iter()
-            .position(|&index| self.entries[index].item.label == label)
-        {
+            .enumerate()
+            .filter(|(_, index)| {
+                let item = &self.entries[**index].item;
+                item.label == wanted.label
+                    && item.kind == wanted.kind
+                    && item.detail == wanted.detail
+            })
+            .nth(wanted.nth)
+            .map(|(position, _)| position);
+        if let Some(position) = position {
             self.selected = position;
         }
     }
@@ -194,8 +234,8 @@ impl Completion {
 
     /// Highlights the item that `previous` had highlighted, if this has it too.
     pub(crate) fn keep_highlight_of(&mut self, previous: &Completion) {
-        if let Some(item) = previous.selected_item() {
-            self.select_label(&item.label.clone());
+        if let Some(highlight) = previous.highlight() {
+            self.select_like(&highlight);
         }
     }
 

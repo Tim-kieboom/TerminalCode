@@ -46,7 +46,7 @@ pub(crate) struct CompletionBox {
     /// it was drawn.
     docs_scroll: TextScroll,
     /// The item the documentation shown was of; another item starts at the top.
-    docs_of: RefCell<String>,
+    docs_of: RefCell<(usize, String)>,
 }
 
 impl CompletionBox {
@@ -63,7 +63,7 @@ impl CompletionBox {
             by_trigger,
             scroll: Cell::new(0),
             docs_scroll: TextScroll::default(),
-            docs_of: RefCell::new(String::new()),
+            docs_of: RefCell::new((usize::MAX, String::new())),
         }
     }
 
@@ -218,9 +218,11 @@ impl CompletionBox {
         self.docs_scroll.not_drawn();
         if let (Some(item), Some(docs)) = (item, docs) {
             // Another item starts at the top.
-            if *self.docs_of.borrow() != item.label {
+            // The place counts as well as the name: two items can have the same label.
+            let now = (self.completion.selected_index(), item.label.clone());
+            if *self.docs_of.borrow() != now {
                 self.docs_scroll.reset();
-                self.docs_of.replace(item.label.clone());
+                self.docs_of.replace(now);
             }
             render_docs(frame, theme, docs, area, cursor, &self.docs_scroll);
         }
