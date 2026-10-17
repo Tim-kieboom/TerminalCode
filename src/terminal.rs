@@ -1,5 +1,7 @@
 //! Terminal setup and the capabilities we probe for at startup.
 
+mod drain;
+
 use std::io::stdout;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -59,7 +61,8 @@ pub fn restore() {
     if FOCUS_REPORTED.swap(false, Ordering::SeqCst) {
         let _ = execute!(stdout(), DisableFocusChange);
     }
-    if MOUSE_CAPTURED.swap(false, Ordering::SeqCst) {
+    let mouse_was_on = MOUSE_CAPTURED.swap(false, Ordering::SeqCst);
+    if mouse_was_on {
         let _ = execute!(stdout(), DisableMouseCapture);
     }
     if BRACKETED_PASTE.swap(false, Ordering::SeqCst) {
@@ -68,6 +71,11 @@ pub fn restore() {
     if KEYBOARD_ENHANCED.swap(false, Ordering::SeqCst) {
         // Nothing useful to do if the terminal is already gone.
         let _ = execute!(stdout(), PopKeyboardEnhancementFlags);
+    }
+    if mouse_was_on {
+        // Reports sent before the terminal saw the switch-off would otherwise be left
+        // in the tty for the shell to read as typed text.
+        drain::flush_pending_reports();
     }
     ratatui::restore();
 }

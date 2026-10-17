@@ -2256,6 +2256,7 @@ dependencies = [
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "libc",
  "notify-debouncer-mini",
  "portable-pty",
  "proptest",

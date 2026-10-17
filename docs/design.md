@@ -119,7 +119,11 @@ used `anyhow` everywhere instead of typed errors.
 ### Input and keymap
 - Terminal key events are normalized into a `KeyChord` (`terminal::init` probes the kitty keyboard protocol
   at startup and enables `DISAMBIGUATE_ESCAPE_CODES` when available; `terminal::restore`, also called from the
-  panic hook, pops it). Without kitty support (`KeyboardSupport::Legacy`) `defaults/default_keymap_legacy.toml`
+  panic hook, pops it). After mouse reporting is switched off, `restore` sends a status request (`CSI 5 n`) and
+  reads the tty (`src/terminal/drain.rs`, Unix only) until the answer (`CSI 0 n`) or 50 ms pass: the answer comes after every
+  mouse report sent earlier, so none is left for the shell to print as text at its prompt (decided: the handshake directly,
+  not a plain drain, because the leak is a race that cannot be reproduced on demand; a terminal that never answers costs
+  50 ms once; `relaunch_in` runs after `restore`, so the new program starts clean too). Without kitty support (`KeyboardSupport::Legacy`) `defaults/default_keymap_legacy.toml`
   is layered on the defaults; it holds chords that legacy terminals send as other keys (ctrl+backspace -> ctrl+h).
   The same action must stay reachable on both: alt-based alternatives live in the main default file.
 - **Keymap = tries of chord sequences per `Context`** (`global`, `editor`; `terminal` and vim modes join later).
