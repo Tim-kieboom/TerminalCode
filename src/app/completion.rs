@@ -18,7 +18,8 @@ use super::state::{Focus, Popup};
 use crate::components::completion_box::CompletionBox;
 use crate::ids::DocumentId;
 use crate::lsp::{
-    ByteEdit, Completion, PendingCompletion, Refresh, Trigger, byte_edits, change_between, to_lsp,
+    ByteEdit, Completion, PendingCompletion, Refresh, ServerKey, Trigger, byte_edits,
+    change_between, to_lsp,
 };
 
 /// How long an answer is waited for before it is given up on.
@@ -404,4 +405,47 @@ fn word_start(text: &Rope, cursor: usize) -> usize {
         start -= 1;
     }
     text.char_to_byte(start)
+}
+
+impl App {
+    /// The server that serves `document` and how it names it, when it runs and offers
+    /// completion; with what it says about triggers.
+    pub(super) fn completion_target(
+        &self,
+        document: DocumentId,
+    ) -> Option<(ServerKey, String, crate::lsp::Provider)> {
+        let (_, target) = self.lsp.targets.get(&document)?;
+        let target = target.as_ref()?;
+        let provider = self
+            .lsp
+            .manager
+            .as_ref()?
+            .completion_provider(&target.key)?;
+        Some((target.key.clone(), target.uri.clone(), provider))
+    }
+
+    /// Asks the server `key` for the suggestions at `position` of `uri`.
+    pub(super) fn request_completion(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::lsp::LspPosition,
+        trigger: crate::lsp::Trigger,
+    ) -> Option<crate::lsp::PendingCompletion> {
+        self.lsp
+            .manager
+            .as_ref()?
+            .request_completion(key, uri, position, trigger)
+    }
+}
+
+impl App {
+    /// Asks the server `key` for the edits that go with `item`.
+    pub(super) fn resolve_completion(
+        &self,
+        key: &ServerKey,
+        item: &crate::lsp::CompletionItem,
+    ) -> Option<crate::lsp::PendingResolve> {
+        self.lsp.manager.as_ref()?.resolve_completion(key, item)
+    }
 }

@@ -6,7 +6,6 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::components::popups::diagnostic_popup::{DiagnosticPopup, PopupKey};
 use crate::components::workspace::LspDocument;
 use crate::config::user_config_dir;
 use crate::event::Event;
@@ -15,26 +14,27 @@ use crate::ids::DocumentId;
 use crate::lsp::ProcessLauncher;
 use crate::lsp::uri::file_uri;
 use crate::lsp::{
-    Diagnostic, DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice,
-    ServerKey, language_id_of, parse_published, root_for,
+    DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice, ServerKey,
+    language_id_of, root_for,
 };
 use crate::paths::{canonical, without_verbatim_prefix};
 
 use super::App;
+use super::definition::borrowed_target;
 
 /// What the app keeps of the language servers.
 pub(super) struct Lsp {
     /// Made when the first file that wants a server is shown.
-    manager: Option<Manager>,
+    pub(super) manager: Option<Manager>,
     /// What starts a server: the real one runs programs. The tests have none
     /// until they bring one, so that no test starts a real server.
     launcher: Option<Arc<dyn Launcher>>,
     /// The server of the file in front, whose state the status bar shows.
     shown: Option<ServerKey>,
     /// What each server has been told about the documents it serves.
-    sync: DocumentSync,
+    pub(super) sync: DocumentSync,
     /// Which server each open document goes to, found once for each path.
-    targets: HashMap<DocumentId, (PathBuf, Option<Target>)>,
+    pub(super) targets: HashMap<DocumentId, (PathBuf, Option<Target>)>,
     /// What the documents and servers were like when they were last synced.
     fingerprint: u64,
     /// What the box of suggestions is waiting for.
@@ -139,56 +139,6 @@ impl App {
         self.needs_redraw = true;
     }
 
-    /// A server published the diagnostics of a document: puts them in the text
-    /// the server was last told, from the version it looked at. Ones about a
-    /// document that is not open are not wanted.
-    fn take_published_diagnostics(&mut self, key: &ServerKey, params: &serde_json::Value) {
-        let Some(published) = parse_published(params) else {
-            return;
-        };
-        let Some(document) = self.document_with_uri(key, &published.uri) else {
-            return;
-        };
-        let ranges: Vec<_> = published
-            .diagnostics
-            .iter()
-            .map(|diagnostic| (diagnostic.start, diagnostic.end))
-            .collect();
-        let Some(placed) =
-            self.lsp
-                .sync
-                .ranges_in_told_text(key, document, published.version, &ranges)
-        else {
-            // About a text that is not kept any more: nothing it says can be placed.
-            self.state.diagnostics_mut().clear(document);
-            return;
-        };
-        let diagnostics = published
-            .diagnostics
-            .into_iter()
-            .zip(placed)
-            .filter_map(|(diagnostic, range)| {
-                Some(Diagnostic {
-                    range: range?,
-                    severity: diagnostic.severity,
-                    message: diagnostic.message,
-                    source: diagnostic.source,
-                    code: diagnostic.code,
-                })
-            })
-            .collect();
-        self.state.diagnostics_mut().set(document, diagnostics);
-        self.needs_redraw = true;
-    }
-
-    /// The open document that the server `key` knows by `uri`.
-    fn document_with_uri(&self, key: &ServerKey, uri: &str) -> Option<DocumentId> {
-        self.lsp.targets.iter().find_map(|(id, (_, target))| {
-            let target = target.as_ref()?;
-            (target.key == *key && target.uri == uri).then_some(*id)
-        })
-    }
-
     /// The `language_servers` setting changed: every server is ended and the
     /// file in front gets the one it needs from the new settings.
     pub(super) fn lsp_settings_changed(&mut self) {
@@ -209,7 +159,7 @@ impl App {
     }
 
     /// The server the file in front is served by, and how to start it.
-    fn server_for_file_in_front(&self) -> Option<(ServerKey, LaunchSpec)> {
+    pub(super) fn server_for_file_in_front(&self) -> Option<(ServerKey, LaunchSpec)> {
         if !self.state.workspace().has_tabs() {
             return None;
         }
@@ -228,7 +178,7 @@ impl App {
         Some((key, spec))
     }
 
-    fn lsp_manager(&mut self) -> Option<&mut Manager> {
+    pub(super) fn lsp_manager(&mut self) -> Option<&mut Manager> {
         let launcher = Arc::clone(self.lsp.launcher.as_ref()?);
         let events = self.background.sender();
         Some(self.lsp.manager.get_or_insert_with(|| {
@@ -241,7 +191,7 @@ impl App {
         }))
     }
 
-    fn show_lsp_notices(&mut self, notices: Vec<Notice>) {
+    pub(super) fn show_lsp_notices(&mut self, notices: Vec<Notice>) {
         for notice in notices {
             match notice.error {
                 true => self.state.notify_error(notice.text),
@@ -252,7 +202,7 @@ impl App {
     }
 
     /// Puts how the server of the file in front is doing in the status bar.
-    fn refresh_lsp_status(&mut self) {
+    pub(super) fn refresh_lsp_status(&mut self) {
         let status = self
             .lsp
             .shown
@@ -340,10 +290,10 @@ impl App {
 /// Where a document goes: the server it is served by, and how that server
 /// names it.
 #[derive(Debug, Clone)]
-struct Target {
-    key: ServerKey,
-    uri: String,
-    language_id: String,
+pub(super) struct Target {
+    pub(super) key: ServerKey,
+    pub(super) uri: String,
+    pub(super) language_id: String,
 }
 
 impl App {
@@ -466,199 +416,4 @@ impl App {
             }
         }
     }
-}
-
-impl App {
-    /// `f8` and `shift+f8`: the cursor goes to the next or the previous
-    /// diagnostic of the open file, round to the other end after the last.
-    pub(super) fn step_diagnostic(&mut self, next: bool) {
-        let Some(document) = self.state.workspace().active_document_id() else {
-            return;
-        };
-        let head = self.state.editor().selections().primary().head();
-        let Ok(byte) = self.state.editor().buffer().position_to_byte(head) else {
-            return;
-        };
-        let diagnostics = self.state.diagnostics();
-        let found = match next {
-            true => diagnostics.next_after(document, byte),
-            false => diagnostics.previous_before(document, byte),
-        };
-        let Some(start) = found.map(|diagnostic| diagnostic.range.start) else {
-            self.state
-                .notify("no diagnostics in this file (a language server reports them)");
-            return;
-        };
-        self.mark_jump();
-        match self.state.editor().buffer().byte_to_position(start) {
-            Ok(position) => self.state.edit(|editor| editor.go_to(position)),
-            Err(error) => self.state.notify_error(error.to_string()),
-        }
-        self.needs_redraw = true;
-    }
-}
-
-impl App {
-    /// `f7`: the whole text of the diagnostics on the cursor's line, in a box
-    /// next to the cursor.
-    pub(super) fn show_diagnostics(&mut self) {
-        let Some(document) = self.state.workspace().active_document_id() else {
-            return;
-        };
-        let editor = self.state.editor();
-        let buffer = editor.buffer();
-        let line = editor.selections().primary().head().line;
-        let (start, next) = (
-            buffer.line_start_byte(line),
-            buffer.line_start_byte(line + 1),
-        );
-        let on_line: Vec<&Diagnostic> = self
-            .state
-            .diagnostics()
-            .overlapping(document, start..next)
-            .collect();
-        if on_line.is_empty() {
-            self.state.notify("no diagnostics on this line");
-            return;
-        }
-        // Under the cursor; the middle of the screen when it is out of sight.
-        let screen = self.state.screen();
-        let anchor = editor
-            .cursor_cell()
-            .unwrap_or_else(|| ratatui::layout::Position::new(screen.width / 4, screen.height / 3));
-        let popup = DiagnosticPopup::new(&on_line, anchor);
-        self.state.open_diagnostic_popup(popup);
-        self.needs_redraw = true;
-    }
-
-    /// A key while the box with the diagnostics is open: the arrow and page
-    /// keys scroll it, any other key closes it (and does nothing else).
-    pub(super) fn handle_diagnostic_popup_key(&mut self, key: crossterm::event::KeyEvent) {
-        match PopupKey::from_key(key) {
-            PopupKey::Ignore => {}
-            PopupKey::Lines(lines) => {
-                if let Some(popup) = self.state.diagnostic_popup() {
-                    popup.scroll_lines(lines);
-                }
-            }
-            PopupKey::Pages(pages) => {
-                if let Some(popup) = self.state.diagnostic_popup() {
-                    popup.scroll_pages(pages);
-                }
-            }
-            PopupKey::Close => self.state.close_diagnostic_popup(),
-        }
-        self.needs_redraw = true;
-    }
-}
-
-impl App {
-    /// The server that serves `document` and how it names it, when it runs and offers
-    /// completion; with what it says about triggers.
-    pub(super) fn completion_target(
-        &self,
-        document: DocumentId,
-    ) -> Option<(ServerKey, String, crate::lsp::Provider)> {
-        let (_, target) = self.lsp.targets.get(&document)?;
-        let target = target.as_ref()?;
-        let provider = self
-            .lsp
-            .manager
-            .as_ref()?
-            .completion_provider(&target.key)?;
-        Some((target.key.clone(), target.uri.clone(), provider))
-    }
-
-    /// Asks the server `key` for the suggestions at `position` of `uri`.
-    pub(super) fn request_completion(
-        &self,
-        key: &ServerKey,
-        uri: &str,
-        position: crate::lsp::LspPosition,
-        trigger: crate::lsp::Trigger,
-    ) -> Option<crate::lsp::PendingCompletion> {
-        self.lsp
-            .manager
-            .as_ref()?
-            .request_completion(key, uri, position, trigger)
-    }
-}
-
-impl App {
-    /// Asks the server `key` for the edits that go with `item`.
-    pub(super) fn resolve_completion(
-        &self,
-        key: &ServerKey,
-        item: &crate::lsp::CompletionItem,
-    ) -> Option<crate::lsp::PendingResolve> {
-        self.lsp.manager.as_ref()?.resolve_completion(key, item)
-    }
-}
-
-impl App {
-    /// The server that serves `document` and how it names it, when it runs and
-    /// answers hover requests.
-    pub(super) fn hover_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
-        let (_, target) = self.lsp.targets.get(&document)?;
-        let target = target.as_ref()?;
-        let offered = self.lsp.manager.as_ref()?.offers_hover(&target.key);
-        offered.then(|| (target.key.clone(), target.uri.clone()))
-    }
-
-    /// Asks the server `key` what it can say about `position` of `uri`.
-    pub(super) fn request_hover(
-        &self,
-        key: &ServerKey,
-        uri: &str,
-        position: crate::lsp::LspPosition,
-    ) -> Option<crate::lsp::PendingHover> {
-        self.lsp.manager.as_ref()?.request_hover(key, uri, position)
-    }
-}
-
-impl App {
-    /// The server that serves `document` and how it names it, when it runs and
-    /// answers definition requests.
-    pub(super) fn definition_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
-        let (_, target) = self.lsp.targets.get(&document)?;
-        let target = target.as_ref()?;
-        let offered = self.lsp.manager.as_ref()?.offers_definition(&target.key);
-        offered.then(|| (target.key.clone(), target.uri.clone()))
-    }
-
-    /// Asks the server `key` where the thing at `position` of `uri` is defined.
-    pub(super) fn request_definition(
-        &self,
-        key: &ServerKey,
-        uri: &str,
-        position: crate::lsp::LspPosition,
-    ) -> Option<crate::lsp::PendingDefinition> {
-        self.lsp
-            .manager
-            .as_ref()?
-            .request_definition(key, uri, position)
-    }
-
-    /// Notes that `path` is served by the server `key`, which names it `uri`.
-    pub(super) fn borrow_file(&mut self, path: &Path, key: ServerKey, uri: String) {
-        self.lsp.borrowed.insert(canonical(path), (key, uri));
-    }
-}
-
-/// The server and name of a file outside the project that a server pointed at.
-fn borrowed_target(
-    borrowed: &HashMap<PathBuf, (ServerKey, String)>,
-    servers: &LanguageServers,
-    path: &Path,
-) -> Option<Target> {
-    let (key, uri) = borrowed.get(&canonical(path))?;
-    let no_ids = Default::default();
-    let language_ids = servers
-        .get(&key.name)
-        .map_or(&no_ids, |server| &server.language_ids);
-    Some(Target {
-        key: key.clone(),
-        uri: uri.clone(),
-        language_id: language_id_of(path, language_ids, user_config_dir().as_deref())?,
-    })
 }

@@ -28,6 +28,7 @@ mod bars;
 mod completion;
 mod config_files;
 mod definition;
+mod diagnostics;
 mod editing;
 mod errors_view;
 mod hover;

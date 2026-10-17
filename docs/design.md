@@ -379,6 +379,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
 
 ## Workspace: documents, panes, tabs
 - The popup views (menu, palette, name prompt, confirm, quit prompt, root prompt, definition list, diagnostic popup and the find, finder and search boxes) are in `src/components/popups/`; what each does with keys and mouse is in `src/app/popups/` under the same name.
+- `app/lsp.rs` keeps the servers' life (the `Lsp` struct, starting one for the file in front, the sync, the status and "LSP: Show Server of This File"); the diagnostics are in `app/diagnostics.rs`, and what asks a server for completion, hover and definition is in `app/completion.rs`, `app/hover.rs` and `app/definition.rs` beside what handles the answers.
 - `src/lsp/` is grouped: `protocol/` (framing, message, connection, handshake, position, uri, replies, error), `session/` (launch, manager, supervisor, sync, progress, config, cargo, language, diff) and `features/` (completion, completion_state, snippet, definition, hover, docs, diagnostics); `lsp/mod.rs` re-exports what the app uses and names each file at the `lsp` level, so `crate::lsp::hover` and the like still work inside the client.
 - `app::state::AppState` is split by area (`components`, `popups`, `notices`, `lsp` next to `state.rs`).
 - `components::workspace::Workspace` (split by concern: `documents`, `tabs`, `panes`, `mouse`, `editing`, `highlights`, with the ids in `src/ids.rs`) stores each file once as a `Document` (buffer + undo history + indent style) in a

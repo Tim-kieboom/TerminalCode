@@ -17,7 +17,7 @@ use crate::components::popups::diagnostic_popup::Entry;
 use crate::event::action::Action;
 use crate::ids::DocumentId;
 use crate::keymap::KeyChord;
-use crate::lsp::{PendingHover, to_lsp};
+use crate::lsp::{PendingHover, ServerKey, to_lsp};
 
 /// How long the pointer has to rest on a word before the server is asked.
 const REST: Duration = Duration::from_millis(400);
@@ -443,3 +443,24 @@ impl App {
 
 /// How many lines the wheel moves a box by for each notch.
 const WHEEL_LINES: isize = 3;
+
+impl App {
+    /// The server that serves `document` and how it names it, when it runs and
+    /// answers hover requests.
+    pub(super) fn hover_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
+        let (_, target) = self.lsp.targets.get(&document)?;
+        let target = target.as_ref()?;
+        let offered = self.lsp.manager.as_ref()?.offers_hover(&target.key);
+        offered.then(|| (target.key.clone(), target.uri.clone()))
+    }
+
+    /// Asks the server `key` what it can say about `position` of `uri`.
+    pub(super) fn request_hover(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::lsp::LspPosition,
+    ) -> Option<crate::lsp::PendingHover> {
+        self.lsp.manager.as_ref()?.request_hover(key, uri, position)
+    }
+}

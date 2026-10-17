@@ -5,16 +5,21 @@
 //! working in the source of the standard library); the place the cursor leaves
 //! goes in the jump list.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use ropey::Rope;
 
 use super::App;
+use super::lsp::Target;
 use crate::components::popups::definition_list::{Command, DefinitionList, Entry, short_path};
+use crate::config::user_config_dir;
 use crate::ids::DocumentId;
 use crate::lsp::uri::uri_to_path;
-use crate::lsp::{Location, PendingDefinition, ServerKey, from_lsp, to_lsp};
+use crate::lsp::{
+    LanguageServers, Location, PendingDefinition, ServerKey, from_lsp, language_id_of, to_lsp,
+};
 use crate::paths::canonical;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
@@ -291,4 +296,51 @@ fn word_at(text: &Rope, byte: usize) -> bool {
     }
     text.get_char(text.byte_to_char(byte))
         .is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+impl App {
+    /// The server that serves `document` and how it names it, when it runs and
+    /// answers definition requests.
+    pub(super) fn definition_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
+        let (_, target) = self.lsp.targets.get(&document)?;
+        let target = target.as_ref()?;
+        let offered = self.lsp.manager.as_ref()?.offers_definition(&target.key);
+        offered.then(|| (target.key.clone(), target.uri.clone()))
+    }
+
+    /// Asks the server `key` where the thing at `position` of `uri` is defined.
+    pub(super) fn request_definition(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        position: crate::lsp::LspPosition,
+    ) -> Option<crate::lsp::PendingDefinition> {
+        self.lsp
+            .manager
+            .as_ref()?
+            .request_definition(key, uri, position)
+    }
+
+    /// Notes that `path` is served by the server `key`, which names it `uri`.
+    pub(super) fn borrow_file(&mut self, path: &Path, key: ServerKey, uri: String) {
+        self.lsp.borrowed.insert(canonical(path), (key, uri));
+    }
+}
+
+/// The server and name of a file outside the project that a server pointed at.
+pub(super) fn borrowed_target(
+    borrowed: &HashMap<PathBuf, (ServerKey, String)>,
+    servers: &LanguageServers,
+    path: &Path,
+) -> Option<Target> {
+    let (key, uri) = borrowed.get(&canonical(path))?;
+    let no_ids = Default::default();
+    let language_ids = servers
+        .get(&key.name)
+        .map_or(&no_ids, |server| &server.language_ids);
+    Some(Target {
+        key: key.clone(),
+        uri: uri.clone(),
+        language_id: language_id_of(path, language_ids, user_config_dir().as_deref())?,
+    })
 }
