@@ -730,6 +730,14 @@ impl AppState {
         }
     }
 
+    /// The open name prompt, to place it before it is drawn.
+    pub(crate) fn name_prompt_mut(&mut self) -> Option<&mut NamePrompt> {
+        match &mut self.popup {
+            Popup::NewEntry(prompt) => Some(prompt),
+            _ => None,
+        }
+    }
+
     pub(crate) fn open_name_prompt(&mut self, prompt: NamePrompt) {
         self.popup = Popup::NewEntry(prompt);
     }

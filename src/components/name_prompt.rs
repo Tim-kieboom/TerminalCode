@@ -1,6 +1,5 @@
 //! A one-line prompt for the name of a new file or folder.
 
-use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -88,19 +87,20 @@ pub(crate) struct NamePrompt {
     name: String,
     /// Where typing goes: a byte offset in `name`, always between two graphemes.
     cursor: usize,
-    /// Where the text was last drawn, for placing the cursor by a click, and the byte
-    /// of `name` its first drawn cell is.
-    drawn: Cell<Drawn>,
+    /// The first byte of `name` that is shown, when the name is longer than the box.
+    scroll: usize,
+    /// Where the box is on the screen, set by [`NamePrompt::place`] before each draw.
+    layout: Layout,
 }
 
-/// Where the text of the prompt is on the screen.
+/// Where the box and its text are on the screen.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct Drawn {
-    x: u16,
-    y: u16,
-    width: u16,
-    /// The first byte of the text that is shown.
-    from: usize,
+struct Layout {
+    area: Rect,
+    /// The cells the text can use, on one row.
+    text_x: u16,
+    text_y: u16,
+    text_width: u16,
 }
 
 impl NamePrompt {
@@ -110,7 +110,8 @@ impl NamePrompt {
             dir,
             cursor: name.len(),
             name,
-            drawn: Cell::default(),
+            scroll: 0,
+            layout: Layout::default(),
         }
     }
 
@@ -252,13 +253,16 @@ impl NamePrompt {
     /// Puts the cursor at the character under the cell (`column`, `row`) when that is
     /// on the text. Returns whether it was.
     pub(crate) fn click(&mut self, column: u16, row: u16) -> bool {
-        let drawn = self.drawn.get();
-        if row != drawn.y || column < drawn.x || column >= drawn.x.saturating_add(drawn.width) {
+        let layout = self.layout;
+        if row != layout.text_y
+            || column < layout.text_x
+            || column >= layout.text_x.saturating_add(layout.text_width)
+        {
             return false;
         }
-        let wanted = usize::from(column - drawn.x);
+        let wanted = usize::from(column - layout.text_x);
         let mut used = 0;
-        let mut at = drawn.from.min(self.name.len());
+        let mut at = self.floor_to_boundary(self.scroll);
         for grapheme in self.name[at..].graphemes(true) {
             let width = grapheme.width().max(1);
             if wanted < used + width {
@@ -297,8 +301,23 @@ impl NamePrompt {
         self.name[at..].chars().next().is_some_and(is_word)
     }
 
-    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
-        let screen = frame.area();
+    /// The nearest grapheme boundary of the name at or before `at`. A byte offset kept
+    /// from an earlier frame may fall inside a character once the text was edited.
+    fn floor_to_boundary(&self, at: usize) -> usize {
+        if at >= self.name.len() {
+            return self.name.len();
+        }
+        self.name
+            .grapheme_indices(true)
+            .map(|(index, _)| index)
+            .take_while(|index| *index <= at)
+            .last()
+            .unwrap_or(0)
+    }
+
+    /// Finds where the box goes on `screen` and which part of a long name is shown, so
+    /// that the cursor is in view. Call it before each draw.
+    pub(crate) fn place(&mut self, screen: Rect) {
         let width = WIDTH.min(screen.width);
         let height = 3.min(screen.height);
         let area = Rect {
@@ -307,6 +326,20 @@ impl NamePrompt {
             width,
             height,
         };
+        let inner = Block::bordered().inner(area);
+        let room = usize::from(inner.width).saturating_sub(PROMPT.width() + 1);
+        self.scroll = self.first_shown(room);
+        let text_x = inner.x + PROMPT.width().min(usize::from(inner.width)) as u16;
+        self.layout = Layout {
+            area,
+            text_x,
+            text_y: inner.y,
+            text_width: inner.right().saturating_sub(text_x),
+        };
+    }
+
+    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
+        let area = self.layout.area;
         let folder = self.dir.file_name().map_or_else(
             || self.dir.display().to_string(),
             |name| name.to_string_lossy().into_owned(),
@@ -336,19 +369,15 @@ impl NamePrompt {
         }
 
         let room = usize::from(inner.width).saturating_sub(PROMPT.width() + 1);
-        let from = self.first_shown(room);
+        let from = self.floor_to_boundary(self.scroll).min(self.cursor);
         let shown = head_fitting(&self.name[from..], room);
         let line = format!("{PROMPT}{shown}");
         frame.render_widget(Paragraph::new(line.as_str()), Rect { height: 1, ..inner });
-        let text_x = inner.x + PROMPT.width().min(usize::from(inner.width)) as u16;
-        self.drawn.set(Drawn {
-            x: text_x,
-            y: inner.y,
-            width: inner.right().saturating_sub(text_x),
-            from,
-        });
         let before_cursor = self.name[from..self.cursor].width();
-        let cursor_x = text_x.saturating_add(before_cursor.min(usize::from(u16::MAX)) as u16);
+        let cursor_x = self
+            .layout
+            .text_x
+            .saturating_add(before_cursor.min(usize::from(u16::MAX)) as u16);
         frame.set_cursor_position(Position::new(cursor_x.min(inner.right()), inner.y));
     }
 }
@@ -358,7 +387,7 @@ impl NamePrompt {
     /// otherwise as far along as the cursor needs to be inside `room` cells; it stays
     /// where it was while the cursor is in view.
     fn first_shown(&self, room: usize) -> usize {
-        let mut from = self.drawn.get().from.min(self.cursor);
+        let mut from = self.floor_to_boundary(self.scroll.min(self.cursor));
         while from < self.cursor && self.name[from..self.cursor].width() > room {
             from = self.next_boundary(from);
         }

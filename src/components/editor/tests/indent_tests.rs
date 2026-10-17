@@ -566,3 +566,36 @@ fn the_move_is_one_undo_step() {
 
     assert_eq!(text(&editor), "a\nb\nc");
 }
+
+#[test]
+fn a_cursor_on_a_blank_line_moves_with_the_cursors_on_other_lines() {
+    let mut editor = editor("foo()\n\nbar()");
+    goto(&mut editor, 0, 0);
+    editor.add_cursor(Position::new(1, 0));
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "    foo()\n    \nbar()");
+}
+
+#[test]
+fn a_blank_line_inside_a_selected_block_stays_blank() {
+    let mut editor = editor("a\n\nb");
+    select_lines(&mut editor, 0, 2);
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "    a\n\n    b");
+}
+
+#[test]
+fn tab_and_shift_tab_over_a_selection_use_the_same_lines() {
+    let mut editor = editor("a\n\nb\nc");
+    select_lines(&mut editor, 0, 2);
+
+    editor.indent().unwrap();
+    assert_eq!(text(&editor), "    a\n\n    b\nc");
+
+    editor.outdent().unwrap();
+    assert_eq!(text(&editor), "a\n\nb\nc");
+}

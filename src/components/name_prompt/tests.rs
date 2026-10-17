@@ -19,8 +19,10 @@ fn key(code: KeyCode, modifiers: KeyModifiers) -> Option<Command> {
 }
 
 /// Draws the prompt on a screen of `width` columns.
-fn draw(prompt: &NamePrompt, width: u16) -> Terminal<TestBackend> {
+fn draw(prompt: &mut NamePrompt, width: u16) -> Terminal<TestBackend> {
     let mut terminal = Terminal::new(TestBackend::new(width, 12)).unwrap();
+    prompt.place(Rect::new(0, 0, width, 12));
+    let prompt = &*prompt;
     let theme = Theme::default();
     terminal.draw(|frame| prompt.render(frame, &theme)).unwrap();
     terminal
@@ -157,7 +159,7 @@ fn the_text_cursor_is_drawn_where_typing_goes() {
     prompt.move_left();
     prompt.move_left();
 
-    let mut terminal = draw(&prompt, 80);
+    let mut terminal = draw(&mut prompt, 80);
 
     // The box is centered; the text starts after the border and "> ".
     let start = (80 - WIDTH) / 2 + 1 + PROMPT.width() as u16;
@@ -167,10 +169,9 @@ fn the_text_cursor_is_drawn_where_typing_goes() {
 #[test]
 fn a_click_puts_the_cursor_between_the_characters_it_is_on() {
     let mut prompt = prompt("abcd");
-    let terminal = draw(&prompt, 80);
-    let _ = terminal;
+    draw(&mut prompt, 80);
     let start = (80 - WIDTH) / 2 + 1 + PROMPT.width() as u16;
-    let row = prompt.drawn.get().y;
+    let row = prompt.layout.text_y;
 
     assert!(prompt.click(start + 2, row));
     assert_eq!(prompt.cursor(), 2);
@@ -183,25 +184,25 @@ fn a_click_puts_the_cursor_between_the_characters_it_is_on() {
 #[test]
 fn a_click_outside_the_text_does_nothing() {
     let mut prompt = prompt("abcd");
-    draw(&prompt, 80);
-    let drawn = prompt.drawn.get();
+    draw(&mut prompt, 80);
+    let drawn = prompt.layout;
 
-    assert!(!prompt.click(drawn.x, drawn.y + 1));
-    assert!(!prompt.click(drawn.x - 1, drawn.y));
+    assert!(!prompt.click(drawn.text_x, drawn.text_y + 1));
+    assert!(!prompt.click(drawn.text_x - 1, drawn.text_y));
     assert_eq!(prompt.cursor(), 4);
 }
 
 #[test]
 fn a_click_on_the_halves_of_a_wide_character_goes_before_or_after_it() {
     let mut prompt = prompt("日本");
-    draw(&prompt, 80);
-    let drawn = prompt.drawn.get();
+    draw(&mut prompt, 80);
+    let drawn = prompt.layout;
 
-    prompt.click(drawn.x + 2, drawn.y);
+    prompt.click(drawn.text_x + 2, drawn.text_y);
     assert_eq!(prompt.cursor(), "日".len(), "the left half of the second");
-    prompt.click(drawn.x + 1, drawn.y);
+    prompt.click(drawn.text_x + 1, drawn.text_y);
     assert_eq!(prompt.cursor(), "日".len(), "the right half of the first");
-    prompt.click(drawn.x, drawn.y);
+    prompt.click(drawn.text_x, drawn.text_y);
     assert_eq!(prompt.cursor(), 0);
 }
 
@@ -210,13 +211,49 @@ fn a_name_longer_than_the_box_scrolls_to_keep_the_cursor_in_view() {
     let long = "x".repeat(100);
     let mut prompt = prompt(&long);
 
-    let mut at_end = draw(&prompt, 80);
+    let mut at_end = draw(&mut prompt, 80);
     let inner_right = (80 + WIDTH) / 2 - 1;
     assert!(at_end.get_cursor_position().unwrap().x <= inner_right);
 
     prompt.move_home();
-    let mut at_start = draw(&prompt, 80);
+    let mut at_start = draw(&mut prompt, 80);
     let text_start = (80 - WIDTH) / 2 + 1 + PROMPT.width() as u16;
     assert_eq!(at_start.get_cursor_position().unwrap().x, text_start);
-    assert_eq!(prompt.drawn.get().from, 0);
+    assert_eq!(prompt.scroll, 0);
+}
+
+#[test]
+fn a_scroll_offset_from_before_an_edit_does_not_cut_a_character_in_two() {
+    // Long, with characters of two bytes, so that an offset kept from an earlier
+    // frame can fall inside one once the text before it changes.
+    let mut prompt = prompt(&"\u{e9}".repeat(100));
+    draw(&mut prompt, 80);
+    assert!(prompt.scroll > 0, "the name is scrolled");
+
+    prompt.move_home();
+    prompt.insert('x');
+    prompt.move_end();
+    let mut terminal = draw(&mut prompt, 80);
+
+    assert_eq!(
+        prompt.scroll % 2,
+        1,
+        "after the `x` the characters start at odd bytes"
+    );
+    assert!(terminal.get_cursor_position().is_ok());
+    prompt.click(prompt.layout.text_x + 3, prompt.layout.text_y);
+    assert!(prompt.name.is_char_boundary(prompt.cursor()));
+}
+
+#[test]
+fn a_click_before_the_next_draw_after_an_edit_stays_on_a_character_boundary() {
+    let mut prompt = prompt(&"\u{e9}".repeat(100));
+    draw(&mut prompt, 80);
+
+    prompt.move_home();
+    prompt.insert('x');
+    prompt.move_end();
+    prompt.click(prompt.layout.text_x + 3, prompt.layout.text_y);
+
+    assert!(prompt.name.is_char_boundary(prompt.cursor()));
 }

@@ -107,12 +107,41 @@ fn blank_lines_are_left_alone_and_do_not_decide() {
 }
 
 #[test]
-fn only_blank_lines_have_nothing_to_toggle() {
+fn the_blank_line_of_a_cursor_is_commented_like_any_other() {
     let mut editor = rust("a\n\nb");
     goto(&mut editor, 1, 0);
 
-    assert_eq!(toggle(&mut editor), Toggled::NothingToToggle);
+    assert_eq!(toggle(&mut editor), Toggled::Done);
+    assert_eq!(text(&editor), "a\n// \nb");
+    assert_eq!(head(&editor), Position::new(1, 3), "after the marker");
+
+    toggle(&mut editor);
     assert_eq!(text(&editor), "a\n\nb");
+}
+
+#[test]
+fn the_blank_line_of_a_cursor_follows_the_cursor_on_code() {
+    let mut editor = rust("a\n\n    b");
+    goto(&mut editor, 0, 0);
+    editor.add_cursor(Position::new(1, 0));
+    editor.add_cursor(Position::new(2, 4));
+
+    toggle(&mut editor);
+
+    assert_eq!(
+        text(&editor),
+        "// a\n// \n//     b",
+        "at the smallest indentation"
+    );
+}
+
+#[test]
+fn a_block_of_only_blank_lines_has_nothing_to_toggle() {
+    let mut editor = rust("\n\n\n");
+    select_lines(&mut editor, 0, 2);
+
+    assert_eq!(toggle(&mut editor), Toggled::NothingToToggle);
+    assert_eq!(text(&editor), "\n\n\n");
 }
 
 #[test]
@@ -145,6 +174,15 @@ fn toml_and_nix_use_a_hash() {
         toggle(&mut editor);
         assert_eq!(text(&editor), "# key = 1", "{name}");
     }
+}
+
+#[test]
+fn jsonc_files_take_double_slashes_too() {
+    let mut editor = editor_in("settings.jsonc", "\"a\": 1");
+
+    toggle(&mut editor);
+
+    assert_eq!(text(&editor), "// \"a\": 1");
 }
 
 #[test]

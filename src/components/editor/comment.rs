@@ -7,7 +7,7 @@ use crate::buffer::{BufferError, Edit, Position, Selection, Selections};
 use crate::syntax::{Comment, Language};
 
 use super::Editor;
-use super::indent::selected_lines;
+use super::indent::{Caret, touched_lines};
 
 /// What a toggle did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -19,6 +19,15 @@ pub(crate) enum Toggled {
     NothingToToggle,
 }
 
+/// Whether a bare cursor exactly at a change goes along with the text after it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Affinity {
+    /// At the start of a line's code it does.
+    WithText,
+    /// At the end of a line it stays where it is.
+    Stays,
+}
+
 /// A change to one line, in columns of the line as it was: at `column`, `removed`
 /// characters go and `inserted` come.
 #[derive(Debug, Clone, Copy)]
@@ -26,16 +35,37 @@ struct Change {
     column: usize,
     removed: usize,
     inserted: usize,
-    /// Whether a bare cursor exactly at `column` goes along with the text after
-    /// the change (at the start of a line's code it does; at the end it stays).
-    along: bool,
+    affinity: Affinity,
+}
+
+/// A line a toggle touches, with its text.
+struct Row {
+    line: usize,
+    content: String,
+    /// It is part of a block of several lines, not the line of a cursor.
+    in_block: bool,
+}
+
+impl Row {
+    fn is_blank(&self) -> bool {
+        self.content.trim().is_empty()
+    }
+}
+
+/// What a toggle does to one line: byte ranges of the line to replace, and the
+/// changes in columns, for moving the cursors.
+struct Planned {
+    line: usize,
+    parts: Vec<Part>,
+    changes: Vec<Change>,
 }
 
 impl Editor {
     /// `ctrl+/`: the lines every cursor is on or a selection touches get the comment
     /// marker of the file's language, one space after it, at the smallest indentation
     /// among them; when each of them already has it, it is taken away (with the
-    /// space). Blank lines are left out and do not decide which way it goes. One undo
+    /// space). Blank lines inside a block are left out and do not decide which way it
+    /// goes; the blank line of a cursor is commented with the rest, or alone. One undo
     /// step.
     pub(crate) fn toggle_comment(&mut self) -> Result<Toggled, BufferError> {
         let Some(comment) = self
@@ -46,72 +76,99 @@ impl Editor {
         else {
             return Ok(Toggled::NoLanguage);
         };
-
-        let mut lines: Vec<usize> = self
-            .view
-            .selections
-            .iter()
-            .flat_map(selected_lines)
-            .collect();
-        lines.sort_unstable();
-        lines.dedup();
-        let mut rows = Vec::new();
-        for line in lines {
-            let content = self.buffer.line_content(line)?.into_owned();
-            if !content.trim().is_empty() {
-                rows.push((line, content));
-            }
-        }
-        if rows.is_empty() {
+        let rows = self.rows_touched()?;
+        let planned = plan(&rows, comment);
+        if planned.is_empty() {
             return Ok(Toggled::NothingToToggle);
         }
 
-        let uncomment = rows
-            .iter()
-            .all(|(_, content)| is_commented(content, comment));
-        let indent = rows
-            .iter()
-            .map(|(_, content)| leading_space(content))
-            .min()
-            .unwrap_or(0);
-
         let mut edits = Vec::new();
-        let mut changes: Vec<(usize, Vec<Change>)> = Vec::new();
-        for (line, content) in &rows {
-            let start = self.buffer.position_to_byte(Position::new(*line, 0))?;
-            let (parts, line_changes) = match uncomment {
-                true => take_away(content, comment),
-                false => put_on(content, comment, indent),
-            };
-            edits.extend(
-                parts
-                    .into_iter()
-                    .map(|(bytes, text)| Edit::new(start + bytes.start..start + bytes.end, text)),
-            );
-            changes.push((*line, line_changes));
+        for line in &planned {
+            let start = self.buffer.position_to_byte(Position::new(line.line, 0))?;
+            edits.extend(line.parts.iter().map(|(bytes, text)| {
+                Edit::new(start + bytes.start..start + bytes.end, text.as_str())
+            }));
         }
+        let after = self.selections_after(&planned);
+        self.edit_lines(edits, after)?;
+        Ok(Toggled::Done)
+    }
 
+    /// The lines the cursors and selections touch, with their text.
+    fn rows_touched(&self) -> Result<Vec<Row>, BufferError> {
+        touched_lines(&self.view.selections)
+            .into_iter()
+            .map(|touched| {
+                Ok(Row {
+                    line: touched.line,
+                    content: self.buffer.line_content(touched.line)?.into_owned(),
+                    in_block: touched.in_block,
+                })
+            })
+            .collect()
+    }
+
+    /// The selections moved along with what `planned` changes.
+    fn selections_after(&self, planned: &[Planned]) -> Selections {
         let items: Vec<Selection> = self
             .view
             .selections
             .iter()
             .map(|selection| {
-                let bare = selection.is_empty();
+                let caret = Caret::of(selection);
                 let moved = |position: Position| {
-                    let on_line = changes
-                        .iter()
-                        .find(|(line, _)| *line == position.line)
-                        .map_or(&[][..], |(_, changes)| changes.as_slice());
-                    Position::new(position.line, moved_column(position.column, on_line, bare))
+                    let changes = planned
+                        .binary_search_by_key(&position.line, |line| line.line)
+                        .map_or(&[][..], |at| planned[at].changes.as_slice());
+                    Position::new(position.line, moved_column(position.column, changes, caret))
                 };
                 Selection::new(moved(selection.anchor()), moved(selection.head()))
                     .with_desired_column(None)
             })
             .collect();
-        let after = Selections::from_items(items, self.view.selections.primary_index());
-        self.edit_lines(edits, after)?;
-        Ok(Toggled::Done)
+        Selections::from_items(items, self.view.selections.primary_index())
     }
+}
+
+/// What to do to each of `rows` (in line order): comment them, or uncomment them when
+/// every line with text is commented. Lines it leaves alone are not in the answer.
+fn plan(rows: &[Row], comment: Comment) -> Vec<Planned> {
+    let with_text: Vec<&Row> = rows.iter().filter(|row| !row.is_blank()).collect();
+    // The blank line of a cursor is commented with the rest; one in a block is not.
+    let cursor_blanks = |row: &&Row| row.is_blank() && !row.in_block;
+    let uncomment = !with_text.is_empty()
+        && with_text
+            .iter()
+            .all(|row| is_commented(&row.content, comment));
+    let indent = with_text
+        .iter()
+        .map(|row| leading_space(&row.content))
+        .min();
+
+    rows.iter()
+        .filter(|row| match uncomment {
+            true => !row.is_blank(),
+            false => !row.is_blank() || cursor_blanks(row),
+        })
+        .map(|row| {
+            let (parts, changes) = match uncomment {
+                true => take_away(&row.content, comment),
+                false => {
+                    // On a blank line the marker goes after what white space it has.
+                    let at = indent.map_or_else(
+                        || leading_space(&row.content),
+                        |indent| indent.min(row.content.len()),
+                    );
+                    put_on(&row.content, comment, at)
+                }
+            };
+            Planned {
+                line: row.line,
+                parts,
+                changes,
+            }
+        })
+        .collect()
 }
 
 /// Characters of white space the line starts with.
@@ -148,27 +205,27 @@ fn put_on(content: &str, comment: Comment, indent: usize) -> (Vec<Part>, Vec<Cha
                     column: indent,
                     removed: 0,
                     inserted,
-                    along: true,
+                    affinity: Affinity::WithText,
                 }],
             )
         }
         Comment::Around(open, close) => {
             let open_text = format!("{open} ");
             let close_text = format!(" {close}");
-            let end = content.trim_end().len();
+            let end = content.trim_end().len().max(indent);
             let end_column = content[..end].graphemes(true).count();
             let changes = vec![
                 Change {
                     column: indent,
                     removed: 0,
                     inserted: open_text.len(),
-                    along: true,
+                    affinity: Affinity::WithText,
                 },
                 Change {
                     column: end_column,
                     removed: 0,
                     inserted: close_text.len(),
-                    along: false,
+                    affinity: Affinity::Stays,
                 },
             ];
             (
@@ -192,7 +249,7 @@ fn take_away(content: &str, comment: Comment) -> (Vec<Part>, Vec<Change>) {
                     column: start,
                     removed,
                     inserted: 0,
-                    along: true,
+                    affinity: Affinity::WithText,
                 }],
             )
         }
@@ -216,13 +273,13 @@ fn take_away(content: &str, comment: Comment) -> (Vec<Part>, Vec<Change>) {
                         column: start,
                         removed: open_removed,
                         inserted: 0,
-                        along: true,
+                        affinity: Affinity::WithText,
                     },
                     Change {
                         column: close_column,
                         removed: close_removed,
                         inserted: 0,
-                        along: false,
+                        affinity: Affinity::Stays,
                     },
                 ],
             )
@@ -231,12 +288,15 @@ fn take_away(content: &str, comment: Comment) -> (Vec<Part>, Vec<Change>) {
 }
 
 /// Where the column `original` of a line is after `changes` (in order).
-fn moved_column(original: usize, changes: &[Change], bare: bool) -> usize {
+fn moved_column(original: usize, changes: &[Change], caret: Caret) -> usize {
     let mut delta: isize = 0;
     for change in changes {
         let end = change.column + change.removed;
         let shifts = if change.removed == 0 {
-            original > change.column || (original == change.column && change.along && bare)
+            original > change.column
+                || (original == change.column
+                    && change.affinity == Affinity::WithText
+                    && caret == Caret::Bare)
         } else {
             original >= end
         };

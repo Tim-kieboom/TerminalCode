@@ -70,7 +70,7 @@ impl Language {
         match path.extension()?.to_str()? {
             "rs" => Some(Self::Rust),
             "toml" => Some(Self::Toml),
-            "json" => Some(Self::Json),
+            "json" | "jsonc" => Some(Self::Json),
             "md" | "markdown" => Some(Self::Markdown),
             "nix" => Some(Self::Nix),
             _ => None,

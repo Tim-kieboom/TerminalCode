@@ -127,32 +127,8 @@ impl Editor {
     /// Shift+Tab. Removes one level of indentation from the current line, or
     /// from every selected line.
     pub(crate) fn outdent(&mut self) -> Result<(), BufferError> {
-        let selection = *self.view.selections.primary();
-        let mut edits = Vec::new();
-        let mut removed_per_line = Vec::new();
-
-        for line in selected_lines(&selection) {
-            let removed = self.outdent_amount(line)?;
-            if removed == 0 {
-                continue;
-            }
-            let start = self.buffer.position_to_byte(Position::new(line, 0))?;
-            edits.push(Edit::new(start..start + removed, ""));
-            removed_per_line.push((line, removed));
-        }
-        if edits.is_empty() {
-            return Ok(());
-        }
-
-        let shift = |position: Position| {
-            let removed = removed_per_line
-                .iter()
-                .find(|(line, _)| *line == position.line)
-                .map_or(0, |(_, removed)| *removed);
-            Position::new(position.line, position.column.saturating_sub(removed))
-        };
-        let after = remap(&selection, shift);
-        self.edit_lines(edits, after)
+        let primary = Selections::single(*self.view.selections.primary());
+        self.shift_lines(Direction::Out, &primary)
     }
 
     /// How many characters one level of outdent takes off the start of `line`: a tab,
@@ -171,77 +147,74 @@ impl Editor {
     /// in; with several cursors a line that has two of them moves once. The cursors
     /// keep their place in the text.
     pub(crate) fn indent_line(&mut self) -> Result<(), BufferError> {
-        self.shift_lines(true)
+        let all = self.view.selections.clone();
+        self.shift_lines(Direction::In, &all)
     }
 
     /// `ctrl+[`: moves the same lines one level out.
     pub(crate) fn outdent_line(&mut self) -> Result<(), BufferError> {
-        self.shift_lines(false)
+        let all = self.view.selections.clone();
+        self.shift_lines(Direction::Out, &all)
     }
 
-    fn shift_lines(&mut self, inwards: bool) -> Result<(), BufferError> {
-        let mut lines: Vec<usize> = self
-            .view
-            .selections
-            .iter()
-            .flat_map(selected_lines)
-            .collect();
-        lines.sort_unstable();
-        lines.dedup();
-        // How the start of each line changes: (line, columns added or taken).
+    /// Moves the lines `which` touches one level, as one undo step, and leaves
+    /// `which` (moved along) as the selections. Blank lines inside a block of
+    /// several lines stay blank; a line that only holds a cursor is moved even then.
+    fn shift_lines(&mut self, direction: Direction, which: &Selections) -> Result<(), BufferError> {
+        // How the start of each line changes: (line, columns added or taken), by line.
         let mut changes: Vec<(usize, usize)> = Vec::new();
         let mut edits = Vec::new();
         let unit = self.view.indent.unit();
-        let several = lines.len() > 1;
-        for line in lines {
+        for touched in touched_lines(which) {
+            let line = touched.line;
             let start = self.buffer.position_to_byte(Position::new(line, 0))?;
-            if inwards {
-                // A blank line in a block stays blank; the only line is indented.
-                if several && self.buffer.line_len(line)? == 0 {
-                    continue;
+            match direction {
+                Direction::In => {
+                    if touched.in_block && self.buffer.line_len(line)? == 0 {
+                        continue;
+                    }
+                    edits.push(Edit::new(start..start, unit.as_str()));
+                    changes.push((line, self.view.indent.columns()));
                 }
-                edits.push(Edit::new(start..start, unit.as_str()));
-                changes.push((line, self.view.indent.columns()));
-            } else {
-                let removed = self.outdent_amount(line)?;
-                if removed == 0 {
-                    continue;
+                Direction::Out => {
+                    let removed = self.outdent_amount(line)?;
+                    if removed == 0 {
+                        continue;
+                    }
+                    edits.push(Edit::new(start..start + removed, ""));
+                    changes.push((line, removed));
                 }
-                edits.push(Edit::new(start..start + removed, ""));
-                changes.push((line, removed));
             }
         }
         if edits.is_empty() {
             return Ok(());
         }
 
-        let columns = |line: usize| {
-            changes
-                .iter()
-                .find(|(changed, _)| *changed == line)
-                .map_or(0, |(_, columns)| *columns)
-        };
-        let items: Vec<Selection> = self
-            .view
-            .selections
+        let items: Vec<Selection> = which
             .iter()
             .map(|selection| {
-                let bare = selection.is_empty();
+                let caret = Caret::of(selection);
                 let shift = |position: Position| {
-                    let by = columns(position.line);
-                    match inwards {
+                    let by = changes
+                        .binary_search_by_key(&position.line, |(line, _)| *line)
+                        .map_or(0, |at| changes[at].1);
+                    match direction {
                         // The start of a selection stays at column 0, so it also
                         // covers the new indentation; a cursor goes along with its text.
-                        true if position.column == 0 && !bare => position,
-                        true => Position::new(position.line, position.column + by),
-                        false => Position::new(position.line, position.column.saturating_sub(by)),
+                        Direction::In if position.column == 0 && caret == Caret::Selecting => {
+                            position
+                        }
+                        Direction::In => Position::new(position.line, position.column + by),
+                        Direction::Out => {
+                            Position::new(position.line, position.column.saturating_sub(by))
+                        }
                     }
                 };
                 Selection::new(shift(selection.anchor()), shift(selection.head()))
                     .with_desired_column(None)
             })
             .collect();
-        let after = Selections::from_items(items, self.view.selections.primary_index());
+        let after = Selections::from_items(items, which.primary_index());
         self.edit_lines(edits, after)
     }
 
@@ -315,33 +288,7 @@ impl Editor {
     }
 
     fn indent_lines(&mut self, selection: &Selection) -> Result<(), BufferError> {
-        let unit = self.view.indent.unit();
-        let mut edits = Vec::new();
-        let mut indented = Vec::new();
-
-        for line in selected_lines(selection) {
-            if self.buffer.line_len(line)? == 0 {
-                continue;
-            }
-            let start = self.buffer.position_to_byte(Position::new(line, 0))?;
-            edits.push(Edit::new(start..start, unit.as_str()));
-            indented.push(line);
-        }
-        if edits.is_empty() {
-            return Ok(());
-        }
-
-        // A position at column 0 stays there, so the selection also covers
-        // the indentation just added.
-        let columns = self.view.indent.columns();
-        let shift = |position: Position| {
-            if position.column == 0 || !indented.contains(&position.line) {
-                return position;
-            }
-            Position::new(position.line, position.column + columns)
-        };
-        let after = remap(selection, shift);
-        self.edit_lines(edits, after)
+        self.shift_lines(Direction::In, &Selections::single(*selection))
     }
 
     /// Applies edits to separate lines as one undo step. `edits` must be in
@@ -360,6 +307,56 @@ impl Editor {
         self.view.selections = after;
         Ok(())
     }
+}
+
+/// Which way a line moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Direction {
+    In,
+    Out,
+}
+
+/// Whether a selection is a bare cursor or covers text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Caret {
+    Bare,
+    Selecting,
+}
+
+impl Caret {
+    pub(super) fn of(selection: &Selection) -> Self {
+        if selection.is_empty() {
+            Self::Bare
+        } else {
+            Self::Selecting
+        }
+    }
+}
+
+/// A line some cursor or selection touches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct Touched {
+    pub(super) line: usize,
+    /// Every one that touches it covers several lines, so the line is part of a block
+    /// (where a blank line is left alone) and not the line of a cursor.
+    pub(super) in_block: bool,
+}
+
+/// The lines the selections touch, each once, in order.
+pub(super) fn touched_lines(selections: &Selections) -> Vec<Touched> {
+    let mut lines: std::collections::BTreeMap<usize, bool> = std::collections::BTreeMap::new();
+    for selection in selections.iter() {
+        let range = selected_lines(selection);
+        let block = range.start() != range.end();
+        for line in range {
+            let in_block = lines.entry(line).or_insert(true);
+            *in_block &= block;
+        }
+    }
+    lines
+        .into_iter()
+        .map(|(line, in_block)| Touched { line, in_block })
+        .collect()
 }
 
 /// Lines a block operation covers: those the selection touches, except the

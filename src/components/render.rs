@@ -44,6 +44,10 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         menu.place(screen);
     }
 
+    if let Some(prompt) = state.name_prompt_mut() {
+        prompt.place(screen);
+    }
+
     let theme = state.theme();
     match state.popup() {
         Popup::None => {}
