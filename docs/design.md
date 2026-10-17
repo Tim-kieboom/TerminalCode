@@ -378,7 +378,7 @@ the seam: slots can become selector paths (`editor .selection`) without touching
   repeating timer in the app loop).
 
 ## Workspace: documents, panes, tabs
-- `components::workspace::Workspace` stores each file once as a `Document` (buffer + undo history + indent style) in a
+- `components::workspace::Workspace` (split by concern: `documents`, `tabs`, `panes`, `mouse`, `editing`, `highlights`, with the ids in `src/ids.rs`) stores each file once as a `Document` (buffer + undo history + indent style) in a
   map by id. A pane is a strip of tabs; a tab is a `ViewState` (selections, scroll, mouse state) of one document.
   Panes sit in a binary split tree (`Axis::Horizontal` = side by side, `Vertical` = stacked); splitting halves the
   focused pane and the new pane starts with a copy of the active view.

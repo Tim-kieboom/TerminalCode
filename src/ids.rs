@@ -23,10 +23,6 @@ macro_rules! numbered {
                 Self(number)
             }
 
-            /// The number of the id.
-            pub(crate) const fn number(self) -> u32 {
-                self.0
-            }
         }
     )*};
 }
@@ -34,6 +30,11 @@ macro_rules! numbered {
 numbered!(DocumentId, ViewId, PaneId);
 
 impl DocumentId {
+    /// The number of the id.
+    pub(crate) const fn number(self) -> u32 {
+        self.0
+    }
+
     /// An id for tests that need documents without a workspace.
     #[cfg(test)]
     pub(crate) fn for_test(number: u32) -> Self {
