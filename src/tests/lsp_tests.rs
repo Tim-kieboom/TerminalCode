@@ -1471,7 +1471,11 @@ fn the_report_follows_the_server_from_not_started_to_open() {
     assert!(open.contains("main.rs: rust-analyzer"), "{open}");
     assert!(open.contains("the file is open on it"), "{open}");
     assert!(
-        open.contains(&dir.path().canonicalize().unwrap().display().to_string()),
+        open.contains(
+            &crate::paths::without_verbatim_prefix(&crate::paths::canonical(dir.path()))
+                .display()
+                .to_string()
+        ),
         "{open}"
     );
 }

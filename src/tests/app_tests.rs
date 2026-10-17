@@ -437,7 +437,7 @@ async fn the_loop_fires_a_pending_sequence_when_its_timeout_passes() {
             .await
             .unwrap();
         // No further key: only the timeout can produce the "G".
-        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
         input_tx.send(Ok(ctrl_q())).await.unwrap();
     });
 
