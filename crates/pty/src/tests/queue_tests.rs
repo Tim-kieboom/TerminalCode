@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::pty::queue::{BoundedQueue, PushError};
+use crate::queue::{BoundedQueue, PushError};
 
 const SHORT: Duration = Duration::from_millis(20);
 

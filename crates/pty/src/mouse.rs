@@ -7,7 +7,7 @@ use vt100::{MouseProtocolEncoding, MouseProtocolMode};
 /// The report for a mouse event at `column` and `row` (counted from 0, inside
 /// the program's screen), or `None` when the program did not ask for that kind
 /// of event or the position does not fit the encoding it chose.
-pub(crate) fn encode_mouse(
+pub fn encode_mouse(
     kind: MouseEventKind,
     modifiers: KeyModifiers,
     column: u16,

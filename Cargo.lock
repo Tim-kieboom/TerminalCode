@@ -2276,6 +2276,7 @@ dependencies = [
  "trcode-buffer",
  "trcode-files",
  "trcode-ids",
+ "trcode-pty",
  "tree-sitter",
  "tree-sitter-json",
  "tree-sitter-md",
@@ -2515,6 +2516,18 @@ dependencies = [
 [[package]]
 name = "trcode-ids"
 version = "0.6.1"
+
+[[package]]
+name = "trcode-pty"
+version = "0.6.1"
+dependencies = [
+ "crossterm",
+ "portable-pty",
+ "tempfile",
+ "thiserror 2.0.21",
+ "trcode-files",
+ "vt100",
+]
 
 [[package]]
 name = "tree-sitter"

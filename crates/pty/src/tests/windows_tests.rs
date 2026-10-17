@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::pty::{Session, Shell, SpawnConfig};
+use crate::{Session, Shell, SpawnConfig};
 
 struct Seen {
     screen: String,

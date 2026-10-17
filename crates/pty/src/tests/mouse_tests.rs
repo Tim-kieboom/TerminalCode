@@ -1,7 +1,7 @@
 use crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
 use vt100::{MouseProtocolEncoding as Encoding, MouseProtocolMode as Mode};
 
-use crate::pty::encode_mouse;
+use crate::encode_mouse;
 
 const NONE: KeyModifiers = KeyModifiers::NONE;
 

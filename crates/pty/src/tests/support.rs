@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::pty::{Session, Shell, SpawnConfig};
+use crate::{Session, Shell, SpawnConfig};
 
 /// A session running `script`, and how often the app was woken.
 pub(super) struct Rig {

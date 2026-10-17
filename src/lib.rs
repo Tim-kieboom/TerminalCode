@@ -16,6 +16,7 @@ mod app;
 use trcode_buffer as buffer;
 use trcode_files as files;
 use trcode_ids as ids;
+use trcode_pty as pty;
 mod cli;
 mod clipboard;
 mod components;
@@ -35,7 +36,6 @@ mod keymap;
 )]
 mod lsp;
 mod persist;
-mod pty;
 mod settings;
 mod startup;
 mod syntax;

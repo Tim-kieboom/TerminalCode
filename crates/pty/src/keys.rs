@@ -8,7 +8,7 @@ const ESC: u8 = 0x1b;
 /// The bytes for a key press, or `None` for a key a terminal has no bytes for
 /// (and for releases). `application_cursor` is the program's choice of what
 /// the arrow keys, Home and End send (`ESC O A` instead of `ESC [ A`).
-pub(crate) fn encode_key(key: KeyEvent, application_cursor: bool) -> Option<Vec<u8>> {
+pub fn encode_key(key: KeyEvent, application_cursor: bool) -> Option<Vec<u8>> {
     if key.kind == KeyEventKind::Release {
         return None;
     }
@@ -47,7 +47,7 @@ pub(crate) fn encode_key(key: KeyEvent, application_cursor: bool) -> Option<Vec<
 /// text between markers, and with the end marker taken out of it so the text
 /// cannot end its own paste early; one that did not gets the text with line
 /// breaks as carriage returns, which is what Enter sends.
-pub(crate) fn encode_paste(text: &str, bracketed: bool) -> Vec<u8> {
+pub fn encode_paste(text: &str, bracketed: bool) -> Vec<u8> {
     if bracketed {
         let safe = text.replace("\x1b[201~", "");
         let mut bytes = b"\x1b[200~".to_vec();

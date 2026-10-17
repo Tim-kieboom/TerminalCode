@@ -1,4 +1,4 @@
-use crate::pty::Shell;
+use crate::Shell;
 
 #[test]
 fn a_shell_setting_names_the_program() {

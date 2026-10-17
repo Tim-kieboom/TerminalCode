@@ -25,19 +25,19 @@ const SCROLLBACK: usize = 10_000;
 
 /// What to start and where.
 #[derive(Debug, Clone)]
-pub(crate) struct SpawnConfig {
-    pub(crate) shell: Shell,
-    pub(crate) directory: PathBuf,
-    pub(crate) rows: u16,
-    pub(crate) columns: u16,
+pub struct SpawnConfig {
+    pub shell: Shell,
+    pub directory: PathBuf,
+    pub rows: u16,
+    pub columns: u16,
 }
 
 /// What a write got through.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct Written {
+pub struct Written {
     /// Bytes the writer thread was given; the rest were dropped.
-    pub(crate) sent: usize,
-    pub(crate) complete: bool,
+    pub sent: usize,
+    pub complete: bool,
 }
 
 /// A running shell. Dropping it stops the shell.
@@ -46,7 +46,7 @@ pub(crate) struct Written {
 /// behind a lock the drawing thread takes only to look. Input goes through a
 /// queue to a writer thread, because a child that is not reading makes writes
 /// to it block, and that must not be the thread that draws.
-pub(crate) struct Session {
+pub struct Session {
     shared: Arc<Shared>,
     input: Arc<BoundedQueue<Message>>,
     child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
@@ -84,7 +84,7 @@ impl Session {
     /// screen has changed since it was last drawn (see [`Session::take_dirty`]);
     /// it is called once, not once per change, until a draw has taken the
     /// change.
-    pub(crate) fn spawn(
+    pub fn spawn(
         config: &SpawnConfig,
         wake: impl Fn() + Send + Sync + 'static,
     ) -> Result<Self, PtyError> {
@@ -148,7 +148,7 @@ impl Session {
     /// Sends `bytes` to the shell. Waits at most 20 ms for room: if the shell
     /// is not reading and the queue stays full, the rest is dropped, and the
     /// result says how much went through.
-    pub(crate) fn write(&self, bytes: &[u8]) -> Written {
+    pub fn write(&self, bytes: &[u8]) -> Written {
         let mut sent = 0;
         for chunk in bytes.chunks(CHUNK) {
             let queued = self
@@ -171,7 +171,7 @@ impl Session {
     /// Gives the screen and the shell a new size. The screen changes at once;
     /// the shell hears about it from the writer thread, in order with the input
     /// before it.
-    pub(crate) fn resize(&self, rows: u16, columns: u16) {
+    pub fn resize(&self, rows: u16, columns: u16) {
         self.lock_screen().screen_mut().set_size(rows, columns);
         *self
             .shared
@@ -185,7 +185,7 @@ impl Session {
     /// Moves the view into the history by `rows` (negative moves it back toward
     /// the present), as far as there is history. Output that arrives while the
     /// view is back does not move it.
-    pub(crate) fn scroll_by(&self, rows: isize) {
+    pub fn scroll_by(&self, rows: isize) {
         let mut parser = self.lock_screen();
         let current = parser.screen().scrollback();
         parser
@@ -194,34 +194,34 @@ impl Session {
     }
 
     /// Shows the oldest history the screen has.
-    pub(crate) fn scroll_to_top(&self) {
+    pub fn scroll_to_top(&self) {
         self.lock_screen().screen_mut().set_scrollback(usize::MAX);
     }
 
     /// Shows the present again.
-    pub(crate) fn scroll_to_bottom(&self) {
+    pub fn scroll_to_bottom(&self) {
         self.lock_screen().screen_mut().set_scrollback(0);
     }
 
     /// How many lines back the view is; 0 when it shows the present.
-    pub(crate) fn scrollback_offset(&self) -> usize {
+    pub fn scrollback_offset(&self) -> usize {
         self.with_screen(|screen| screen.scrollback())
     }
 
     /// Whether the screen changed since the last call, and says the next
     /// change should wake the app again. Call it before drawing.
-    pub(crate) fn take_dirty(&self) -> bool {
+    pub fn take_dirty(&self) -> bool {
         self.shared.wake_pending.swap(false, Ordering::SeqCst)
     }
 
     /// Looks at the screen. Holds the lock for the duration of `look`, so keep
     /// it short.
-    pub(crate) fn with_screen<R>(&self, look: impl FnOnce(&vt100::Screen) -> R) -> R {
+    pub fn with_screen<R>(&self, look: impl FnOnce(&vt100::Screen) -> R) -> R {
         look(self.lock_screen().screen())
     }
 
     /// The exit code, once the shell has ended.
-    pub(crate) fn exit_code(&self) -> Option<u32> {
+    pub fn exit_code(&self) -> Option<u32> {
         let mut child = self
             .child
             .lock()
@@ -234,21 +234,20 @@ impl Session {
     }
 
     /// How many bytes the child has printed so far.
-    #[cfg(test)]
-    pub(crate) fn bytes_received(&self) -> u64 {
+    pub fn bytes_received(&self) -> u64 {
         self.shared.received.load(Ordering::Relaxed)
     }
 
     /// Whether the shell is over and its last output has been taken: its end of
     /// the terminal closed, or (on Windows, where that never happens) it exited.
-    pub(crate) fn output_ended(&self) -> bool {
+    pub fn output_ended(&self) -> bool {
         self.shared.ended.load(Ordering::SeqCst)
     }
 
     /// The exit code of a shell that is over. The end of its output comes a
     /// moment before it can be reaped, so this waits a little for that; `None`
     /// if it is still running.
-    pub(crate) fn finished(&self) -> Option<u32> {
+    pub fn finished(&self) -> Option<u32> {
         if let Some(code) = self.exit_code() {
             return Some(code);
         }
@@ -264,8 +263,7 @@ impl Session {
         None
     }
 
-    #[cfg(test)]
-    pub(crate) fn process_id(&self) -> Option<u32> {
+    pub fn process_id(&self) -> Option<u32> {
         self.process_id
     }
 
@@ -424,7 +422,7 @@ fn wait_for_quiet_output(shared: &Shared) {
 /// The directory to start the shell in: `directory` as the shell can use it.
 fn working_directory(directory: &std::path::Path) -> PathBuf {
     match cfg!(windows) {
-        true => crate::files::paths::without_verbatim_prefix(directory),
+        true => trcode_files::paths::without_verbatim_prefix(directory),
         false => directory.to_path_buf(),
     }
 }

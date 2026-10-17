@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::pty::{PtyError, Session, Shell, SpawnConfig};
+use crate::{PtyError, Session, Shell, SpawnConfig};
 
 use super::support::start;
 

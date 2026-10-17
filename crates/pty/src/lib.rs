@@ -2,11 +2,11 @@
 //! draws, and the way keystrokes and pastes get to it without ever blocking
 //! the thread that draws.
 
-pub(crate) use error::PtyError;
-pub(crate) use keys::{encode_key, encode_paste};
-pub(crate) use mouse::encode_mouse;
-pub(crate) use session::{Session, SpawnConfig};
-pub(crate) use shell::Shell;
+pub use error::PtyError;
+pub use keys::{encode_key, encode_paste};
+pub use mouse::encode_mouse;
+pub use session::{Session, SpawnConfig};
+pub use shell::Shell;
 
 mod error;
 mod keys;
