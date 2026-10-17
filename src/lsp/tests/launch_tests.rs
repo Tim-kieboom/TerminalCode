@@ -324,7 +324,7 @@ fn real_rust_analyzer_puts_a_type_error_on_the_right_line() {
     };
     let mut sync = DocumentSync::default();
     let snapshot = DocSnapshot {
-        id: DocumentId::for_test(1),
+        id: DocumentId::new(1),
         uri: uri.clone(),
         language_id: "rust".to_owned(),
         text: ropey::Rope::from_str(text),
@@ -369,7 +369,7 @@ fn real_rust_analyzer_puts_a_type_error_on_the_right_line() {
             .map(|d| (d.start, d.end))
             .collect();
         let placed = sync
-            .ranges_in_told_text(&key, DocumentId::for_test(1), published.version, &ranges)
+            .ranges_in_told_text(&key, DocumentId::new(1), published.version, &ranges)
             .expect("the version it names is the one that was sent");
         found = Some(
             published

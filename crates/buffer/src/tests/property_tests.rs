@@ -1,9 +1,9 @@
 use proptest::prelude::*;
 
-use crate::buffer::Buffer;
-use crate::buffer::edit::Edit;
-use crate::buffer::position::Position;
-use crate::buffer::selection::Selections;
+use crate::Buffer;
+use crate::edit::Edit;
+use crate::position::Position;
+use crate::selection::Selections;
 
 /// Text mixing ASCII, line breaks, wide, combining and astral characters.
 fn text_strategy() -> impl Strategy<Value = String> {

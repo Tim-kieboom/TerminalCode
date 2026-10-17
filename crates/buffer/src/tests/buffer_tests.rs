@@ -1,6 +1,6 @@
-use crate::buffer::edit::Edit;
-use crate::buffer::position::{Point, Position};
-use crate::buffer::{Buffer, BufferError};
+use crate::edit::Edit;
+use crate::position::{Point, Position};
+use crate::{Buffer, BufferError};
 
 // Regional-indicator pair (one flag), a combining sequence, and wide CJK.
 const FLAG: &str = "\u{1F1F3}\u{1F1F1}";
@@ -218,7 +218,7 @@ fn failed_edits_are_not_logged() {
 
 #[test]
 fn undo_and_redo_are_logged_too() {
-    use crate::buffer::selection::Selections;
+    use crate::selection::Selections;
     let mut buffer = Buffer::from_text("abc");
     let mut transaction = buffer.begin_transaction(Selections::default());
     transaction.apply(&Edit::insert(3, "d")).unwrap();

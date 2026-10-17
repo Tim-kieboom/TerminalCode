@@ -1,9 +1,9 @@
 use std::fs;
 
-use crate::buffer::edit::Edit;
-use crate::buffer::line_ending::LineEnding;
-use crate::buffer::selection::Selections;
-use crate::buffer::{Buffer, DiskChange, FileError, Position};
+use crate::edit::Edit;
+use crate::line_ending::LineEnding;
+use crate::selection::Selections;
+use crate::{Buffer, DiskChange, FileError, Position};
 
 fn type_text(buffer: &mut Buffer, text: &str) {
     let mut transaction = buffer.begin_transaction(Selections::default());

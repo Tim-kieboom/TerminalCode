@@ -2273,6 +2273,8 @@ dependencies = [
  "tokio",
  "toml",
  "trash",
+ "trcode-buffer",
+ "trcode-ids",
  "tree-sitter",
  "tree-sitter-json",
  "tree-sitter-md",
@@ -2485,6 +2487,21 @@ dependencies = [
  "urlencoding",
  "windows",
 ]
+
+[[package]]
+name = "trcode-buffer"
+version = "0.6.1"
+dependencies = [
+ "proptest",
+ "ropey",
+ "tempfile",
+ "thiserror 2.0.21",
+ "unicode-segmentation",
+]
+
+[[package]]
+name = "trcode-ids"
+version = "0.6.1"
 
 [[package]]
 name = "tree-sitter"

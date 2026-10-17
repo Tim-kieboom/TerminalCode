@@ -5,18 +5,18 @@ use ropey::Rope;
 use unicode_segmentation::UnicodeSegmentation;
 
 pub use error::BufferError;
-pub(crate) use file::DiskChange;
+pub use file::DiskChange;
 pub use file::FileError;
 
 use edit::AppliedEdit;
-pub(crate) use edit::Edit;
-pub(crate) use edit::EditInfo;
+pub use edit::Edit;
+pub use edit::EditInfo;
 use file::Disk;
 use history::History;
-pub(crate) use line_ending::LineEnding;
-pub(crate) use position::Point;
-pub(crate) use position::Position;
-pub(crate) use selection::{Selection, Selections};
+pub use line_ending::LineEnding;
+pub use position::Point;
+pub use position::Position;
+pub use selection::{Selection, Selections};
 
 mod edit;
 mod error;
@@ -35,7 +35,7 @@ mod tests;
 /// computed from the text (highlighting, plugin snapshots) carries the
 /// version it saw so stale results can be discarded.
 #[derive(Debug, Default)]
-pub(crate) struct Buffer {
+pub struct Buffer {
     rope: Rope,
     version: u64,
     saved_version: u64,
@@ -58,7 +58,7 @@ pub(crate) struct Buffer {
 }
 
 impl Buffer {
-    pub(crate) fn from_text(text: &str) -> Self {
+    pub fn from_text(text: &str) -> Self {
         Self {
             rope: Rope::from_str(text),
             version: 0,
@@ -77,26 +77,26 @@ impl Buffer {
 
     /// A locked copy of text that has no file (the defaults of a config file whose
     /// folder is not writable). It can be read and copied from, not edited or saved.
-    pub(crate) fn defaults_copy(text: &str, title: impl Into<String>) -> Self {
+    pub fn defaults_copy(text: &str, title: impl Into<String>) -> Self {
         let mut buffer = Self::from_text(text);
         buffer.read_only = true;
         buffer.title = Some(title.into());
         buffer
     }
 
-    pub(crate) fn title(&self) -> Option<&str> {
+    pub fn title(&self) -> Option<&str> {
         self.title.as_deref()
     }
 
     /// Locks the text against edits, or unlocks it. Undo and redo are not edits
     /// in this sense: they only take back or bring back what was typed.
-    pub(crate) fn set_read_only(&mut self, read_only: bool) {
+    pub fn set_read_only(&mut self, read_only: bool) {
         self.read_only = read_only;
     }
 
     /// Makes the lock follow the file's permissions, and says whether it is on.
     /// A buffer with no file keeps the lock it has.
-    pub(crate) fn sync_read_only(&mut self) -> bool {
+    pub fn sync_read_only(&mut self) -> bool {
         if self.path.is_some() {
             self.read_only = (self.file_is_read_only() && !self.unlocked) || self.locked;
         }
@@ -104,7 +104,7 @@ impl Buffer {
     }
 
     /// Locks the text for good, whatever the file's permissions say.
-    pub(crate) fn lock(&mut self) {
+    pub fn lock(&mut self) {
         self.locked = true;
         self.read_only = true;
     }
@@ -112,7 +112,7 @@ impl Buffer {
     /// Lets the text of a file that is read-only to the user be edited, which
     /// saving then needs root for. A buffer the app locked stays locked. Whether
     /// the text can be edited now.
-    pub(crate) fn unlock_for_root(&mut self) -> bool {
+    pub fn unlock_for_root(&mut self) -> bool {
         if self.locked {
             return false;
         }
@@ -124,7 +124,7 @@ impl Buffer {
     /// The text was written to the file by someone else on the buffer's behalf
     /// (a save as root): the file holds `text` now, and the buffer is saved when
     /// nothing changed since `version`.
-    pub(crate) fn wrote_elsewhere(&mut self, text: &str, version: u64) {
+    pub fn wrote_elsewhere(&mut self, text: &str, version: u64) {
         self.disk = Disk::Content(file::fingerprint(text.as_bytes()));
         if self.version == version {
             self.saved_version = self.version;
@@ -132,35 +132,35 @@ impl Buffer {
     }
 
     /// Whether the app locked it (see [`Buffer::lock`]).
-    pub(crate) fn is_locked(&self) -> bool {
+    pub fn is_locked(&self) -> bool {
         self.locked
     }
 
-    pub(crate) fn is_read_only(&self) -> bool {
+    pub fn is_read_only(&self) -> bool {
         self.read_only
     }
 
     /// Increases on every change, so cached results can tell they are stale.
-    pub(crate) fn version(&self) -> u64 {
+    pub fn version(&self) -> u64 {
         self.version
     }
 
-    pub(crate) fn line_ending(&self) -> LineEnding {
+    pub fn line_ending(&self) -> LineEnding {
         self.line_ending
     }
 
-    pub(crate) fn path(&self) -> Option<&Path> {
+    pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 
     /// Whether the text differs from what was last opened or saved. Undoing
     /// back to the saved text still counts as modified.
-    pub(crate) fn is_dirty(&self) -> bool {
+    pub fn is_dirty(&self) -> bool {
         self.version != self.saved_version
     }
 
     /// The text in the byte range `range`.
-    pub(crate) fn text_in(&self, range: std::ops::Range<usize>) -> Result<String, BufferError> {
+    pub fn text_in(&self, range: std::ops::Range<usize>) -> Result<String, BufferError> {
         self.check_range(range.start, range.end)?;
         let start = self.rope.byte_to_char(range.start);
         let end = self.rope.byte_to_char(range.end);
@@ -168,14 +168,14 @@ impl Buffer {
     }
 
     /// `position` moved to the nearest place that exists in the text.
-    pub(crate) fn clamp_position(&self, position: Position) -> Position {
+    pub fn clamp_position(&self, position: Position) -> Position {
         let line = position.line.min(self.len_lines() - 1);
         let column = position.column.min(self.line_len(line).unwrap_or(0));
         Position::new(line, column)
     }
 
     /// Number of grapheme columns in `line`, not counting its line break.
-    pub(crate) fn line_len(&self, line: usize) -> Result<usize, BufferError> {
+    pub fn line_len(&self, line: usize) -> Result<usize, BufferError> {
         if let Some(len) = self.ascii_line_len(line) {
             return Ok(len);
         }
@@ -200,30 +200,29 @@ impl Buffer {
         Some(len - line_break)
     }
 
-    #[cfg(test)]
-    pub(crate) fn len_bytes(&self) -> usize {
+    pub fn len_bytes(&self) -> usize {
         self.rope.len_bytes()
     }
 
     /// Number of lines. An empty buffer has one empty line, and a trailing
     /// line break starts a new empty line.
-    pub(crate) fn len_lines(&self) -> usize {
+    pub fn len_lines(&self) -> usize {
         self.rope.len_lines()
     }
 
-    pub(crate) fn text(&self) -> String {
+    pub fn text(&self) -> String {
         self.rope.to_string()
     }
 
     /// The text as it is now, for work on another thread. Cheap: ropes share
     /// their contents, so later edits do not show in the copy.
-    pub(crate) fn snapshot(&self) -> Rope {
+    pub fn snapshot(&self) -> Rope {
         self.rope.clone()
     }
 
     /// Byte offset where `line` starts; the end of the text for a line past
     /// the last.
-    pub(crate) fn line_start_byte(&self, line: usize) -> usize {
+    pub fn line_start_byte(&self, line: usize) -> usize {
         self.rope.line_to_byte(line.min(self.rope.len_lines()))
     }
 
@@ -264,13 +263,13 @@ impl Buffer {
     /// against the text left by the one before. Undo and redo are included.
     /// Whoever keeps positions into this buffer (other views) replays them to
     /// keep those positions pointing at the same text.
-    pub(crate) fn take_edit_log(&mut self) -> Vec<EditInfo> {
+    pub fn take_edit_log(&mut self) -> Vec<EditInfo> {
         std::mem::take(&mut self.edit_log)
     }
 
     /// Byte offset of `position`. A column equal to the line's grapheme count
     /// is valid and points just before the line break.
-    pub(crate) fn position_to_byte(&self, position: Position) -> Result<usize, BufferError> {
+    pub fn position_to_byte(&self, position: Position) -> Result<usize, BufferError> {
         let line_start = self.line_start(position.line)?;
         if let Some(columns) = self.ascii_line_len(position.line) {
             if position.column > columns {
@@ -303,7 +302,7 @@ impl Buffer {
     /// Position of `byte`. A byte inside a grapheme cluster maps to the start
     /// of that cluster, and a byte inside a line break maps to the end of
     /// its line.
-    pub(crate) fn byte_to_position(&self, byte: usize) -> Result<Position, BufferError> {
+    pub fn byte_to_position(&self, byte: usize) -> Result<Position, BufferError> {
         self.check_boundary(byte)?;
 
         let line = self.rope.byte_to_line(byte);
@@ -357,7 +356,7 @@ impl Buffer {
     }
 
     /// Text of `line` without its line break.
-    pub(crate) fn line_content(&self, line: usize) -> Result<Cow<'_, str>, BufferError> {
+    pub fn line_content(&self, line: usize) -> Result<Cow<'_, str>, BufferError> {
         let lines = self.rope.len_lines();
         let Some(slice) = self.rope.get_line(line) else {
             return Err(BufferError::LineOutOfBounds { line, lines });

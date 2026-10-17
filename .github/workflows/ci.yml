@@ -30,14 +30,14 @@ jobs:
       # Formatting does not depend on the system.
       - name: Format
         if: matrix.os == 'ubuntu-latest'
-        run: cargo fmt --check
+        run: cargo fmt --all --check
       # Clippy lints the code of the system it runs on: Ubuntu covers the Unix code and
       # Windows its own; macOS only runs the tests.
       - name: Clippy
         if: matrix.os != 'macos-latest'
-        run: cargo clippy --all-targets
+        run: cargo clippy --workspace --all-targets
       # nextest kills a test that hangs (see .config/nextest.toml) and lists every
       # failure at the end, so one stuck terminal test cannot hold up the run.
       - name: Test
         timeout-minutes: 10
-        run: cargo nextest run --no-fail-fast
+        run: cargo nextest run --workspace --no-fail-fast

@@ -87,7 +87,7 @@ fn a_click_selects_the_row_under_it_only_when_there_is_one() {
 #[test]
 fn the_rows_sort_errors_first_then_by_file_and_place() {
     let row = |file: &str, line: usize, severity| ErrorRow {
-        document: crate::ids::DocumentId::for_test(0),
+        document: crate::ids::DocumentId::new(0),
         file: file.to_owned(),
         position: Position::new(line, 0),
         severity,

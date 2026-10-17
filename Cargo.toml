@@ -1,10 +1,29 @@
-[package]
-name = "terminal_code"
+[workspace]
+members = [".", "crates/*"]
+resolver = "3"
+
+[workspace.package]
 version = "0.6.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 authors = ["Tim Kieboom"]
+
+[workspace.dependencies]
+ropey = { version = "1.6.1", default-features = false, features = ["simd"] }
+thiserror = "2.0.21"
+unicode-segmentation = "1.13.3"
+proptest = "1.11.0"
+tempfile = "3.27.0"
+trcode-ids = { path = "crates/ids" }
+trcode-buffer = { path = "crates/buffer" }
+
+[package]
+name = "terminal_code"
 description = "A lightweight, keyboard-driven IDE for the terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
 
 [[bin]]
 name = "trcode"
@@ -21,13 +40,13 @@ ignore = "0.4.33"
 futures = "0.3.34"
 ratatui = "0.30.2"
 renamore = "0.3.2"
-thiserror = "2.0.21"
+thiserror.workspace = true
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
 unicode-width = "0.2.2"
 grep-searcher = "0.1.17"
 terminal-colorsaurus = "1.0.3"
-unicode-segmentation = "1.13.3"
+unicode-segmentation.workspace = true
 notify-debouncer-mini = "0.7.0"
 serde = { version = "1.0.229", features = ["derive"] }
 crossterm = { version = "0.29.0", features = ["event-stream"] }
@@ -39,7 +58,9 @@ tree-sitter-md = "0.5.3"
 tree-sitter-nix = "0.3.0"
 portable-pty = "0.9.0"
 vt100 = "0.16.2"
-ropey = { version = "1.6.1", default-features = false, features = ["simd"] }
+ropey.workspace = true
+trcode-ids.workspace = true
+trcode-buffer.workspace = true
 tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "sync", "time"] }
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 serde_json = "1.0.154"
@@ -48,5 +69,5 @@ serde_json = "1.0.154"
 libc = "0.2"
 
 [dev-dependencies]
-proptest = "1.11.0"
-tempfile = "3.27.0"
+proptest.workspace = true
+tempfile.workspace = true

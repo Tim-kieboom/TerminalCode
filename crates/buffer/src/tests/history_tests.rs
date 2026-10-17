@@ -1,7 +1,7 @@
-use crate::buffer::Buffer;
-use crate::buffer::edit::Edit;
-use crate::buffer::position::Position;
-use crate::buffer::selection::{Selection, Selections};
+use crate::Buffer;
+use crate::edit::Edit;
+use crate::position::Position;
+use crate::selection::{Selection, Selections};
 
 fn cursor(line: usize, column: usize) -> Selections {
     Selections::single(Selection::cursor(Position::new(line, column)))
@@ -245,7 +245,7 @@ fn rolled_back_transaction_leaves_a_modified_buffer_modified() {
 
 #[test]
 fn a_locked_buffer_refuses_every_edit_and_stays_as_it_was() {
-    use crate::buffer::BufferError;
+    use crate::BufferError;
     let mut buffer = Buffer::from_text("abc");
     buffer.set_read_only(true);
 

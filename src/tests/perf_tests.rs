@@ -433,7 +433,7 @@ fn telling_a_server_about_an_edit_in_ten_megabytes() {
         root: std::path::PathBuf::from("/p"),
     };
     let snapshot = |text: &str, version| DocSnapshot {
-        id: DocumentId::for_test(1),
+        id: DocumentId::new(1),
         uri: "file:///p/big.rs".to_owned(),
         language_id: "rust".to_owned(),
         text: ropey::Rope::from_str(text),

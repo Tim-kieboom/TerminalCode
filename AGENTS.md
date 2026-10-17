@@ -24,11 +24,11 @@ If a requested implementation conflicts with the coding guidelines, explain the 
 ## Commands
 
 - Build: `cargo build`
-- Fast compile check: `cargo check`
-- Lint: `cargo clippy` (use `--all-targets` to also lint test code)
-- Format: `cargo fmt` (verify with `cargo fmt --check`)
+- Fast compile check: `cargo check --workspace`
+- Lint: `cargo clippy --workspace` (use `--all-targets` to also lint test code)
+- Format: `cargo fmt --all` (verify with `cargo fmt --all --check`)
 - Run: `cargo run`
-- Test: `cargo test`
+- Test: `cargo test --workspace` (plain `cargo test` only tests the `trcode` package, not the crates in `crates/`)
 
 ## Notes
 
@@ -36,4 +36,4 @@ If a requested implementation conflicts with the coding guidelines, explain the 
 - **`docs/design.md`** should be the design document
 - `cargo build` fails to link while `trcode.exe` is running. Stop the application before rebuilding.
 - Unit tests live in sibling `tests.rs` files (`#[cfg(test)] mod tests;`), per the coding guidelines.
-- `lib/vecmap` is a separate crate with its own tests; run them with `cargo test` inside `lib/vecmap`.
+- The repository is a Cargo workspace: the editor is the root package, and the leaf crates it is built from are in `crates/` (`trcode-ids`, `trcode-buffer`, more as they are split out). A crate depends only on crates below it; see "Workspace" in `docs/design.md`.

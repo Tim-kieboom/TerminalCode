@@ -24,7 +24,7 @@ fn diagnostic(start: usize, end: usize, severity: Severity) -> Diagnostic {
 }
 
 fn doc(number: u32) -> DocumentId {
-    DocumentId::for_test(number)
+    DocumentId::new(number)
 }
 
 // ---- reading what a server published

@@ -41,7 +41,7 @@ pub(super) enum Disk {
 
 /// How the file on disk now differs from what the buffer last read or wrote.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DiskChange {
+pub enum DiskChange {
     /// Someone else changed the contents (the hash identifies this state, so
     /// the same change is recognized again).
     Modified(u64),
@@ -65,7 +65,7 @@ impl FileError {
 
 impl Buffer {
     /// Reads a UTF-8 file into a clean buffer.
-    pub(crate) fn open(path: impl Into<PathBuf>) -> Result<Self, FileError> {
+    pub fn open(path: impl Into<PathBuf>) -> Result<Self, FileError> {
         let path = path.into();
         let bytes = fs::read(&path).map_err(|source| FileError::io(&path, source))?;
         let disk = Disk::Content(fingerprint(&bytes));
@@ -81,7 +81,7 @@ impl Buffer {
 
     /// Like [`Buffer::open`], but a missing file gives an empty buffer that
     /// will create the file when saved.
-    pub(crate) fn open_or_new(path: impl Into<PathBuf>) -> Result<Self, FileError> {
+    pub fn open_or_new(path: impl Into<PathBuf>) -> Result<Self, FileError> {
         let path = path.into();
         match Self::open(&path) {
             Err(FileError::Io { source, .. }) if source.kind() == io::ErrorKind::NotFound => {
@@ -96,12 +96,12 @@ impl Buffer {
     }
 
     /// Whether the file exists and is read-only, as the file system says now.
-    pub(crate) fn file_is_read_only(&self) -> bool {
+    pub fn file_is_read_only(&self) -> bool {
         self.path.as_deref().and_then(read_only).is_some()
     }
 
     /// The error saving would give because the file is read-only.
-    pub(crate) fn read_only_error(&self) -> Option<FileError> {
+    pub fn read_only_error(&self) -> Option<FileError> {
         let path = self.path.as_deref()?;
         match self.locked {
             true => Some(FileError::ReadOnly {
@@ -112,14 +112,14 @@ impl Buffer {
     }
 
     /// The error saving would give because the folder of the file is gone.
-    pub(crate) fn folder_gone(&self) -> Option<FileError> {
+    pub fn folder_gone(&self) -> Option<FileError> {
         folder_gone(self.path.as_deref()?)
     }
 
     /// Whether someone else changed the file since the buffer last read or
     /// wrote it. A buffer with no file, or one never tied to a file, has
     /// nothing to compare with.
-    pub(crate) fn disk_change(&self) -> Result<Option<DiskChange>, FileError> {
+    pub fn disk_change(&self) -> Result<Option<DiskChange>, FileError> {
         let Some(path) = &self.path else {
             return Ok(None);
         };
@@ -145,7 +145,7 @@ impl Buffer {
     /// Replaces the text with what is on disk and forgets the undo history,
     /// which no longer describes the text. The buffer is clean afterwards.
     /// Positions into the old text are the caller's to fix up.
-    pub(crate) fn reload(&mut self) -> Result<(), FileError> {
+    pub fn reload(&mut self) -> Result<(), FileError> {
         let Some(path) = self.path.clone() else {
             return Err(FileError::NoPath);
         };
@@ -167,12 +167,12 @@ impl Buffer {
 
     /// Makes `path` the file this buffer belongs to, because the file was moved
     /// there. The text and what the buffer knows of the disk stay as they are.
-    pub(crate) fn set_path(&mut self, path: PathBuf) {
+    pub fn set_path(&mut self, path: PathBuf) {
         self.path = Some(path);
     }
 
     /// Writes the buffer to its own path.
-    pub(crate) fn save(&mut self) -> Result<(), FileError> {
+    pub fn save(&mut self) -> Result<(), FileError> {
         let Some(path) = self.path.clone() else {
             return Err(FileError::NoPath);
         };
@@ -182,7 +182,7 @@ impl Buffer {
     /// Writes the buffer to `path` and makes that its path. The write goes to
     /// a temporary file that replaces the target, so a failure never leaves a
     /// half-written file.
-    pub(crate) fn save_as(&mut self, path: impl Into<PathBuf>) -> Result<(), FileError> {
+    pub fn save_as(&mut self, path: impl Into<PathBuf>) -> Result<(), FileError> {
         let path = path.into();
         let text = self.text();
         write_atomic(&path, &text)?;

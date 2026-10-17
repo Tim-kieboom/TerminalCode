@@ -4,7 +4,7 @@ use super::{Change, JumpList, LIMIT, Place};
 use crate::ids::DocumentId;
 
 fn doc(number: u32) -> DocumentId {
-    DocumentId::for_test(number)
+    DocumentId::new(number)
 }
 
 fn place(document: u32, byte: usize) -> Place {

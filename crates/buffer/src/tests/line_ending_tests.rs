@@ -1,5 +1,5 @@
-use crate::buffer::Buffer;
-use crate::buffer::line_ending::LineEnding;
+use crate::Buffer;
+use crate::line_ending::LineEnding;
 
 #[test]
 fn text_without_line_breaks_is_lf() {

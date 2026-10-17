@@ -1,5 +1,5 @@
-use crate::buffer::position::Position;
-use crate::buffer::selection::{Selection, Selections};
+use crate::position::Position;
+use crate::selection::{Selection, Selections};
 
 #[test]
 fn cursor_is_an_empty_selection() {

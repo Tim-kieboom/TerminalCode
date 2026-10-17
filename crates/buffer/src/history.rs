@@ -25,7 +25,7 @@ pub(super) struct History {
 ///
 /// Dropping it without calling [`Transaction::commit`] rolls the edits back.
 #[derive(Debug)]
-pub(crate) struct Transaction<'a> {
+pub struct Transaction<'a> {
     buffer: &'a mut Buffer,
     record: Option<Record>,
     /// Whether the text matched the disk when the transaction began.
@@ -34,11 +34,11 @@ pub(crate) struct Transaction<'a> {
 
 impl Transaction<'_> {
     /// The buffer as it is after the edits applied so far.
-    pub(crate) fn buffer(&self) -> &Buffer {
+    pub fn buffer(&self) -> &Buffer {
         self.buffer
     }
 
-    pub(crate) fn apply(&mut self, edit: &Edit) -> Result<(), BufferError> {
+    pub fn apply(&mut self, edit: &Edit) -> Result<(), BufferError> {
         if self.buffer.read_only {
             return Err(BufferError::ReadOnly);
         }
@@ -52,7 +52,7 @@ impl Transaction<'_> {
 
     /// Ends the transaction as one undo step. A transaction without edits
     /// leaves no step behind.
-    pub(crate) fn commit(mut self, after: Selections) {
+    pub fn commit(mut self, after: Selections) {
         let Some(mut record) = self.record.take() else {
             return;
         };
@@ -82,7 +82,7 @@ impl Drop for Transaction<'_> {
 }
 
 impl Buffer {
-    pub(crate) fn begin_transaction(&mut self, before: Selections) -> Transaction<'_> {
+    pub fn begin_transaction(&mut self, before: Selections) -> Transaction<'_> {
         let was_clean = !self.is_dirty();
         Transaction {
             buffer: self,
@@ -99,7 +99,7 @@ impl Buffer {
     /// Joins the two most recent steps into one, so a single undo reverts
     /// both. Used to group a burst of typing. Does nothing with fewer than
     /// two steps.
-    pub(crate) fn merge_last_two_steps(&mut self) {
+    pub fn merge_last_two_steps(&mut self) {
         if self.history.undo.len() < 2 {
             return;
         }
@@ -120,7 +120,7 @@ impl Buffer {
 
     /// Reverts the latest step. Returns the selections from before it, or
     /// `None` when there is nothing to undo.
-    pub(crate) fn undo(&mut self) -> Result<Option<Selections>, BufferError> {
+    pub fn undo(&mut self) -> Result<Option<Selections>, BufferError> {
         let Some(record) = self.history.undo.pop() else {
             return Ok(None);
         };
@@ -132,7 +132,7 @@ impl Buffer {
 
     /// Re-applies the latest undone step. Returns the selections from after
     /// it, or `None` when there is nothing to redo.
-    pub(crate) fn redo(&mut self) -> Result<Option<Selections>, BufferError> {
+    pub fn redo(&mut self) -> Result<Option<Selections>, BufferError> {
         let Some(record) = self.history.redo.pop() else {
             return Ok(None);
         };

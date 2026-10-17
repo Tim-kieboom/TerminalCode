@@ -13,7 +13,8 @@ use crate::files::watcher::FsWatcher;
 use crate::terminal::Capabilities;
 
 mod app;
-mod buffer;
+use trcode_buffer as buffer;
+use trcode_ids as ids;
 mod cli;
 mod clipboard;
 mod components;
@@ -21,7 +22,6 @@ mod config;
 pub mod error;
 mod event;
 mod files;
-mod ids;
 #[allow(
     dead_code,
     reason = "the jump list is wired into the app in the next step"

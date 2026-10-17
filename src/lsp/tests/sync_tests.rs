@@ -17,7 +17,7 @@ fn key(name: &str) -> ServerKey {
 
 fn doc(id: u32, uri: &str, text: &str, version: u64, saves: u64) -> DocSnapshot {
     DocSnapshot {
-        id: DocumentId::for_test(id),
+        id: DocumentId::new(id),
         uri: uri.to_owned(),
         language_id: "rust".to_owned(),
         text: Rope::from_str(text),
@@ -312,7 +312,7 @@ fn point(line: u32, character: u32) -> LspPosition {
 fn a_change_is_reported_with_its_bytes_and_an_open_is_a_reset() {
     let mut sync = DocumentSync::default();
     let opened = sync.update(&key("rust"), 1, &[doc(1, A, "hello world", 0, 0)]);
-    assert_eq!(opened.resets, [DocumentId::for_test(1)]);
+    assert_eq!(opened.resets, [DocumentId::new(1)]);
     assert!(opened.changes.is_empty());
 
     let typed = sync.update(&key("rust"), 1, &[doc(1, A, "hello big world", 1, 0)]);
@@ -320,7 +320,7 @@ fn a_change_is_reported_with_its_bytes_and_an_open_is_a_reset() {
     assert!(typed.resets.is_empty());
     assert_eq!(typed.changes.len(), 1);
     let (id, change) = typed.changes[0];
-    assert_eq!(id, DocumentId::for_test(1));
+    assert_eq!(id, DocumentId::new(1));
     assert_eq!((change.start, change.old_end, change.new_end), (6, 6, 10));
 }
 
@@ -334,10 +334,10 @@ fn a_document_that_is_closed_or_served_by_a_restarted_server_is_a_reset() {
     );
 
     let closed = sync.update(&key("rust"), 1, &[doc(2, B, "b", 0, 0)]);
-    assert_eq!(closed.resets, [DocumentId::for_test(1)]);
+    assert_eq!(closed.resets, [DocumentId::new(1)]);
 
     let restarted = sync.update(&key("rust"), 2, &[doc(2, B, "b", 0, 0)]);
-    assert!(restarted.resets.contains(&DocumentId::for_test(2)));
+    assert!(restarted.resets.contains(&DocumentId::new(2)));
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn a_text_read_again_from_the_file_is_a_reset_and_not_a_change_to_follow() {
         ["textDocument/didChange"],
         "the server is still told"
     );
-    assert_eq!(output.resets, [DocumentId::for_test(1)]);
+    assert_eq!(output.resets, [DocumentId::new(1)]);
     assert!(output.changes.is_empty());
 }
 
@@ -368,7 +368,7 @@ fn a_reload_to_the_same_text_is_still_a_reset() {
     let output = sync.update(&key("rust"), 1, &[reloaded]);
 
     assert!(output.messages.is_empty());
-    assert_eq!(output.resets, [DocumentId::for_test(1)]);
+    assert_eq!(output.resets, [DocumentId::new(1)]);
 }
 
 #[test]
@@ -379,7 +379,7 @@ fn positions_in_the_latest_text_are_bytes_of_it() {
     let placed = sync
         .ranges_in_told_text(
             &key("rust"),
-            DocumentId::for_test(1),
+            DocumentId::new(1),
             None,
             &[(point(0, 3), point(0, 7))],
         )
@@ -403,7 +403,7 @@ fn positions_in_an_older_text_are_moved_through_the_changes_sent_since() {
     let placed = sync
         .ranges_in_told_text(
             &key("rust"),
-            DocumentId::for_test(1),
+            DocumentId::new(1),
             Some(0),
             &[(point(0, 3), point(0, 7))],
         )
@@ -434,7 +434,7 @@ fn a_range_a_later_change_took_is_none_and_the_others_stay() {
     let placed = sync
         .ranges_in_told_text(
             &key("rust"),
-            DocumentId::for_test(1),
+            DocumentId::new(1),
             Some(0),
             &[(point(0, 4), point(0, 7)), (point(1, 4), point(1, 7))],
         )
@@ -451,19 +451,19 @@ fn an_answer_about_a_version_that_is_not_kept_gives_nothing() {
     sync.update(&key("rust"), 1, &[at_version(1, "a", 5)]);
 
     assert!(
-        sync.ranges_in_told_text(&key("rust"), DocumentId::for_test(1), Some(4), &[])
+        sync.ranges_in_told_text(&key("rust"), DocumentId::new(1), Some(4), &[])
             .is_none()
     );
     assert!(
-        sync.ranges_in_told_text(&key("rust"), DocumentId::for_test(1), Some(6), &[])
+        sync.ranges_in_told_text(&key("rust"), DocumentId::new(1), Some(6), &[])
             .is_none()
     );
     assert!(
-        sync.ranges_in_told_text(&key("rust"), DocumentId::for_test(9), None, &[])
+        sync.ranges_in_told_text(&key("rust"), DocumentId::new(9), None, &[])
             .is_none()
     );
     assert!(
-        sync.ranges_in_told_text(&key("other"), DocumentId::for_test(1), None, &[])
+        sync.ranges_in_told_text(&key("other"), DocumentId::new(1), None, &[])
             .is_none()
     );
 }
@@ -478,8 +478,8 @@ fn only_so_many_old_versions_are_kept() {
         sync.update(&key("rust"), 1, &[at_version(1, &text, version)]);
     }
 
-    let old = sync.ranges_in_told_text(&key("rust"), DocumentId::for_test(1), Some(0), &[]);
-    let recent = sync.ranges_in_told_text(&key("rust"), DocumentId::for_test(1), Some(30), &[]);
+    let old = sync.ranges_in_told_text(&key("rust"), DocumentId::new(1), Some(0), &[]);
+    let recent = sync.ranges_in_told_text(&key("rust"), DocumentId::new(1), Some(30), &[]);
 
     assert!(old.is_none(), "version 0 is too old to be kept");
     assert!(recent.is_some());
@@ -494,7 +494,7 @@ fn a_version_that_moved_without_a_change_still_finds_the_last_text_sent() {
 
     let placed = sync.ranges_in_told_text(
         &key("rust"),
-        DocumentId::for_test(1),
+        DocumentId::new(1),
         Some(3),
         &[(point(0, 1), point(0, 2))],
     );
@@ -508,7 +508,7 @@ fn a_server_that_is_dropped_gives_back_the_documents_it_had() {
     sync.update(&key("rust"), 1, &[at_version(1, "a", 0)]);
 
     assert_eq!(sync.servers(), [key("rust")]);
-    assert_eq!(sync.drop_server(&key("rust")), [DocumentId::for_test(1)]);
+    assert_eq!(sync.drop_server(&key("rust")), [DocumentId::new(1)]);
     assert!(sync.servers().is_empty());
     assert!(sync.drop_server(&key("rust")).is_empty());
 }
