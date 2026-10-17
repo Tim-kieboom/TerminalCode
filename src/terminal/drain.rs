@@ -10,6 +10,7 @@ use std::time::{Duration, Instant};
 const ANSWER: &[u8] = b"\x1b[0n";
 
 /// How long to wait for the answer. A terminal that never answers costs this much once.
+#[cfg(unix)]
 pub(super) const TIMEOUT: Duration = Duration::from_millis(50);
 
 /// Where the terminal's bytes come from.
