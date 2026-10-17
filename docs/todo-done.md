@@ -155,6 +155,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.6.1
 - [x] Version 0.6.1 (after 0.6.0: a crate nested below the project that the outer `Cargo.toml` does not take in now gets its own rust-analyzer root and is checked, "LSP: Show Server of This File", the quit handshake that stops stray mouse reports at the shell prompt, the right highlight for two suggestions with one name, and no timing limits in the flood tests). Changes to know when upgrading: none
+- [x] Tag `v0.6.1` (tagged on 7c78e73; CI green on Linux, macOS and Windows, after three tests that failed in the first run on the version commit were fixed; the release run built Linux, macOS and Windows archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
