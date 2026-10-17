@@ -7,9 +7,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # Line numbers for a failing test's backtrace, without the rest of the debug info:
-  # it makes the build, the link and the cache smaller.
-  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # No debug info: it makes the build, the link (a debug-info file per test binary on
+  # Windows) and the cache smaller. A failing assertion still names its file and line.
+  CARGO_PROFILE_DEV_DEBUG: 0
 
 jobs:
   check:
