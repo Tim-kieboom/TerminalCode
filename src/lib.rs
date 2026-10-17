@@ -18,6 +18,7 @@ use trcode_files as files;
 use trcode_ids as ids;
 use trcode_lsp as lsp;
 use trcode_pty as pty;
+use trcode_syntax as syntax;
 mod cli;
 mod clipboard;
 mod components;
@@ -33,7 +34,6 @@ mod keymap;
 mod persist;
 mod settings;
 mod startup;
-mod syntax;
 pub mod terminal;
 #[cfg(test)]
 mod tests;

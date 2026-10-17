@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::syntax::merge_ranges;
+use crate::merge_ranges;
 
 #[test]
 fn overlapping_and_touching_ranges_are_joined() {

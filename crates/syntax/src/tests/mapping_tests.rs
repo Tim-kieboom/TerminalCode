@@ -1,12 +1,12 @@
 use ratatui::style::Style;
 
-use crate::buffer::{Buffer, Edit};
-use crate::syntax::Span;
-use crate::syntax::mapping::map_spans;
+use crate::Span;
+use crate::mapping::map_spans;
+use trcode_buffer::{Buffer, Edit};
 
 /// The `EditInfo` of replacing `range` of `text` with `with`, as the buffer
 /// reports it.
-fn edit_info(text: &str, range: std::ops::Range<usize>, with: &str) -> crate::buffer::EditInfo {
+fn edit_info(text: &str, range: std::ops::Range<usize>, with: &str) -> trcode_buffer::EditInfo {
     let mut buffer = Buffer::from_text(text);
     let mut transaction = buffer.begin_transaction(Default::default());
     transaction.apply(&Edit::new(range, with)).unwrap();

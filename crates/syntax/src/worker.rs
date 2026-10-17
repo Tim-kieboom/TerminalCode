@@ -12,32 +12,32 @@ use std::thread;
 use ropey::Rope;
 
 use super::{Highlighter, Language, Span};
-use crate::buffer::EditInfo;
-use crate::ui::theme::Theme;
+use crate::captures::CaptureStyles;
+use trcode_buffer::EditInfo;
 
 /// Tells jobs of different documents apart.
-pub(crate) type Key = u64;
+pub type Key = u64;
 
 /// What the worker is asked to do for one document.
 #[derive(Debug, Clone)]
-pub(crate) struct Job {
-    pub(crate) key: Key,
-    pub(crate) language: Language,
+pub struct Job {
+    pub key: Key,
+    pub language: Language,
     /// The text, a cheap copy of the buffer's rope.
-    pub(crate) text: Rope,
+    pub text: Rope,
     /// The buffer version of `text`.
-    pub(crate) version: u64,
+    pub version: u64,
     /// The version the previous job for this document had, if there was one,
     /// and the edits that lead from it to `version`.
-    pub(crate) base: Option<u64>,
-    pub(crate) edits: Vec<EditInfo>,
+    pub base: Option<u64>,
+    pub edits: Vec<EditInfo>,
     /// The byte ranges to produce spans for.
-    pub(crate) ranges: Vec<Range<usize>>,
+    pub ranges: Vec<Range<usize>>,
 }
 
 /// How the worker got its tree for a job.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Parse {
+pub enum Parse {
     /// The text was         && entry.parsed.and_then(|parsed| job.version.checked_sub(parsed)) == Some(job.edits.len() as u64) from scratch.
     Full,
     /// The old tree was updated with the edits and reparsed.
@@ -48,19 +48,19 @@ pub(crate) enum Parse {
 
 /// What the worker found, for the app loop to show.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Output {
-    pub(crate) key: Key,
+pub struct Output {
+    pub key: Key,
     /// The buffer version the spans belong to.
-    pub(crate) version: u64,
-    pub(crate) spans: Vec<Span>,
-    pub(crate) parse: Parse,
+    pub version: u64,
+    pub spans: Vec<Span>,
+    pub parse: Parse,
     /// Set when the document could not be highlighted at all.
-    pub(crate) failure: Option<String>,
+    pub failure: Option<String>,
 }
 
 /// Starts parsing on its own thread and sends every result to `deliver`.
 /// Dropping the worker stops the thread once its current job is done.
-pub(crate) struct SyntaxWorker {
+pub struct SyntaxWorker {
     shared: Arc<Shared>,
 }
 
@@ -86,7 +86,10 @@ struct Queue {
 }
 
 impl SyntaxWorker {
-    pub(crate) fn spawn(theme: Theme, deliver: impl Fn(Output) + Send + 'static) -> Self {
+    pub fn spawn(
+        theme: impl CaptureStyles + Send + 'static,
+        deliver: impl Fn(Output) + Send + 'static,
+    ) -> Self {
         let shared = Arc::new(Shared::default());
         let worker = Arc::clone(&shared);
         thread::spawn(move || run(&worker, &theme, &deliver));
@@ -95,7 +98,7 @@ impl SyntaxWorker {
 
     /// Asks for spans. A job for the same document that has not started yet is
     /// replaced by this one, which takes over its edits.
-    pub(crate) fn submit(&self, job: Job) {
+    pub fn submit(&self, job: Job) {
         let mut queue = self.shared.lock();
         let job = match queue.jobs.remove(&job.key) {
             Some(older) => coalesce(older, job),
@@ -106,7 +109,7 @@ impl SyntaxWorker {
     }
 
     /// The document is gone; drop what is kept for it.
-    pub(crate) fn forget(&self, key: Key) {
+    pub fn forget(&self, key: Key) {
         let mut queue = self.shared.lock();
         queue.jobs.remove(&key);
         queue.forgotten.push(key);
@@ -158,7 +161,7 @@ struct Kept {
     parsed: Option<u64>,
 }
 
-fn run(shared: &Shared, theme: &Theme, deliver: &impl Fn(Output)) {
+fn run(shared: &Shared, theme: &impl CaptureStyles, deliver: &impl Fn(Output)) {
     let mut kept: HashMap<Key, Kept> = HashMap::new();
     loop {
         let job = {
@@ -185,7 +188,7 @@ fn run(shared: &Shared, theme: &Theme, deliver: &impl Fn(Output)) {
     }
 }
 
-fn process(kept: &mut HashMap<Key, Kept>, theme: &Theme, job: Job) -> Output {
+fn process(kept: &mut HashMap<Key, Kept>, theme: &impl CaptureStyles, job: Job) -> Output {
     let key = job.key;
     let failed = |message: String| Output {
         key,

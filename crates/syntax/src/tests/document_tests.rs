@@ -5,11 +5,11 @@ use std::time::Duration;
 
 use ratatui::style::Color;
 
-use crate::buffer::{Buffer, Edit};
-use crate::syntax::document::Parses;
-use crate::syntax::worker::{Output, Parse};
-use crate::syntax::{DocumentSyntax, SyntaxWorker};
-use crate::ui::theme::Theme;
+use super::TestTheme as Theme;
+use crate::document::Parses;
+use crate::worker::{Output, Parse};
+use crate::{DocumentSyntax, SyntaxWorker};
+use trcode_buffer::{Buffer, Edit};
 
 /// A list of just one range.
 fn one(range: Range<usize>) -> Vec<Range<usize>> {
@@ -17,7 +17,7 @@ fn one(range: Range<usize>) -> Vec<Range<usize>> {
 }
 
 fn theme() -> Theme {
-    Theme::from_toml("[\"syntax.keyword\"]\ntext = \"red\"\n").unwrap()
+    Theme::from_toml("[\"syntax.keyword\"]\ntext = \"red\"\n")
 }
 
 /// A document, its syntax and a real worker, with the worker's answers

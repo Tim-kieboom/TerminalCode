@@ -10,16 +10,16 @@ use tree_sitter::{
 };
 
 use super::{Language, SyntaxError};
-use crate::buffer::EditInfo;
-use crate::ui::theme::Theme;
+use crate::captures::CaptureStyles;
+use trcode_buffer::EditInfo;
 
 /// A stretch of text and how to draw it. The spans of one query never
 /// overlap and are ordered by position; text without a span is drawn plain.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Span {
+pub struct Span {
     /// Byte offsets into the text.
-    pub(crate) range: Range<usize>,
-    pub(crate) style: Style,
+    pub range: Range<usize>,
+    pub style: Style,
 }
 
 /// Parses text in one language and says which parts of it to color.
@@ -28,7 +28,7 @@ pub(crate) struct Span {
 /// the highlighter is made, so a changed theme needs a new highlighter.
 /// Captures the theme has no style for are left out, and the span of the
 /// capture around them shows through.
-pub(crate) struct Highlighter {
+pub struct Highlighter {
     language: Language,
     parser: Parser,
     query: Query,
@@ -58,7 +58,7 @@ impl std::fmt::Debug for Highlighter {
 }
 
 impl Highlighter {
-    pub(crate) fn new(language: Language, theme: &Theme) -> Result<Self, SyntaxError> {
+    pub fn new(language: Language, theme: &impl CaptureStyles) -> Result<Self, SyntaxError> {
         let name = language.name();
         let grammar = language.grammar();
         let mut parser = Parser::new();
@@ -105,7 +105,7 @@ impl Highlighter {
     }
 
     /// Parses `text` from scratch, replacing the tree of any earlier text.
-    pub(crate) fn parse(&mut self, text: &Rope) -> Result<(), SyntaxError> {
+    pub fn parse(&mut self, text: &Rope) -> Result<(), SyntaxError> {
         self.tree = parse_rope(&mut self.parser, text, None);
         self.parsed_or_error()
     }
@@ -122,7 +122,7 @@ impl Highlighter {
     /// Tells the tree about changes to the text it was parsed from, oldest
     /// first, each described against the text the one before left. The next
     /// [`Highlighter::reparse`] then only looks at what changed.
-    pub(crate) fn edit(&mut self, edits: &[EditInfo]) {
+    pub fn edit(&mut self, edits: &[EditInfo]) {
         let Some(tree) = self.tree.as_mut() else {
             return;
         };
@@ -142,7 +142,7 @@ impl Highlighter {
     /// [`Highlighter::edit`]. `text` must be the text those changes lead to; if
     /// the edits do not describe it exactly the tree is wrong, so when in
     /// doubt use [`Highlighter::parse`].
-    pub(crate) fn reparse(&mut self, text: &Rope) -> Result<(), SyntaxError> {
+    pub fn reparse(&mut self, text: &Rope) -> Result<(), SyntaxError> {
         self.tree = parse_rope(&mut self.parser, text, self.tree.as_ref());
         self.parsed_or_error()
     }
@@ -150,7 +150,7 @@ impl Highlighter {
     /// The spans inside `range`, for `text`, which must be what was last
     /// parsed. Spans that stick out of the range are cut at its edges. Empty
     /// until `text` has been parsed.
-    pub(crate) fn spans(&self, text: &Rope, range: Range<usize>) -> Vec<Span> {
+    pub fn spans(&self, text: &Rope, range: Range<usize>) -> Vec<Span> {
         let Some(tree) = &self.tree else {
             return Vec::new();
         };
@@ -237,7 +237,7 @@ pub(super) fn flatten(mut found: Vec<Found>, range: &Range<usize>) -> Vec<Span> 
 }
 
 /// A buffer position as tree-sitter wants it.
-fn point(at: crate::buffer::Point) -> Point {
+fn point(at: trcode_buffer::Point) -> Point {
     Point {
         row: at.row,
         column: at.column,
@@ -271,7 +271,7 @@ impl<'a> TextProvider<&'a [u8]> for RopeText<'a> {
 }
 
 /// The style the theme gives each capture of `query`, by capture index.
-fn styles_of(query: &Query, theme: &Theme) -> Vec<Option<Style>> {
+fn styles_of(query: &Query, theme: &impl CaptureStyles) -> Vec<Option<Style>> {
     query
         .capture_names()
         .iter()

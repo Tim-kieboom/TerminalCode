@@ -1,5 +1,5 @@
 use super::Span;
-use crate::buffer::EditInfo;
+use trcode_buffer::EditInfo;
 
 /// Moves `spans` (sorted, not overlapping) to match the text after `edit`, so
 /// colors stay where they were until the text is parsed again.
@@ -10,7 +10,7 @@ use crate::buffer::EditInfo;
 /// part of its inside) takes its color. A span the edit cuts into keeps only
 /// the part that is left, with the new text outside; a span it covers
 /// completely is dropped.
-pub(crate) fn map_spans(spans: &mut Vec<Span>, edit: &EditInfo) {
+pub fn map_spans(spans: &mut Vec<Span>, edit: &EditInfo) {
     let (start, old_end, new_end) = (edit.start_byte, edit.old_end_byte, edit.new_end_byte);
     let shift = |byte: usize| byte - old_end + new_end;
     spans.retain_mut(|span| {

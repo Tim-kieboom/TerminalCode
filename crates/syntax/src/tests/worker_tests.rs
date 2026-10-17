@@ -1,8 +1,8 @@
 use ropey::Rope;
 
-use crate::buffer::{Buffer, Edit, EditInfo};
-use crate::syntax::Language;
-use crate::syntax::worker::{Job, coalesce};
+use crate::Language;
+use crate::worker::{Job, coalesce};
+use trcode_buffer::{Buffer, Edit, EditInfo};
 
 /// A list of just one range.
 fn one(range: std::ops::Range<usize>) -> Vec<std::ops::Range<usize>> {

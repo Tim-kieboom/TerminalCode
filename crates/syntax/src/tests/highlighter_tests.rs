@@ -1,11 +1,11 @@
 use ratatui::style::Color;
 use ropey::Rope;
 
-use crate::syntax::{Highlighter, Language, Span};
-use crate::ui::theme::Theme;
+use super::TestTheme as Theme;
+use crate::{Highlighter, Language, Span};
 
 fn theme(source: &str) -> Theme {
-    Theme::from_toml(source).unwrap()
+    Theme::from_toml(source)
 }
 
 fn highlighter(theme: &Theme) -> Highlighter {
@@ -54,7 +54,7 @@ fn keywords_and_strings_get_the_style_of_their_capture() {
 fn spans_are_in_order_and_never_overlap() {
     let (highlighter, text) = parsed(
         "// c\nuse std::fmt;\nfn f<T: Clone>(x: &T) -> Option<T> { Some(x.clone()) }\n",
-        &Theme::default(),
+        &Theme::ordinary(),
     );
 
     let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
@@ -139,7 +139,7 @@ fn only_the_asked_range_is_returned_and_edges_are_cut() {
 
 #[test]
 fn nothing_is_returned_before_the_text_is_parsed() {
-    let highlighter = highlighter(&Theme::default());
+    let highlighter = highlighter(&Theme::ordinary());
 
     assert!(
         highlighter
@@ -194,24 +194,6 @@ fn multibyte_text_gets_byte_offsets_on_char_boundaries() {
     let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
 
     assert!(painted(&text, &spans).contains(&("\"héllo wörld ✓\"".to_owned(), Some(Color::Green))));
-}
-
-#[test]
-fn the_default_theme_colors_ordinary_rust() {
-    let (highlighter, text) = parsed(
-        "/// docs\n#[derive(Debug)]\nstruct P { x: u32 }\nfn main() { let p = P { x: 1 }; println!(\"{}\", p.x); }\n",
-        &Theme::default(),
-    );
-
-    let spans = highlighter.spans(&Rope::from_str(&text), 0..text.len());
-
-    let colored: Vec<_> = painted(&text, &spans).into_iter().map(|(t, _)| t).collect();
-    for expected in ["struct", "fn", "let", "u32", "main", "println!"] {
-        assert!(
-            colored.iter().any(|t| t == expected),
-            "{expected}: {colored:?}"
-        );
-    }
 }
 
 // ---- what the editor adds to the Rust grammar's query
@@ -317,7 +299,7 @@ fn the_extra_patterns_are_part_of_a_valid_query_for_every_language() {
         Language::Nix,
     ] {
         assert!(
-            Highlighter::new(language, &Theme::default()).is_ok(),
+            Highlighter::new(language, &Theme::ordinary()).is_ok(),
             "{language:?}"
         );
     }

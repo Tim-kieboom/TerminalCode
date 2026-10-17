@@ -1,6 +1,6 @@
 use ratatui::style::{Color, Style};
 
-use crate::syntax::highlighter::{Found, flatten};
+use crate::highlighter::{Found, flatten};
 
 fn style(color: Color) -> Style {
     Style::default().fg(color)

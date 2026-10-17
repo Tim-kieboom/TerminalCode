@@ -2,7 +2,7 @@ use thiserror::Error;
 use tree_sitter::{LanguageError, QueryError};
 
 #[derive(Debug, Error)]
-pub(crate) enum SyntaxError {
+pub enum SyntaxError {
     #[error("the {language} grammar does not fit this version of tree-sitter: {source}")]
     Grammar {
         language: &'static str,

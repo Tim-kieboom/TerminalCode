@@ -680,3 +680,9 @@ fn parse_color(slot: &str, value: &str) -> Result<Color, ThemeError> {
         value: value.into(),
     })
 }
+
+impl trcode_syntax::CaptureStyles for Theme {
+    fn syntax_style(&self, capture: &str) -> Option<Style> {
+        Theme::syntax_style(self, capture)
+    }
+}

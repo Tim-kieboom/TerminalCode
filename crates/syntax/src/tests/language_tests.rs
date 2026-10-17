@@ -3,8 +3,8 @@ use std::path::Path;
 use ratatui::style::Color;
 use ropey::Rope;
 
-use crate::syntax::{Highlighter, Language};
-use crate::ui::theme::{Theme, ThemeVariant};
+use super::TestTheme as Theme;
+use crate::{Highlighter, Language};
 
 /// A theme that gives every kind of token a color of its own.
 const THEME: &str = r##"
@@ -50,7 +50,7 @@ fn colors_in(
     text: &str,
     range: std::ops::Range<usize>,
 ) -> Vec<(String, Color)> {
-    let theme = Theme::from_toml(THEME).unwrap();
+    let theme = Theme::from_toml(THEME);
     let mut highlighter = Highlighter::new(language, &theme).unwrap();
     let rope = Rope::from_str(text);
     highlighter.parse(&rope).unwrap();
@@ -89,12 +89,12 @@ fn every_language_sets_up_with_each_built_in_theme() {
         Language::Nix,
     ] {
         assert!(
-            Highlighter::new(language, &Theme::default()).is_ok(),
+            Highlighter::new(language, &Theme::ordinary()).is_ok(),
             "{}",
             language.name()
         );
         assert!(
-            Highlighter::new(language, &Theme::built_in(ThemeVariant::Light)).is_ok(),
+            Highlighter::new(language, &Theme::ordinary()).is_ok(),
             "light {}",
             language.name()
         );
@@ -189,7 +189,7 @@ fn markdown_without_any_inline_text_is_fine() {
 
 #[test]
 fn markdown_spans_never_overlap() {
-    let theme = Theme::from_toml(THEME).unwrap();
+    let theme = Theme::from_toml(THEME);
     let mut highlighter = Highlighter::new(Language::Markdown, &theme).unwrap();
     let rope = Rope::from_str(MARKDOWN);
     highlighter.parse(&rope).unwrap();

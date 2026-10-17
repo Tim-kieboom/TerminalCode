@@ -2278,6 +2278,7 @@ dependencies = [
  "trcode-ids",
  "trcode-lsp",
  "trcode-pty",
+ "trcode-syntax",
  "tree-sitter",
  "tree-sitter-json",
  "tree-sitter-md",
@@ -2542,6 +2543,24 @@ dependencies = [
  "thiserror 2.0.21",
  "trcode-files",
  "vt100",
+]
+
+[[package]]
+name = "trcode-syntax"
+version = "0.6.1"
+dependencies = [
+ "ratatui",
+ "ropey",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml",
+ "trcode-buffer",
+ "tree-sitter",
+ "tree-sitter-json",
+ "tree-sitter-md",
+ "tree-sitter-nix",
+ "tree-sitter-rust",
+ "tree-sitter-toml-ng",
 ]
 
 [[package]]

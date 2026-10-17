@@ -49,6 +49,7 @@ mod settings_tests;
 mod stale_view_tests;
 mod startup_tests;
 mod state_tests;
+mod syntax_default_theme_tests;
 mod tab_action_tests;
 mod tab_menu_tests;
 mod terminal_tests;

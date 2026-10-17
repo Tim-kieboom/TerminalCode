@@ -26,7 +26,7 @@ const RUST_AFTER: &str = r#"
 
 /// How a language writes a comment on one line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Comment {
+pub enum Comment {
     /// A marker at the start of the line: `//`, `#`.
     Line(&'static str),
     /// A pair around the line's text: `<!--` and `-->`.
@@ -35,7 +35,7 @@ pub(crate) enum Comment {
 
 /// A language the editor can highlight; its grammar is compiled in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Language {
+pub enum Language {
     Rust,
     Toml,
     Json,
@@ -44,7 +44,7 @@ pub(crate) enum Language {
 }
 
 impl Language {
-    pub(crate) fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Self::Rust => "Rust",
             Self::Toml => "TOML",
@@ -57,7 +57,7 @@ impl Language {
     /// How the language writes a comment, for toggling one on a line. JSON takes `//`
     /// because the JSON files of the tools that read comments (and the language
     /// server's JSONC) do.
-    pub(crate) fn comment(self) -> Comment {
+    pub fn comment(self) -> Comment {
         match self {
             Self::Rust | Self::Json => Comment::Line("//"),
             Self::Toml | Self::Nix => Comment::Line("#"),
@@ -66,7 +66,7 @@ impl Language {
     }
 
     /// The language of the file at `path`, going by its extension.
-    pub(crate) fn from_path(path: &Path) -> Option<Self> {
+    pub fn from_path(path: &Path) -> Option<Self> {
         match path.extension()?.to_str()? {
             "rs" => Some(Self::Rust),
             "toml" => Some(Self::Toml),

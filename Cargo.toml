@@ -19,6 +19,14 @@ trcode-buffer = { path = "crates/buffer" }
 trcode-files = { path = "crates/files" }
 trcode-pty = { path = "crates/pty" }
 trcode-lsp = { path = "crates/lsp" }
+trcode-syntax = { path = "crates/syntax" }
+ratatui = "0.30.2"
+tree-sitter = "0.27.1"
+tree-sitter-rust = "0.24.2"
+tree-sitter-toml-ng = "0.7.0"
+tree-sitter-json = "0.24.8"
+tree-sitter-md = "0.5.3"
+tree-sitter-nix = "0.3.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1.1.6"
@@ -51,7 +59,7 @@ regex = "1.13.1"
 base64 = "0.23.1"
 ignore = "0.4.33"
 futures = "0.3.34"
-ratatui = "0.30.2"
+ratatui.workspace = true
 renamore.workspace = true
 thiserror.workspace = true
 grep-regex = "0.1.14"
@@ -63,12 +71,12 @@ unicode-segmentation.workspace = true
 notify-debouncer-mini.workspace = true
 serde.workspace = true
 crossterm = { workspace = true, features = ["event-stream"] }
-tree-sitter = "0.27.1"
-tree-sitter-rust = "0.24.2"
-tree-sitter-toml-ng = "0.7.0"
-tree-sitter-json = "0.24.8"
-tree-sitter-md = "0.5.3"
-tree-sitter-nix = "0.3.0"
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-toml-ng.workspace = true
+tree-sitter-json.workspace = true
+tree-sitter-md.workspace = true
+tree-sitter-nix.workspace = true
 portable-pty.workspace = true
 vt100.workspace = true
 ropey.workspace = true
@@ -77,6 +85,7 @@ trcode-buffer.workspace = true
 trcode-files.workspace = true
 trcode-pty.workspace = true
 trcode-lsp.workspace = true
+trcode-syntax.workspace = true
 tokio.workspace = true
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 serde_json.workspace = true
