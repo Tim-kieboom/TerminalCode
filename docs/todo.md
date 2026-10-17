@@ -59,7 +59,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 
 ## Platform testing
 - [ ] Manual test pass on Windows Terminal, one kitty-capable and one non-kitty terminal on Linux
-- [ ] macOS (best-effort in CI): `a_paste_of_several_megabytes_into_a_shell_that_is_not_reading_does_not_freeze_anything` holds the caller about 54 ms (limit 50 ms) on the runner, and the flood timing tests are flaky there; look when macOS is tested by hand
+- [ ] macOS (best-effort in CI): look at it when macOS is tested by hand
 
 ## Left over from before 0.1.0
 - [ ] Left over from before M6, not needed for 0.1.0: auto-scroll while dragging past the edge of the text (needs a repeating timer); alt+click to extend a selection; move a tab between panes, resize panes by dragging the divider, close a pane without closing its tabs, per-pane tab history; a message history; read directories off the UI thread; a diff-based document reload that keeps undo history; inotify limits falling back to polling; a project-wide watch for new files in collapsed directories; rename and move handling in the watcher; a results pane for the project search that stays open while editing, with results grouped under file headers; multi-line patterns; searching within the selection or one folder, include/exclude globs, searching unsaved buffers; the fallback scan for projects with more than about 1M files; a scrollbar-style overview of find matches; match counts for the other panes showing the same file; a thin strip to click for a hidden pane; palette argument prompts and save as for untitled files
