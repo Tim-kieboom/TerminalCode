@@ -29,7 +29,7 @@ impl MenuBar {
     }
 }
 
-impl Render for MenuBar {
+impl Render<AppState> for MenuBar {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
         let theme = state.theme();
         frame.render_widget(Block::new().style(theme.style("menubar")), placement.area);

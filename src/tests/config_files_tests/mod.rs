@@ -37,7 +37,7 @@ struct Wrapper {
 }
 
 use crate::app::state::Focus;
-use crate::components::ComponentKind;
+use crate::ui::ComponentKind;
 use crate::ui::theme::{Rgb, Theme, ThemeVariant};
 use ratatui::style::Color;
 

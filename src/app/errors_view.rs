@@ -4,8 +4,8 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
 use crate::app::state::Focus;
-use crate::components::ComponentKind;
 use crate::components::errors::ErrorsCommand;
+use crate::ui::ComponentKind;
 
 /// Rows one wheel notch scrolls.
 const WHEEL_ROWS: isize = 3;

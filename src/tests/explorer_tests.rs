@@ -9,8 +9,8 @@ use ratatui::backend::TestBackend;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::ComponentKind;
 use crate::components::prepare_and_render;
+use crate::ui::ComponentKind;
 use crate::ui::layout::LayoutTree;
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> InputEvent {

@@ -8,8 +8,7 @@ use ratatui::{
 
 use crate::{
     app::state::{AppState, Focus, PluginView, Popup},
-    components::ComponentKind,
-    ui::{Render, backdrop, bar, layout::Placement, view::ViewNode},
+    ui::{ComponentKind, Render, backdrop, bar, layout::Placement, view::ViewNode},
 };
 
 /// Draws every component of the layout: first all `prepare` steps, then all
@@ -28,7 +27,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
             backdrop::paint_pane(frame, state.theme(), pane, placement.area);
         }
         draw_component(frame, state, placement);
-        bar::draw_tabs(frame, state, placement);
+        bar::draw_tabs(frame, state.theme(), placement);
     }
 
     let bottom = placements
@@ -145,7 +144,7 @@ fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
 }
 
 /// A plugin's content, inside the frame the layout gives its pane.
-impl Render for PluginView {
+impl Render<AppState> for PluginView {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
         let inner = placement.frame.inner(placement.area);
         render_view(frame, state, self.content(), inner);

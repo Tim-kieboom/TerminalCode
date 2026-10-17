@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::components::ComponentKind;
 use crate::config::ConfigWarning;
+use crate::ui::ComponentKind;
 
 pub(crate) const STATE_FILE: &str = "state.json";
 

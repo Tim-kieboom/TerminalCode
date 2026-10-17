@@ -1,10 +1,10 @@
 use ratatui::layout::Rect;
 
 use crate::buffer::{Buffer, Position};
-use crate::components::ComponentKind;
 use crate::components::editor::Editor;
 use crate::components::workspace::{CloseResult, Workspace};
 use crate::event::mouse::Clicks;
+use crate::ui::ComponentKind;
 use crate::ui::Render;
 use crate::ui::layout::{Axis, Placement};
 

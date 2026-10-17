@@ -6,12 +6,13 @@ use ratatui::backend::TestBackend;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::{ComponentKind, PluginViewId, prepare_and_render};
+use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::keymap::Keymap;
 use crate::terminal::KeyboardSupport;
 use crate::ui::layout::LayoutTree;
 use crate::ui::view::{ViewLine, ViewNode};
+use crate::ui::{ComponentKind, PluginViewId};
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> InputEvent {
     InputEvent::Key(KeyEvent::new(code, modifiers))

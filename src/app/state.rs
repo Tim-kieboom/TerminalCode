@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use crate::components::ComponentKind;
-use crate::components::PluginViewId;
 use crate::components::completion_box::CompletionBox;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::errors::ErrorsView;
@@ -25,7 +23,9 @@ use crate::components::terminal::TerminalPane;
 use crate::components::workspace::Workspace;
 use crate::event::action::Action;
 use crate::syntax::SyntaxWorker;
+use crate::ui::ComponentKind;
 use crate::ui::Hideable;
+use crate::ui::PluginViewId;
 use crate::ui::layout::LayoutTree;
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;

@@ -4,8 +4,8 @@ use ratatui::{Frame, Terminal};
 
 use crate::app::state::AppState;
 use crate::buffer::Buffer;
-use crate::components::ComponentKind;
 use crate::components::editor::{Editor, Motion};
+use crate::ui::ComponentKind;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 

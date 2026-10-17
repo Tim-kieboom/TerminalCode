@@ -10,11 +10,11 @@ use ratatui::layout::Position;
 use crate::app::App;
 use crate::app::keys::{EDITOR_CONTEXTS, EXPLORER_CONTEXTS};
 use crate::app::state::Focus;
-use crate::components::ComponentKind;
 use crate::components::menu_bar::MenuBar;
 use crate::components::popups::menu::{self, Entry, Menu};
 use crate::config::ConfigFile;
 use crate::event::action::Action;
+use crate::ui::ComponentKind;
 
 impl App {
     /// Opens the menu on what has the keyboard: the explorer's selected row,

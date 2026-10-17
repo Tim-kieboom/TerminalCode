@@ -4,10 +4,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent,
 
 use crate::app::App;
 use crate::app::keys::PALETTE_CONTEXTS;
-use crate::components::PluginViewId;
 use crate::components::popups::palette::{self, Entry, Palette};
 use crate::config;
 use crate::event::action::Action;
+use crate::ui::PluginViewId;
 
 /// Most characters pasted into a popup's text.
 const MAX_PASTE: usize = 200;

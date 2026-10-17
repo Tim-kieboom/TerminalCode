@@ -222,9 +222,9 @@ fn the_palette_is_drawn_over_the_editor() {
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use crate::app::state::AppState;
-use crate::components::{ComponentKind, PluginViewId};
 use crate::ui::layout::LayoutTree;
 use crate::ui::view::{ViewLine, ViewNode};
+use crate::ui::{ComponentKind, PluginViewId};
 
 /// Opens the palette, types `query` and runs the first match.
 fn run(app: &mut App, query: &str) {
@@ -503,10 +503,7 @@ fn clicking_an_entry_runs_it() {
     mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
 
     assert!(app.state().palette().is_none());
-    assert!(
-        !app.state()
-            .is_visible(&crate::components::ComponentKind::StatusBar)
-    );
+    assert!(!app.state().is_visible(&crate::ui::ComponentKind::StatusBar));
 }
 
 #[test]
@@ -532,10 +529,7 @@ fn clicking_outside_the_palette_closes_it_and_runs_nothing() {
     mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (0, 29));
 
     assert!(app.state().palette().is_none());
-    assert!(
-        app.state()
-            .is_visible(&crate::components::ComponentKind::StatusBar)
-    );
+    assert!(app.state().is_visible(&crate::ui::ComponentKind::StatusBar));
 }
 
 #[test]

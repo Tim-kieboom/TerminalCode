@@ -200,10 +200,7 @@ fn forgetting_the_panes_keeps_state_json_as_bak_and_leaves_the_screen_alone() {
     assert_eq!(fs::read_to_string(backup).unwrap(), before);
     let now = fs::read_to_string(saved_state::path_in(dir.path())).unwrap();
     assert_eq!(now, saved_state::empty_text());
-    assert!(
-        !app.state()
-            .is_visible(&crate::components::ComponentKind::Explorer)
-    );
+    assert!(!app.state().is_visible(&crate::ui::ComponentKind::Explorer));
     let (state, warning) = saved_state::load(Some(dir.path()));
     assert!(warning.is_none());
     assert_eq!(state, saved_state::SavedState::default());

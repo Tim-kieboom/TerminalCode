@@ -10,8 +10,9 @@ use tokio::sync::mpsc;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::{ComponentKind, prepare_and_render};
+use crate::components::prepare_and_render;
 use crate::pty::Shell;
+use crate::ui::ComponentKind;
 
 struct Screen {
     app: App,

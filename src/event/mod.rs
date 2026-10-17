@@ -2,8 +2,8 @@ pub mod action;
 pub mod mouse;
 use std::path::PathBuf;
 
-use crate::components::PluginViewId;
 use crate::components::popups::search::Hit;
+use crate::ui::PluginViewId;
 use crate::ui::view::ViewNode;
 
 /// Non-input events delivered to the app loop (PTY output, file watcher,

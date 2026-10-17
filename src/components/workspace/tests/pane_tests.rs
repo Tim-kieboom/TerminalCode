@@ -1,9 +1,9 @@
 use ratatui::layout::Rect;
 
 use crate::buffer::Buffer;
-use crate::components::ComponentKind;
 use crate::components::editor::{Editor, Motion};
 use crate::components::workspace::{CloseResult, FocusDirection, Workspace};
+use crate::ui::ComponentKind;
 use crate::ui::Render;
 use crate::ui::layout::{Axis, Placement};
 

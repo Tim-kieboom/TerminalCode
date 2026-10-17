@@ -9,8 +9,9 @@ use ratatui::backend::TestBackend;
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
 use crate::components::popups::menu::Entry;
-use crate::components::{ComponentKind, prepare_and_render};
+use crate::components::prepare_and_render;
 use crate::event::action::Action;
+use crate::ui::ComponentKind;
 
 fn app() -> App {
     let dir = tempfile::tempdir().unwrap();

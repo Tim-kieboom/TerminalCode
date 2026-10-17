@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use ratatui::layout::Rect;
 
-use crate::components::ComponentKind;
 use crate::components::explorer::{Explorer, ExplorerCommand, Release};
+use crate::ui::ComponentKind;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 

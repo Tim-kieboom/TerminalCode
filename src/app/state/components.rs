@@ -6,10 +6,10 @@ use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::menu_bar::MenuBar;
 use crate::components::status_view::StatusBar;
 use crate::components::terminal::TerminalPane;
-use crate::components::{ComponentKind, PluginViewId};
 use crate::ui::Hideable;
 use crate::ui::layout::{LayoutTree, Placement, Scene};
 use crate::ui::view::ViewNode;
+use crate::ui::{ComponentKind, PluginViewId};
 
 impl AppState {
     /// Whether the component takes part in the layout. Hidden ones take no

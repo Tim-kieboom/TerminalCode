@@ -2,11 +2,11 @@
 
 use crate::app::state::Focus;
 use crate::buffer::Buffer;
-use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::error::IdeResult;
 use crate::pty::Shell;
 use crate::settings::Settings;
+use crate::ui::ComponentKind;
 
 use super::App;
 use crate::components::popups::name_prompt::NamePrompt;

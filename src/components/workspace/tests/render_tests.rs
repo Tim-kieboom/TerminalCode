@@ -4,9 +4,9 @@ use ratatui::layout::Rect;
 
 use crate::app::state::AppState;
 use crate::buffer::Buffer;
-use crate::components::ComponentKind;
 use crate::components::editor::Editor;
 use crate::components::workspace::{Workspace, render::*};
+use crate::ui::ComponentKind;
 use crate::ui::Render;
 use crate::ui::layout::{Axis, Placement};
 

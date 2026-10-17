@@ -5,8 +5,8 @@ use ratatui::style::Style;
 
 use super::explorer_tests::project;
 use crate::app::state::AppState;
-use crate::components::ComponentKind;
 use crate::components::explorer::{Explorer, ExplorerCommand};
+use crate::ui::ComponentKind;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::theme::{Theme, ThemeVariant};

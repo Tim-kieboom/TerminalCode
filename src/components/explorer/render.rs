@@ -12,7 +12,7 @@ const EMPTY_MESSAGE: &str = "no folder open";
 /// A vertical line under the marker of each ancestor, padded to one level.
 const GUIDE: &str = "│ ";
 
-impl Render for Explorer {
+impl Render<AppState> for Explorer {
     fn prepare(&mut self, placement: &Placement) {
         self.area = placement.area;
         self.body = placement.frame.inner(placement.area);

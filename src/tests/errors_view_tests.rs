@@ -288,12 +288,12 @@ fn a_click_on_the_other_tab_of_the_bar_goes_back_to_the_terminal() {
     assert!(
         rig.app
             .state()
-            .is_showing(&crate::components::ComponentKind::Terminal)
+            .is_showing(&crate::ui::ComponentKind::Terminal)
     );
     assert!(
         !rig.app
             .state()
-            .is_showing(&crate::components::ComponentKind::Errors)
+            .is_showing(&crate::ui::ComponentKind::Errors)
     );
 }
 

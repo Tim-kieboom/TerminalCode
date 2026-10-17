@@ -12,7 +12,7 @@ use crate::ui::theme::Theme;
 
 use super::Workspace;
 
-impl Render for Workspace {
+impl Render<AppState> for Workspace {
     /// Lays the panes out inside the placement, then lets each pane's active
     /// editor note its screen area and scroll to its cursor.
     fn prepare(&mut self, placement: &Placement) {

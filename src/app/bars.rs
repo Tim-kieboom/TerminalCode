@@ -5,7 +5,7 @@ use ratatui::layout::Position;
 
 use super::App;
 use crate::app::state::Focus;
-use crate::components::ComponentKind;
+use crate::ui::ComponentKind;
 use crate::ui::bar;
 
 impl App {

@@ -4,7 +4,6 @@
 use ratatui::Frame;
 
 use super::Render;
-use crate::app::state::AppState;
 use crate::ui::layout::Placement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,14 +79,14 @@ impl<T> Hideable<T> {
 }
 
 /// A hidden component takes no part in drawing.
-impl<T: Render> Render for Hideable<T> {
+impl<S, T: Render<S>> Render<S> for Hideable<T> {
     fn prepare(&mut self, placement: &Placement) {
         if self.is_shown() {
             self.node.prepare(placement);
         }
     }
 
-    fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
+    fn render(&self, frame: &mut Frame, state: &S, placement: &Placement) {
         if self.is_shown() {
             self.node.render(frame, state, placement);
         }

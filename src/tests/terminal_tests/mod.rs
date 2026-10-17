@@ -10,11 +10,12 @@ use tokio::sync::mpsc;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::{ComponentKind, prepare_and_render};
+use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::keymap::Keymap;
 use crate::pty::Shell;
 use crate::terminal::KeyboardSupport;
+use crate::ui::ComponentKind;
 
 /// An app wired to an event channel, as in the real app, with a script as the
 /// terminal's shell.

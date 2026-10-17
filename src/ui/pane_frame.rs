@@ -4,7 +4,7 @@ use ratatui::layout::{Alignment, Rect};
 use ratatui::widgets::{Block, BorderType, Borders};
 use serde::Deserialize;
 
-use crate::components::ComponentKind;
+use crate::ui::ComponentKind;
 use crate::ui::theme::Theme;
 
 /// Theme slot of the border by default; the border of a focused pane uses

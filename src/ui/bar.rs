@@ -9,7 +9,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::layout::Placement;
 use super::pane_frame::TitleAlign;
-use crate::app::state::AppState;
+use super::theme::Theme;
 
 /// Between two labels.
 const SEPARATOR: &str = " - ";
@@ -60,11 +60,10 @@ pub(crate) fn tab_rects(placement: &Placement) -> Vec<(Rect, usize)> {
 
 /// Draws the strip over the title row of a bar with several views. The frame
 /// reserved the row and left it empty.
-pub(crate) fn draw_tabs(frame: &mut Frame, state: &AppState, placement: &Placement) {
+pub(crate) fn draw_tabs(frame: &mut Frame, theme: &Theme, placement: &Placement) {
     let Some(bar) = &placement.bar else {
         return;
     };
-    let theme = state.theme();
     let separator_style = theme.style("pane.title");
     for (rect, index) in tab_rects(placement) {
         let slot = if index == bar.active {

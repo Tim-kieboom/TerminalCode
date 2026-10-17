@@ -4,8 +4,7 @@ use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 
-use crate::app::state::AppState;
-use crate::components::ComponentKind;
+use crate::ui::ComponentKind;
 use crate::ui::layout::Placement;
 use crate::ui::{Hideable, Render};
 
@@ -16,12 +15,12 @@ struct Counting {
     rendered: Cell<u32>,
 }
 
-impl Render for Counting {
+impl Render<()> for Counting {
     fn prepare(&mut self, _: &Placement) {
         self.prepared += 1;
     }
 
-    fn render(&self, _: &mut ratatui::Frame, _: &AppState, _: &Placement) {
+    fn render(&self, _: &mut ratatui::Frame, _: &(), _: &Placement) {
         self.rendered.set(self.rendered.get() + 1);
     }
 }
@@ -37,12 +36,11 @@ fn hidden<T>(node: T) -> Hideable<T> {
 }
 
 fn draw(hideable: &mut Hideable<Counting>) {
-    let state = AppState::default();
     let placement = placement();
     let mut terminal = Terminal::new(TestBackend::new(10, 5)).unwrap();
     hideable.prepare(&placement);
     terminal
-        .draw(|frame| hideable.render(frame, &state, &placement))
+        .draw(|frame| hideable.render(frame, &(), &placement))
         .unwrap();
 }
 

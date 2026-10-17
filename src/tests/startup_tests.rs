@@ -2,12 +2,12 @@ use std::fs;
 use std::path::Path;
 
 use crate::app::state::AppState;
-use crate::components::ComponentKind;
 use crate::config::ThemeChoice;
 use crate::keymap::{Context, KeyChord, Lookup};
 use crate::settings::Settings;
 use crate::startup::*;
 use crate::terminal::KeyboardSupport;
+use crate::ui::ComponentKind;
 use crate::ui::theme::{Theme, ThemeVariant};
 
 fn write(dir: &Path, name: &str, text: &str) {

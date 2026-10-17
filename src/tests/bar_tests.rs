@@ -9,10 +9,11 @@ use ratatui::backend::TestBackend;
 
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
-use crate::components::{ComponentKind, PluginViewId, prepare_and_render};
+use crate::components::prepare_and_render;
 use crate::event::action::Action;
 use crate::ui::bar::tab_rects;
 use crate::ui::layout::LayoutTree;
+use crate::ui::{ComponentKind, PluginViewId};
 
 const LAYOUT: &str = r#"Col([
     Row([

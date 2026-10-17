@@ -7,10 +7,10 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use crate::app::App;
 use crate::app::state::Focus;
-use crate::components::ComponentKind;
 use crate::components::terminal::MAX_TABS;
 use crate::event::Event;
 use crate::pty::{Session, Shell, SpawnConfig, encode_mouse};
+use crate::ui::ComponentKind;
 
 /// Rows and columns a shell gets before the pane has been laid out.
 const FIRST_SIZE: (u16, u16) = (24, 80);

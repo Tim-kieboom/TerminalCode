@@ -8,7 +8,7 @@ use crate::ui::layout::Placement;
 
 #[derive(Debug, Default)]
 pub struct StatusBar;
-impl Render for StatusBar {
+impl Render<AppState> for StatusBar {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
         let text = if state.terminal_prefix_pending() {
             " ctrl+b ...  e: editor  x: explorer  t: hide  c: new tab  n/p/1-9: tabs  w: close tab  ctrl+b: send ctrl+b  esc: cancel"

@@ -193,7 +193,7 @@ impl TerminalPane {
     }
 }
 
-impl Render for TerminalPane {
+impl Render<AppState> for TerminalPane {
     fn prepare(&mut self, placement: &Placement) {
         self.area = placement.area;
         let inner = placement.frame.inner(placement.area);

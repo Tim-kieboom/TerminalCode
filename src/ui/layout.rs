@@ -4,7 +4,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::components::ComponentKind;
+use crate::ui::ComponentKind;
 use crate::ui::pane_frame::{BorderStyle, FrameSpec, PaneFrame, Side, Title, TitleAlign};
 
 /// One step of a [`LayoutPath`]: a node and, when its parent holds several,

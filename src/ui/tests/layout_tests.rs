@@ -1,6 +1,6 @@
 use ratatui::layout::Rect;
 
-use crate::components::{ComponentKind, PluginViewId};
+use crate::ui::{ComponentKind, PluginViewId};
 
 use super::super::layout::*;
 use ratatui::widgets::Borders;

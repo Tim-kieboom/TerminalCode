@@ -69,7 +69,7 @@ pub(crate) struct QuitPrompt {
     items: Vec<Item>,
     selected: usize,
 }
-impl Render for QuitPrompt {
+impl Render<AppState> for QuitPrompt {
     fn render(&self, frame: &mut Frame, state: &AppState, _: &Placement) {
         self.render(frame, state.theme());
     }
