@@ -5,7 +5,7 @@
 pub(crate) use document::DocumentSyntax;
 pub(crate) use error::SyntaxError;
 pub(crate) use highlighter::{Highlighter, Span};
-pub(crate) use language::Language;
+pub(crate) use language::{Comment, Language};
 pub(crate) use ranges::{MAX_RANGES, merge as merge_ranges};
 pub(crate) use worker::{Output, SyntaxWorker};
 

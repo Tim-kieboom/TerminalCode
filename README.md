@@ -75,6 +75,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+c`, `ctrl+x`, `ctrl+v` | Copy, cut, paste (also `ctrl+insert`, `shift+delete`, `shift+insert`) |
 | `ctrl+a` | Select all |
 | `tab`, `shift+tab` | Indent, outdent (a selection over several lines indents each line) |
+| `ctrl+/` | Toggle line comment on the cursor line, every selected line or each cursor's line: `//` for Rust and JSON, `#` for TOML and Nix, `<!-- -->` for Markdown (`ctrl+7` on a terminal without the kitty keyboard protocol) |
 | `ctrl+]`, `ctrl+[` | Move the whole line (every selected line, each cursor's line once) one level in or out, with the cursor staying on its text. Without the kitty keyboard protocol `ctrl+[` is the escape key, so there `ctrl+]` (also `alt+]`) indents and `alt+\` outdents |
 | arrows, `home`, `end`, `ctrl+home`, `ctrl+end` | Move; add `shift` to select |
 | `ctrl+o` | Open a file by its path (relative to the project, absolute, or from `~`); "File: Open Folder..." in the menu or the palette asks for a folder and starts the editor again in it (the open tabs are closed; unsaved ones are asked about first) |

@@ -3,6 +3,7 @@
 use super::App;
 use super::keys::NO_FILE_MESSAGE;
 use crate::clipboard::{Notice, Register};
+use crate::components::editor::Toggled;
 use crate::components::workspace::{CloseMany, CloseResult, CloseScope, SaveOutcome};
 use crate::error::IdeResult;
 
@@ -66,6 +67,18 @@ impl App {
             self.state.notify_error(error.to_string());
         }
         self.needs_redraw = true;
+    }
+
+    /// `ctrl+/`: toggles the comment on the lines of the cursors, and says when the
+    /// file has no language to take the marker from.
+    pub(super) fn toggle_comment(&mut self) {
+        match self.state.edit(|editor| editor.toggle_comment()) {
+            Ok(Toggled::NoLanguage) => self.state.notify(
+                "no comment marker for this file: its language is not known (see the file's extension)",
+            ),
+            Ok(_) => {}
+            Err(error) => self.state.notify_error(error.to_string()),
+        }
     }
 
     pub(super) fn save(&mut self) -> IdeResult {

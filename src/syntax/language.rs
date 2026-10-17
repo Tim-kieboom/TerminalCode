@@ -24,6 +24,15 @@ const RUST_AFTER: &str = r#"
 (identifier) @variable
 "#;
 
+/// How a language writes a comment on one line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Comment {
+    /// A marker at the start of the line: `//`, `#`.
+    Line(&'static str),
+    /// A pair around the line's text: `<!--` and `-->`.
+    Around(&'static str, &'static str),
+}
+
 /// A language the editor can highlight; its grammar is compiled in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Language {
@@ -42,6 +51,17 @@ impl Language {
             Self::Json => "JSON",
             Self::Markdown => "Markdown",
             Self::Nix => "Nix",
+        }
+    }
+
+    /// How the language writes a comment, for toggling one on a line. JSON takes `//`
+    /// because the JSON files of the tools that read comments (and the language
+    /// server's JSONC) do.
+    pub(crate) fn comment(self) -> Comment {
+        match self {
+            Self::Rust | Self::Json => Comment::Line("//"),
+            Self::Toml | Self::Nix => Comment::Line("#"),
+            Self::Markdown => Comment::Around("<!--", "-->"),
         }
     }
 

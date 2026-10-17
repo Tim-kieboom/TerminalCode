@@ -364,3 +364,23 @@ fn a_copy_with_a_selection_and_a_bare_cursor_pastes_as_plain_text() {
 
     assert!(text(&app).ends_with("ab\ncd"), "{}", text(&app));
 }
+
+// ---- comments
+
+#[test]
+fn ctrl_slash_comments_the_line_and_a_file_with_no_language_says_so() {
+    let mut buffer = Buffer::from_text("let x = 1;");
+    buffer.set_path(std::path::PathBuf::from("a.rs"));
+    let mut rust = App::new(AppState::new(Editor::new(buffer)));
+    press(&mut rust, KeyCode::Char('/'), KeyModifiers::CONTROL);
+    assert_eq!(text(&rust), "// let x = 1;");
+
+    let mut plain = app("hello");
+    press(&mut plain, KeyCode::Char('/'), KeyModifiers::CONTROL);
+    assert_eq!(text(&plain), "hello");
+    let notes: Vec<&str> = plain.state().notifications().texts();
+    assert!(
+        notes.iter().any(|note| note.contains("no comment marker")),
+        "{notes:?}"
+    );
+}

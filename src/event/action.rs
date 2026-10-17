@@ -148,6 +148,8 @@ pub(crate) enum Action {
     IndentLine,
     /// Moves the lines the cursors are on one indent level out.
     OutdentLine,
+    /// Comments the lines the cursors are on, or uncomments them when all are.
+    ToggleComment,
     Copy,
     Cut,
     Paste,
@@ -352,6 +354,7 @@ impl Action {
             Self::Outdent => "Edit: Outdent",
             Self::IndentLine => "Edit: Indent Line",
             Self::OutdentLine => "Edit: Outdent Line",
+            Self::ToggleComment => "Edit: Toggle Line Comment",
             Self::DeleteWordBackward => "Edit: Delete Word Backward",
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
@@ -477,6 +480,7 @@ impl Action {
             Self::Outdent,
             Self::IndentLine,
             Self::OutdentLine,
+            Self::ToggleComment,
             Self::DeleteWordBackward,
             Self::DeleteWordForward,
             Self::Move(Motion::DocumentStart),

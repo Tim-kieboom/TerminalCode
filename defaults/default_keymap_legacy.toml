@@ -23,3 +23,9 @@ context = "editor"
 keys = "alt+\\"
 action = "outdent_line"
 context = "editor"
+
+# ctrl+/ arrives as byte 0x1f, which is ctrl+7 (and ctrl+_ on the same key).
+[[binding]]
+keys = "ctrl+7"
+action = "toggle_comment"
+context = "editor"

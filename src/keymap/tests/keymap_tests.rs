@@ -417,3 +417,24 @@ fn indenting_the_line_is_reachable_on_both_keyboards() {
     assert_eq!(action(&legacy, &BOTH, "alt+\\"), Some(Action::OutdentLine));
     assert_eq!(action(&enhanced, &BOTH, "alt+]"), None);
 }
+
+#[test]
+fn toggling_a_comment_is_reachable_on_both_keyboards() {
+    let enhanced = defaults(KeyboardSupport::Enhanced);
+    assert_eq!(
+        action(&enhanced, &BOTH, "ctrl+/"),
+        Some(Action::ToggleComment)
+    );
+
+    // ctrl+/ is byte 0x1f, which arrives as ctrl+7.
+    let legacy = defaults(KeyboardSupport::Legacy);
+    assert_eq!(
+        action(&legacy, &BOTH, "ctrl+/"),
+        Some(Action::ToggleComment)
+    );
+    assert_eq!(
+        action(&legacy, &BOTH, "ctrl+7"),
+        Some(Action::ToggleComment)
+    );
+    assert_eq!(action(&enhanced, &BOTH, "ctrl+7"), None);
+}

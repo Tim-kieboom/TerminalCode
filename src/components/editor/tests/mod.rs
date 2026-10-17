@@ -1,4 +1,5 @@
 mod clipboard_tests;
+mod comment_tests;
 mod editing_tests;
 mod editor_view_tests;
 mod indent_tests;
