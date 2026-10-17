@@ -1,5 +1,6 @@
 //! A one-line prompt for the name of a new file or folder.
 
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -7,6 +8,7 @@ use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::entries::EntryKind;
@@ -20,6 +22,13 @@ const PROMPT: &str = "> ";
 pub(crate) enum Command {
     Insert(char),
     Backspace,
+    Delete,
+    Left,
+    Right,
+    Home,
+    End,
+    WordLeft,
+    WordRight,
     ClearName,
     Submit,
     Cancel,
@@ -35,6 +44,13 @@ impl Command {
             (KeyCode::Esc, _) => Self::Cancel,
             (KeyCode::Enter, _) => Self::Submit,
             (KeyCode::Backspace, _) => Self::Backspace,
+            (KeyCode::Delete, _) => Self::Delete,
+            (KeyCode::Left, true) => Self::WordLeft,
+            (KeyCode::Right, true) => Self::WordRight,
+            (KeyCode::Left, false) => Self::Left,
+            (KeyCode::Right, false) => Self::Right,
+            (KeyCode::Home, _) => Self::Home,
+            (KeyCode::End, _) => Self::End,
             (KeyCode::Char('u'), true) => Self::ClearName,
             (KeyCode::Char(c), false) => Self::Insert(c),
             _ => return None,
@@ -70,16 +86,37 @@ pub(crate) struct NamePrompt {
     /// The folder the new entry is made in.
     dir: PathBuf,
     name: String,
+    /// Where typing goes: a byte offset in `name`, always between two graphemes.
+    cursor: usize,
+    /// Where the text was last drawn, for placing the cursor by a click, and the byte
+    /// of `name` its first drawn cell is.
+    drawn: Cell<Drawn>,
+}
+
+/// Where the text of the prompt is on the screen.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct Drawn {
+    x: u16,
+    y: u16,
+    width: u16,
+    /// The first byte of the text that is shown.
+    from: usize,
 }
 
 impl NamePrompt {
+    fn with(purpose: Purpose, dir: PathBuf, name: String) -> Self {
+        Self {
+            purpose,
+            dir,
+            cursor: name.len(),
+            name,
+            drawn: Cell::default(),
+        }
+    }
+
     /// Asks for the name of a new entry in `dir`.
     pub(crate) fn new(kind: EntryKind, dir: PathBuf) -> Self {
-        Self {
-            purpose: Purpose::Create(kind),
-            dir,
-            name: String::new(),
-        }
+        Self::with(Purpose::Create(kind), dir, String::new())
     }
 
     /// Asks for the new name of `from`, starting from its current one.
@@ -88,11 +125,7 @@ impl NamePrompt {
         let name = from
             .file_name()
             .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
-        Self {
-            purpose: Purpose::Rename(from),
-            dir,
-            name,
-        }
+        Self::with(Purpose::Rename(from), dir, name)
     }
 
     /// Asks for the new place of `from`, as a path from `root`, starting from
@@ -103,49 +136,33 @@ impl NamePrompt {
             .unwrap_or(&from)
             .to_string_lossy()
             .into_owned();
-        Self {
-            purpose: Purpose::Move(from),
-            dir: root,
-            name,
-        }
+        Self::with(Purpose::Move(from), root, name)
     }
 
     /// Asks for the name of a new theme, a copy of `template`.
     pub(crate) fn new_theme(template: String) -> Self {
-        Self {
-            purpose: Purpose::NewTheme { template },
-            dir: PathBuf::new(),
-            name: String::new(),
-        }
+        Self::with(
+            Purpose::NewTheme { template },
+            PathBuf::new(),
+            String::new(),
+        )
     }
 
     /// Asks for the path of a file to open; a relative one is from `root`.
     pub(crate) fn open_file(root: PathBuf) -> Self {
-        Self {
-            purpose: Purpose::OpenFile,
-            dir: root,
-            name: String::new(),
-        }
+        Self::with(Purpose::OpenFile, root, String::new())
     }
 
     /// Asks for the path of a folder to open as the project; a relative one is
     /// from `root`.
     pub(crate) fn open_folder(root: PathBuf) -> Self {
-        Self {
-            purpose: Purpose::OpenFolder,
-            dir: root,
-            name: String::new(),
-        }
+        Self::with(Purpose::OpenFolder, root, String::new())
     }
 
     /// Asks for a line (`42`) or a line and column (`42:7`) of a file with `lines`
     /// lines.
     pub(crate) fn go_to_line(lines: usize) -> Self {
-        Self {
-            purpose: Purpose::GoToLine { lines },
-            dir: PathBuf::new(),
-            name: String::new(),
-        }
+        Self::with(Purpose::GoToLine { lines }, PathBuf::new(), String::new())
     }
 
     pub(crate) fn purpose(&self) -> &Purpose {
@@ -160,16 +177,124 @@ impl NamePrompt {
         &self.name
     }
 
-    pub(crate) fn insert(&mut self, c: char) {
-        self.name.push(c);
+    /// Where the text cursor is: a byte offset in the name.
+    #[cfg(test)]
+    pub(crate) fn cursor(&self) -> usize {
+        self.cursor
     }
 
+    /// Types `c` at the cursor.
+    pub(crate) fn insert(&mut self, c: char) {
+        self.name.insert(self.cursor, c);
+        self.cursor += c.len_utf8();
+    }
+
+    /// Deletes the character (grapheme) before the cursor.
     pub(crate) fn backspace(&mut self) {
-        self.name.pop();
+        let start = self.previous_boundary(self.cursor);
+        self.name.replace_range(start..self.cursor, "");
+        self.cursor = start;
+    }
+
+    /// Deletes the character (grapheme) at the cursor.
+    pub(crate) fn delete(&mut self) {
+        let end = self.next_boundary(self.cursor);
+        self.name.replace_range(self.cursor..end, "");
     }
 
     pub(crate) fn clear(&mut self) {
         self.name.clear();
+        self.cursor = 0;
+    }
+
+    pub(crate) fn move_left(&mut self) {
+        self.cursor = self.previous_boundary(self.cursor);
+    }
+
+    pub(crate) fn move_right(&mut self) {
+        self.cursor = self.next_boundary(self.cursor);
+    }
+
+    pub(crate) fn move_home(&mut self) {
+        self.cursor = 0;
+    }
+
+    pub(crate) fn move_end(&mut self) {
+        self.cursor = self.name.len();
+    }
+
+    /// To the start of the word before the cursor: over what is not a word, then over
+    /// the word.
+    pub(crate) fn move_word_left(&mut self) {
+        let mut at = self.cursor;
+        while at > 0 && !self.is_word_before(at) {
+            at = self.previous_boundary(at);
+        }
+        while at > 0 && self.is_word_before(at) {
+            at = self.previous_boundary(at);
+        }
+        self.cursor = at;
+    }
+
+    /// To the end of the word after the cursor: over what is not a word, then over the
+    /// word.
+    pub(crate) fn move_word_right(&mut self) {
+        let mut at = self.cursor;
+        while at < self.name.len() && !self.is_word_at(at) {
+            at = self.next_boundary(at);
+        }
+        while at < self.name.len() && self.is_word_at(at) {
+            at = self.next_boundary(at);
+        }
+        self.cursor = at;
+    }
+
+    /// Puts the cursor at the character under the cell (`column`, `row`) when that is
+    /// on the text. Returns whether it was.
+    pub(crate) fn click(&mut self, column: u16, row: u16) -> bool {
+        let drawn = self.drawn.get();
+        if row != drawn.y || column < drawn.x || column >= drawn.x.saturating_add(drawn.width) {
+            return false;
+        }
+        let wanted = usize::from(column - drawn.x);
+        let mut used = 0;
+        let mut at = drawn.from.min(self.name.len());
+        for grapheme in self.name[at..].graphemes(true) {
+            let width = grapheme.width().max(1);
+            if wanted < used + width {
+                // The nearer edge of the character: the left half of a wide one is before it.
+                if wanted - used >= width.div_ceil(2) {
+                    at += grapheme.len();
+                }
+                break;
+            }
+            used += width;
+            at += grapheme.len();
+        }
+        self.cursor = at;
+        true
+    }
+
+    fn previous_boundary(&self, from: usize) -> usize {
+        self.name[..from]
+            .grapheme_indices(true)
+            .next_back()
+            .map_or(0, |(index, _)| index)
+    }
+
+    fn next_boundary(&self, from: usize) -> usize {
+        self.name[from..]
+            .graphemes(true)
+            .next()
+            .map_or(from, |grapheme| from + grapheme.len())
+    }
+
+    fn is_word_before(&self, at: usize) -> bool {
+        self.name[..at].chars().next_back().is_some_and(is_word)
+    }
+
+    fn is_word_at(&self, at: usize) -> bool {
+        self.name[at..].chars().next().is_some_and(is_word)
     }
 
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
@@ -211,27 +336,51 @@ impl NamePrompt {
         }
 
         let room = usize::from(inner.width).saturating_sub(PROMPT.width() + 1);
-        let shown = tail_fitting(&self.name, room);
+        let from = self.first_shown(room);
+        let shown = head_fitting(&self.name[from..], room);
         let line = format!("{PROMPT}{shown}");
         frame.render_widget(Paragraph::new(line.as_str()), Rect { height: 1, ..inner });
-        let cursor_x = inner.x + line.width().min(usize::from(inner.width)) as u16;
+        let text_x = inner.x + PROMPT.width().min(usize::from(inner.width)) as u16;
+        self.drawn.set(Drawn {
+            x: text_x,
+            y: inner.y,
+            width: inner.right().saturating_sub(text_x),
+            from,
+        });
+        let before_cursor = self.name[from..self.cursor].width();
+        let cursor_x = text_x.saturating_add(before_cursor.min(usize::from(u16::MAX)) as u16);
         frame.set_cursor_position(Position::new(cursor_x.min(inner.right()), inner.y));
     }
 }
 
-/// The end of `text` that fits in `width` cells, so what is being typed stays
-/// visible.
-fn tail_fitting(text: &str, width: usize) -> &str {
+impl NamePrompt {
+    /// The first byte of the name that is drawn: the start when the name fits, and
+    /// otherwise as far along as the cursor needs to be inside `room` cells; it stays
+    /// where it was while the cursor is in view.
+    fn first_shown(&self, room: usize) -> usize {
+        let mut from = self.drawn.get().from.min(self.cursor);
+        while from < self.cursor && self.name[from..self.cursor].width() > room {
+            from = self.next_boundary(from);
+        }
+        // Nothing needs hiding when the whole name fits.
+        if self.name.width() <= room { 0 } else { from }
+    }
+}
+
+/// The start of `text` that fits in `width` cells.
+fn head_fitting(text: &str, width: usize) -> &str {
     let mut used = 0;
-    let mut start = text.len();
-    for (index, c) in text.char_indices().rev() {
+    for (index, c) in text.char_indices() {
         used += c.width().unwrap_or(0);
         if used > width {
-            break;
+            return &text[..index];
         }
-        start = index;
     }
-    &text[start..]
+    text
+}
+
+fn is_word(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
 }
 
 /// A line and an optional column from what was typed: `42`, `42:7`, `:7` is
@@ -249,3 +398,6 @@ pub(crate) fn parse_place(text: &str) -> Option<(usize, Option<usize>)> {
         Some((line, column)) => Some((number(line)?, Some(number(column)?))),
     }
 }
+
+#[cfg(test)]
+mod tests;

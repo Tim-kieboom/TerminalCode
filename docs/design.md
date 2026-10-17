@@ -190,6 +190,7 @@ used `anyhow` everywhere instead of typed errors.
   trash move fails (e.g. on a mount without a trash), a second `Confirm` offers permanent delete. In a `Confirm`
   only `y` says yes; Enter, Esc and everything else cancel. Tests swap the trash for a stand-in
   (`App::with_trash`) so they never touch the real one.
+- The name prompt (`components/name_prompt.rs`; also Open File and Folder, Move, Go to line and New Theme) has a text cursor: `left`/`right` by grapheme (a flag or a letter with its accent is one step), `home`/`end`, `ctrl+left`/`ctrl+right` by word (letters, digits and `_`; dots and slashes separate), `delete`, backspace at the cursor, `ctrl+u` clears, and a click on the text puts the cursor there (the nearer edge of a wide character). A name longer than the box scrolls to keep the cursor in view. Decided: only this prompt for now; the finder, the find box and the project search have their own inputs, still without a movable cursor.
 - Creating (`app/popups/new_entry.rs`, `entries.rs`, `components/name_prompt.rs`): `a` / `shift+a` open a one-line
   name prompt for the selected folder (the parent of a selected file). The name may have several parts; existing
   entries are never touched (`create_new`, `create_dir`), and names that leave the folder (`..`, absolute) are

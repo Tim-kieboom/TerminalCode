@@ -134,6 +134,11 @@ impl App {
             return;
         }
 
+        if self.click_in_name_prompt(event) {
+            self.needs_redraw = true;
+            return;
+        }
+
         if self.handle_definitions_mouse(event) {
             self.needs_redraw = true;
             return;
@@ -295,4 +300,20 @@ mod tests;
 fn adds_cursor(modifiers: KeyModifiers) -> bool {
     modifiers.contains(KeyModifiers::ALT)
         && !modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::SHIFT)
+}
+
+impl App {
+    /// A click on the text of the name box puts the text cursor there. Returns whether
+    /// it did.
+    fn click_in_name_prompt(&mut self, event: MouseEvent) -> bool {
+        if event.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+        let Some(mut prompt) = self.state.take_name_prompt() else {
+            return false;
+        };
+        let placed = prompt.click(event.column, event.row);
+        self.state.open_name_prompt(prompt);
+        placed
+    }
 }

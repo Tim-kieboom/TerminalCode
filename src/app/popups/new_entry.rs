@@ -77,6 +77,13 @@ impl App {
         match command {
             name_prompt::Command::Insert(c) => prompt.insert(c),
             name_prompt::Command::Backspace => prompt.backspace(),
+            name_prompt::Command::Delete => prompt.delete(),
+            name_prompt::Command::Left => prompt.move_left(),
+            name_prompt::Command::Right => prompt.move_right(),
+            name_prompt::Command::Home => prompt.move_home(),
+            name_prompt::Command::End => prompt.move_end(),
+            name_prompt::Command::WordLeft => prompt.move_word_left(),
+            name_prompt::Command::WordRight => prompt.move_word_right(),
             name_prompt::Command::ClearName => prompt.clear(),
             name_prompt::Command::Cancel => return,
             name_prompt::Command::Submit => match self.submit_name(&prompt) {

@@ -436,3 +436,52 @@ fn a_case_change_in_the_explorer_renames_and_keeps_the_tab() {
     assert!(tab_names(&app).iter().any(|name| name.contains("A.txt")));
     assert_eq!(app.state().explorer().selected_row().unwrap().name, "A.txt");
 }
+
+#[test]
+fn the_cursor_keys_edit_inside_the_name_of_a_rename() {
+    let dir = project();
+    let mut app = app_in(dir.path());
+    select(&mut app, "a.txt");
+
+    press(&mut app, KeyCode::Char('r'));
+    press(&mut app, KeyCode::Home);
+    type_str(&mut app, "x");
+    press(&mut app, KeyCode::End);
+    press(&mut app, KeyCode::Left);
+    press(&mut app, KeyCode::Left);
+    press(&mut app, KeyCode::Left);
+    press(&mut app, KeyCode::Left);
+    press(&mut app, KeyCode::Delete);
+    assert_eq!(app.state().name_prompt().unwrap().name(), "xatxt");
+    press(&mut app, KeyCode::Enter);
+
+    assert!(dir.path().join("xatxt").exists());
+}
+
+#[test]
+fn a_click_on_the_name_puts_the_text_cursor_there() {
+    use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    let dir = project();
+    let mut app = app_in(dir.path());
+    select(&mut app, "a.txt");
+    press(&mut app, KeyCode::Char('r'));
+    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
+    terminal
+        .draw(|frame| crate::components::prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    // The box is centered in 120 columns, 60 wide; the text starts after the border and "> ".
+    let (column, row) = ((120 - 60) / 2 + 1 + 2, 40 / 8 + 1);
+
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: column + 1,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+    type_str(&mut app, "X");
+
+    assert_eq!(app.state().name_prompt().unwrap().name(), "aX.txt");
+}
