@@ -151,6 +151,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.6.0
 - [x] Version 0.6.0 (after 0.5.0: several cursors (`ctrl+alt+up/down`, `alt+click`, `alt+drag`) for typing, deletes, motions, copy, cut and paste, move line with `alt+up/down`, paragraph motion, a background color per pane in the theme, fast long single lines of plain ASCII, SideBar and BottomBar layout nodes with a tab strip, the Errors view in the bottom bar with `ctrl+click` to go to definition, diagnostics in the hover box, the menu bar and main menu (`f10`) with Open File, Open Folder (a restart of `trcode` in that folder) and Open Recent (`recent.json`)). Changes to know when upgrading: the default layout has a `MenuBar` row on top (a layout of your own without it simply has none; `View: Toggle Menu Bar` and a remembered `menu_bar` in `state.json` hide it) and a bottom bar with Terminal and Errors tabs; `esc` in the editor goes back to one cursor
+- [x] Tag `v0.6.0` (tagged on d5b747b; CI green on Linux, macOS and Windows, with the flood timing assertions removed so macOS no longer fails them; the release run built Linux, macOS and Windows archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
