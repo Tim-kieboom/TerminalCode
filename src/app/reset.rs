@@ -4,7 +4,7 @@
 use super::App;
 use crate::components::popups::confirm::Confirm;
 use crate::config::{self, ConfigFile};
-use crate::saved_state;
+use crate::persist::saved_state;
 
 impl App {
     pub(super) fn ask_to_reset_config(&mut self, file: ConfigFile) {

@@ -10,7 +10,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-use crate::entries::EntryKind;
+use crate::files::entries::EntryKind;
 use crate::ui::theme::Theme;
 
 const WIDTH: u16 = 60;

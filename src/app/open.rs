@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use super::App;
 use crate::components::popups::name_prompt::NamePrompt;
-use crate::entries::EntryError;
+use crate::files::entries::EntryError;
 
 /// `text` as a path: `~` and `~/` stand for the home folder and a relative path
 /// is from `base`.
@@ -93,7 +93,7 @@ impl App {
         if !meta.is_dir() {
             return Err(EntryError::NotAFolder(name));
         }
-        self.restart_in = Some(crate::paths::canonical(path));
+        self.restart_in = Some(crate::files::paths::canonical(path));
         self.quit();
         Ok(())
     }

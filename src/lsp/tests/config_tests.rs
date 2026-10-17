@@ -254,7 +254,7 @@ fn rust_server() -> ServerConfig {
 }
 
 fn canonical(path: &Path) -> std::path::PathBuf {
-    crate::paths::without_verbatim_prefix(&crate::paths::canonical(path))
+    crate::files::paths::without_verbatim_prefix(&crate::files::paths::canonical(path))
 }
 
 /// A `Cargo.toml` in `project` for a workspace whose members are in `crates`.

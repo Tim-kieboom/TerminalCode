@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::{DocumentId, SaveOutcome, ViewId, ViewState, Workspace, display_name};
 use crate::buffer::{Buffer, FileError, Position};
-use crate::paths::canonical;
+use crate::files::paths::canonical;
 use crate::ui::layout::Axis;
 
 /// How many closed tabs are remembered.

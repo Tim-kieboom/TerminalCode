@@ -10,7 +10,7 @@ use crate::app::App;
 use crate::app::state::Popup;
 use crate::config::ConfigFile;
 use crate::event::action::Action;
-use crate::saved_state;
+use crate::persist::saved_state;
 
 fn press(app: &mut App, code: KeyCode) {
     app.handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));

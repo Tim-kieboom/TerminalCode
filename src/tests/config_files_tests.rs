@@ -447,8 +447,8 @@ fn a_theme_change_keeps_the_terminal_background() {
 // ---- reloading when a config file is saved
 
 use crate::event::Event;
-use crate::paths::canonical;
-use crate::watcher::FsWatcher;
+use crate::files::paths::canonical;
+use crate::files::watcher::FsWatcher;
 
 fn saved(app: &mut App, path: &Path) {
     app.handle_event(Event::FilesChanged(vec![path.to_path_buf()]));

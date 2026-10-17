@@ -115,5 +115,5 @@ pub(crate) fn load(dir: Option<&Path>) -> (Recent, Option<ConfigWarning>) {
 /// Writes the list to `dir`, through a temporary file and a rename.
 pub(crate) fn save(dir: &Path, recent: &Recent) -> io::Result<()> {
     let text = serde_json::to_string_pretty(recent).map_err(io::Error::other)?;
-    crate::saved_state::write_atomically(&path_in(dir), &format!("{text}\n"))
+    crate::persist::saved_state::write_atomically(&path_in(dir), &format!("{text}\n"))
 }

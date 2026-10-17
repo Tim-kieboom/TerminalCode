@@ -12,8 +12,8 @@ use crate::app::App;
 use crate::buffer::FileError;
 use crate::components::popups::root_prompt::{self, RootPrompt};
 use crate::event::Event;
+use crate::files::rootsave::{RootError, RootWriter};
 use crate::ids::DocumentId;
-use crate::rootsave::{RootError, RootWriter};
 
 /// What a save as root in progress is writing.
 #[derive(Debug)]

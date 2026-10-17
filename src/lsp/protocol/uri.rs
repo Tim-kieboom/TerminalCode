@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::paths::without_verbatim_prefix;
+use crate::files::paths::without_verbatim_prefix;
 
 /// The URI of the file or folder at `path`, which has to be absolute.
 pub(crate) fn file_uri(path: &Path) -> Option<String> {

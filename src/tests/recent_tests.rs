@@ -12,8 +12,8 @@ use crate::app::state::AppState;
 use crate::components::popups::menu::Entry;
 use crate::components::prepare_and_render;
 use crate::event::action::Action;
-use crate::paths::canonical;
-use crate::recent::{self, MOST, RECENT_FILE, Recent, load, path_in, save};
+use crate::files::paths::canonical;
+use crate::persist::recent::{self, MOST, RECENT_FILE, Recent, load, path_in, save};
 
 struct Rig {
     app: App,

@@ -136,7 +136,7 @@ fn open_folder_ends_the_editor_with_the_folder_to_start_again_in() {
     let target = rig.app.restart_target().unwrap();
     assert_eq!(
         target,
-        crate::paths::canonical(&rig.dir.path().join("sub")).as_path()
+        crate::files::paths::canonical(&rig.dir.path().join("sub")).as_path()
     );
 }
 

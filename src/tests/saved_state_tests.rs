@@ -10,8 +10,8 @@ use tokio::sync::mpsc;
 use crate::app::App;
 use crate::app::state::{AppState, Focus};
 use crate::components::ComponentKind;
+use crate::persist::saved_state::{self, SavedState, load, path_in, save};
 use crate::pty::Shell;
-use crate::saved_state::{self, SavedState, load, path_in, save};
 use crate::startup;
 use crate::terminal::KeyboardSupport;
 

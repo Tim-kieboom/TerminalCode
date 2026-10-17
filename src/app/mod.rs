@@ -331,7 +331,7 @@ impl App {
 
     /// Moves files to `trash` instead of the OS trash.
     #[cfg(test)]
-    pub(crate) fn with_trash(mut self, trash: crate::removal::TrashFn) -> Self {
+    pub(crate) fn with_trash(mut self, trash: crate::files::removal::TrashFn) -> Self {
         self.removal = Removal::with_trash(trash);
         self
     }

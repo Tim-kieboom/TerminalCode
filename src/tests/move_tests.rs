@@ -5,7 +5,7 @@ use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::App;
 use crate::app::state::AppState;
-use crate::entries::{self, EntryError};
+use crate::files::entries::{self, EntryError};
 
 fn press(app: &mut App, code: KeyCode) {
     app.handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));

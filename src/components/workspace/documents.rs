@@ -4,8 +4,8 @@ use super::{Document, EditEvent, Workspace};
 use crate::buffer::{Buffer, FileError};
 use crate::components::editor::{IndentPrefs, ViewState, display_name};
 use crate::components::popups::quit_prompt::Item;
+use crate::files::paths::canonical;
 use crate::ids::DocumentId;
-use crate::paths::canonical;
 use crate::syntax::DocumentSyntax;
 use std::path::{Path, PathBuf};
 

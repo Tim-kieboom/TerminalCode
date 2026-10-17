@@ -222,7 +222,7 @@ impl Secret {
 }
 
 /// What `sudo` said, as an error.
-pub(super) fn classify(stderr: &str) -> RootError {
+pub(crate) fn classify(stderr: &str) -> RootError {
     let lower = stderr.to_lowercase();
     let first = stderr
         .lines()

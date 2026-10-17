@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use super::App;
 use crate::components::workspace::DiskEvent;
 use crate::config::ConfigFile;
-use crate::paths::canonical;
-use crate::watcher::{FsWatcher, WatchError};
+use crate::files::paths::canonical;
+use crate::files::watcher::{FsWatcher, WatchError};
 
 /// The watcher, if there is one, and what it was last set up for.
 #[derive(Debug, Default)]

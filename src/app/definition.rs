@@ -15,12 +15,12 @@ use super::App;
 use super::lsp::Target;
 use crate::components::popups::definition_list::{Command, DefinitionList, Entry, short_path};
 use crate::config::user_config_dir;
+use crate::files::paths::canonical;
 use crate::ids::DocumentId;
 use crate::lsp::uri::uri_to_path;
 use crate::lsp::{
     LanguageServers, Location, PendingDefinition, ServerKey, from_lsp, language_id_of, to_lsp,
 };
-use crate::paths::canonical;
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 /// How long an answer is waited for before it is given up on.

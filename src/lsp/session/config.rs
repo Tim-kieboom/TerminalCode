@@ -9,8 +9,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use crate::files::paths::{canonical, without_verbatim_prefix};
 use crate::lsp::cargo;
-use crate::paths::{canonical, without_verbatim_prefix};
 
 /// One language server: what to run, and which files and projects it is for.
 #[derive(Debug, Clone, PartialEq, Eq)]

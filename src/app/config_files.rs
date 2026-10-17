@@ -10,7 +10,7 @@ use crate::settings::Settings;
 
 use super::App;
 use crate::components::popups::name_prompt::NamePrompt;
-use crate::entries::EntryError;
+use crate::files::entries::EntryError;
 
 impl App {
     /// Opens `file` in a tab. A file that does not exist yet is made first from

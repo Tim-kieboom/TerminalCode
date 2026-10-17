@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use ignore::WalkBuilder;
 use thiserror::Error;
 
-use crate::paths::canonical;
+use crate::files::paths::canonical;
 
 /// The version control directory is never listed.
 const HIDDEN_DIRECTORY: &str = ".git";
@@ -307,7 +307,7 @@ fn root_name(path: &Path) -> String {
     name(path)
         .or_else(|| name(&canonical(path)))
         .unwrap_or_else(|| {
-            crate::paths::without_verbatim_prefix(&canonical(path))
+            crate::files::paths::without_verbatim_prefix(&canonical(path))
                 .display()
                 .to_string()
         })

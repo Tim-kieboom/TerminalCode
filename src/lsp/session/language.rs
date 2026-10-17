@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use crate::files::paths::canonical;
 use crate::lsp::sync::language_id;
-use crate::paths::canonical;
 
 /// The settings file of the config folder is JSON with comments; so are the
 /// files below, wherever they are.

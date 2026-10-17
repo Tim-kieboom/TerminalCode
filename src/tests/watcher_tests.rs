@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 
 use crate::event::Event;
-use crate::watcher::FsWatcher;
+use crate::files::watcher::FsWatcher;
 
 fn watcher() -> (FsWatcher, mpsc::Receiver<Event>) {
     let (tx, rx) = mpsc::channel(256);

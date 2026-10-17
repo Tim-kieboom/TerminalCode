@@ -132,8 +132,10 @@ fn the_server_is_started_for_the_root_of_the_project_not_the_folder_of_the_file(
     assert_eq!(specs[0].command, "rust-analyzer");
     assert_eq!(specs[0].name, "rust");
     assert_eq!(
-        crate::paths::without_verbatim_prefix(&crate::paths::canonical(&specs[0].root)),
-        crate::paths::without_verbatim_prefix(&crate::paths::canonical(dir.path()))
+        crate::files::paths::without_verbatim_prefix(&crate::files::paths::canonical(
+            &specs[0].root
+        )),
+        crate::files::paths::without_verbatim_prefix(&crate::files::paths::canonical(dir.path()))
     );
 }
 
@@ -1472,9 +1474,11 @@ fn the_report_follows_the_server_from_not_started_to_open() {
     assert!(open.contains("the file is open on it"), "{open}");
     assert!(
         open.contains(
-            &crate::paths::without_verbatim_prefix(&crate::paths::canonical(dir.path()))
-                .display()
-                .to_string()
+            &crate::files::paths::without_verbatim_prefix(&crate::files::paths::canonical(
+                dir.path()
+            ))
+            .display()
+            .to_string()
         ),
         "{open}"
     );

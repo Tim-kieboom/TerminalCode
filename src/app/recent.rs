@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use super::App;
 use crate::components::popups::menu::Entry;
 use crate::event::action::Action;
-use crate::paths::canonical;
-use crate::recent::{self, Recent};
+use crate::files::paths::canonical;
+use crate::persist::recent::{self, Recent};
 
 /// The list, what has been noted already in this run, and whether a failure to
 /// write it has been told.

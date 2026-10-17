@@ -6,8 +6,8 @@ use crate::app::state::AppState;
 use crate::components::ComponentKind;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::keymap::Keymap;
-use crate::recent::{self, Recent};
-use crate::saved_state::{self, SavedState};
+use crate::persist::recent::{self, Recent};
+use crate::persist::saved_state::{self, SavedState};
 use crate::settings::Settings;
 use crate::terminal::KeyboardSupport;
 

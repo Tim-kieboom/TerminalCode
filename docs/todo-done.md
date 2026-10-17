@@ -281,3 +281,4 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Structure: `src/lsp/` (24 flat files) grouped into `protocol/`, `session/` and `features/`; `lsp/mod.rs` keeps the re-exports and names each file at the `lsp` level; items that were `pub(super)` are `pub(in crate::lsp)`. No behavior change
 - [x] Structure: the popup views moved from `components/` into `components/popups/` (same names as `app/popups/`, which keeps the key and mouse handlers). No behavior change
 - [x] Structure: `app/lsp.rs` (663 lines) keeps the life of the servers (419 lines); the diagnostics moved to `app/diagnostics.rs`, and the completion, hover and definition requests to the files that handle their answers. No behavior change
+- [x] Structure: the loose top-level modules grouped into `files/` (entries, paths, removal, rootsave, watcher) and `persist/` (saved_state, recent); `pub(super)` items became `pub(crate)`. No behavior change

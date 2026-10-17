@@ -47,5 +47,5 @@ pub(crate) enum Event {
     /// A language server finished starting, said something, or died.
     LspChanged,
     /// A save as root is over: it worked, or why not.
-    RootSaved(Result<(), crate::rootsave::RootError>),
+    RootSaved(Result<(), crate::files::rootsave::RootError>),
 }

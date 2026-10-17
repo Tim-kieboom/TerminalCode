@@ -1,8 +1,8 @@
-//! Remembering which panes are hidden, between runs: see [`crate::saved_state`].
+//! Remembering which panes are hidden, between runs: see [`crate::persist::saved_state`].
 
 use super::App;
 use crate::components::ComponentKind;
-use crate::saved_state::{self, SavedState};
+use crate::persist::saved_state::{self, SavedState};
 
 /// The panes that can be hidden and are remembered.
 const PANES: [ComponentKind; 4] = [

@@ -231,7 +231,7 @@ fn the_menu_bar_cannot_be_a_view_of_a_bar() {
 
 #[test]
 fn the_state_remembers_a_hidden_menu_bar() {
-    let mut state = crate::saved_state::SavedState::default();
+    let mut state = crate::persist::saved_state::SavedState::default();
 
     assert_eq!(state.shown(&ComponentKind::MenuBar), None);
     state.set_shown(&ComponentKind::MenuBar, false);

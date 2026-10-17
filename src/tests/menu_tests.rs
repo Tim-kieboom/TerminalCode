@@ -11,7 +11,7 @@ use crate::app::App;
 use crate::app::state::AppState;
 use crate::components::popups::menu::Entry;
 use crate::components::prepare_and_render;
-use crate::removal;
+use crate::files::removal;
 
 fn press(app: &mut App, code: KeyCode) {
     app.handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));

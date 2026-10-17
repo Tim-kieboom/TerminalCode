@@ -424,7 +424,7 @@ fn wait_for_quiet_output(shared: &Shared) {
 /// The directory to start the shell in: `directory` as the shell can use it.
 fn working_directory(directory: &std::path::Path) -> PathBuf {
     match cfg!(windows) {
-        true => crate::paths::without_verbatim_prefix(directory),
+        true => crate::files::paths::without_verbatim_prefix(directory),
         false => directory.to_path_buf(),
     }
 }

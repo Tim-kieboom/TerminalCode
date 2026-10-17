@@ -9,6 +9,7 @@ use std::sync::Arc;
 use crate::components::workspace::LspDocument;
 use crate::config::user_config_dir;
 use crate::event::Event;
+use crate::files::paths::{canonical, without_verbatim_prefix};
 use crate::ids::DocumentId;
 #[cfg(not(test))]
 use crate::lsp::ProcessLauncher;
@@ -17,7 +18,6 @@ use crate::lsp::{
     DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice, ServerKey,
     language_id_of, root_for,
 };
-use crate::paths::{canonical, without_verbatim_prefix};
 
 use super::App;
 use super::definition::borrowed_target;

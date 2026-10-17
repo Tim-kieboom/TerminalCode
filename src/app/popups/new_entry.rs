@@ -8,7 +8,7 @@ use crate::app::state::Focus;
 use crate::buffer::Position;
 use crate::components::explorer::{ExplorerCommand, NodeKind};
 use crate::components::popups::name_prompt::{self, NamePrompt, Purpose};
-use crate::entries::{self, EntryError, EntryKind};
+use crate::files::entries::{self, EntryError, EntryKind};
 use crate::ids::DocumentId;
 
 impl App {

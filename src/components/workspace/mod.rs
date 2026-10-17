@@ -18,8 +18,8 @@ use serde::Deserialize;
 
 use crate::buffer::{Buffer, DiskChange};
 use crate::components::editor::{Editor, IndentPrefs, IndentStyle, ViewState, display_name};
+use crate::files::paths::canonical;
 use crate::ids::{DocumentId, PaneId, ViewId};
-use crate::paths::canonical;
 use crate::syntax::DocumentSyntax;
 use crate::syntax::worker::Key as SyntaxKey;
 

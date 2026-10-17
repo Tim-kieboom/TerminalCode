@@ -8,8 +8,8 @@ use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
+use crate::files::rootsave::Secret;
 use crate::ids::DocumentId;
-use crate::rootsave::Secret;
 use crate::ui::theme::Theme;
 
 const WIDTH: u16 = 64;

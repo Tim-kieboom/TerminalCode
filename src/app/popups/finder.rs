@@ -28,7 +28,7 @@ impl App {
     /// The files opened lately that are in the project, latest first, as paths
     /// under `root` (a file opened by a relative path is found by where it is).
     fn recent_files_under(&self, root: &std::path::Path) -> Vec<std::path::PathBuf> {
-        let canonical_root = crate::paths::canonical(root);
+        let canonical_root = crate::files::paths::canonical(root);
         self.state
             .workspace()
             .recent_paths()
@@ -37,7 +37,7 @@ impl App {
                 if path.starts_with(root) {
                     return Some(path.clone());
                 }
-                let relative = crate::paths::canonical(path)
+                let relative = crate::files::paths::canonical(path)
                     .strip_prefix(&canonical_root)
                     .ok()?
                     .to_path_buf();

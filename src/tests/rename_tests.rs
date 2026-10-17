@@ -6,9 +6,9 @@ use tokio::sync::mpsc;
 
 use crate::app::App;
 use crate::app::state::AppState;
-use crate::entries::{self, EntryError};
 use crate::event::Event;
-use crate::watcher::FsWatcher;
+use crate::files::entries::{self, EntryError};
+use crate::files::watcher::FsWatcher;
 
 fn press(app: &mut App, code: KeyCode) {
     app.handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));

@@ -15,8 +15,8 @@ use tokio::sync::mpsc;
 use crate::app::App;
 use crate::components::prepare_and_render;
 use crate::event::Event;
+use crate::files::rootsave::{RootError, RootWriter, Secret, classify};
 use crate::initial_state;
-use crate::rootsave::{RootError, RootWriter, Secret, classify};
 
 struct Rig {
     app: App,

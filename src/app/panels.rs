@@ -11,8 +11,8 @@ use crate::components::explorer::{Explorer, ExplorerCommand, Release};
 use crate::components::workspace::{FocusDirection, neighbor_score};
 use crate::components::{ComponentKind, PluginViewId};
 use crate::error::IdeResult;
+use crate::files::paths::canonical;
 use crate::ids::PaneId;
-use crate::paths::canonical;
 use ratatui::layout::Rect;
 
 impl App {

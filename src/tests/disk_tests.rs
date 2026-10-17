@@ -12,8 +12,8 @@ use crate::app::state::AppState;
 use crate::buffer::Position;
 use crate::components::prepare_and_render;
 use crate::event::Event;
+use crate::files::watcher::FsWatcher;
 use crate::initial_state;
-use crate::watcher::FsWatcher;
 
 fn key(code: KeyCode, modifiers: KeyModifiers) -> InputEvent {
     InputEvent::Key(KeyEvent::new(code, modifiers))

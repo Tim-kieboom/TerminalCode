@@ -9,8 +9,8 @@ use crate::buffer::Buffer;
 use crate::clipboard::{Clipboard, System};
 use crate::components::editor::Editor;
 use crate::error::{IdeError, IdeResult};
+use crate::files::watcher::FsWatcher;
 use crate::terminal::Capabilities;
-use crate::watcher::FsWatcher;
 
 mod app;
 mod buffer;
@@ -18,9 +18,9 @@ mod cli;
 mod clipboard;
 mod components;
 mod config;
-mod entries;
 pub mod error;
 mod event;
+mod files;
 mod ids;
 #[allow(
     dead_code,
@@ -34,12 +34,8 @@ mod keymap;
     reason = "the client is wired into the app in the next steps"
 )]
 mod lsp;
-mod paths;
+mod persist;
 mod pty;
-mod recent;
-mod removal;
-mod rootsave;
-mod saved_state;
 mod settings;
 mod startup;
 mod syntax;
@@ -47,7 +43,6 @@ pub mod terminal;
 #[cfg(test)]
 mod tests;
 mod ui;
-mod watcher;
 
 /// Runs the editor until it ends. It returns the folder to start again in when the
 /// user asked to open one (the caller restarts the program there), and `None` for

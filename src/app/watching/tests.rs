@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use tokio::sync::mpsc;
 
 use super::Watching;
-use crate::watcher::FsWatcher;
+use crate::files::watcher::FsWatcher;
 
 fn attached() -> Watching {
     let (tx, _rx) = mpsc::channel(16);
