@@ -16,7 +16,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::components::diagnostic_popup::{place, wrap_text};
 use crate::components::editor::render::fit;
 use crate::components::scroll_text::TextScroll;
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 use crate::lsp::Completion;
 use crate::ui::theme::Theme;
 

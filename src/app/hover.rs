@@ -14,8 +14,8 @@ use super::App;
 use super::state::Popup;
 use crate::components::diagnostic_popup::Entry;
 use crate::components::hover_box::HoverBox;
-use crate::components::workspace::DocumentId;
 use crate::event::action::Action;
+use crate::ids::DocumentId;
 use crate::keymap::KeyChord;
 use crate::lsp::{PendingHover, to_lsp};
 

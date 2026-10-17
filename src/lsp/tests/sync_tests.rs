@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use ropey::Rope;
 use serde_json::{Value, json};
 
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 use crate::lsp::ServerKey;
 use crate::lsp::position::LspPosition;
 use crate::lsp::sync::{DocSnapshot, DocumentSync, Outgoing, language_id};

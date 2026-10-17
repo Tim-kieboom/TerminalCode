@@ -11,8 +11,8 @@ use crossterm::event::KeyEvent;
 use crate::app::App;
 use crate::buffer::FileError;
 use crate::components::root_prompt::{self, RootPrompt};
-use crate::components::workspace::DocumentId;
 use crate::event::Event;
+use crate::ids::DocumentId;
 use crate::rootsave::{RootError, RootWriter};
 
 /// What a save as root in progress is writing.

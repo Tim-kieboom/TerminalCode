@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 
 /// The most places the list keeps; the oldest go first.
 const LIMIT: usize = 100;

@@ -425,7 +425,7 @@ fn typing_in_ten_megabytes_of_rust_while_it_is_colored() {
 #[test]
 #[ignore = "measures; run in release"]
 fn telling_a_server_about_an_edit_in_ten_megabytes() {
-    use crate::components::workspace::DocumentId;
+    use crate::ids::DocumentId;
     use crate::lsp::{DocSnapshot, DocumentSync, ServerKey};
     let text = lines_of(TEN_MEGABYTES, 80);
     let key = ServerKey {

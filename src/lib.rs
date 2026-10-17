@@ -21,6 +21,7 @@ mod config;
 mod entries;
 pub mod error;
 mod event;
+mod ids;
 #[allow(
     dead_code,
     reason = "the jump list is wired into the app in the next step"

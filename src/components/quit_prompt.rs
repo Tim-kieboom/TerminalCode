@@ -10,7 +10,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 
 use crate::app::state::AppState;
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::theme::Theme;

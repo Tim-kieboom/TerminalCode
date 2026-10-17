@@ -102,7 +102,7 @@ pub(crate) struct App {
     config_applied: Option<u64>,
     /// The tab that was in front when the last input was handled, to notice a
     /// switch to another.
-    front_view: Option<crate::components::workspace::ViewId>,
+    front_view: Option<crate::ids::ViewId>,
     /// The panes the user hid or showed, remembered for the next run.
     saved: Saved,
     recent: recent::Recents,

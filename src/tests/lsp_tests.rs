@@ -701,7 +701,7 @@ fn changing_the_servers_in_the_settings_opens_the_documents_on_the_new_server() 
 use std::ops::Range;
 use std::sync::mpsc::Sender;
 
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 use crate::lsp::Severity;
 use crate::lsp::tests::support::Script;
 

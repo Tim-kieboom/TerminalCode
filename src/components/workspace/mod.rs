@@ -22,6 +22,7 @@ use crate::components::editor::{
 };
 use crate::components::quit_prompt::Item;
 use crate::event::mouse::Clicks;
+use crate::ids::{DocumentId, PaneId, ViewId};
 use crate::paths::canonical;
 use crate::syntax::worker::Key as SyntaxKey;
 use crate::syntax::{DocumentSyntax, MAX_RANGES, Output, SyntaxWorker, merge_ranges};
@@ -38,15 +39,6 @@ mod render;
 #[cfg(test)]
 mod tests;
 mod tree;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub(crate) struct DocumentId(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct ViewId(u32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct PaneId(u32);
 
 /// A direction to move focus between panes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -169,7 +161,7 @@ impl Default for Workspace {
 impl Workspace {
     /// A workspace with one pane holding one tab for `editor`.
     pub(crate) fn new(editor: Editor) -> Self {
-        let pane = PaneId(0);
+        let pane = PaneId::new(0);
         let mut workspace = Self {
             documents: HashMap::new(),
             panes: Vec::new(),
@@ -675,7 +667,7 @@ impl Workspace {
         let (document, view) = (source.document, source.view.duplicate());
 
         let tab = self.new_tab(document, view);
-        let id = PaneId(self.take_id());
+        let id = PaneId::new(self.take_id());
         self.tree.split(self.focused, axis, id);
         self.panes.push(Pane::with_tab(id, tab));
         self.focused = id;
@@ -998,7 +990,7 @@ impl Workspace {
     fn add_document(&mut self, buffer: Buffer) -> DocumentId {
         let mut buffer = buffer;
         let read_only = buffer.sync_read_only();
-        let id = DocumentId(self.take_id());
+        let id = DocumentId::new(self.take_id());
         let indent = self.indent_prefs.style_for(&buffer);
         self.docs_version += 1;
         self.documents.insert(
@@ -1011,7 +1003,7 @@ impl Workspace {
                 warned: None,
                 saves: 0,
                 reloads: 0,
-                syntax: DocumentSyntax::new(u64::from(id.0)),
+                syntax: DocumentSyntax::new(u64::from(id.number())),
             },
         );
         id
@@ -1034,7 +1026,7 @@ impl Workspace {
     fn new_tab(&mut self, document: DocumentId, mut view: ViewState) -> Tab {
         view.set_tab_width(self.indent_prefs.size);
         Tab {
-            id: ViewId(self.take_id()),
+            id: ViewId::new(self.take_id()),
             document,
             view,
             pinned: false,
@@ -1217,12 +1209,4 @@ fn center_distance(start_a: u16, len_a: u16, start_b: u16, len_b: u16) -> u32 {
     let center_a = u32::from(start_a) * 2 + u32::from(len_a);
     let center_b = u32::from(start_b) * 2 + u32::from(len_b);
     center_a.abs_diff(center_b)
-}
-
-#[cfg(test)]
-impl DocumentId {
-    /// An id for tests that need documents without a workspace.
-    pub(crate) fn for_test(number: u32) -> Self {
-        Self(number)
-    }
 }

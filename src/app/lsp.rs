@@ -7,9 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::components::diagnostic_popup::{DiagnosticPopup, PopupKey};
-use crate::components::workspace::{DocumentId, LspDocument};
+use crate::components::workspace::LspDocument;
 use crate::config::user_config_dir;
 use crate::event::Event;
+use crate::ids::DocumentId;
 #[cfg(not(test))]
 use crate::lsp::ProcessLauncher;
 use crate::lsp::uri::file_uri;

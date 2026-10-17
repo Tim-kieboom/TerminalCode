@@ -105,7 +105,7 @@ impl App {
     }
 
     /// Brings the screen in line with a file or folder that is gone.
-    fn deleted(&mut self, path: &Path, affected: &[crate::components::workspace::DocumentId]) {
+    fn deleted(&mut self, path: &Path, affected: &[crate::ids::DocumentId]) {
         self.state.workspace_mut().close_documents(affected);
         let parent: Vec<PathBuf> = path.parent().map(Path::to_path_buf).into_iter().collect();
         if let Err(error) = self.state.explorer_mut().refresh_paths(&parent) {

@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use super::diff::ByteChange;
 use super::position::LspPosition;
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum Severity {

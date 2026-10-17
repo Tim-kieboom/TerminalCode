@@ -8,8 +8,8 @@ use crate::app::state::Focus;
 use crate::buffer::Position;
 use crate::components::explorer::{ExplorerCommand, NodeKind};
 use crate::components::name_prompt::{self, NamePrompt, Purpose};
-use crate::components::workspace::DocumentId;
 use crate::entries::{self, EntryError, EntryKind};
+use crate::ids::DocumentId;
 
 impl App {
     /// Asks for the name of a new entry in the folder the explorer has

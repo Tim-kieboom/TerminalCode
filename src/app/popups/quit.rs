@@ -5,7 +5,8 @@ use crossterm::event::KeyEvent;
 use crate::app::editing::{deleted_warning, overwrite_warning};
 use crate::app::{App, Flow};
 use crate::components::quit_prompt::{self, QuitPrompt};
-use crate::components::workspace::{DocumentId, SaveOutcome};
+use crate::components::workspace::SaveOutcome;
+use crate::ids::DocumentId;
 
 impl App {
     /// Quits, after asking what to do with documents that have unsaved

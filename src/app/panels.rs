@@ -8,9 +8,10 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use super::App;
 use crate::app::state::Focus;
 use crate::components::explorer::{Explorer, ExplorerCommand, Release};
-use crate::components::workspace::{FocusDirection, PaneId, neighbor_score};
+use crate::components::workspace::{FocusDirection, neighbor_score};
 use crate::components::{ComponentKind, PluginViewId};
 use crate::error::IdeResult;
+use crate::ids::PaneId;
 use crate::paths::canonical;
 use ratatui::layout::Rect;
 

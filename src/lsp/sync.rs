@@ -19,7 +19,7 @@ use super::config::ServerKey;
 use super::diagnostics::map_range;
 use super::diff::{ByteChange, change_between};
 use super::position::{LspPosition, from_lsp};
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 
 /// How many of the texts a server was sent are kept, for placing an answer
 /// that is about an older one.

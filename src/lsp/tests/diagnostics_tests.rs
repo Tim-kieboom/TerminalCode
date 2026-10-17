@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 use crate::lsp::diagnostics::{map_range, parse_published};
 use crate::lsp::position::LspPosition;
 use crate::lsp::{ByteChange, Diagnostic, Diagnostics, Severity};

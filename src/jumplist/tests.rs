@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::{Change, JumpList, LIMIT, Place};
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 
 fn doc(number: u32) -> DocumentId {
     DocumentId::for_test(number)

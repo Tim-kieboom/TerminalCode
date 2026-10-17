@@ -288,7 +288,7 @@ fn real_rust_analyzer_starts_reports_progress_and_shuts_down() {
 #[test]
 #[ignore = "needs rust-analyzer on the PATH; run by hand"]
 fn real_rust_analyzer_puts_a_type_error_on_the_right_line() {
-    use crate::components::workspace::DocumentId;
+    use crate::ids::DocumentId;
     use crate::lsp::diagnostics::Diagnostic;
     use crate::lsp::{DocSnapshot, DocumentSync, ServerKey, Severity, parse_published};
 

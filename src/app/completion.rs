@@ -16,7 +16,7 @@ use ropey::Rope;
 use super::App;
 use super::state::{Focus, Popup};
 use crate::components::completion_box::CompletionBox;
-use crate::components::workspace::DocumentId;
+use crate::ids::DocumentId;
 use crate::lsp::{
     ByteEdit, Completion, PendingCompletion, Refresh, Trigger, byte_edits, change_between, to_lsp,
 };
