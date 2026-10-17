@@ -206,7 +206,7 @@ fn theme_choose_opens_the_palette_on_the_installed_themes_only() {
 fn the_themes_folder_is_watched_so_a_theme_dropped_in_shows_up_on_reopening() {
     let dir = tempfile::tempdir().unwrap();
     install(dir.path(), "solar", GREEN_ACCENT);
-    let (tx, _rx) = tokio::sync::mpsc::channel(16);
+    let (tx, _rx) = tokio::sync::mpsc::channel::<crate::event::Event>(16);
     let app = App::default()
         .with_config_dir(Some(dir.path().to_path_buf()))
         .with_watcher(FsWatcher::new(tx).unwrap());

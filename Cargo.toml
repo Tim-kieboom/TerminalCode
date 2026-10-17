@@ -16,6 +16,11 @@ proptest = "1.11.0"
 tempfile = "3.27.0"
 trcode-ids = { path = "crates/ids" }
 trcode-buffer = { path = "crates/buffer" }
+trcode-files = { path = "crates/files" }
+notify-debouncer-mini = "0.7.0"
+renamore = "0.3.2"
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "sync", "time"] }
+trash = "5.2.9"
 
 [package]
 name = "terminal_code"
@@ -33,13 +38,13 @@ path = "src/main.rs"
 ron = "0.12.2"
 toml = "1.1.6"
 dirs = "7.0.0"
-trash = "5.2.9"
+trash.workspace = true
 regex = "1.13.1"
 base64 = "0.23.1"
 ignore = "0.4.33"
 futures = "0.3.34"
 ratatui = "0.30.2"
-renamore = "0.3.2"
+renamore.workspace = true
 thiserror.workspace = true
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
@@ -47,7 +52,7 @@ unicode-width = "0.2.2"
 grep-searcher = "0.1.17"
 terminal-colorsaurus = "1.0.3"
 unicode-segmentation.workspace = true
-notify-debouncer-mini = "0.7.0"
+notify-debouncer-mini.workspace = true
 serde = { version = "1.0.229", features = ["derive"] }
 crossterm = { version = "0.29.0", features = ["event-stream"] }
 tree-sitter = "0.27.1"
@@ -61,7 +66,8 @@ vt100 = "0.16.2"
 ropey.workspace = true
 trcode-ids.workspace = true
 trcode-buffer.workspace = true
-tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "sync", "time"] }
+trcode-files.workspace = true
+tokio.workspace = true
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
 serde_json = "1.0.154"
 

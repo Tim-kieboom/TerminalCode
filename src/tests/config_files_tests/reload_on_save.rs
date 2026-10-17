@@ -118,7 +118,7 @@ fn without_a_config_folder_a_saved_file_is_just_a_changed_file() {
 #[test]
 fn the_config_folder_is_watched_when_it_exists() {
     let dir = tempfile::tempdir().unwrap();
-    let (tx, _rx) = tokio::sync::mpsc::channel(16);
+    let (tx, _rx) = tokio::sync::mpsc::channel::<crate::event::Event>(16);
     let app = App::default()
         .with_config_dir(Some(dir.path().to_path_buf()))
         .with_watcher(FsWatcher::new(tx).unwrap());
@@ -130,7 +130,7 @@ fn the_config_folder_is_watched_when_it_exists() {
 fn a_config_folder_that_does_not_exist_is_not_watched() {
     let dir = tempfile::tempdir().unwrap();
     let missing = dir.path().join("not-there");
-    let (tx, _rx) = tokio::sync::mpsc::channel(16);
+    let (tx, _rx) = tokio::sync::mpsc::channel::<crate::event::Event>(16);
     let app = App::default()
         .with_config_dir(Some(missing.clone()))
         .with_watcher(FsWatcher::new(tx).unwrap());

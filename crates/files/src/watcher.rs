@@ -15,8 +15,6 @@ use notify_debouncer_mini::{DebounceEventResult, Debouncer, new_debouncer};
 use thiserror::Error;
 use tokio::sync::mpsc;
 
-use crate::event::Event;
-
 /// Changes closer together than this arrive as one event. Saving a file
 /// usually touches several paths (a temporary file, then the rename).
 const DEBOUNCE: Duration = Duration::from_millis(150);
@@ -32,9 +30,18 @@ pub enum WatchError {
     },
 }
 
-/// Delivers [`Event::FilesChanged`] to the app loop for the directories it is
-/// told to watch.
-pub(crate) struct FsWatcher {
+/// What a watcher reports.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WatchEvent {
+    /// These paths changed (a burst of changes arrives as one event).
+    Changed(Vec<PathBuf>),
+    /// The watcher itself failed, with what it said.
+    Failed(String),
+}
+
+/// Sends a [`WatchEvent`], as the event type of the caller, to the channel it is
+/// given, for the directories it is told to watch.
+pub struct FsWatcher {
     debouncer: Debouncer<RecommendedWatcher>,
     watched: BTreeSet<PathBuf>,
 }
@@ -49,12 +56,15 @@ impl fmt::Debug for FsWatcher {
 }
 
 impl FsWatcher {
-    pub(crate) fn new(events: mpsc::Sender<Event>) -> Result<Self, WatchError> {
+    pub fn new<E>(events: mpsc::Sender<E>) -> Result<Self, WatchError>
+    where
+        E: From<WatchEvent> + Send + 'static,
+    {
         let debouncer = new_debouncer(DEBOUNCE, move |result: DebounceEventResult| {
             let changes = match result {
                 Ok(changes) => changes,
                 Err(error) => {
-                    let event = Event::WatchFailed(error.to_string());
+                    let event = E::from(WatchEvent::Failed(error.to_string()));
                     _ = events.blocking_send(event);
                     return;
                 }
@@ -65,7 +75,7 @@ impl FsWatcher {
                 return;
             }
 
-            let event = Event::FilesChanged(paths);
+            let event = E::from(WatchEvent::Changed(paths));
 
             // This runs on the watcher's own thread, so blocking is fine. A
             // closed channel means the app is shutting down.
@@ -84,7 +94,7 @@ impl FsWatcher {
     /// was deleted or replaced, and the operating system then drops the watch
     /// (inotify follows the directory, not its name): a later [`FsWatcher::watch_only`]
     /// starts a fresh one if a directory of that name exists again.
-    pub(crate) fn forget(&mut self, changed: &[PathBuf]) -> bool {
+    pub fn forget(&mut self, changed: &[PathBuf]) -> bool {
         let watcher = self.debouncer.watcher();
         let mut forgot = false;
         for path in changed {
@@ -101,7 +111,7 @@ impl FsWatcher {
     /// stops on the ones no longer wanted. Directories that cannot be watched
     /// are skipped (and tried again next time); the first such error is
     /// returned.
-    pub(crate) fn watch_only(&mut self, wanted: &BTreeSet<PathBuf>) -> Result<(), WatchError> {
+    pub fn watch_only(&mut self, wanted: &BTreeSet<PathBuf>) -> Result<(), WatchError> {
         let watcher = self.debouncer.watcher();
 
         let dropped: Vec<PathBuf> = self.watched.difference(wanted).cloned().collect();
@@ -135,8 +145,7 @@ impl FsWatcher {
         first_error.map_or(Ok(()), Err)
     }
 
-    #[cfg(test)]
-    pub(crate) fn watched(&self) -> &BTreeSet<PathBuf> {
+    pub fn watched(&self) -> &BTreeSet<PathBuf> {
         &self.watched
     }
 }

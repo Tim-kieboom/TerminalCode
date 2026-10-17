@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub(crate) enum EntryError {
+pub enum EntryError {
     #[error("type a name first")]
     Empty,
     #[error("{0} is not inside the folder")]
@@ -30,7 +30,7 @@ pub(crate) enum EntryError {
 
 /// What to make.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum EntryKind {
+pub enum EntryKind {
     File,
     Folder,
 }
@@ -38,7 +38,7 @@ pub(crate) enum EntryKind {
 /// Makes the file or folder `name` in `dir` and returns its path. `name` may
 /// have several parts (`a/b/c.rs`): the folders before the last are made as
 /// needed. An entry that already exists is never touched.
-pub(crate) fn create(dir: &Path, name: &str, kind: EntryKind) -> Result<PathBuf, EntryError> {
+pub fn create(dir: &Path, name: &str, kind: EntryKind) -> Result<PathBuf, EntryError> {
     let name = name.trim();
     let relative = inside(name)?;
     let path = dir.join(&relative);
@@ -90,13 +90,13 @@ fn inside(name: &str) -> Result<PathBuf, EntryError> {
 /// Renames `from` to `name`, which is relative to the folder `from` is in and
 /// may have several parts (the folders are made as needed). An entry that is
 /// already there is never replaced.
-pub(crate) fn rename(from: &Path, name: &str) -> Result<PathBuf, EntryError> {
+pub fn rename(from: &Path, name: &str) -> Result<PathBuf, EntryError> {
     rename_where(from, name, &differs_only_in_case)
 }
 
 /// Like [`rename`], with `same_entry` deciding whether a target that is already
 /// there is just `from` under another spelling (see [`differs_only_in_case`]).
-pub(crate) fn rename_where(
+pub fn rename_where(
     from: &Path,
     name: &str,
     same_entry: &dyn Fn(&Path, &Path) -> bool,
@@ -110,7 +110,7 @@ pub(crate) fn rename_where(
 /// Moves `from` to the path `name`, which is relative to `root`. Like `mv`, a
 /// `name` that is an existing folder means "into it". Missing folders are made
 /// and an entry that is already there is never replaced.
-pub(crate) fn move_to(from: &Path, root: &Path, name: &str) -> Result<PathBuf, EntryError> {
+pub fn move_to(from: &Path, root: &Path, name: &str) -> Result<PathBuf, EntryError> {
     relocate(from, root, name, true, &differs_only_in_case)
 }
 
@@ -135,7 +135,7 @@ fn relocate(
 
 /// Moves `from` into the existing folder `folder`, keeping its name. Nothing is
 /// replaced, and a folder cannot go into itself.
-pub(crate) fn move_into(from: &Path, folder: &Path) -> Result<PathBuf, EntryError> {
+pub fn move_into(from: &Path, folder: &Path) -> Result<PathBuf, EntryError> {
     let name = from
         .file_name()
         .ok_or_else(|| EntryError::Outside(from.display().to_string()))?;

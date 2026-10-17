@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// `path` with symlinks and `..` resolved, so two spellings of one file compare
 /// equal. A path that does not exist (any more) has its directory resolved
 /// instead, and stays as it is if even that fails.
-pub(crate) fn canonical(path: &Path) -> PathBuf {
+pub fn canonical(path: &Path) -> PathBuf {
     if let Ok(resolved) = std::fs::canonicalize(path) {
         return resolved;
     }
@@ -24,7 +24,7 @@ pub(crate) fn canonical(path: &Path) -> PathBuf {
 /// many programs (`cmd.exe` among them) cannot use as a working directory. A
 /// path with no such prefix, or one that cannot be written without it, comes
 /// back as it is.
-pub(crate) fn without_verbatim_prefix(path: &Path) -> PathBuf {
+pub fn without_verbatim_prefix(path: &Path) -> PathBuf {
     let Some(text) = path.to_str() else {
         return path.to_path_buf();
     };

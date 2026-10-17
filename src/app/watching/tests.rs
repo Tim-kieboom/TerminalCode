@@ -8,7 +8,7 @@ use super::Watching;
 use crate::files::watcher::FsWatcher;
 
 fn attached() -> Watching {
-    let (tx, _rx) = mpsc::channel(16);
+    let (tx, _rx) = mpsc::channel::<crate::event::Event>(16);
     let mut watching = Watching::default();
     watching.attach(FsWatcher::new(tx).unwrap());
     watching

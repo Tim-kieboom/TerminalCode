@@ -15,12 +15,12 @@ use std::process::{Command, Stdio};
 /// A secret that is wiped when it is dropped: the bytes are overwritten with
 /// zeros in a way the compiler may not leave out.
 #[derive(Default)]
-pub(crate) struct Secret {
+pub struct Secret {
     bytes: Vec<u8>,
 }
 
 impl Secret {
-    pub(crate) fn push(&mut self, c: char) {
+    pub fn push(&mut self, c: char) {
         let mut buffer = [0; 4];
         self.bytes
             .extend_from_slice(c.encode_utf8(&mut buffer).as_bytes());
@@ -29,7 +29,7 @@ impl Secret {
     }
 
     /// Takes the last character away.
-    pub(crate) fn pop(&mut self) {
+    pub fn pop(&mut self) {
         let Some(last) = std::str::from_utf8(&self.bytes)
             .ok()
             .and_then(|text| text.chars().next_back())
@@ -42,22 +42,21 @@ impl Secret {
     }
 
     /// How many characters it has, for showing that many stars.
-    pub(crate) fn chars(&self) -> usize {
+    pub fn chars(&self) -> usize {
         std::str::from_utf8(&self.bytes).map_or(self.bytes.len(), |text| text.chars().count())
     }
 
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.bytes.is_empty()
     }
 
     /// Overwrites it with zeros and empties it.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         wipe(&mut self.bytes);
         self.bytes.clear();
     }
 
-    #[cfg(test)]
-    pub(crate) fn raw_for_test(&self) -> &[u8] {
+    pub fn raw_for_test(&self) -> &[u8] {
         &self.bytes
     }
 }
@@ -85,7 +84,7 @@ fn wipe(bytes: &mut [u8]) {
 
 /// Why a save as root did not happen.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RootError {
+pub enum RootError {
     /// There is no `sudo` to run. Not tried again.
     NoSudo,
     /// `sudo` refuses this user. Not tried again.
@@ -98,7 +97,7 @@ pub(crate) enum RootError {
 
 impl RootError {
     /// What the user is told, for the errors that end the attempt.
-    pub(crate) fn message(&self) -> String {
+    pub fn message(&self) -> String {
         match self {
             Self::NoSudo => "sudo is not installed, so this cannot be saved as root".to_owned(),
             Self::NotAllowed(said) => format!("sudo does not let you save as root: {said}"),
@@ -128,7 +127,7 @@ trap - EXIT
 
 /// Runs `sudo` to write files as root.
 #[derive(Debug, Clone)]
-pub(crate) struct RootWriter {
+pub struct RootWriter {
     program: OsString,
     /// Where the text is staged; the temporary folder of the system when not set.
     staging: Option<PathBuf>,
@@ -142,7 +141,7 @@ impl Default for RootWriter {
 
 impl RootWriter {
     /// A writer that runs `program` instead of `sudo` (the tests bring their own).
-    pub(crate) fn with_program(program: impl Into<OsString>) -> Self {
+    pub fn with_program(program: impl Into<OsString>) -> Self {
         Self {
             program: program.into(),
             staging: None,
@@ -150,19 +149,13 @@ impl RootWriter {
     }
 
     /// Stages the text in `folder` instead of the temporary folder of the system.
-    #[cfg(test)]
-    pub(crate) fn staging_in(mut self, folder: impl Into<PathBuf>) -> Self {
+    pub fn staging_in(mut self, folder: impl Into<PathBuf>) -> Self {
         self.staging = Some(folder.into());
         self
     }
 
     /// Writes `text` to `target` as root.
-    pub(crate) fn write(
-        &self,
-        password: &Secret,
-        target: &Path,
-        text: &str,
-    ) -> Result<(), RootError> {
+    pub fn write(&self, password: &Secret, target: &Path, text: &str) -> Result<(), RootError> {
         let staged = Staged::new(text, self.staging.as_deref())
             .map_err(|error| RootError::Failed(error.to_string()))?;
         // Through links, like the normal save.
@@ -222,7 +215,7 @@ impl Secret {
 }
 
 /// What `sudo` said, as an error.
-pub(crate) fn classify(stderr: &str) -> RootError {
+pub fn classify(stderr: &str) -> RootError {
     let lower = stderr.to_lowercase();
     let first = stderr
         .lines()

@@ -49,3 +49,12 @@ pub(crate) enum Event {
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
 }
+
+impl From<trcode_files::watcher::WatchEvent> for Event {
+    fn from(event: trcode_files::watcher::WatchEvent) -> Self {
+        match event {
+            trcode_files::watcher::WatchEvent::Changed(paths) => Self::FilesChanged(paths),
+            trcode_files::watcher::WatchEvent::Failed(message) => Self::WatchFailed(message),
+        }
+    }
+}

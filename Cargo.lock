@@ -2274,6 +2274,7 @@ dependencies = [
  "toml",
  "trash",
  "trcode-buffer",
+ "trcode-files",
  "trcode-ids",
  "tree-sitter",
  "tree-sitter-json",
@@ -2497,6 +2498,18 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "trcode-files"
+version = "0.6.1"
+dependencies = [
+ "notify-debouncer-mini",
+ "renamore",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "trash",
 ]
 
 [[package]]

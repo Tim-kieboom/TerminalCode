@@ -14,6 +14,7 @@ use crate::terminal::Capabilities;
 
 mod app;
 use trcode_buffer as buffer;
+use trcode_files as files;
 use trcode_ids as ids;
 mod cli;
 mod clipboard;
@@ -21,7 +22,6 @@ mod components;
 mod config;
 pub mod error;
 mod event;
-mod files;
 #[allow(
     dead_code,
     reason = "the jump list is wired into the app in the next step"
