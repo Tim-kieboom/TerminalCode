@@ -2276,6 +2276,7 @@ dependencies = [
  "trcode-buffer",
  "trcode-files",
  "trcode-ids",
+ "trcode-lsp",
  "trcode-pty",
  "tree-sitter",
  "tree-sitter-json",
@@ -2516,6 +2517,20 @@ dependencies = [
 [[package]]
 name = "trcode-ids"
 version = "0.6.1"
+
+[[package]]
+name = "trcode-lsp"
+version = "0.6.1"
+dependencies = [
+ "ropey",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml",
+ "trcode-files",
+ "trcode-ids",
+]
 
 [[package]]
 name = "trcode-pty"

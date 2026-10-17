@@ -16,6 +16,7 @@ mod app;
 use trcode_buffer as buffer;
 use trcode_files as files;
 use trcode_ids as ids;
+use trcode_lsp as lsp;
 use trcode_pty as pty;
 mod cli;
 mod clipboard;
@@ -29,12 +30,6 @@ mod event;
 )]
 mod jumplist;
 mod keymap;
-#[allow(
-    dead_code,
-    unused_imports,
-    reason = "the client is wired into the app in the next steps"
-)]
-mod lsp;
 mod persist;
 mod settings;
 mod startup;

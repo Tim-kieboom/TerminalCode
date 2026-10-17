@@ -15,7 +15,7 @@ use crate::app::App;
 use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::initial_state;
-use crate::lsp::tests::support::{FakeLauncher, dies, stays};
+use crate::lsp::test_support::{FakeLauncher, dies, stays};
 
 struct Rig {
     app: App,
@@ -133,7 +133,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{Value, json};
 
 use crate::lsp::Message;
-use crate::lsp::tests::support::{recording, recording_then_dying};
+use crate::lsp::test_support::{recording, recording_then_dying};
 
 /// The next notification with `method` the server was sent, skipping the rest.
 fn next_notification(received: &Receiver<Message>, method: &str) -> Value {
@@ -189,7 +189,7 @@ use std::sync::mpsc::Sender;
 
 use crate::ids::DocumentId;
 use crate::lsp::Severity;
-use crate::lsp::tests::support::Script;
+use crate::lsp::test_support::Script;
 
 /// A server that passes on what it is sent and answers each message with the
 /// `publishDiagnostics` params that `respond` gives for it.

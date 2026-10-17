@@ -19,7 +19,7 @@ use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::initial_state;
 use crate::lsp::Message;
-use crate::lsp::tests::support::{FakeLauncher, Script};
+use crate::lsp::test_support::{FakeLauncher, Script};
 
 pub(super) type Answer = Arc<dyn Fn(&Value) -> Value + Send + Sync>;
 

@@ -24,6 +24,7 @@ mod highlight_tests;
 mod hover_tests;
 mod initial_state_tests;
 mod jump_tests;
+mod lsp_completion_state_tests;
 mod lsp_tests;
 mod main_menu_tests;
 mod menu_tests;

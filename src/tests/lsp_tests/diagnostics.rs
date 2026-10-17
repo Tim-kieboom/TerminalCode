@@ -271,7 +271,7 @@ fn a_server_that_dies_takes_its_diagnostics_with_it() {
         let sent = sent.clone();
         if number == 0 {
             Some(
-                Box::new(move |session: &mut crate::lsp::tests::support::Session| {
+                Box::new(move |session: &mut crate::lsp::test_support::Session| {
                     let opened = session.next().expect("a didOpen");
                     let uri = params_of(&opened)["textDocument"]["uri"].clone();
                     session.notify(

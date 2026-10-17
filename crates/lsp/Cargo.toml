@@ -1,0 +1,23 @@
+[package]
+name = "trcode-lsp"
+description = "A language server client for TerminalCode: protocol, sessions and features, with no UI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+# The fake servers and helpers the tests of other crates use.
+test-support = []
+
+[dependencies]
+ropey.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+trcode-files.workspace = true
+trcode-ids.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
