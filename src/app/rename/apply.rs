@@ -1,4 +1,4 @@
-//! Working out, and doing, the edit a rename answers with. All or nothing: every
+//! Working out, and doing, the edit a rename or a code action answers with. All or nothing: every
 //! file is checked before anything is written, the files on disk are written to
 //! temporary files before any is put in its place, and the open documents are
 //! edited last. The one thing that can still go half way is putting the
@@ -22,9 +22,9 @@ use crate::ids::DocumentId;
 use crate::lsp::uri::uri_to_path;
 use crate::lsp::{RenameEdit, WorkspaceEdit, from_lsp};
 
-/// Why a rename was not done. Unless it says otherwise, nothing was changed.
+/// Why an edit was not made. Unless it says otherwise, nothing was changed.
 #[derive(Debug, Error)]
-pub(super) enum RenameError {
+pub(in crate::app) enum EditError {
     #[error(
         "the language server wants to {0}, which this version cannot do (only text edits are applied); nothing was changed"
     )]
@@ -32,16 +32,16 @@ pub(super) enum RenameError {
     #[error("the language server named {0}, which is not a file; nothing was changed")]
     NotAFile(String),
     #[error(
-        "{0} is outside the project, and a rename only changes files inside it; nothing was changed"
+        "{0} is outside the project, and an edit only changes files inside it; nothing was changed"
     )]
     Outside(String),
     #[error("{0} is not there (any more); nothing was changed")]
     Missing(String),
-    #[error("{0} is not valid UTF-8, so it cannot be renamed in; nothing was changed")]
+    #[error("{0} is not valid UTF-8, so it cannot be edited; nothing was changed")]
     NotUtf8(String),
-    #[error("{0} is read-only, so it cannot be renamed in; nothing was changed")]
+    #[error("{0} is read-only, so it cannot be edited; nothing was changed")]
     ReadOnly(String),
-    #[error("{0} changed while renaming; nothing was changed, try again")]
+    #[error("{0} changed while the language server was working; nothing was changed, try again")]
     Changed(String),
     #[error(
         "the language server's positions do not fit {0} (it may have changed on disk since the server read it); nothing was changed"
@@ -56,8 +56,10 @@ pub(super) enum RenameError {
     },
     #[error("could not write {name}: {source}; nothing was changed")]
     Write { name: String, source: FileError },
+    #[error("{0} is not open, so the edit cannot be made as an undo step; nothing was changed")]
+    NotOpen(String),
     #[error(
-        "the rename was cut short: changed {done}; could not write {failed}: {source}; the other files, and the open ones, were not changed"
+        "the edit was cut short: changed {done}; could not write {failed}: {source}; the other files, and the open ones, were not changed"
     )]
     Torn {
         done: String,
@@ -66,17 +68,29 @@ pub(super) enum RenameError {
     },
 }
 
+/// What the edit is checked against.
+#[derive(Debug, Clone, Copy)]
+pub(in crate::app) enum Check<'a> {
+    /// A rename of this name: the text at every range has to be it, and files
+    /// that are not open are written.
+    Rename(&'a str),
+    /// A code action: its edits have no old text to compare (an import is an
+    /// insertion), so only open documents are edited, by the version they had
+    /// when the server was asked.
+    Action,
+}
+
 /// An open document, as it is now.
-pub(super) struct OpenDocument {
-    pub(super) id: DocumentId,
-    pub(super) version: u64,
-    pub(super) text: Rope,
-    pub(super) read_only: bool,
+pub(in crate::app) struct OpenDocument {
+    pub(in crate::app) id: DocumentId,
+    pub(in crate::app) version: u64,
+    pub(in crate::app) text: Rope,
+    pub(in crate::app) read_only: bool,
 }
 
 /// What a rename was checked to do.
 #[derive(Debug)]
-pub(super) struct Plan {
+pub(in crate::app) struct Plan {
     /// Files that are not open, with the text they get.
     closed: Vec<Closed>,
     /// Open documents, with the replacements for each, in text order.
@@ -92,40 +106,39 @@ struct Closed {
 }
 
 #[derive(Debug)]
-pub(super) struct Open {
-    pub(super) document: DocumentId,
-    pub(super) replacements: Vec<(Range<usize>, String)>,
+pub(in crate::app) struct Open {
+    pub(in crate::app) document: DocumentId,
+    pub(in crate::app) replacements: Vec<(Range<usize>, String)>,
 }
 
 impl Plan {
     /// How many places change.
-    pub(super) fn places(&self) -> usize {
+    pub(in crate::app) fn places(&self) -> usize {
         self.places
     }
 
     /// How many files change.
-    pub(super) fn files(&self) -> usize {
+    pub(in crate::app) fn files(&self) -> usize {
         self.closed.len() + self.open.len()
     }
 
     /// The open documents that get edits.
-    pub(super) fn open(&self) -> &[Open] {
+    pub(in crate::app) fn open(&self) -> &[Open] {
         &self.open
     }
 }
 
-/// Checks `edit`, which renames `old`, against the files and the open
-/// documents. `sent` holds the versions of the open documents when the server
+/// Checks `edit` against the files and the open documents. `sent` holds the versions of the open documents when the server
 /// was asked; `open` finds the open document of a path.
-pub(super) fn plan(
+pub(in crate::app) fn plan(
     edit: &WorkspaceEdit,
-    old: &str,
+    check: Check,
     root: &Path,
     sent: &HashMap<DocumentId, u64>,
     open: impl Fn(&Path) -> Option<OpenDocument>,
-) -> Result<Plan, RenameError> {
+) -> Result<Plan, EditError> {
     if let Some(operation) = edit.operations.first() {
-        return Err(RenameError::Operation(operation.clone()));
+        return Err(EditError::Operation(operation.clone()));
     }
     let root = canonical(root);
     let mut plan = Plan {
@@ -134,20 +147,20 @@ pub(super) fn plan(
         places: 0,
     };
     for file in &edit.files {
-        let path = uri_to_path(&file.uri).ok_or_else(|| RenameError::NotAFile(file.uri.clone()))?;
+        let path = uri_to_path(&file.uri).ok_or_else(|| EditError::NotAFile(file.uri.clone()))?;
         let name = shown(&root, &path);
         if !canonical(&path).starts_with(&root) {
-            return Err(RenameError::Outside(name));
+            return Err(EditError::Outside(name));
         }
         match open(&path) {
             Some(document) => {
                 if sent.get(&document.id) != Some(&document.version) {
-                    return Err(RenameError::Changed(name));
+                    return Err(EditError::Changed(name));
                 }
                 if document.read_only {
-                    return Err(RenameError::ReadOnly(name));
+                    return Err(EditError::ReadOnly(name));
                 }
-                let replacements = resolve(&document.text, &file.edits, old, &name)?;
+                let replacements = resolve(&document.text, &file.edits, check, &name)?;
                 plan.places += replacements.len();
                 plan.open.push(Open {
                     document: document.id,
@@ -155,8 +168,11 @@ pub(super) fn plan(
                 });
             }
             None => {
+                if matches!(check, Check::Action) {
+                    return Err(EditError::NotOpen(name));
+                }
                 let text = read_closed(&path, &name)?;
-                let replacements = resolve(&text, &file.edits, old, &name)?;
+                let replacements = resolve(&text, &file.edits, check, &name)?;
                 plan.places += replacements.len();
                 plan.closed.push(Closed {
                     path,
@@ -170,52 +186,55 @@ pub(super) fn plan(
 }
 
 /// The text of a file that is not open.
-fn read_closed(path: &Path, name: &str) -> Result<Rope, RenameError> {
-    let read = |source| RenameError::Read {
+fn read_closed(path: &Path, name: &str) -> Result<Rope, EditError> {
+    let read = |source| EditError::Read {
         name: name.to_owned(),
         source,
     };
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
-            return Err(RenameError::Missing(name.to_owned()));
+            return Err(EditError::Missing(name.to_owned()));
         }
         Err(source) => return Err(read(source)),
     };
     if metadata.permissions().readonly() {
-        return Err(RenameError::ReadOnly(name.to_owned()));
+        return Err(EditError::ReadOnly(name.to_owned()));
     }
     let bytes = fs::read(path).map_err(read)?;
-    let text = String::from_utf8(bytes).map_err(|_| RenameError::NotUtf8(name.to_owned()))?;
+    let text = String::from_utf8(bytes).map_err(|_| EditError::NotUtf8(name.to_owned()))?;
     Ok(Rope::from_str(&text))
 }
 
-/// The edits of one file as byte ranges of `text`, in text order. Each has to
-/// replace the old name (a raw identifier, `r#name`, counts as it), or the
-/// server was working from another text than this one; and none may overlap.
+/// The edits of one file as byte ranges of `text`, in text order. For a
+/// rename each has to replace the old name (a raw identifier, `r#name`, counts
+/// as it), or the server was working from another text than this one; and none
+/// may overlap.
 fn resolve(
     text: &Rope,
     edits: &[RenameEdit],
-    old: &str,
+    check: Check,
     name: &str,
-) -> Result<Vec<(Range<usize>, String)>, RenameError> {
+) -> Result<Vec<(Range<usize>, String)>, EditError> {
     let mut found = Vec::with_capacity(edits.len());
     for edit in edits {
         let start = from_lsp(text, edit.start);
         let end = from_lsp(text, edit.end);
-        let stale = || RenameError::Stale(name.to_owned());
+        let stale = || EditError::Stale(name.to_owned());
         if end < start {
             return Err(stale());
         }
-        let there = text.byte_slice(start..end).to_string();
-        if there != old && there.strip_prefix("r#") != Some(old) {
-            return Err(stale());
+        if let Check::Rename(old) = check {
+            let there = text.byte_slice(start..end).to_string();
+            if there != old && there.strip_prefix("r#") != Some(old) {
+                return Err(stale());
+            }
         }
         found.push((start..end, edit.new_text.clone()));
     }
     found.sort_by_key(|(range, _)| (range.start, range.end));
     if found.windows(2).any(|pair| pair[1].0.start < pair[0].0.end) {
-        return Err(RenameError::Overlap(name.to_owned()));
+        return Err(EditError::Overlap(name.to_owned()));
     }
     Ok(found)
 }
@@ -232,7 +251,7 @@ fn edited(mut text: Rope, replacements: &[(Range<usize>, String)]) -> String {
 
 /// Where a place in the text goes once `replacements` (in text order) are made;
 /// a place inside a replaced stretch goes to the end of its new text.
-pub(super) fn remap(byte: usize, replacements: &[(Range<usize>, String)]) -> usize {
+pub(in crate::app) fn remap(byte: usize, replacements: &[(Range<usize>, String)]) -> usize {
     let mut shift = 0isize;
     for (range, new) in replacements {
         if range.end <= byte {
@@ -249,21 +268,20 @@ pub(super) fn remap(byte: usize, replacements: &[(Range<usize>, String)]) -> usi
 impl Plan {
     /// Writes the files that are not open: all of them to temporary files first,
     /// then each into its place.
-    pub(super) fn write_closed(&mut self) -> Result<(), RenameError> {
+    pub(in crate::app) fn write_closed(&mut self) -> Result<(), EditError> {
         let mut staged = Vec::with_capacity(self.closed.len());
         for file in &self.closed {
-            let write = StagedWrite::stage(&file.path, &file.text).map_err(|source| {
-                RenameError::Write {
+            let write =
+                StagedWrite::stage(&file.path, &file.text).map_err(|source| EditError::Write {
                     name: file.name.clone(),
                     source,
-                }
-            })?;
+                })?;
             staged.push(write);
         }
         let mut done: Vec<&str> = Vec::new();
         for (file, write) in self.closed.iter().zip(staged) {
             if let Err(source) = write.commit() {
-                return Err(RenameError::Torn {
+                return Err(EditError::Torn {
                     done: match done.is_empty() {
                         true => "nothing".to_owned(),
                         false => done.join(", "),

@@ -7,6 +7,7 @@ use crate::components::explorer::Explorer;
 use crate::components::hover_box::HoverBox;
 use crate::components::menu_bar::MenuBar;
 use crate::components::notifications::{Hit, Notifications};
+use crate::components::popups::action_list::ActionList;
 use crate::components::popups::confirm::Confirm;
 use crate::components::popups::definition_list::DefinitionList;
 use crate::components::popups::diagnostic_popup::DiagnosticPopup;
@@ -95,6 +96,7 @@ pub(crate) enum Popup {
     Menu(Menu),
     Diagnostics(DiagnosticPopup),
     Definitions(DefinitionList),
+    Actions(ActionList),
     RootPassword(RootPrompt),
     Palette(Palette),
     Finder(Finder),

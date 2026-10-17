@@ -35,8 +35,14 @@ fn nothing_open(_: &Path) -> Option<OpenDocument> {
     None
 }
 
-fn plan_in(root: &Path, edit: &WorkspaceEdit) -> Result<Plan, RenameError> {
-    plan(edit, "old", root, &HashMap::new(), nothing_open)
+fn plan_in(root: &Path, edit: &WorkspaceEdit) -> Result<Plan, EditError> {
+    plan(
+        edit,
+        Check::Rename("old"),
+        root,
+        &HashMap::new(),
+        nothing_open,
+    )
 }
 
 fn project() -> tempfile::TempDir {
@@ -126,7 +132,7 @@ fn text_that_is_not_the_name_means_the_server_saw_another_file() {
 
     let error = plan_in(dir.path(), &edit).unwrap_err();
 
-    assert!(matches!(error, RenameError::Stale(name) if name == "a.rs"));
+    assert!(matches!(error, EditError::Stale(name) if name == "a.rs"));
 }
 
 #[test]
@@ -148,7 +154,7 @@ fn overlapping_edits_are_refused() {
 
     let error = plan_in(dir.path(), &edit).unwrap_err();
 
-    assert!(matches!(error, RenameError::Overlap(_)));
+    assert!(matches!(error, EditError::Overlap(_)));
 }
 
 #[test]
@@ -160,7 +166,7 @@ fn a_file_that_is_not_utf8_is_refused() {
 
     let error = plan_in(dir.path(), &edit).unwrap_err();
 
-    assert!(matches!(error, RenameError::NotUtf8(name) if name == "a.rs"));
+    assert!(matches!(error, EditError::NotUtf8(name) if name == "a.rs"));
 }
 
 #[test]
@@ -168,7 +174,7 @@ fn a_file_that_is_gone_or_read_only_is_refused() {
     let dir = project();
     let gone = dir.path().join("gone.rs");
     let error = plan_in(dir.path(), &edits_of(&gone, vec![edit(0, 0, 3, "new")])).unwrap_err();
-    assert!(matches!(error, RenameError::Missing(_)));
+    assert!(matches!(error, EditError::Missing(_)));
 
     let path = dir.path().join("a.rs");
     fs::write(&path, "old\n").unwrap();
@@ -176,7 +182,7 @@ fn a_file_that_is_gone_or_read_only_is_refused() {
     permissions.set_readonly(true);
     fs::set_permissions(&path, permissions).unwrap();
     let error = plan_in(dir.path(), &edits_of(&path, vec![edit(0, 0, 3, "new")])).unwrap_err();
-    assert!(matches!(error, RenameError::ReadOnly(_)));
+    assert!(matches!(error, EditError::ReadOnly(_)));
 }
 
 #[test]
@@ -188,7 +194,7 @@ fn a_file_outside_the_project_is_refused() {
 
     let error = plan_in(dir.path(), &edits_of(&path, vec![edit(0, 0, 3, "new")])).unwrap_err();
 
-    assert!(matches!(error, RenameError::Outside(_)));
+    assert!(matches!(error, EditError::Outside(_)));
 }
 
 #[cfg(unix)]
@@ -203,7 +209,7 @@ fn a_link_that_leads_out_of_the_project_is_refused() {
 
     let error = plan_in(dir.path(), &edits_of(&link, vec![edit(0, 0, 3, "new")])).unwrap_err();
 
-    assert!(matches!(error, RenameError::Outside(_)));
+    assert!(matches!(error, EditError::Outside(_)));
     assert_eq!(fs::read_to_string(&target).unwrap(), "old\n");
 }
 
@@ -238,7 +244,7 @@ fn an_operation_on_a_file_is_refused_before_anything_is_looked_at() {
 
     let error = plan_in(dir.path(), &edit).unwrap_err();
 
-    assert!(matches!(error, RenameError::Operation(text) if text == "rename a.rs to b.rs"));
+    assert!(matches!(error, EditError::Operation(text) if text == "rename a.rs to b.rs"));
 }
 
 #[test]
@@ -254,7 +260,7 @@ fn an_edit_that_names_no_file_is_refused() {
 
     assert!(matches!(
         plan_in(dir.path(), &edit),
-        Err(RenameError::NotAFile(_))
+        Err(EditError::NotAFile(_))
     ));
 }
 
@@ -275,7 +281,7 @@ fn an_open_document_is_planned_by_bytes_and_its_file_is_not_touched() {
     let sent = HashMap::from([(DocumentId::new(7), 3)]);
     let edit = edits_of(&path, vec![edit(0, 4, 3, "new")]);
 
-    let plan = plan(&edit, "old", dir.path(), &sent, |_| {
+    let plan = plan(&edit, Check::Rename("old"), dir.path(), &sent, |_| {
         Some(open_document(7, 3, "let old;\n", false))
     })
     .unwrap();
@@ -294,11 +300,11 @@ fn an_open_document_that_changed_since_the_server_was_asked_aborts() {
     let edit = edits_of(&path, vec![edit(0, 0, 3, "new")]);
 
     for sent in [HashMap::from([(DocumentId::new(7), 2)]), HashMap::new()] {
-        let error = plan(&edit, "old", dir.path(), &sent, |_| {
+        let error = plan(&edit, Check::Rename("old"), dir.path(), &sent, |_| {
             Some(open_document(7, 3, "old\n", false))
         })
         .unwrap_err();
-        assert!(matches!(error, RenameError::Changed(name) if name == "a.rs"));
+        assert!(matches!(error, EditError::Changed(name) if name == "a.rs"));
     }
 }
 
@@ -310,12 +316,12 @@ fn a_read_only_open_document_is_refused() {
     let sent = HashMap::from([(DocumentId::new(7), 3)]);
     let edit = edits_of(&path, vec![edit(0, 0, 3, "new")]);
 
-    let error = plan(&edit, "old", dir.path(), &sent, |_| {
+    let error = plan(&edit, Check::Rename("old"), dir.path(), &sent, |_| {
         Some(open_document(7, 3, "old\n", true))
     })
     .unwrap_err();
 
-    assert!(matches!(error, RenameError::ReadOnly(_)));
+    assert!(matches!(error, EditError::ReadOnly(_)));
 }
 
 #[test]
@@ -351,7 +357,7 @@ fn a_file_that_cannot_be_staged_leaves_every_file_as_it_was() {
 
     let error = plan.write_closed().unwrap_err();
 
-    assert!(matches!(error, RenameError::Write { name, .. } if name == "gone/b.rs"));
+    assert!(matches!(error, EditError::Write { name, .. } if name == "gone/b.rs"));
     assert_eq!(fs::read_to_string(&first).unwrap(), "old\n");
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1, "no temp file");
 }
@@ -382,7 +388,7 @@ fn a_swap_that_fails_halfway_names_the_files_already_changed() {
 
     let error = plan.write_closed().unwrap_err();
 
-    let RenameError::Torn { done, failed, .. } = error else {
+    let EditError::Torn { done, failed, .. } = error else {
         panic!("expected a torn rename");
     };
     assert_eq!((done.as_str(), failed.as_str()), ("a.rs", "b.rs"));
@@ -413,4 +419,44 @@ fn a_place_follows_the_replacements_before_it() {
         "inside: the end of the new text"
     );
     assert_eq!(remap(11, &replacements), 8 + 6, "inside the second");
+}
+
+#[test]
+fn an_action_edit_has_no_old_text_to_compare() {
+    let dir = project();
+    let path = dir.path().join("a.rs");
+    fs::write(&path, "fn main() {}\n").unwrap();
+    let sent = HashMap::from([(DocumentId::new(1), 0)]);
+    // An insertion at the top: the range is empty, nothing is replaced.
+    let edit = edits_of(&path, vec![edit(0, 0, 0, "use std::fmt;\n")]);
+
+    let plan = plan(&edit, Check::Action, dir.path(), &sent, |_| {
+        Some(open_document(1, 0, "fn main() {}\n", false))
+    })
+    .unwrap();
+
+    assert_eq!(
+        plan.open()[0].replacements,
+        [(0..0, "use std::fmt;\n".to_owned())]
+    );
+}
+
+#[test]
+fn an_action_edit_in_a_file_that_is_not_open_is_refused_and_nothing_is_read_or_written() {
+    let dir = project();
+    let path = dir.path().join("a.rs");
+    fs::write(&path, "old\n").unwrap();
+    let edit = edits_of(&path, vec![edit(0, 0, 0, "x")]);
+
+    let error = plan(
+        &edit,
+        Check::Action,
+        dir.path(),
+        &HashMap::new(),
+        nothing_open,
+    )
+    .unwrap_err();
+
+    assert!(matches!(error, EditError::NotOpen(name) if name == "a.rs"));
+    assert_eq!(fs::read_to_string(&path).unwrap(), "old\n");
 }

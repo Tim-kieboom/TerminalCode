@@ -1,6 +1,7 @@
 //! The one popup that has the keyboard: opening, reading and taking it back.
 
 use super::{AppState, Popup};
+use crate::components::popups::action_list::ActionList;
 use crate::components::popups::confirm::Confirm;
 use crate::components::popups::definition_list::DefinitionList;
 use crate::components::popups::diagnostic_popup::DiagnosticPopup;
@@ -142,6 +143,37 @@ impl AppState {
         }
         match std::mem::take(&mut self.popup) {
             Popup::Definitions(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// Opens the list of code actions a server offered.
+    pub(crate) fn open_action_list(&mut self, list: ActionList) {
+        self.popup = Popup::Actions(list);
+    }
+
+    pub(crate) fn action_list_mut(&mut self) -> Option<&mut ActionList> {
+        match &mut self.popup {
+            Popup::Actions(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn action_list(&self) -> Option<&ActionList> {
+        match &self.popup {
+            Popup::Actions(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// Closes the list of actions, giving it back.
+    pub(crate) fn take_action_list(&mut self) -> Option<ActionList> {
+        if !matches!(self.popup, Popup::Actions(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::Actions(list) => Some(list),
             _ => None,
         }
     }

@@ -71,6 +71,21 @@ pub fn client_capabilities() -> Value {
                 // gives the name to start from.
                 "prepareSupport": true,
             },
+            "codeAction": {
+                "dynamicRegistration": false,
+                // Actions come as objects with their kind, and an action's edit
+                // may be left for `codeAction/resolve`.
+                "codeActionLiteralSupport": {
+                    "codeActionKind": { "valueSet": [
+                        "", "quickfix", "refactor", "refactor.extract", "refactor.inline",
+                        "refactor.rewrite", "source", "source.organizeImports",
+                    ] },
+                },
+                "isPreferredSupport": true,
+                "disabledSupport": true,
+                "dataSupport": true,
+                "resolveSupport": { "properties": ["edit"] },
+            },
             "publishDiagnostics": {
                 "versionSupport": true,
             },
@@ -83,6 +98,7 @@ pub fn client_capabilities() -> Value {
             // Edits come as a list of documents, and no operation on files is
             // taken (a rename that needs one is refused by the client).
             "workspaceEdit": { "documentChanges": true },
+            "executeCommand": { "dynamicRegistration": false },
         },
     })
 }

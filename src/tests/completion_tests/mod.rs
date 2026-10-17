@@ -41,7 +41,10 @@ pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script
                         || method == "textDocument/hover"
                         || method == "textDocument/definition"
                         || method == "textDocument/prepareRename"
-                        || method == "textDocument/rename" =>
+                        || method == "textDocument/rename"
+                        || method == "textDocument/codeAction"
+                        || method == "codeAction/resolve"
+                        || method == "workspace/executeCommand" =>
                 {
                     let value = answer(&params);
                     // An answer that says `__error` is an error of the server.

@@ -6,6 +6,10 @@
 //! Positions in this protocol are UTF-16 code units; the client offers nothing
 //! else (see [`handshake::client_capabilities`]).
 
+pub use code_action::{
+    CodeAction, Command, ContextDiagnostic, PendingActionResolve, PendingActions, PendingCommand,
+    parse_code_action, parse_code_actions,
+};
 pub use completion::{
     CompletionItem, CompletionList, Kind, PendingCompletion, PendingResolve, Provider, TextEdit,
     Trigger, parse_completion,
@@ -42,7 +46,8 @@ mod tests;
 // The files of each group are named from here, so `crate::hover` and the like
 // keep working from inside the client.
 use features::{
-    completion, completion_state, definition, diagnostics, docs, hover, rename, snippet,
+    code_action, completion, completion_state, definition, diagnostics, docs, hover, rename,
+    snippet,
 };
 pub use protocol::uri;
 use protocol::{connection, error, framing, handshake, message, position, replies};

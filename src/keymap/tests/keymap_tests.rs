@@ -438,3 +438,21 @@ fn toggling_a_comment_is_reachable_on_both_keyboards() {
     );
     assert_eq!(action(&enhanced, &BOTH, "ctrl+7"), None);
 }
+
+#[test]
+fn code_actions_are_reachable_on_both_keyboards() {
+    let enhanced = defaults(KeyboardSupport::Enhanced);
+    assert_eq!(
+        action(&enhanced, &BOTH, "ctrl+."),
+        Some(Action::CodeActions)
+    );
+    assert_eq!(action(&enhanced, &BOTH, "alt+enter"), None);
+
+    // ctrl+. arrives as a plain `.`: alt+enter does the same.
+    let legacy = defaults(KeyboardSupport::Legacy);
+    assert_eq!(action(&legacy, &BOTH, "ctrl+."), Some(Action::CodeActions));
+    assert_eq!(
+        action(&legacy, &BOTH, "alt+enter"),
+        Some(Action::CodeActions)
+    );
+}

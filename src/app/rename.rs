@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::ops::Range;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use ropey::Rope;
@@ -13,15 +14,16 @@ use ropey::Rope;
 use super::App;
 use super::definition::word_at;
 use crate::components::popups::name_prompt::NamePrompt;
+use crate::components::workspace::Workspace;
 use crate::files::entries::EntryError;
 use crate::ids::DocumentId;
 use crate::lsp::{
     LspPosition, PendingPrepare, PendingRename, Prepared, ServerKey, WorkspaceEdit, from_lsp,
     to_lsp,
 };
-use apply::{OpenDocument, RenameError, plan, remap};
+use apply::{Check, EditError, OpenDocument, plan, remap};
 
-mod apply;
+pub(super) mod apply;
 
 /// How long the answer to `prepareRename` is waited for.
 const PREPARE_PATIENCE: Duration = Duration::from_secs(10);
@@ -139,7 +141,7 @@ impl App {
         offered.then(|| (target.key.clone(), target.uri.clone()))
     }
 
-    fn document_snapshot(&self, document: DocumentId) -> Option<Rope> {
+    pub(super) fn document_snapshot(&self, document: DocumentId) -> Option<Rope> {
         let (_, _, buffer) = self.state.workspace().document_info(document)?;
         Some(buffer.snapshot())
     }
@@ -291,21 +293,41 @@ impl App {
         &mut self,
         edit: &WorkspaceEdit,
         flight: &InFlight,
-    ) -> Result<String, RenameError> {
+    ) -> Result<String, EditError> {
         let root = self.project_root();
         let workspace = self.state.workspace();
-        let mut plan = plan(edit, &flight.old, &root, &flight.versions, |path| {
-            let id = workspace.document_of_path(path)?;
-            let (_, _, buffer) = workspace.document_info(id)?;
-            Some(OpenDocument {
-                id,
-                version: buffer.version(),
-                text: buffer.snapshot(),
-                read_only: buffer.is_read_only(),
-            })
-        })?;
+        let mut plan = plan(
+            edit,
+            Check::Rename(&flight.old),
+            &root,
+            &flight.versions,
+            |path| open_document_of(workspace, path),
+        )?;
         plan.write_closed()?;
 
+        self.edit_open_documents(&plan);
+        self.needs_redraw = true;
+
+        let open = plan.open().len();
+        let unsaved = match open {
+            0 => String::new(),
+            1 => "; 1 open file is not saved".to_owned(),
+            many => format!("; {many} open files are not saved"),
+        };
+        Ok(format!(
+            "renamed {} to {}: {} in {}{unsaved}",
+            flight.old,
+            flight.new,
+            count(plan.places(), "place"),
+            count(plan.files(), "file"),
+        ))
+    }
+}
+
+impl App {
+    /// Edits the open documents a checked edit names, each as one undo step, the
+    /// cursor kept on its text. They are left unsaved.
+    pub(super) fn edit_open_documents(&mut self, plan: &apply::Plan) {
         for open in plan.open() {
             let done = self
                 .state
@@ -331,25 +353,22 @@ impl App {
                 self.state.notify_error(error.to_string());
             }
         }
-        self.needs_redraw = true;
-
-        let open = plan.open().len();
-        let unsaved = match open {
-            0 => String::new(),
-            1 => "; 1 open file is not saved".to_owned(),
-            many => format!("; {many} open files are not saved"),
-        };
-        Ok(format!(
-            "renamed {} to {}: {} in {}{unsaved}",
-            flight.old,
-            flight.new,
-            count(plan.places(), "place"),
-            count(plan.files(), "file"),
-        ))
     }
 }
 
-fn count(number: usize, noun: &str) -> String {
+/// The open document whose file is `path`, as it is now.
+pub(super) fn open_document_of(workspace: &Workspace, path: &Path) -> Option<OpenDocument> {
+    let id = workspace.document_of_path(path)?;
+    let (_, _, buffer) = workspace.document_info(id)?;
+    Some(OpenDocument {
+        id,
+        version: buffer.version(),
+        text: buffer.snapshot(),
+        read_only: buffer.is_read_only(),
+    })
+}
+
+pub(super) fn count(number: usize, noun: &str) -> String {
     match number {
         1 => format!("1 {noun}"),
         _ => format!("{number} {noun}s"),

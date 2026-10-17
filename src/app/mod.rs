@@ -25,6 +25,7 @@ use crate::terminal::{self, KeyboardSupport};
 
 mod background;
 mod bars;
+mod code_actions;
 mod completion;
 mod config_files;
 mod definition;
@@ -186,6 +187,7 @@ impl App {
                 self.hover_forget_stale();
                 self.definition_forget_stale();
                 self.rename_forget_stale();
+                self.code_actions_forget_stale();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;

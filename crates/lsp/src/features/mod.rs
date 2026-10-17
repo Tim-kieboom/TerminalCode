@@ -1,5 +1,6 @@
 //! What the client asks servers for and keeps of the answers.
 
+pub(super) mod code_action;
 pub(super) mod completion;
 pub(super) mod completion_state;
 pub(super) mod definition;

@@ -52,11 +52,11 @@ fn provider(prepare: bool) -> Value {
 }
 
 impl Rig {
-    fn said(&self) -> String {
+    pub(super) fn said(&self) -> String {
         self.app.state().notifications().texts().join("|")
     }
 
-    fn wait_for_notice(&mut self, text: &str) {
+    pub(super) fn wait_for_notice(&mut self, text: &str) {
         self.pump_until(|app| {
             app.state()
                 .notifications()
@@ -103,7 +103,7 @@ impl Rig {
         found
     }
 
-    fn lib_path(&self) -> std::path::PathBuf {
+    pub(super) fn lib_path(&self) -> std::path::PathBuf {
         self._dir.path().join("src/lib.rs")
     }
 }
@@ -245,7 +245,7 @@ fn typing_while_the_server_works_aborts_and_says_why() {
     rig.app
         .state_mut()
         .edit(|editor| editor.insert_text("x").unwrap());
-    rig.wait_for_notice("changed while renaming");
+    rig.wait_for_notice("changed while the language server");
 
     assert!(!rig.text().contains("total"));
     assert!(rig.said().contains("src/main.rs"), "{}", rig.said());

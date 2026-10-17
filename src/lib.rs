@@ -35,6 +35,7 @@ pub mod terminal;
 #[cfg(test)]
 mod tests;
 
+
 /// Runs the editor until it ends. It returns the folder to start again in when the
 /// user asked to open one (the caller restarts the program there), and `None` for
 /// a plain quit.

@@ -299,3 +299,60 @@ impl Manager {
         crate::rename::request_rename(&session.connection, uri, position, new_name).ok()
     }
 }
+
+impl Manager {
+    /// Whether the server `key` runs and lists code actions.
+    pub fn offers_code_actions(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| crate::code_action::offered(&session.server.capabilities))
+    }
+
+    /// Whether the server `key` completes code actions with `codeAction/resolve`.
+    pub fn offers_code_action_resolve(&self, key: &ServerKey) -> bool {
+        self.sessions.get(key).is_some_and(|session| {
+            crate::code_action::resolve_offered(&session.server.capabilities)
+        })
+    }
+
+    /// Whether the server `key` runs commands.
+    pub fn offers_execute_command(&self, key: &ServerKey) -> bool {
+        self.sessions.get(key).is_some_and(|session| {
+            crate::code_action::execute_offered(&session.server.capabilities)
+        })
+    }
+
+    /// Asks the server `key` what can be done at `start..end` of `uri`. `None`
+    /// when it is not running or the request could not be sent.
+    pub fn request_code_actions(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        start: crate::position::LspPosition,
+        end: crate::position::LspPosition,
+        diagnostics: &[crate::ContextDiagnostic],
+    ) -> Option<crate::PendingActions> {
+        let session = self.sessions.get(key)?;
+        crate::code_action::request(&session.connection, uri, start, end, diagnostics).ok()
+    }
+
+    /// Asks the server `key` to complete `action`.
+    pub fn request_resolve_code_action(
+        &self,
+        key: &ServerKey,
+        action: &crate::CodeAction,
+    ) -> Option<crate::PendingActionResolve> {
+        let session = self.sessions.get(key)?;
+        crate::code_action::request_resolve(&session.connection, action).ok()
+    }
+
+    /// Asks the server `key` to run `command`.
+    pub fn request_execute_command(
+        &self,
+        key: &ServerKey,
+        command: &crate::Command,
+    ) -> Option<crate::PendingCommand> {
+        let session = self.sessions.get(key)?;
+        crate::code_action::request_execute(&session.connection, command).ok()
+    }
+}

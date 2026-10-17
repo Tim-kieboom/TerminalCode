@@ -143,6 +143,10 @@ impl App {
             self.needs_redraw = true;
             return;
         }
+        if self.handle_actions_mouse(event) {
+            self.needs_redraw = true;
+            return;
+        }
         if self.handle_palette_mouse(event) {
             return;
         }

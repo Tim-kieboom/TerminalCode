@@ -1,3 +1,4 @@
+mod code_action_tests;
 mod completion_tests;
 mod config_tests;
 mod connection_tests;

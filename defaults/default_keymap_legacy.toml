@@ -29,3 +29,9 @@ context = "editor"
 keys = "ctrl+7"
 action = "toggle_comment"
 context = "editor"
+
+# ctrl+. arrives as a plain `.`, so code actions have alt+enter too.
+[[binding]]
+keys = "alt+enter"
+action = "code_actions"
+context = "editor"
