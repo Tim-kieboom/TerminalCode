@@ -789,8 +789,13 @@ on a small temporary crate with a type error and checks the line (run by hand; C
 - Rust is built in; an entry with the same key replaces it and `"rust": null` turns it off.
 - A file is matched by extension. The server's root is the **outermost** ancestor folder, at or below the project
   root, that holds one of the `root_files`; none found means the project root. One server per root, so a Cargo
-  workspace with many members is one server. Known limit: a second independent crate inside a workspace root that is
-  not a member gets the workspace's server.
+  workspace with many members is one server. For Cargo (`src/lsp/cargo.rs`) the outermost folder only counts when its
+  `Cargo.toml` takes the file's crate in: a workspace member (`members` with `*` and `?` patterns, minus `exclude`) or a
+  path dependency (also `dev-`, `build-` and `target.*` ones, followed through other crates up to 8 deep); otherwise
+  the next folder in that does, at the end the crate's own folder. Decided after reproducing it with the real
+  rust-analyzer: a crate that only sits in a folder below the root is not checked at all (no diagnostics, hover or
+  definition) although the status bar says the server runs. "LSP: Show Server of This File" says which server a file
+  has (name, root, state, whether the server was told to open it) or the first thing that is missing.
 - Left out on purpose: per-server environment variables and server-specific settings other than
   `initialization_options` (that one is the escape hatch, for example `"cargo": {"features": "all"}`).
 

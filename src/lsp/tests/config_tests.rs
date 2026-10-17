@@ -257,11 +257,83 @@ fn canonical(path: &Path) -> std::path::PathBuf {
     crate::paths::without_verbatim_prefix(&crate::paths::canonical(path))
 }
 
+/// A `Cargo.toml` in `project` for a workspace whose members are in `crates`.
+fn workspace(project: &Path) {
+    std::fs::create_dir_all(project).unwrap();
+    std::fs::write(
+        project.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_crate_below_the_project_that_its_manifest_does_not_take_in_is_its_own_root() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"outer\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+    touch(&project.join("lib/inner/Cargo.toml"));
+    touch(&project.join("lib/inner/src/lib.rs"));
+
+    let root = root_for(
+        &rust_server(),
+        &project.join("lib/inner/src/lib.rs"),
+        &project,
+    );
+
+    assert_eq!(root, Some(canonical(&project.join("lib/inner"))));
+}
+
+#[test]
+fn a_path_dependency_below_the_project_has_the_root_of_the_project() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("proj");
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::write(
+        project.join("Cargo.toml"),
+        "[package]\nname = \"outer\"\nversion = \"0.1.0\"\n[dependencies]\ninner = { path = \"lib/inner\" }\n",
+    )
+    .unwrap();
+    touch(&project.join("lib/inner/Cargo.toml"));
+    touch(&project.join("lib/inner/src/lib.rs"));
+
+    let root = root_for(
+        &rust_server(),
+        &project.join("lib/inner/src/lib.rs"),
+        &project,
+    );
+
+    assert_eq!(root, Some(canonical(&project)));
+}
+
+#[test]
+fn a_member_crate_of_a_workspace_has_the_root_of_the_workspace() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = dir.path().join("proj");
+    workspace(&project);
+    touch(&project.join("crates/a/Cargo.toml"));
+    touch(&project.join("crates/a/src/lib.rs"));
+    touch(&project.join("tools/extra/Cargo.toml"));
+    touch(&project.join("tools/extra/src/lib.rs"));
+    let server = rust_server();
+
+    let member = root_for(&server, &project.join("crates/a/src/lib.rs"), &project);
+    let stray = root_for(&server, &project.join("tools/extra/src/lib.rs"), &project);
+
+    assert_eq!(member, Some(canonical(&project)));
+    assert_eq!(stray, Some(canonical(&project.join("tools/extra"))));
+}
+
 #[test]
 fn the_outermost_root_file_up_to_the_project_root_is_the_root() {
     let dir = tempfile::tempdir().unwrap();
     let project = dir.path().join("proj");
-    touch(&project.join("Cargo.toml"));
+    workspace(&project);
     touch(&project.join("crates/a/Cargo.toml"));
     touch(&project.join("crates/a/src/lib.rs"));
 
@@ -389,7 +461,7 @@ fn a_path_spelled_with_dots_gives_the_same_root() {
 fn the_key_names_the_server_and_its_root_so_one_workspace_is_one_key() {
     let dir = tempfile::tempdir().unwrap();
     let project = dir.path().join("proj");
-    touch(&project.join("Cargo.toml"));
+    workspace(&project);
     touch(&project.join("crates/a/Cargo.toml"));
     touch(&project.join("crates/a/src/lib.rs"));
     touch(&project.join("crates/b/Cargo.toml"));

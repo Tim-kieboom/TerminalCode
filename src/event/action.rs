@@ -100,6 +100,8 @@ pub(crate) enum Action {
     /// Shows the Errors view and gives it the keyboard; with the keyboard in it,
     /// hides it.
     ShowErrors,
+    /// Says which language server the file in front has, or why it has none.
+    ShowLspServer,
     Save,
     Undo,
     Redo,
@@ -348,6 +350,7 @@ impl Action {
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
             Self::ShowErrors => "View: Show Errors",
+            Self::ShowLspServer => "LSP: Show Server of This File",
             Self::ClearRecent => "File: Clear Recent",
             Self::OpenFile => "File: Open File...",
             Self::OpenFolder => "File: Open Folder...",
@@ -456,6 +459,7 @@ impl Action {
             Self::OpenMenu,
             Self::ToggleMenuBar,
             Self::ShowErrors,
+            Self::ShowLspServer,
             Self::NextBarView,
             Self::PreviousBarView,
             Self::MoveLineUp,

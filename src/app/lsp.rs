@@ -15,7 +15,7 @@ use crate::lsp::ProcessLauncher;
 use crate::lsp::uri::file_uri;
 use crate::lsp::{
     Diagnostic, DocSnapshot, DocumentSync, LanguageServers, LaunchSpec, Launcher, Manager, Notice,
-    ServerKey, language_id_of, parse_published,
+    ServerKey, language_id_of, parse_published, root_for,
 };
 use crate::paths::{canonical, without_verbatim_prefix};
 
@@ -262,6 +262,77 @@ impl App {
             self.state.set_lsp_status(status);
             self.needs_redraw = true;
         }
+    }
+}
+
+impl App {
+    /// "LSP: Show Server of This File": says in a notification which language
+    /// server the file in front has, or why it has none.
+    pub(super) fn show_lsp_server_of_file(&mut self) {
+        let report = self.lsp_report_for_file_in_front();
+        self.state.notify(report);
+        self.needs_redraw = true;
+    }
+
+    /// What is known about the server of the file in front, from the settings down
+    /// to whether the server was told to open the file; the first thing that is
+    /// missing is what it says.
+    fn lsp_report_for_file_in_front(&self) -> String {
+        let Some(path) = self.state.editor().buffer().path().map(Path::to_path_buf) else {
+            return "this tab has no file yet, so it has no language server".to_owned();
+        };
+        let file = path.file_name().map_or_else(
+            || path.display().to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        );
+        let servers = &self.settings.language_servers;
+        let Some((entry, config)) = servers.for_file(&path) else {
+            let extension = path.extension().map_or_else(
+                || "(none)".to_owned(),
+                |extension| extension.to_string_lossy().into_owned(),
+            );
+            return format!("{file}: no entry in language_servers lists the extension {extension}");
+        };
+        let project = self.project_root();
+        let Some(root) = root_for(config, &path, &project) else {
+            return format!(
+                "{file}: {entry} has no project for it: the file is outside the project and no folder above it holds one of {:?}",
+                config.root_files
+            );
+        };
+        if language_id_of(&path, &config.language_ids, user_config_dir().as_deref()).is_none() {
+            return format!("{file}: {entry} has no language id for this file (see language_ids)");
+        }
+        let key = ServerKey {
+            name: entry.to_owned(),
+            root: root.clone(),
+        };
+        let root = root.display();
+        let Some(manager) = self
+            .lsp
+            .manager
+            .as_ref()
+            .filter(|_| self.lsp.launcher.is_some())
+        else {
+            return format!("{file}: {entry} (root {root}) has not been started");
+        };
+        let Some(status) = manager.status(&key) else {
+            return format!(
+                "{file}: {entry} (root {root}) has not been started; it starts when its file is in front"
+            );
+        };
+        let running = manager.running().iter().any(|(running, _)| *running == key);
+        let opened = self
+            .state
+            .workspace()
+            .active_document_id()
+            .is_some_and(|id| self.lsp.sync.has_open(&key, id));
+        let told = match (running, opened) {
+            (false, _) => "the server is not running, so the file is not open on it",
+            (true, true) => "the file is open on it",
+            (true, false) => "the file is not open on it yet",
+        };
+        format!("{file}: {status} (root {root}); {told}")
     }
 }
 

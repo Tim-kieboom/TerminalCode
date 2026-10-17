@@ -218,6 +218,13 @@ impl DocumentSync {
             .unwrap_or_default()
     }
 
+    /// Whether the server `key` has been told to open `document` (and not to close it).
+    pub(crate) fn has_open(&self, key: &ServerKey, document: DocumentId) -> bool {
+        self.servers
+            .get(key)
+            .is_some_and(|server| server.open.contains_key(&document))
+    }
+
     /// The servers that have been told about something.
     pub(crate) fn servers(&self) -> Vec<ServerKey> {
         self.servers.keys().cloned().collect()

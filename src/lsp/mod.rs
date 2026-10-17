@@ -11,7 +11,7 @@ pub(crate) use completion::{
     Trigger, parse_completion,
 };
 pub(crate) use completion_state::{Accepted, ByteEdit, Completion, Refresh, byte_edits};
-pub(crate) use config::{ConfigError, LanguageServers, ServerConfig, ServerKey};
+pub(crate) use config::{ConfigError, LanguageServers, ServerConfig, ServerKey, root_for};
 pub(crate) use connection::{Connection, Incoming, PendingReply};
 pub(crate) use definition::{Location, PendingDefinition, parse_definition};
 pub(crate) use diagnostics::{Diagnostic, Diagnostics, RawDiagnostic, Severity, parse_published};
@@ -27,6 +27,7 @@ pub(crate) use position::{LspPosition, from_lsp, to_lsp};
 pub(crate) use supervisor::{Effect, Notice, Supervisor};
 pub(crate) use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
+mod cargo;
 mod completion;
 mod completion_state;
 mod config;

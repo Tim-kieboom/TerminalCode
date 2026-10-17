@@ -9,6 +9,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
+use super::cargo;
 use crate::paths::{canonical, without_verbatim_prefix};
 
 /// One language server: what to run, and which files and projects it is for.
@@ -197,6 +198,12 @@ impl Entry {
 /// crates is one project, not many. None found, or no `root_files`, gives the
 /// project root.
 ///
+/// For Cargo the outermost folder only counts when its `Cargo.toml` takes the crate
+/// of the file in (a workspace member, or a path dependency; see [`cargo::includes`]):
+/// a crate that only sits in a folder below it would not be checked at all, so
+/// the next folder in from the outside that does take it in is the root, and at
+/// the end the crate's own folder.
+///
 /// A file outside the project root has no project root to fall back on: the
 /// nearest folder up the tree that holds a root file is its root, and with
 /// none it gets no server (`None`).
@@ -207,12 +214,26 @@ pub(crate) fn root_for(server: &ServerConfig, path: &Path, project_root: &Path) 
 
     let folders: Vec<&Path> = file.ancestors().skip(1).collect();
     if file.starts_with(&project_root) {
-        let outermost = folders
+        // From the inside out.
+        let roots: Vec<&Path> = folders
             .into_iter()
             .take_while(|dir| dir.starts_with(&project_root))
             .filter(|dir| has_root_file(dir))
-            .last();
-        return Some(outermost.map_or(project_root.clone(), Path::to_path_buf));
+            .collect();
+        let Some(&nearest) = roots.first() else {
+            return Some(project_root);
+        };
+        let takes_in = |outer: &Path| {
+            let cargo = |dir: &Path| dir.join("Cargo.toml").exists();
+            !(cargo(outer) && cargo(nearest)) || cargo::includes(outer, nearest)
+        };
+        let root = roots
+            .iter()
+            .rev()
+            .find(|outer| takes_in(outer))
+            .copied()
+            .unwrap_or(nearest);
+        return Some(root.to_path_buf());
     }
     folders
         .into_iter()

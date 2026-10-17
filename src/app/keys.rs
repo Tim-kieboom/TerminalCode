@@ -226,7 +226,7 @@ impl App {
         }
     }
 
-    pub(super) fn run_action(&mut self, action: Action) {
+    pub(crate) fn run_action(&mut self, action: Action) {
         if let Err(error) = self.dispatch(action) {
             self.state.notify_error(error.to_string());
         }
@@ -269,6 +269,7 @@ impl App {
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Errors(command) => self.errors_command(command),
             Action::ShowErrors => self.toggle_errors(),
+            Action::ShowLspServer => self.show_lsp_server_of_file(),
             Action::OpenMenu => self.open_main_menu(),
             Action::OpenFile => self.ask_for_file(),
             Action::OpenRecentFile(path) => self.open_recent_file(&path),

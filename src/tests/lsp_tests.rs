@@ -166,7 +166,10 @@ fn a_file_no_server_wants_has_no_status_and_starts_nothing() {
 #[test]
 fn two_rust_files_of_one_workspace_share_one_server() {
     let dir = tempfile::tempdir().unwrap();
-    write(&dir.path().join("Cargo.toml"), "[workspace]\n");
+    write(
+        &dir.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"crates/*\"]\n",
+    );
     write(&dir.path().join("crates/a/Cargo.toml"), "[package]\n");
     let a = dir.path().join("crates/a/src/lib.rs");
     write(&a, "");
@@ -1319,4 +1322,169 @@ fn real_rust_analyzer_works_in_a_cargo_workspace() {
         );
         std::thread::sleep(Duration::from_millis(50));
     }
+}
+
+/// A crate inside the project that the project's own `Cargo.toml` does not know:
+/// `cargo test real_rust_analyzer_in_a_nested_crate -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_in_a_nested_crate_that_is_not_a_member_of_the_project() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        &dir.path().join("Cargo.toml"),
+        "[package]\nname = \"outer\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(&dir.path().join("src/main.rs"), "fn main() {}\n");
+    write(
+        &dir.path().join("lib/inner/Cargo.toml"),
+        "[package]\nname = \"inner\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    let file = dir.path().join("lib/inner/src/lib.rs");
+    write(&file, "pub fn f() {\n    let wrong: u32 = \"text\";\n}\n");
+
+    let (tx, mut events) = mpsc::channel(256);
+    let mut app = App::new(opened(dir.path(), std::slice::from_ref(&file)))
+        .with_events(tx)
+        .with_lsp_launcher(Arc::new(crate::lsp::ProcessLauncher));
+    app.handle_input(InputEvent::FocusLost);
+    let document = app.state().workspace().active_document_id().unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(90);
+    while app.state().diagnostics().of(document).is_empty() {
+        while let Ok(event) = events.try_recv() {
+            app.handle_event(event);
+        }
+        app.lsp_sync();
+        assert!(
+            Instant::now() < deadline,
+            "no diagnostics in 90 s; status {:?}, notices {:?}",
+            app.state().lsp_status(),
+            app.state().notifications().texts()
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// A nested crate that the project's `Cargo.toml` depends on by path:
+/// `cargo test real_rust_analyzer_in_a_nested_crate_the_project_depends_on_by_path -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs rust-analyzer on the PATH; run by hand"]
+fn real_rust_analyzer_in_a_nested_crate_the_project_depends_on_by_path() {
+    let dir = tempfile::tempdir().unwrap();
+    write(
+        &dir.path().join("Cargo.toml"),
+        "[package]\nname = \"outer\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\ninner = { path = \"lib/inner\" }\n",
+    );
+    write(&dir.path().join("src/main.rs"), "fn main() {}\n");
+    write(
+        &dir.path().join("lib/inner/Cargo.toml"),
+        "[package]\nname = \"inner\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    let file = dir.path().join("lib/inner/src/lib.rs");
+    write(&file, "pub fn f() {\n    let wrong: u32 = \"text\";\n}\n");
+
+    let (tx, mut events) = mpsc::channel(256);
+    let mut app = App::new(opened(dir.path(), std::slice::from_ref(&file)))
+        .with_events(tx)
+        .with_lsp_launcher(Arc::new(crate::lsp::ProcessLauncher));
+    app.handle_input(InputEvent::FocusLost);
+    let document = app.state().workspace().active_document_id().unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(90);
+    while app.state().diagnostics().of(document).is_empty() {
+        while let Ok(event) = events.try_recv() {
+            app.handle_event(event);
+        }
+        app.lsp_sync();
+        assert!(
+            Instant::now() < deadline,
+            "no diagnostics in 90 s; status {:?}, notices {:?}",
+            app.state().lsp_status(),
+            app.state().notifications().texts()
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+// ---- which server a file has
+
+impl Rig {
+    /// What "LSP: Show Server of This File" says now.
+    fn server_report(&mut self) -> String {
+        self.app
+            .run_action(crate::event::action::Action::ShowLspServer);
+        self.texts().last().cloned().unwrap_or_default()
+    }
+}
+
+#[test]
+fn the_report_says_when_no_entry_lists_the_extension() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("notes.txt");
+    write(&file, "text");
+    let mut rig = rig(dir.path(), &[file], FakeLauncher::new(|_| stays()));
+
+    let report = rig.server_report();
+
+    assert!(
+        report.contains("notes.txt: no entry in language_servers lists the extension txt"),
+        "{report}"
+    );
+}
+
+#[test]
+fn the_report_says_when_the_file_is_outside_the_project_and_has_no_root() {
+    let project = tempfile::tempdir().unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let file = elsewhere.path().join("src/lib.rs");
+    write(&file, "");
+    let mut rig = rig(project.path(), &[file], FakeLauncher::new(|_| stays()));
+
+    let report = rig.server_report();
+
+    assert!(report.contains("outside the project"), "{report}");
+    assert!(report.contains("Cargo.toml"), "{report}");
+}
+
+#[test]
+fn the_report_follows_the_server_from_not_started_to_open() {
+    let (dir, file) = rust_project();
+    let mut rig = rig(dir.path(), &[file], FakeLauncher::new(|_| stays()));
+
+    let before = rig.server_report();
+    assert!(before.contains("has not been started"), "{before}");
+
+    rig.look();
+    let starting = rig.server_report();
+    assert!(starting.contains("rust-analyzer: starting"), "{starting}");
+    assert!(starting.contains("not running"), "{starting}");
+
+    rig.wait_for_status(Some("rust-analyzer"));
+    let running = rig.server_report();
+    assert!(
+        running.contains("the file is not open on it yet"),
+        "{running}"
+    );
+
+    rig.app.lsp_sync();
+    let open = rig.server_report();
+    assert!(open.contains("main.rs: rust-analyzer"), "{open}");
+    assert!(open.contains("the file is open on it"), "{open}");
+    assert!(
+        open.contains(&dir.path().canonicalize().unwrap().display().to_string()),
+        "{open}"
+    );
+}
+
+#[test]
+fn the_report_of_a_server_that_is_off_says_so() {
+    let (dir, file) = rust_project();
+    let mut rig = rig(dir.path(), &[file], FakeLauncher::new(|_| None));
+    rig.look();
+    rig.wait_for_status(Some("rust-analyzer: off"));
+
+    let report = rig.server_report();
+
+    assert!(report.contains("rust-analyzer: off"), "{report}");
+    assert!(report.contains("not running"), "{report}");
 }
