@@ -109,6 +109,3 @@ impl Input for Tty {
         }
     }
 }
-
-#[cfg(test)]
-mod tests;

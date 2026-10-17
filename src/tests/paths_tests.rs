@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::without_verbatim_prefix;
+use crate::paths::without_verbatim_prefix;
 
 fn stripped(path: &str) -> String {
     without_verbatim_prefix(Path::new(path))

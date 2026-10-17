@@ -222,7 +222,7 @@ impl Secret {
 }
 
 /// What `sudo` said, as an error.
-fn classify(stderr: &str) -> RootError {
+pub(super) fn classify(stderr: &str) -> RootError {
     let lower = stderr.to_lowercase();
     let first = stderr
         .lines()
@@ -281,6 +281,3 @@ impl Drop for Staged {
         let _ = std::fs::remove_file(&self.path);
     }
 }
-
-#[cfg(all(test, target_os = "linux"))]
-pub(crate) mod tests;

@@ -1,6 +1,9 @@
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    time::{Duration, Instant},
+};
 
-use super::*;
+use crate::terminal::drain::*;
 
 /// Hands out its chunks one by one, then nothing.
 struct Fake(VecDeque<Vec<u8>>);

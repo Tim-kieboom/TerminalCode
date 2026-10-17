@@ -128,6 +128,3 @@ pub(crate) fn write_atomically(path: &Path, text: &str) -> io::Result<()> {
         let _ = fs::remove_file(&temporary);
     })
 }
-
-#[cfg(test)]
-mod tests;

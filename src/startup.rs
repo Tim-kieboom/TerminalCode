@@ -84,6 +84,3 @@ pub(crate) fn load_user_config(
         recent,
     }
 }
-
-#[cfg(test)]
-mod tests;

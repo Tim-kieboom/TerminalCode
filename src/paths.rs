@@ -45,6 +45,3 @@ fn starts_with_drive(text: &str) -> bool {
         && bytes[1] == b':'
         && bytes.get(2).is_none_or(|separator| *separator == b'\\')
 }
-
-#[cfg(test)]
-mod tests;

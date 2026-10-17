@@ -1,192 +1,385 @@
 use std::fs;
+use std::path::Path;
 
-use crate::initial_state;
+use crate::app::state::AppState;
+use crate::components::ComponentKind;
+use crate::config::ThemeChoice;
+use crate::keymap::{Context, KeyChord, Lookup};
+use crate::settings::Settings;
+use crate::startup::*;
+use crate::terminal::KeyboardSupport;
+use crate::ui::theme::{Theme, ThemeVariant};
 
-#[test]
-fn no_path_starts_with_an_empty_unnamed_buffer() {
-    let state = initial_state(&[]).unwrap();
-
-    assert_eq!(state.editor().buffer().text(), "");
-    assert_eq!(state.editor().buffer().path(), None);
-    assert_eq!(state.latest_notification(), None);
+fn write(dir: &Path, name: &str, text: &str) {
+    if let Err(error) = fs::write(dir.join(name), text) {
+        panic!("cannot write {name}: {error}");
+    }
 }
 
-#[test]
-fn an_existing_file_is_opened_without_a_message() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("todo.md");
-    fs::write(&path, "# TODO\n- thing\n").unwrap();
-
-    let state = initial_state(std::slice::from_ref(&path)).unwrap();
-
-    assert_eq!(state.editor().buffer().text(), "# TODO\n- thing\n");
-    assert_eq!(state.latest_notification(), None);
+fn temp() -> tempfile::TempDir {
+    match tempfile::tempdir() {
+        Ok(dir) => dir,
+        Err(error) => panic!("no temporary directory: {error}"),
+    }
 }
 
-#[test]
-fn a_missing_file_opens_empty_and_says_it_is_new() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("typo.md");
-
-    let state = initial_state(std::slice::from_ref(&path)).unwrap();
-
-    assert_eq!(state.editor().buffer().text(), "");
-    assert_eq!(state.editor().buffer().path(), Some(path.as_path()));
-    let status = state.latest_notification().unwrap();
-    assert!(status.contains("new file"), "{status}");
-    assert!(status.contains("typo.md"), "{status}");
-    assert!(!path.exists(), "opening must not create the file");
+fn load(dir: Option<&Path>) -> (AppState, UserConfig) {
+    let mut state = AppState::default();
+    let user = load_user_config(&mut state, dir, KeyboardSupport::Enhanced);
+    (state, user)
 }
 
-#[test]
-fn a_file_that_is_not_utf8_is_an_error_not_an_empty_buffer() {
-    let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("binary");
-    fs::write(&path, [0xff, 0xfe, 0x00]).unwrap();
-
-    assert!(initial_state(std::slice::from_ref(&path)).is_err());
+/// A theme the user made from the Light template.
+fn install_light(dir: &Path) {
+    fs::create_dir_all(dir.join("themes")).unwrap();
+    fs::write(dir.join("themes/light.toml"), ThemeVariant::Light.source()).unwrap();
 }
 
-#[test]
-fn several_paths_open_as_tabs_with_the_first_active() {
-    let dir = tempfile::tempdir().unwrap();
-    let (a, b, c) = (
-        dir.path().join("a.txt"),
-        dir.path().join("b.txt"),
-        dir.path().join("c.txt"),
-    );
-    fs::write(&a, "alpha").unwrap();
-    fs::write(&b, "beta").unwrap();
-    fs::write(&c, "gamma").unwrap();
-
-    let state = initial_state(&[a, b, c]).unwrap();
-
-    let (names, active) = state.workspace().tab_names();
-    assert_eq!(names, ["a.txt", "b.txt", "c.txt"]);
-    assert_eq!(active, 0);
-    assert_eq!(state.editor().buffer().text(), "alpha");
-    assert_eq!(state.latest_notification(), None);
-}
-
-#[test]
-fn missing_files_among_several_are_all_reported() {
-    let dir = tempfile::tempdir().unwrap();
-    let existing = dir.path().join("here.txt");
-    fs::write(&existing, "x").unwrap();
-    let (new_a, new_b) = (dir.path().join("new_a.txt"), dir.path().join("new_b.txt"));
-
-    let state = initial_state(&[new_a, existing, new_b]).unwrap();
-
-    let status = state.latest_notification().unwrap();
-    assert!(
-        status.contains("new_a.txt") && status.contains("new_b.txt"),
-        "{status}"
-    );
-    assert!(!status.contains("here.txt"), "{status}");
-}
-
-fn args(list: &[&str]) -> impl Iterator<Item = std::ffi::OsString> {
-    list.iter()
-        .map(std::ffi::OsString::from)
-        .collect::<Vec<_>>()
+fn errors(state: &AppState) -> Vec<String> {
+    state
+        .notifications()
+        .texts()
         .into_iter()
+        .map(str::to_owned)
+        .collect()
+}
+
+fn has_error(state: &AppState, needle: &str) -> bool {
+    errors(state).iter().any(|text| text.contains(needle))
 }
 
 #[test]
-fn every_argument_after_the_program_name_is_a_path() {
-    use std::path::PathBuf;
+fn without_a_config_folder_everything_is_the_default_and_nothing_is_said() {
+    let (state, user) = load(None);
 
-    assert_eq!(crate::paths_from_args(args(&["tc"])), Vec::<PathBuf>::new());
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "a.rs", "b.rs"])),
-        [PathBuf::from("a.rs"), PathBuf::from("b.rs")]
-    );
+    assert_eq!(user.settings, Settings::default());
+    assert_eq!(user.theme, ThemeChoice::default());
+    assert_eq!(*state.theme(), Theme::default());
+    assert!(errors(&state).is_empty());
 }
 
 #[test]
-fn a_leading_double_dash_is_skipped_but_later_ones_are_files() {
-    use std::path::PathBuf;
+fn an_empty_config_folder_says_nothing_either() {
+    let dir = temp();
 
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "--", "notes.md"])),
-        [PathBuf::from("notes.md")]
-    );
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "--"])),
-        Vec::<PathBuf>::new()
-    );
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "--", "--odd", "--"])),
-        [PathBuf::from("--odd"), PathBuf::from("--")]
-    );
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.settings, Settings::default());
+    assert!(errors(&state).is_empty());
 }
 
 #[test]
-fn a_directory_argument_is_the_project_and_the_rest_are_files() {
-    let dir = tempfile::tempdir().unwrap();
-    let file = dir.path().join("a.txt");
-    fs::write(&file, "").unwrap();
+fn the_theme_the_settings_name_is_put_in_the_state_and_returned() {
+    let dir = temp();
+    install_light(dir.path());
+    write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
 
-    let (project, files) =
-        crate::project_and_files(&[file.clone(), dir.path().to_path_buf(), dir.path().join("b")]);
+    let (state, user) = load(Some(dir.path()));
 
-    assert_eq!(project.as_deref(), Some(dir.path()));
-    assert_eq!(files, [file, dir.path().join("b")]);
+    assert_eq!(user.theme, ThemeChoice::installed("light"));
+    assert_eq!(*state.theme(), Theme::built_in(ThemeVariant::Light));
+    assert!(errors(&state).is_empty());
 }
 
 #[test]
-fn without_a_directory_argument_there_is_no_named_project() {
-    let (project, files) = crate::project_and_files(&["a.txt".into()]);
-
-    assert_eq!(project, None);
-    assert_eq!(files.len(), 1);
-}
-
-#[test]
-fn a_first_argument_that_is_a_help_or_version_flag_asks_for_that() {
-    use crate::Invocation;
-
-    for flag in ["-h", "--help"] {
-        assert_eq!(Invocation::from_args(args(&["tc", flag])), Invocation::Help);
+fn an_installed_theme_named_by_the_settings_is_used() {
+    let dir = temp();
+    write(dir.path(), "settings.json", "{ \"theme\": \"mine\" }");
+    if let Err(error) = fs::create_dir(dir.path().join("themes")) {
+        panic!("cannot make the folder: {error}");
     }
-    for flag in ["-v", "--version"] {
-        assert_eq!(
-            Invocation::from_args(args(&["tc", flag])),
-            Invocation::Version
+    write(
+        &dir.path().join("themes"),
+        "mine.toml",
+        "[palette]\naccent = \"#00ff00\"\n",
+    );
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.theme, ThemeChoice::installed("mine"));
+    assert_eq!(
+        state.theme().style("pane.border.focused").fg,
+        Some(ratatui::style::Color::Rgb(0, 255, 0))
+    );
+}
+
+#[test]
+fn a_theme_name_that_is_no_theme_gives_the_dark_theme_and_an_error() {
+    let dir = temp();
+    write(dir.path(), "settings.json", "{ \"theme\": \"nope\" }");
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.theme, ThemeChoice::default());
+    assert_eq!(*state.theme(), Theme::default());
+    assert!(has_error(&state, "no theme called \"nope\""));
+}
+
+#[test]
+fn an_invalid_settings_file_gives_the_defaults_and_an_error() {
+    let dir = temp();
+    write(dir.path(), "settings.json", "{ \"theme\": 3 }");
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.settings, Settings::default());
+    assert!(has_error(&state, "using default settings"));
+}
+
+#[test]
+fn an_unknown_setting_is_an_error_but_the_rest_of_the_file_applies() {
+    let dir = temp();
+    install_light(dir.path());
+    write(
+        dir.path(),
+        "settings.json",
+        "{ \"colour\": 1, \"theme\": \"light\" }",
+    );
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.theme, ThemeChoice::installed("light"));
+    assert!(has_error(&state, "no such setting: colour"));
+}
+
+#[test]
+fn a_broken_keymap_is_an_error_and_the_other_files_still_apply() {
+    let dir = temp();
+    install_light(dir.path());
+    write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
+    write(dir.path(), "keymap.toml", "this is not a keymap");
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "using default keybindings"));
+    assert_eq!(*state.theme(), Theme::built_in(ThemeVariant::Light));
+    let quit: KeyChord = match "ctrl+q".parse() {
+        Ok(chord) => chord,
+        Err(error) => panic!("ctrl+q should parse: {error}"),
+    };
+    assert!(matches!(
+        user.keymap.find(&[Context::Global], &[quit]),
+        Lookup::Found { .. }
+    ));
+}
+
+#[test]
+fn a_broken_layout_is_an_error() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", "(((");
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "using default layout"));
+}
+
+#[test]
+fn a_broken_theme_file_is_an_error_and_the_chosen_theme_stands() {
+    let dir = temp();
+    install_light(dir.path());
+    write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
+    write(dir.path(), "theme.toml", "[palette\n");
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "theme.toml"));
+    assert_eq!(*state.theme(), Theme::built_in(ThemeVariant::Light));
+}
+
+#[test]
+fn every_problem_is_its_own_error() {
+    let dir = temp();
+    write(dir.path(), "settings.json", "{ \"theme\": \"nope\" }");
+    write(dir.path(), "keymap.toml", "this is not a keymap");
+    write(dir.path(), "layout.ron", "(((");
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert_eq!(errors(&state).len(), 3, "{:?}", errors(&state));
+}
+
+// ---- what is hidden at the start
+
+const LAYOUT_WITH_HIDDEN_EXPLORER: &str = "Col([
+    Row([
+        Fixed(20, Pane(view: Explorer, hidden: true)),
+        Pane(view: Editor),
+    ]),
+    Fixed(1, Pane(view: StatusBar)),
+])";
+
+fn shown(state: &AppState) -> [bool; 3] {
+    [
+        ComponentKind::Explorer,
+        ComponentKind::Terminal,
+        ComponentKind::StatusBar,
+    ]
+    .map(|kind| state.is_visible(&kind))
+}
+
+#[test]
+fn without_a_layout_field_or_a_remembered_state_panes_start_as_they_always_did() {
+    let dir = temp();
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert_eq!(shown(&state), [true, false, true]);
+}
+
+#[test]
+fn a_layout_can_start_a_pane_hidden_or_shown() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    let (state, _) = load(Some(dir.path()));
+    assert_eq!(shown(&state), [false, false, true]);
+
+    write(
+        dir.path(),
+        "layout.ron",
+        "Col([Pane(view: Editor), Fixed(8, Pane(view: Terminal, hidden: false))])",
+    );
+    let (state, _) = load(Some(dir.path()));
+    assert!(state.is_visible(&ComponentKind::Terminal));
+}
+
+#[test]
+fn what_was_remembered_wins_over_the_layout_in_both_directions() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    write(
+        dir.path(),
+        "state.json",
+        r#"{ "shown": { "explorer": true } }"#,
+    );
+    let (state, _) = load(Some(dir.path()));
+    assert!(state.is_visible(&ComponentKind::Explorer));
+
+    write(
+        dir.path(),
+        "layout.ron",
+        "Col([Pane(view: Explorer), Pane(view: Editor)])",
+    );
+    write(
+        dir.path(),
+        "state.json",
+        r#"{ "shown": { "explorer": false } }"#,
+    );
+    let (state, _) = load(Some(dir.path()));
+    assert!(!state.is_visible(&ComponentKind::Explorer));
+}
+
+#[test]
+fn a_pane_with_nothing_remembered_follows_the_layout_while_another_is_remembered() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    write(
+        dir.path(),
+        "state.json",
+        r#"{ "shown": { "status_bar": false } }"#,
+    );
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert_eq!(shown(&state), [false, false, false]);
+}
+
+#[test]
+fn a_state_file_that_is_not_valid_is_reported_and_the_layout_is_used() {
+    let dir = temp();
+    write(dir.path(), "layout.ron", LAYOUT_WITH_HIDDEN_EXPLORER);
+    write(dir.path(), "state.json", "{ nope");
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "state.json"), "{:?}", errors(&state));
+    assert_eq!(shown(&state), [false, false, true]);
+}
+
+#[test]
+fn a_recent_file_that_is_not_valid_is_reported_and_the_list_starts_empty() {
+    let dir = temp();
+    write(dir.path(), "recent.json", "{ nope");
+
+    let (state, config) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "recent.json"), "{:?}", errors(&state));
+    assert!(config.recent.is_empty());
+}
+
+#[test]
+fn the_recent_list_is_read_from_its_file() {
+    let dir = temp();
+    write(
+        dir.path(),
+        "recent.json",
+        r#"{ "files": ["/p/a.rs"], "folders": ["/p"] }"#,
+    );
+
+    let (state, config) = load(Some(dir.path()));
+
+    assert!(errors(&state).is_empty());
+    assert_eq!(config.recent.files().len(), 1);
+    assert_eq!(config.recent.folders().len(), 1);
+}
+
+#[test]
+fn a_layout_field_with_the_wrong_type_is_a_layout_error() {
+    let dir = temp();
+    write(
+        dir.path(),
+        "layout.ron",
+        "Col([Pane(view: Explorer, hidden: \"yes\"), Pane(view: Editor)])",
+    );
+
+    let (state, _) = load(Some(dir.path()));
+
+    assert!(has_error(&state, "layout"), "{:?}", errors(&state));
+}
+
+// ---- the built-in themes are templates, not themes to choose
+
+#[test]
+fn no_theme_setting_is_the_fallback_without_a_warning() {
+    let dir = temp();
+    write(dir.path(), "settings.json", "{ \"theme\": null }");
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(user.theme, ThemeChoice::default());
+    assert_eq!(*state.theme(), Theme::default());
+    assert!(errors(&state).is_empty(), "{:?}", errors(&state));
+}
+
+#[test]
+fn an_old_built_in_theme_name_with_no_theme_of_that_name_warns_and_uses_the_fallback() {
+    for name in ["dark", "light", "soldark", "sollight"] {
+        let dir = temp();
+        write(
+            dir.path(),
+            "settings.json",
+            &format!("{{ \"theme\": \"{name}\" }}"),
         );
+
+        let (state, user) = load(Some(dir.path()));
+
+        assert_eq!(user.theme, ThemeChoice::default(), "{name}");
+        assert!(
+            has_error(&state, &format!("no theme called \"{name}\"")),
+            "{name}"
+        );
+        assert!(has_error(&state, "Theme: New"), "{name}");
+        assert_eq!(*state.theme(), Theme::default(), "{name}");
     }
 }
 
 #[test]
-fn flags_only_count_first_and_a_double_dash_makes_them_files() {
-    use crate::Invocation;
-    use std::path::PathBuf;
+fn a_theme_the_user_made_from_a_template_is_chosen_by_name() {
+    let dir = temp();
+    install_light(dir.path());
+    write(dir.path(), "settings.json", "{ \"theme\": \"light\" }");
 
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "a.rs", "-v"])),
-        Invocation::Open(vec![PathBuf::from("a.rs"), PathBuf::from("-v")])
-    );
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "--", "-h"])),
-        Invocation::Open(vec![PathBuf::from("-h")])
-    );
-    assert_eq!(
-        Invocation::from_args(args(&["tc"])),
-        Invocation::Open(Vec::new())
-    );
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "src", "main.rs"])),
-        Invocation::Open(vec![PathBuf::from("src"), PathBuf::from("main.rs")])
-    );
-}
+    let (state, user) = load(Some(dir.path()));
 
-#[test]
-fn the_version_and_help_texts_name_the_command_and_its_flags() {
-    let version = crate::version_text();
-    assert_eq!(version, format!("trcode {}", env!("CARGO_PKG_VERSION")));
-
-    let help = crate::help_text();
-    for needle in ["Usage: trcode", "-h, --help", "-v, --version", "--"] {
-        assert!(help.contains(needle), "{needle}: {help}");
-    }
+    assert_eq!(user.theme, ThemeChoice::installed("light"));
+    assert!(errors(&state).is_empty());
 }

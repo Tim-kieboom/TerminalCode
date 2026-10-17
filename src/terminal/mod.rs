@@ -1,6 +1,8 @@
 //! Terminal setup and the capabilities we probe for at startup.
 
 mod drain;
+#[cfg(test)]
+mod drain_tests;
 
 use std::io::stdout;
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -117,6 +117,3 @@ pub(crate) fn save(dir: &Path, recent: &Recent) -> io::Result<()> {
     let text = serde_json::to_string_pretty(recent).map_err(io::Error::other)?;
     crate::saved_state::write_atomically(&path_in(dir), &format!("{text}\n"))
 }
-
-#[cfg(test)]
-mod tests;
