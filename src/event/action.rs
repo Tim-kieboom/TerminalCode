@@ -144,6 +144,10 @@ pub(crate) enum Action {
     CollapseCursors,
     Indent,
     Outdent,
+    /// Moves the lines the cursors are on one indent level in.
+    IndentLine,
+    /// Moves the lines the cursors are on one indent level out.
+    OutdentLine,
     Copy,
     Cut,
     Paste,
@@ -346,6 +350,8 @@ impl Action {
             Self::Paste => "Edit: Paste",
             Self::Indent => "Edit: Indent",
             Self::Outdent => "Edit: Outdent",
+            Self::IndentLine => "Edit: Indent Line",
+            Self::OutdentLine => "Edit: Outdent Line",
             Self::DeleteWordBackward => "Edit: Delete Word Backward",
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
@@ -469,6 +475,8 @@ impl Action {
             Self::CollapseCursors,
             Self::Indent,
             Self::Outdent,
+            Self::IndentLine,
+            Self::OutdentLine,
             Self::DeleteWordBackward,
             Self::DeleteWordForward,
             Self::Move(Motion::DocumentStart),

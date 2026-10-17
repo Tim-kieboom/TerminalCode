@@ -132,13 +132,7 @@ impl Editor {
         let mut removed_per_line = Vec::new();
 
         for line in selected_lines(&selection) {
-            let content = self.buffer.line_content(line)?;
-            let removed = if content.starts_with('\t') {
-                1
-            } else {
-                let spaces = content.chars().take_while(|c| *c == ' ').count();
-                spaces.min(self.view.indent.outdent_spaces())
-            };
+            let removed = self.outdent_amount(line)?;
             if removed == 0 {
                 continue;
             }
@@ -158,6 +152,96 @@ impl Editor {
             Position::new(position.line, position.column.saturating_sub(removed))
         };
         let after = remap(&selection, shift);
+        self.edit_lines(edits, after)
+    }
+
+    /// How many characters one level of outdent takes off the start of `line`: a tab,
+    /// or the spaces of one level (fewer when the line has fewer), none when it is not
+    /// indented.
+    fn outdent_amount(&self, line: usize) -> Result<usize, BufferError> {
+        let content = self.buffer.line_content(line)?;
+        if content.starts_with('\t') {
+            return Ok(1);
+        }
+        let spaces = content.chars().take_while(|c| *c == ' ').count();
+        Ok(spaces.min(self.view.indent.outdent_spaces()))
+    }
+
+    /// `ctrl+]`: moves every line a cursor is on, or a selection touches, one level
+    /// in; with several cursors a line that has two of them moves once. The cursors
+    /// keep their place in the text.
+    pub(crate) fn indent_line(&mut self) -> Result<(), BufferError> {
+        self.shift_lines(true)
+    }
+
+    /// `ctrl+[`: moves the same lines one level out.
+    pub(crate) fn outdent_line(&mut self) -> Result<(), BufferError> {
+        self.shift_lines(false)
+    }
+
+    fn shift_lines(&mut self, inwards: bool) -> Result<(), BufferError> {
+        let mut lines: Vec<usize> = self
+            .view
+            .selections
+            .iter()
+            .flat_map(selected_lines)
+            .collect();
+        lines.sort_unstable();
+        lines.dedup();
+        // How the start of each line changes: (line, columns added or taken).
+        let mut changes: Vec<(usize, usize)> = Vec::new();
+        let mut edits = Vec::new();
+        let unit = self.view.indent.unit();
+        let several = lines.len() > 1;
+        for line in lines {
+            let start = self.buffer.position_to_byte(Position::new(line, 0))?;
+            if inwards {
+                // A blank line in a block stays blank; the only line is indented.
+                if several && self.buffer.line_len(line)? == 0 {
+                    continue;
+                }
+                edits.push(Edit::new(start..start, unit.as_str()));
+                changes.push((line, self.view.indent.columns()));
+            } else {
+                let removed = self.outdent_amount(line)?;
+                if removed == 0 {
+                    continue;
+                }
+                edits.push(Edit::new(start..start + removed, ""));
+                changes.push((line, removed));
+            }
+        }
+        if edits.is_empty() {
+            return Ok(());
+        }
+
+        let columns = |line: usize| {
+            changes
+                .iter()
+                .find(|(changed, _)| *changed == line)
+                .map_or(0, |(_, columns)| *columns)
+        };
+        let items: Vec<Selection> = self
+            .view
+            .selections
+            .iter()
+            .map(|selection| {
+                let bare = selection.is_empty();
+                let shift = |position: Position| {
+                    let by = columns(position.line);
+                    match inwards {
+                        // The start of a selection stays at column 0, so it also
+                        // covers the new indentation; a cursor goes along with its text.
+                        true if position.column == 0 && !bare => position,
+                        true => Position::new(position.line, position.column + by),
+                        false => Position::new(position.line, position.column.saturating_sub(by)),
+                    }
+                };
+                Selection::new(shift(selection.anchor()), shift(selection.head()))
+                    .with_desired_column(None)
+            })
+            .collect();
+        let after = Selections::from_items(items, self.view.selections.primary_index());
         self.edit_lines(edits, after)
     }
 

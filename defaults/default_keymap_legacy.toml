@@ -6,3 +6,20 @@
 keys = "ctrl+h"
 action = "delete_word_backward"
 context = "editor"
+
+# ctrl+] arrives as ctrl+5 (byte 0x1d), and ctrl+[ is the escape key itself, so it cannot
+# be told apart; alt+] and alt+\ do the same two things, next to each other on the keyboard.
+[[binding]]
+keys = "ctrl+5"
+action = "indent_line"
+context = "editor"
+
+[[binding]]
+keys = "alt+]"
+action = "indent_line"
+context = "editor"
+
+[[binding]]
+keys = "alt+\\"
+action = "outdent_line"
+context = "editor"

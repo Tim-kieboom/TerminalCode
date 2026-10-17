@@ -400,3 +400,20 @@ fn keys_for_is_none_for_an_unbound_action_or_a_context_not_asked_for() {
         Some("ctrl+s")
     );
 }
+
+#[test]
+fn indenting_the_line_is_reachable_on_both_keyboards() {
+    let enhanced = defaults(KeyboardSupport::Enhanced);
+    assert_eq!(action(&enhanced, &BOTH, "ctrl+]"), Some(Action::IndentLine));
+    assert_eq!(
+        action(&enhanced, &BOTH, "ctrl+["),
+        Some(Action::OutdentLine)
+    );
+
+    // ctrl+] arrives as ctrl+5 and ctrl+[ is the escape key: other keys for the same.
+    let legacy = defaults(KeyboardSupport::Legacy);
+    assert_eq!(action(&legacy, &BOTH, "ctrl+5"), Some(Action::IndentLine));
+    assert_eq!(action(&legacy, &BOTH, "alt+]"), Some(Action::IndentLine));
+    assert_eq!(action(&legacy, &BOTH, "alt+\\"), Some(Action::OutdentLine));
+    assert_eq!(action(&enhanced, &BOTH, "alt+]"), None);
+}

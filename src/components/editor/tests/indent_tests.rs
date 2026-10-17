@@ -1,4 +1,4 @@
-use crate::buffer::{Buffer, Position};
+use crate::buffer::{Buffer, Position, Selection};
 use crate::clipboard::Register;
 use crate::components::editor::{Editor, IndentKind, IndentPrefs, IndentStyle, Motion, TabWidth};
 
@@ -436,4 +436,133 @@ fn with_detection_off_the_settings_win_over_what_the_file_has() {
         style_for(prefs(IndentKind::Tabs, 4, false), "a\n    b\n"),
         IndentStyle::Tabs
     );
+}
+
+// ---- the line the cursor is on: indent_line and outdent_line
+
+#[test]
+fn indent_line_moves_the_whole_line_from_a_cursor_in_the_middle_and_the_cursor_goes_along() {
+    let mut editor = editor("hello world");
+    goto(&mut editor, 0, 6);
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "    hello world");
+    assert_eq!(head(&editor), Position::new(0, 10), "still before `world`");
+}
+
+#[test]
+fn indent_line_at_the_start_and_end_of_a_line() {
+    let mut editor = editor("ab");
+    goto(&mut editor, 0, 0);
+    editor.indent_line().unwrap();
+    assert_eq!(head(&editor), Position::new(0, 4), "before the `a` still");
+
+    editor.move_cursor(Motion::LineEnd).unwrap();
+    editor.indent_line().unwrap();
+    assert_eq!(text(&editor), "        ab");
+    assert_eq!(head(&editor), Position::new(0, 10));
+}
+
+#[test]
+fn outdent_line_takes_one_level_from_a_cursor_in_the_middle() {
+    let mut editor = editor("        hello");
+    goto(&mut editor, 0, 10);
+
+    editor.outdent_line().unwrap();
+
+    assert_eq!(text(&editor), "    hello");
+    assert_eq!(head(&editor), Position::new(0, 6));
+}
+
+#[test]
+fn outdent_line_takes_less_than_a_level_when_there_is_less_and_nothing_when_none() {
+    let mut editor = editor("  two\nnone");
+    goto(&mut editor, 0, 3);
+    editor.outdent_line().unwrap();
+    assert_eq!(text(&editor), "two\nnone");
+    assert_eq!(head(&editor), Position::new(0, 1));
+
+    goto(&mut editor, 1, 2);
+    editor.outdent_line().unwrap();
+    assert_eq!(text(&editor), "two\nnone", "nothing to take");
+    assert_eq!(head(&editor), Position::new(1, 2));
+}
+
+#[test]
+fn a_tab_file_moves_by_tabs() {
+    let mut editor = editor("\tone\n\ttwo\n");
+    goto(&mut editor, 0, 0);
+    editor.indent_line().unwrap();
+    assert_eq!(text(&editor), "\t\tone\n\ttwo\n");
+
+    editor.outdent_line().unwrap();
+    editor.outdent_line().unwrap();
+    assert_eq!(text(&editor), "one\n\ttwo\n");
+}
+
+#[test]
+fn a_selection_over_three_lines_moves_every_line_and_blank_ones_stay_blank() {
+    let mut editor = editor("a\n\nb\nc");
+    select_lines(&mut editor, 0, 2);
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "    a\n\n    b\nc");
+    let selection = *editor.selections().primary();
+    assert_eq!(
+        selection.start(),
+        Position::new(0, 0),
+        "still covers the new indent"
+    );
+    assert_eq!(selection.end(), Position::new(2, 5));
+
+    editor.outdent_line().unwrap();
+    assert_eq!(text(&editor), "a\n\nb\nc");
+}
+
+#[test]
+fn a_blank_cursor_line_is_indented_when_it_is_the_only_line() {
+    let mut editor = editor("a\n\nb");
+    goto(&mut editor, 1, 0);
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "a\n    \nb");
+}
+
+#[test]
+fn two_cursors_on_one_line_move_it_once_and_both_go_along() {
+    let mut editor = editor("abcd\nxy");
+    goto(&mut editor, 0, 1);
+    editor.add_cursor(Position::new(0, 3));
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "    abcd\nxy");
+    let heads: Vec<Position> = editor.selections().iter().map(Selection::head).collect();
+    assert_eq!(heads, vec![Position::new(0, 5), Position::new(0, 7)]);
+}
+
+#[test]
+fn cursors_on_different_lines_each_move_their_line() {
+    let mut editor = editor("a\nb\nc");
+    goto(&mut editor, 0, 1);
+    editor.add_cursor(Position::new(2, 1));
+
+    editor.indent_line().unwrap();
+
+    assert_eq!(text(&editor), "    a\nb\n    c");
+    assert_eq!(editor.selections().len(), 2);
+}
+
+#[test]
+fn the_move_is_one_undo_step() {
+    let mut editor = editor("a\nb\nc");
+    select_lines(&mut editor, 0, 2);
+
+    editor.indent_line().unwrap();
+    editor.undo().unwrap();
+
+    assert_eq!(text(&editor), "a\nb\nc");
 }

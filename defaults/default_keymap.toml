@@ -6,7 +6,7 @@
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "command_palette", "find_file", "find_in_project", "next_search_result", "previous_search_result", "next_diagnostic", "previous_diagnostic", "show_diagnostics", "show_hover", "jump_back", "jump_forward", "go_to_definition", "find_in_file", "replace_in_file", "go_to_line", "save", "undo", "redo", "insert_newline", "delete_backward",
 #   "delete_word_backward", "delete_word_forward", "select_all", "move_line_up", "move_line_down", "add_cursor_above", "add_cursor_below", "collapse_cursors", "copy", "cut", "paste",
-#   "indent", "outdent", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_tabs_to_left", "close_tabs_to_right", "toggle_pin_tab", "close_all_tabs", "reopen_closed_tab", "save_all", "next_tab", "previous_tab",
+#   "indent", "outdent", "indent_line", "outdent_line", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_tabs_to_left", "close_tabs_to_right", "toggle_pin_tab", "close_all_tabs", "reopen_closed_tab", "save_all", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
 #   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "context_menu", "toggle_explorer", "toggle_status_bar", "toggle_terminal", "open_file", "open_folder", "open_menu", "toggle_menu_bar", "next_bar_view", "previous_bar_view", "show_errors", { errors = "up"|"down"|"page_up"|"page_down"|"first"|"last"|"open"|"leave" }, "terminal_new_tab", "terminal_next_tab", "terminal_previous_tab", "terminal_close_tab",
@@ -58,6 +58,16 @@ action = "indent"
 keys = "shift+tab"
 context = "editor"
 action = "outdent"
+
+[[binding]]
+keys = "ctrl+]"
+context = "editor"
+action = "indent_line"
+
+[[binding]]
+keys = "ctrl+["
+context = "editor"
+action = "outdent_line"
 
 [[binding]]
 keys = "backspace"

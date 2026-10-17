@@ -320,6 +320,8 @@ impl App {
             })?,
             Action::Indent => self.state.edit(|editor| editor.indent())?,
             Action::Outdent => self.state.edit(|editor| editor.outdent())?,
+            Action::IndentLine => self.state.edit(|editor| editor.indent_line())?,
+            Action::OutdentLine => self.state.edit(|editor| editor.outdent_line())?,
             Action::Copy => self.copy()?,
             Action::Cut => self.cut()?,
             Action::Paste => self.paste()?,
