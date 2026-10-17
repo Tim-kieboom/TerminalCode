@@ -7,6 +7,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Line numbers for a failing test's backtrace, without the rest of the debug info:
+  # it makes the build, the link and the cache smaller.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   check:
@@ -21,14 +24,17 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
+      # The runners come with the stable toolchain, clippy and rustfmt.
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@nextest
+      # Formatting does not depend on the system.
       - name: Format
+        if: matrix.os == 'ubuntu-latest'
         run: cargo fmt --check
+      # Clippy lints the code of the system it runs on: Ubuntu covers the Unix code and
+      # Windows its own; macOS only runs the tests.
       - name: Clippy
+        if: matrix.os != 'macos-latest'
         run: cargo clippy --all-targets
       # nextest kills a test that hangs (see .config/nextest.toml) and lists every
       # failure at the end, so one stuck terminal test cannot hold up the run.
