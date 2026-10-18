@@ -176,9 +176,11 @@ impl App {
     /// the plugins folder.
     fn plugin_rows(&self) -> Vec<Row> {
         let index = &self.plugins.store.index;
+        // One row for each plugin, however many versions the index lists.
         let mut rows: Vec<Row> = index
-            .entries
-            .iter()
+            .ids()
+            .into_iter()
+            .filter_map(|id| index.entry(id))
             .map(|entry| self.row_of_entry(entry))
             .collect();
         for found in &self.plugins.manager.found {

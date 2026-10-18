@@ -129,3 +129,67 @@ fn the_cache_wins_over_the_snapshot_and_a_broken_one_loses() {
     );
     assert_eq!(Index::cached_or_snapshot(None), Index::snapshot());
 }
+
+// --- more than one version of a plugin ---
+
+fn versions(list: &[(&str, &str, Option<&str>)]) -> Index {
+    let entries: Vec<String> = list
+        .iter()
+        .map(|(version, abi, requires)| {
+            let requires = requires
+                .map(|text| format!(r#","requires":"{text}""#))
+                .unwrap_or_default();
+            entry_json(&requires)
+                .replace(r#""version":"0.1.0""#, &format!(r#""version":"{version}""#))
+                .replace(r#""abi":"1.3""#, &format!(r#""abi":"{abi}""#))
+        })
+        .collect();
+    Index::parse(&index_json(1, &entries)).unwrap()
+}
+
+#[test]
+fn the_newest_version_this_editor_can_run_is_the_one_offered() {
+    // Listed oldest first, as the file has them.
+    let index = versions(&[("0.1.0", "1.3", None), ("0.2.0", "1.4", None)]);
+    assert_eq!(index.entry_for("git", HOST).unwrap().version, "0.2.0");
+
+    // An editor with the older API cannot run 0.2.0: it is offered 0.1.0.
+    let older = Host {
+        abi: Abi::new(1, 3),
+        version: "0.6.2",
+    };
+    assert_eq!(index.entry_for("git", older).unwrap().version, "0.1.0");
+}
+
+#[test]
+fn the_order_in_the_file_does_not_decide() {
+    let index = versions(&[
+        ("0.2.0", "1.4", None),
+        ("0.1.0", "1.3", None),
+        ("0.10.0", "1.4", None),
+    ]);
+    assert_eq!(
+        index.entry_for("git", HOST).unwrap().version,
+        "0.10.0",
+        "numbers, not text"
+    );
+}
+
+#[test]
+fn an_editor_that_can_run_none_is_told_about_the_newest() {
+    let index = versions(&[("0.2.0", "1.4", None), ("0.3.0", "1.4", Some("9.0.0"))]);
+    let older = Host {
+        abi: Abi::new(1, 3),
+        version: "0.6.2",
+    };
+    let entry = index.entry_for("git", older).unwrap();
+    assert_eq!(entry.version, "0.3.0");
+    assert!(entry.availability(older).missing().is_some());
+}
+
+#[test]
+fn a_plugin_listed_twice_is_one_id() {
+    let index = versions(&[("0.1.0", "1.3", None), ("0.2.0", "1.4", None)]);
+    assert_eq!(index.ids(), ["git"]);
+    assert!(index.entry("nothing").is_none());
+}

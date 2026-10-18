@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::manifest::{Host, at_least, is_id};
+use super::manifest::{Host, at_least, is_id, is_newer};
 use crate::plugin_api::{Abi, AbiError};
 
 /// The index format this editor reads. A newer major is "update TerminalCode".
@@ -119,6 +119,16 @@ impl Entry {
     }
 }
 
+/// The entry with the latest version.
+fn newest(entries: Vec<&Entry>) -> Option<&Entry> {
+    entries.into_iter().reduce(
+        |best, entry| match is_newer(&entry.version, &best.version) {
+            true => entry,
+            false => best,
+        },
+    )
+}
+
 /// The official plugins.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Index {
@@ -126,8 +136,33 @@ pub(crate) struct Index {
 }
 
 impl Index {
+    /// The entry of the plugin `id` this editor should offer: a plugin may be listed
+    /// more than once, once for each version, and the newest version this editor can
+    /// run wins; when it can run none, the newest, so that the list can say what it
+    /// needs.
     pub(crate) fn entry(&self, id: &str) -> Option<&Entry> {
-        self.entries.iter().find(|entry| entry.id == id)
+        self.entry_for(id, Host::THIS)
+    }
+
+    pub(crate) fn entry_for(&self, id: &str, host: Host<'_>) -> Option<&Entry> {
+        let all: Vec<&Entry> = self.entries.iter().filter(|entry| entry.id == id).collect();
+        let ready: Vec<&Entry> = all
+            .iter()
+            .copied()
+            .filter(|entry| entry.availability(host) == Availability::Ready)
+            .collect();
+        newest(ready).or_else(|| newest(all))
+    }
+
+    /// The ids of the plugins listed, each once, in the order they first appear.
+    pub(crate) fn ids(&self) -> Vec<&str> {
+        let mut ids: Vec<&str> = Vec::new();
+        for entry in &self.entries {
+            if !ids.contains(&entry.id.as_str()) {
+                ids.push(&entry.id);
+            }
+        }
+        ids
     }
 
     /// The index in `text`.
