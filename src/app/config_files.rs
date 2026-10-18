@@ -6,6 +6,7 @@ use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::error::IdeResult;
 use crate::pty::Shell;
 use crate::settings::Settings;
+use crate::settings::update::update_file;
 use crate::ui::ComponentKind;
 
 use super::App;
@@ -118,6 +119,8 @@ impl App {
     /// when the settings file changed it, so a theme chosen from the palette
     /// stays until then; an invalid settings file leaves the settings as they are.
     pub(super) fn reload(&mut self) {
+        // Settings a new version introduced are added first, so what is read next has them.
+        let update_warning = self.add_new_settings_to_file();
         self.config_applied = self.config_hash();
         let dir = self.config_dir.clone();
         let path = |file: ConfigFile| dir.as_deref().map(|dir| file.path_in(dir));
@@ -134,6 +137,7 @@ impl App {
             config::load_keymap(path(ConfigFile::Keymap).as_deref(), self.keyboard_support);
 
         let warnings = [
+            update_warning,
             settings_warning,
             theme_warning,
             theme.warning,
@@ -159,6 +163,29 @@ impl App {
             self.state
                 .notify("reloaded the settings, theme, layout and keymap");
         }
+    }
+
+    /// Adds the settings a new version introduced to the user's `settings.json`
+    /// (see `settings::update`), remembering the version. Why it could not, if it
+    /// could not, is returned.
+    fn add_new_settings_to_file(&mut self) -> Option<ConfigWarning> {
+        let path = ConfigFile::Settings.path_in(self.config_dir.as_deref()?);
+        let workspace = self.state.workspace();
+        let unsaved_tab = workspace
+            .document_of_path(&path)
+            .and_then(|document| workspace.document_info(document))
+            .is_some_and(|(_, _, buffer)| buffer.is_dirty());
+        let mut saved = self.saved_state();
+        let report = update_file(&path, &mut saved, unsaved_tab);
+        if report.remember
+            && let Some(version) = saved.settings_version()
+        {
+            self.remember_settings_version(version);
+        }
+        if let Some(info) = report.info {
+            self.state.notify(info);
+        }
+        report.warning
     }
 
     /// Makes `settings` the ones in use. The theme they name is chosen when it

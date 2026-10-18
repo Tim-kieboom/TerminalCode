@@ -1,6 +1,7 @@
 //! What the editor remembers between runs, in `state.json` in the config folder:
 //! which panes the user hid or showed. It is a file of its own, not part of
-//! `settings.json`, which the user edits by hand and the editor never writes.
+//! `settings.json`, which the user edits by hand and the editor only ever adds new settings to
+//! (see `settings::update`).
 //!
 //! Only what the user changed is written. A pane with nothing remembered starts
 //! the way the layout file says (`hidden: true`), and otherwise the way it always
@@ -49,6 +50,11 @@ impl Shown {
 pub(crate) struct SavedState {
     #[serde(default)]
     shown: Shown,
+    /// The newest version whose settings were added to the user's `settings.json`
+    /// (see `settings::update`). It is not forgotten by a reset: a setting the user
+    /// deleted would come back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    settings_version: Option<String>,
 }
 
 impl SavedState {
@@ -56,6 +62,26 @@ impl SavedState {
     pub(crate) fn shown(&self, kind: &ComponentKind) -> Option<bool> {
         let mut shown = self.shown;
         shown.slot(kind).and_then(|slot| *slot)
+    }
+
+    /// The version whose settings were last added to `settings.json`, if any.
+    pub(crate) fn settings_version(&self) -> Option<&str> {
+        self.settings_version.as_deref()
+    }
+
+    /// Remembers that the settings up to `version` were added. Returns whether that is news.
+    pub(crate) fn set_settings_version(&mut self, version: &str) -> bool {
+        let changed = self.settings_version.as_deref() != Some(version);
+        self.settings_version = Some(version.to_owned());
+        changed
+    }
+
+    /// What a reset leaves: no pane remembered, but the settings version kept.
+    pub(crate) fn reset(&self) -> Self {
+        Self {
+            shown: Shown::default(),
+            settings_version: self.settings_version.clone(),
+        }
     }
 
     /// Remembers that the pane is `shown` now. Returns whether that is news.
@@ -74,9 +100,9 @@ pub(crate) fn path_in(dir: &Path) -> PathBuf {
     dir.join(STATE_FILE)
 }
 
-/// The text of a file that remembers nothing.
-pub(crate) fn empty_text() -> String {
-    let text = serde_json::to_string_pretty(&SavedState::default()).unwrap_or_default();
+/// The text of a file that remembers nothing but what a reset keeps.
+pub(crate) fn empty_text(state: &SavedState) -> String {
+    let text = serde_json::to_string_pretty(&state.reset()).unwrap_or_default();
     format!("{text}\n")
 }
 

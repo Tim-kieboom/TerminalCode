@@ -50,7 +50,7 @@ impl App {
             return self.no_config_directory();
         };
         let path = saved_state::path_in(&dir);
-        match config::reset_with_backup(&path, &saved_state::empty_text()) {
+        match config::reset_with_backup(&path, &saved_state::empty_text(&self.saved_state())) {
             Ok(backup) => {
                 self.forget_saved_panes();
                 self.told_reset(saved_state::STATE_FILE, backup.is_some());

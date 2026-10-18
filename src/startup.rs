@@ -8,6 +8,7 @@ use crate::keymap::Keymap;
 use crate::persist::recent::{self, Recent};
 use crate::persist::saved_state::{self, SavedState};
 use crate::settings::Settings;
+use crate::settings::update::update_file;
 use crate::terminal::KeyboardSupport;
 use crate::ui::ComponentKind;
 
@@ -31,12 +32,30 @@ pub(crate) fn load_user_config(
     keyboard: KeyboardSupport,
 ) -> UserConfig {
     let path = |file: ConfigFile| config_dir.map(|dir| file.path_in(dir));
+    let (mut saved, saved_warning) = saved_state::load(config_dir);
+    // Settings a new version introduced are added to the user's file before it is read.
+    let update = path(ConfigFile::Settings)
+        .map(|settings| update_file(&settings, &mut saved, false))
+        .unwrap_or_default();
+    if update.remember
+        && let Some(dir) = config_dir
+        && let Err(error) = saved_state::save(dir, &saved)
+    {
+        state.notify_error(format!(
+            "{}: {error}; the settings added will be offered again",
+            saved_state::path_in(dir).display()
+        ));
+    }
+    if let Some(info) = update.info {
+        state.notify(info);
+    }
     let mut report = |warning: Option<ConfigWarning>| {
         if let Some(warning) = warning {
             state.notify_error(warning.to_string());
         }
     };
 
+    report(update.warning);
     let loaded = config::load_settings(path(ConfigFile::Settings).as_deref());
     report(loaded.warning);
     let settings = loaded.settings.unwrap_or_default();
@@ -52,8 +71,7 @@ pub(crate) fn load_user_config(
     let loaded_keymap = config::load_keymap(path(ConfigFile::Keymap).as_deref(), keyboard);
     report(loaded_keymap.warning);
 
-    let (saved, warning) = saved_state::load(config_dir);
-    report(warning);
+    report(saved_warning);
     let (recent, warning) = recent::load(config_dir);
     report(warning);
     // What the user did last time wins over what the layout file says.

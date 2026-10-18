@@ -27,6 +27,11 @@ pub(crate) enum ConfigWarning {
         "settings.json: no theme called \"{0}\" in the themes folder; using the built-in fallback (the built-in themes are templates for Theme: New...)"
     )]
     NoSuchTheme(String),
+    /// New settings could not be added to the user's file.
+    #[error(
+        "settings.json was not updated with the new settings ({reason}); the defaults are used"
+    )]
+    SettingsNotUpdated { reason: String },
     #[error("{}", join(.0))]
     Several(Vec<ConfigWarning>),
 }

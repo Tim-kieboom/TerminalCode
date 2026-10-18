@@ -199,7 +199,7 @@ fn forgetting_the_panes_keeps_state_json_as_bak_and_leaves_the_screen_alone() {
     let backup = dir.path().join("state.json.bak");
     assert_eq!(fs::read_to_string(backup).unwrap(), before);
     let now = fs::read_to_string(saved_state::path_in(dir.path())).unwrap();
-    assert_eq!(now, saved_state::empty_text());
+    assert_eq!(now, saved_state::empty_text(&Default::default()));
     assert!(!app.state().is_visible(&crate::ui::ComponentKind::Explorer));
     let (state, warning) = saved_state::load(Some(dir.path()));
     assert!(warning.is_none());
@@ -234,4 +234,33 @@ fn a_reset_works_with_every_tab_closed() {
     reset(&mut app, "Reset Settings");
 
     assert!(dir.path().join("settings.json.bak").exists());
+}
+
+#[test]
+fn forgetting_the_panes_keeps_the_version_the_settings_were_added_up_to() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join("settings.json"),
+        "{\n    \"tab_size\": 2\n}\n",
+    )
+    .unwrap();
+    let mut app = app_in(dir.path());
+    // The settings file is read again, which adds what is new and remembers the version.
+    run_from_palette(&mut app, "Reload");
+    let before = fs::read_to_string(saved_state::path_in(dir.path())).unwrap();
+    assert!(before.contains("settings_version"), "{before}");
+
+    reset(&mut app, "Forget Hidden");
+
+    let now = fs::read_to_string(saved_state::path_in(dir.path())).unwrap();
+    assert!(now.contains("\"settings_version\": \"0.7.0\""), "{now}");
+    // A setting the user deletes now does not come back.
+    fs::write(
+        dir.path().join("settings.json"),
+        "{\n    \"tab_size\": 2\n}\n",
+    )
+    .unwrap();
+    run_from_palette(&mut app, "Reload");
+    let text = fs::read_to_string(dir.path().join("settings.json")).unwrap();
+    assert!(!text.contains("format_on_save"), "{text}");
 }

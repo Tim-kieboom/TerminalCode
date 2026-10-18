@@ -13,6 +13,8 @@ use serde::{Deserialize, Deserializer};
 use serde_json::{Map, Value};
 use thiserror::Error;
 
+pub(crate) mod update;
+
 use crate::components::editor::{IndentKind, IndentPrefs, TabWidth};
 use crate::lsp::{ConfigError, LanguageServers};
 
@@ -184,6 +186,16 @@ impl Settings {
             repeated,
         })
     }
+}
+
+/// The names of the settings a settings file has, in file order.
+pub(crate) fn keys_of(source: &str) -> Result<Vec<String>, SettingsError> {
+    let cleaned = strip_jsonc(source);
+    if cleaned.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let Pairs(pairs) = serde_json::from_str(&cleaned)?;
+    Ok(pairs.into_iter().map(|(key, _)| key).collect())
 }
 
 /// The members of a JSON object in file order, repeats included (a map would

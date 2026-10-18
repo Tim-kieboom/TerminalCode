@@ -46,7 +46,19 @@ impl App {
 
     /// Forgets what was remembered. The panes stay as they are on screen.
     pub(super) fn forget_saved_panes(&mut self) {
-        self.saved.state = SavedState::default();
+        self.saved.state = self.saved.state.reset();
+    }
+
+    /// What is remembered.
+    pub(super) fn saved_state(&self) -> SavedState {
+        self.saved.state.clone()
+    }
+
+    /// Remembers that the settings up to `version` were added to `settings.json`.
+    pub(super) fn remember_settings_version(&mut self, version: &str) {
+        if self.saved.state.set_settings_version(version) {
+            self.write_saved_state();
+        }
     }
 
     fn panes_shown(&self) -> [bool; PANES.len()] {

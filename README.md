@@ -122,7 +122,7 @@ Keymap`, `Open Layout` and `Open Theme` open the file, making it from the built-
 `NAME.bak` (an older backup is replaced) and puts the built-in default in its place; `Config: Forget Hidden and Shown Panes`
 does the same for `state.json`.
 
-- **`settings.json`** (comments and trailing commas are allowed). A setting you leave out keeps its default.
+- **`settings.json`** (comments and trailing commas are allowed). A setting you leave out keeps its default. When a new version adds a setting, trcode adds it to this file for you at the next start or reload, with its default value and its comments after your last entry (nothing of yours is changed, and a setting you delete later stays deleted). It does not touch a file that does not parse, one with a comment after its last entry, one that is open in a tab with unsaved changes, or one it cannot write: it says so, and the defaults apply.
 
   | Setting | Default | Meaning |
   |---|---|---|

@@ -1,6 +1,7 @@
 //! The files and folders opened lately, for the main menu's Open Recent. They are
 //! kept in `recent.json` in the config folder, a file of its own: not in
-//! `settings.json`, which the user edits by hand and the editor never writes.
+//! `settings.json`, which the user edits by hand and the editor only ever adds new settings to
+//! (see `settings::update`).
 
 use std::fs;
 use std::io;

@@ -35,11 +35,14 @@ fn install_light(dir: &Path) {
     fs::write(dir.join("themes/light.toml"), ThemeVariant::Light.source()).unwrap();
 }
 
+/// What start-up said that is a problem: the note that settings were added to
+/// the user's file is not one.
 fn errors(state: &AppState) -> Vec<String> {
     state
         .notifications()
         .texts()
         .into_iter()
+        .filter(|text| !text.starts_with("added new settings"))
         .map(str::to_owned)
         .collect()
 }
@@ -382,4 +385,66 @@ fn a_theme_the_user_made_from_a_template_is_chosen_by_name() {
 
     assert_eq!(user.theme, ThemeChoice::installed("light"));
     assert!(errors(&state).is_empty());
+}
+
+// ---- settings a new version introduced
+
+#[test]
+fn start_up_adds_the_new_settings_to_the_users_file_and_remembers_the_version() {
+    let dir = temp();
+    write(
+        dir.path(),
+        "settings.json",
+        "{\n    // mine\n    \"tab_size\": 2\n}\n",
+    );
+
+    let (state, user) = load(Some(dir.path()));
+
+    let text = fs::read_to_string(dir.path().join("settings.json")).unwrap();
+    assert!(text.contains("// mine\n    \"tab_size\": 2,\n"), "{text}");
+    assert!(text.contains("\"format_on_save\": false,"), "{text}");
+    assert!(
+        state
+            .notifications()
+            .texts()
+            .contains(&"added new settings to settings.json: format_on_save")
+    );
+    assert_eq!(user.saved.settings_version(), Some("0.7.0"));
+    let remembered = fs::read_to_string(dir.path().join("state.json")).unwrap();
+    assert!(
+        remembered.contains("\"settings_version\": \"0.7.0\""),
+        "{remembered}"
+    );
+    assert_eq!(user.settings.tab_size.get(), 2);
+}
+
+#[test]
+fn start_up_with_no_settings_file_makes_none() {
+    let dir = temp();
+
+    let (_, user) = load(Some(dir.path()));
+
+    assert!(!dir.path().join("settings.json").exists());
+    assert!(!dir.path().join("state.json").exists());
+    assert_eq!(user.saved.settings_version(), None);
+}
+
+#[test]
+fn start_up_with_a_file_that_cannot_be_updated_says_so_and_does_not_remember() {
+    let dir = temp();
+    let source = "{\n    \"tab_size\": 2\n    // last\n}\n";
+    write(dir.path(), "settings.json", source);
+
+    let (state, user) = load(Some(dir.path()));
+
+    assert_eq!(
+        fs::read_to_string(dir.path().join("settings.json")).unwrap(),
+        source
+    );
+    assert!(has_error(
+        &state,
+        "was not updated with the new settings (a comment follows its last entry)"
+    ));
+    assert!(!dir.path().join("state.json").exists());
+    assert_eq!(user.settings.tab_size.get(), 2, "its settings still apply");
 }
