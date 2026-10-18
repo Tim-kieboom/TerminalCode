@@ -167,7 +167,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.7.1
 - [x] Version 0.7.1 (after 0.7.0: plugin API 1.4: a view can be a column of buttons, rows and a line to type into, with `press` and `input_click` messages, and a row of buttons wraps in a narrow pane; core actions stage all, unstage all and commit (an empty message and a clean index are refused, a hook's output is shown) and fetch, pull (`--ff-only`) and push (with `-u` for one remote) that never ask for a password, can be stopped with `esc` and are shown as sticky errors when git says no, behind the new capability `git.remote`; the Git plugin 0.2.0 with buttons, a commit box and keys; the plugin index may list a plugin once for each version and an editor offers the newest it can run; the real WebAssembly module is run in the tests; `release-assets.githubusercontent.com` is allowed for downloads; a running plugin whose folder was deleted by hand stops when the manager opens). Changes to know when upgrading: the Git plugin 0.2.0 asks for one more permission, `git.remote` (it uses the network), and the manager offers it as an update; plugins built for API 1.4 do not run on 0.7.0 or earlier
-- [ ] Tag `v0.7.1`
+- [x] Tag `v0.7.1` (tagged on b38fbec; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
