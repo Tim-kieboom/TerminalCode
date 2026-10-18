@@ -6,6 +6,8 @@ const LINES_PREFIX: &str = r#"{"type":"set_view","view":{"type":"lines","lines":
 const LINES_SUFFIX: &str = r#"","slot":""}]}}"#;
 const INPUT_PREFIX: &str = r#"{"type":"set_view","view":{"type":"input","prompt":"> ","value":""#;
 const INPUT_SUFFIX: &str = r#"","cursor":0}}"#;
+const COLUMN_PREFIX: &str = r#"{"type":"set_view","view":{"type":"column","parts":[{"type":"buttons","buttons":[{"id":"commit","label":"Commit"},{"id":"push","label":"Push","enabled":false}]},{"type":"rows","lines":[{"text":"row 0","slot":""},{"text":"row 1","slot":""}],"selected":0},{"type":"input","prompt":"> ","value":""#;
+const COLUMN_SUFFIX: &str = r#"","cursor":0,"active":false}]}}"#;
 const ROWS_SUFFIX: &str = r#"","slot":""}],"selected":40}}"#;
 
 fn rows_prefix() -> String {
@@ -37,6 +39,9 @@ pub(crate) enum First {
     /// Forty rows, `row 0` to `row 39`, and what it was sent as the row after them,
     /// which is the selected one.
     EchoInRows,
+    /// A column: two buttons (`commit`, and `push` that cannot be pressed), two rows
+    /// and a line to type into that is not active, with what it was sent as its text.
+    EchoInColumn,
 }
 
 /// When a plugin asks for what it was told to ask for.
@@ -95,6 +100,7 @@ impl Echo {
         let (prefix, suffix) = match self.first {
             First::EchoInInput => (INPUT_PREFIX.to_owned(), INPUT_SUFFIX),
             First::EchoInRows => (rows_prefix(), ROWS_SUFFIX),
+            First::EchoInColumn => (COLUMN_PREFIX.to_owned(), COLUMN_SUFFIX),
             First::Echo | First::InputThenLines => (LINES_PREFIX.to_owned(), LINES_SUFFIX),
         };
         let start_view = format!("{INPUT_PREFIX}{INPUT_SUFFIX}");

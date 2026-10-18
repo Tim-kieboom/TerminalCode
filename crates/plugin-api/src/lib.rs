@@ -16,7 +16,7 @@ pub use abi::{Abi, AbiError};
 pub use manifest::Manifest;
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
-    Refusal, ToPlugin, WireLine, WireSpan, WireView,
+    Refusal, ToPlugin, WireButton, WireLine, WireSpan, WireView,
 };
 pub use plugin::Plugin;
 

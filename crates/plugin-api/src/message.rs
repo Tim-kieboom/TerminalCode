@@ -48,6 +48,13 @@ pub enum ToPlugin {
     /// The user clicked row `row` of the plugin's [`WireView::Rows`]: the index of
     /// the line in `lines`, as the plugin sent them.
     Click { row: usize },
+    /// The user pressed the button with this `id` of a [`WireView::Buttons`] (a
+    /// button that is not enabled is never reported). Plugin API 1.4.
+    Press { button: String },
+    /// The user clicked the line to type into ([`WireView::Input`]), at character
+    /// `column` of its text (the end of the text when they clicked past it): the
+    /// plugin usually makes the line active and puts the cursor there. Plugin API 1.4.
+    InputClick { column: usize },
     /// What git says changed: sent to a plugin with [`Capability::GitRead`] after
     /// it starts, and whenever the repository's state differs from before. It
     /// is a summary; the files are asked for with [`FromPlugin::GitEntries`].
@@ -150,10 +157,69 @@ pub enum WireView {
         value: String,
         #[serde(default)]
         cursor: usize,
+        /// Whether the line is being typed into. Only a line inside a
+        /// [`WireView::Column`] can be inactive (the other parts of the column then
+        /// have the keys); a line that is the whole view always is. Plugin API 1.4.
+        #[serde(default = "yes", skip_serializing_if = "is_true")]
+        active: bool,
+    },
+    /// A row of buttons. A click on an enabled one is [`ToPlugin::Press`]. Plugin
+    /// API 1.4.
+    Buttons {
+        #[serde(default)]
+        buttons: Vec<WireButton>,
+    },
+    /// Parts one under the other: a [`WireView::Buttons`] row and a
+    /// [`WireView::Input`] line take a row of the pane each, a [`WireView::Lines`]
+    /// as many as it has lines, and a [`WireView::Rows`] or [`WireView::List`]
+    /// takes what is left (two of them share it). A column inside a column is not
+    /// drawn. Plugin API 1.4.
+    Column {
+        #[serde(default)]
+        parts: Vec<WireView>,
     },
     /// A kind of view a later version of the plugin API has.
     #[serde(other)]
     Unknown,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
+/// A button of a [`WireView::Buttons`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct WireButton {
+    /// What [`ToPlugin::Press`] names it by.
+    pub id: String,
+    /// What it shows.
+    #[serde(default)]
+    pub label: String,
+    /// Whether it can be pressed; a button that cannot is drawn dim.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub enabled: bool,
+}
+
+impl WireButton {
+    pub fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            enabled: true,
+        }
+    }
+
+    /// The same button, pressable or not.
+    #[must_use]
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
 }
 
 /// One line of text.
@@ -291,6 +357,30 @@ impl WireView {
             prompt: prompt.into(),
             value: value.into(),
             cursor,
+            active: true,
+        }
+    }
+
+    /// A line to type into that is not being typed into (inside a
+    /// [`WireView::Column`]).
+    pub fn idle_input(prompt: impl Into<String>, value: impl Into<String>, cursor: usize) -> Self {
+        Self::Input {
+            prompt: prompt.into(),
+            value: value.into(),
+            cursor,
+            active: false,
+        }
+    }
+
+    pub fn buttons(buttons: impl IntoIterator<Item = WireButton>) -> Self {
+        Self::Buttons {
+            buttons: buttons.into_iter().collect(),
+        }
+    }
+
+    pub fn column(parts: impl IntoIterator<Item = WireView>) -> Self {
+        Self::Column {
+            parts: parts.into_iter().collect(),
         }
     }
 }

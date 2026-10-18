@@ -13,7 +13,7 @@ use crate::{
     ui::{
         ComponentKind, Render, backdrop, bar,
         layout::Placement,
-        view::{ViewNode, rows_scroll},
+        view::{ViewNode, button_cells, rows_scroll},
     },
 };
 
@@ -198,7 +198,7 @@ fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
         return;
     };
 
-    let Some(view) = state.plugin_view(&id) else {
+    let Some(view) = state.plugin_view(id) else {
         return;
     };
 
@@ -218,8 +218,21 @@ impl Render<AppState> for PluginView {
 }
 
 /// `typing`: the keys go to the plugin as text, so a line to type into gets the
-/// terminal cursor.
+/// terminal cursor. A column is drawn part by part.
 fn render_view(
+    frame: &mut Frame,
+    state: &AppState,
+    node: &ViewNode,
+    area: Rect,
+    typing: bool,
+    has_keys: bool,
+) {
+    for (part_area, part) in node.leaves(area) {
+        render_part(frame, state, part, part_area, typing, has_keys);
+    }
+}
+
+fn render_part(
     frame: &mut Frame,
     state: &AppState,
     node: &ViewNode,
@@ -229,6 +242,23 @@ fn render_view(
 ) {
     let theme = state.theme();
     match node {
+        // A column is cut into its parts before they get here.
+        ViewNode::Column(_) => {}
+        ViewNode::Buttons(buttons) => {
+            let cells = button_cells(buttons);
+            for (button, (start, width)) in buttons.iter().zip(cells) {
+                let Some(x) = area.x.checked_add(start).filter(|x| *x < area.right()) else {
+                    break;
+                };
+                let rect = Rect::new(x, area.y, width.min(area.right() - x), 1);
+                let slot = match button.enabled {
+                    true => "bar.tab.active",
+                    false => "bar.tab.inactive",
+                };
+                let text = format!(" {} ", button.label);
+                frame.render_widget(Paragraph::new(Span::styled(text, theme.style(slot))), rect);
+            }
+        }
         ViewNode::Lines(lines) => {
             let lines: Vec<Line> = lines
                 .iter()
@@ -277,13 +307,14 @@ fn render_view(
             prompt,
             value,
             cursor,
+            active,
         } => {
             let line = Line::from(vec![
                 Span::styled(prompt.as_ref(), theme.style("explorer.hint")),
                 Span::raw(value.as_ref()),
             ]);
             frame.render_widget(Paragraph::new(line), area);
-            if typing && area.width > 0 && area.height > 0 {
+            if typing && *active && area.width > 0 && area.height > 0 {
                 let before: String = value.chars().take(*cursor).collect();
                 let column = prompt.width() + before.width();
                 let column = u16::try_from(column).unwrap_or(u16::MAX);

@@ -40,3 +40,149 @@ fn the_selected_row_is_always_among_the_rows_shown() {
         }
     }
 }
+
+use crate::view::{
+    ViewButton, ViewLine, ViewNode, ViewRow, button_at, button_cells, input_column_at,
+};
+use ratatui::layout::Rect;
+
+fn button(label: &str, enabled: bool) -> ViewButton {
+    ViewButton {
+        id: label.to_lowercase().into(),
+        label: label.into(),
+        enabled,
+    }
+}
+
+fn rows(count: usize) -> ViewNode {
+    ViewNode::Rows {
+        rows: (0..count)
+            .map(|n| ViewRow {
+                spans: vec![ViewLine {
+                    text: format!("row {n}").into(),
+                    slot: "".into(),
+                }],
+            })
+            .collect(),
+        selected: Some(0),
+    }
+}
+
+fn input(active: bool) -> ViewNode {
+    ViewNode::Input {
+        prompt: "> ".into(),
+        value: "msg".into(),
+        cursor: 3,
+        active,
+    }
+}
+
+fn column() -> ViewNode {
+    ViewNode::Column(vec![
+        ViewNode::Buttons(vec![button("Commit", true), button("Push", false)]),
+        rows(50),
+        input(false),
+    ])
+}
+
+#[test]
+fn a_view_that_is_not_a_column_is_its_own_part() {
+    let area = Rect::new(2, 3, 20, 8);
+    let view = rows(3);
+    assert_eq!(view.leaves(area), vec![(area, &view)]);
+}
+
+#[test]
+fn a_column_gives_the_buttons_and_the_input_a_row_and_the_rows_the_rest() {
+    let area = Rect::new(2, 3, 20, 10);
+    let view = column();
+    let leaves = view.leaves(area);
+    let rects: Vec<Rect> = leaves.iter().map(|(rect, _)| *rect).collect();
+    assert_eq!(
+        rects,
+        [
+            Rect::new(2, 3, 20, 1),
+            Rect::new(2, 4, 20, 8),
+            Rect::new(2, 12, 20, 1)
+        ]
+    );
+}
+
+#[test]
+fn two_flexible_parts_share_what_is_left_and_the_odd_row_goes_to_the_first() {
+    let view = ViewNode::Column(vec![rows(9), rows(9), input(true)]);
+    let heights: Vec<u16> = view
+        .leaves(Rect::new(0, 0, 10, 10))
+        .iter()
+        .map(|(rect, _)| rect.height)
+        .collect();
+    assert_eq!(heights, [5, 4, 1]);
+}
+
+#[test]
+fn a_column_in_a_pane_too_short_for_it_drops_the_last_parts_and_never_overflows() {
+    let view = column();
+    for height in 0..6u16 {
+        let area = Rect::new(0, 0, 10, height);
+        let leaves = view.leaves(area);
+        let total: u16 = leaves.iter().map(|(rect, _)| rect.height).sum();
+        assert!(total <= height, "{height}: {total}");
+        assert!(
+            leaves
+                .iter()
+                .all(|(rect, _)| rect.bottom() <= area.bottom())
+        );
+    }
+    // Two rows: the buttons and the rows' last row; the input does not fit.
+    let two = column().leaves(Rect::new(0, 0, 10, 2)).len();
+    assert_eq!(two, 1 + 1);
+}
+
+#[test]
+fn a_column_inside_a_column_is_not_drawn() {
+    let view = ViewNode::Column(vec![ViewNode::Column(vec![rows(3)]), input(true)]);
+    let leaves = view.leaves(Rect::new(0, 0, 10, 5));
+    assert_eq!(leaves.len(), 1);
+}
+
+#[test]
+fn only_an_active_line_makes_the_keys_the_plugins() {
+    assert!(input(true).is_input());
+    assert!(!input(false).is_input());
+    assert!(ViewNode::Column(vec![rows(1), input(true)]).is_input());
+    assert!(!column().is_input(), "its line is idle");
+    assert!(!rows(1).is_input());
+}
+
+#[test]
+fn buttons_are_a_space_a_label_a_space_and_a_gap() {
+    let buttons = [button("Commit", true), button("Push", true)];
+    // " Commit " is 8 wide, then a gap, then " Push " from column 9.
+    assert_eq!(button_cells(&buttons), [(0, 8), (9, 6)]);
+    assert_eq!(button_at(&buttons, 0), Some(0));
+    assert_eq!(button_at(&buttons, 7), Some(0));
+    assert_eq!(button_at(&buttons, 8), None, "the gap");
+    assert_eq!(button_at(&buttons, 9), Some(1));
+    assert_eq!(button_at(&buttons, 14), Some(1));
+    assert_eq!(button_at(&buttons, 15), None);
+}
+
+#[test]
+fn a_click_in_a_line_to_type_into_is_a_character_of_its_text() {
+    // "> msg": the prompt is 2 wide.
+    assert_eq!(input_column_at("> ", "msg", 0), 0, "on the prompt");
+    assert_eq!(input_column_at("> ", "msg", 2), 0);
+    assert_eq!(input_column_at("> ", "msg", 3), 1);
+    assert_eq!(input_column_at("> ", "msg", 4), 2);
+    assert_eq!(input_column_at("> ", "msg", 5), 3, "past the end");
+    assert_eq!(input_column_at("> ", "msg", 40), 3);
+    assert_eq!(input_column_at("> ", "", 9), 0);
+}
+
+#[test]
+fn a_wide_character_takes_two_columns_of_the_click() {
+    // "é" is one column, "世" is two.
+    assert_eq!(input_column_at("", "a世b", 1), 1);
+    assert_eq!(input_column_at("", "a世b", 2), 1, "the second half of 世");
+    assert_eq!(input_column_at("", "a世b", 3), 2);
+}

@@ -5,7 +5,7 @@
 
 use crate::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MAX_MESSAGE,
-    MessageError, Refusal, ToPlugin, WireLine, WireSpan, WireView,
+    MessageError, Refusal, ToPlugin, WireButton, WireLine, WireSpan, WireView,
 };
 
 // --- ABI 1.0, as written ---
@@ -672,5 +672,91 @@ fn the_capability_to_open_files_has_its_name() {
     assert_eq!(
         serde_json::to_string(&Capability::EditorOpen).unwrap(),
         r#""editor.open""#
+    );
+}
+
+// --- ABI 1.4, as written: buttons, columns, an input that can be idle ---
+
+const SET_COLUMN: &str = r#"{"type":"set_view","view":{"type":"column","parts":[{"type":"buttons","buttons":[{"id":"commit","label":"Commit"},{"id":"push","label":"Push","enabled":false}]},{"type":"rows","lines":[{"text":"a.rs","slot":"explorer.file"}],"selected":0},{"type":"input","prompt":"> ","value":"msg","cursor":3,"active":false}]}}"#;
+const PRESS: &str = r#"{"type":"press","button":"commit"}"#;
+const INPUT_CLICK: &str = r#"{"type":"input_click","column":2}"#;
+
+fn column() -> FromPlugin {
+    FromPlugin::set_view(WireView::column([
+        WireView::buttons([
+            WireButton::new("commit", "Commit"),
+            WireButton::new("push", "Push").enabled(false),
+        ]),
+        WireView::rows([WireLine::new("a.rs", "explorer.file")], Some(0)),
+        WireView::idle_input("> ", "msg", 3),
+    ]))
+}
+
+#[test]
+fn the_messages_of_1_4_are_written_as_pinned() {
+    assert_eq!(column().to_bytes().unwrap(), SET_COLUMN.as_bytes());
+    assert_eq!(
+        ToPlugin::Press {
+            button: "commit".into()
+        }
+        .to_bytes()
+        .unwrap(),
+        PRESS.as_bytes()
+    );
+    assert_eq!(
+        ToPlugin::InputClick { column: 2 }.to_bytes().unwrap(),
+        INPUT_CLICK.as_bytes()
+    );
+}
+
+#[test]
+fn the_messages_of_1_4_are_read() {
+    assert_eq!(FromPlugin::from_bytes(SET_COLUMN.as_bytes()), Ok(column()));
+    assert_eq!(
+        ToPlugin::from_bytes(PRESS.as_bytes()),
+        Ok(ToPlugin::Press {
+            button: "commit".into()
+        })
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(INPUT_CLICK.as_bytes()),
+        Ok(ToPlugin::InputClick { column: 2 })
+    );
+}
+
+#[test]
+fn an_input_is_active_unless_it_says_it_is_not_and_is_written_as_it_was() {
+    let input = FromPlugin::set_view(WireView::input("> ", "x", 1));
+    // The 1.3 shape: no `active` written for a line that is typed into.
+    assert_eq!(
+        input.to_bytes().unwrap(),
+        br#"{"type":"set_view","view":{"type":"input","prompt":"> ","value":"x","cursor":1}}"#
+    );
+    assert_eq!(
+        FromPlugin::from_bytes(
+            br#"{"type":"set_view","view":{"type":"input","prompt":"> ","value":"x","cursor":1}}"#
+        ),
+        Ok(input)
+    );
+}
+
+#[test]
+fn a_button_that_leaves_out_what_it_may_is_enabled_and_empty() {
+    assert_eq!(
+        FromPlugin::from_bytes(
+            br#"{"type":"set_view","view":{"type":"buttons","buttons":[{"id":"a"}]}}"#
+        ),
+        Ok(FromPlugin::set_view(WireView::buttons([WireButton::new(
+            "a", ""
+        )])))
+    );
+}
+
+#[test]
+fn an_older_editor_reads_a_column_as_an_unknown_view_not_an_error() {
+    // What 1.3 does with a view of a later version: `Unknown` (the `other` arm).
+    assert_eq!(
+        FromPlugin::from_bytes(br#"{"type":"set_view","view":{"type":"hologram"}}"#),
+        Ok(FromPlugin::set_view(WireView::Unknown))
     );
 }

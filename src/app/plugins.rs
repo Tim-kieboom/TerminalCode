@@ -12,7 +12,7 @@ use crate::git::ActionError;
 use crate::git::GitError;
 use crate::plugin_api::{ActionDecl, Refusal, ToPlugin};
 use crate::plugins::{Notice, Runtime, WriteOp};
-use crate::ui::view::{ViewNode, rows_scroll};
+use crate::ui::view::{ViewNode, button_at, input_column_at, rows_scroll};
 use crate::ui::{ComponentKind, PluginViewId};
 
 /// The plugin thread, once the app can hear from it, and the actions each
@@ -305,16 +305,34 @@ impl App {
         }
     }
 
-    /// The row of the plugin's rows a click at the cell is on, if it is on one.
-    fn row_clicked(&self, view: &PluginViewId, column: u16, row: u16) -> Option<usize> {
-        let ViewNode::Rows { rows, selected } = self.state.plugin_view(view)?.content() else {
-            return None;
-        };
+    /// What a click at the cell is on in the plugin's view: the part of it under
+    /// the pointer, as the message that tells the plugin. `None` when it is on
+    /// nothing that takes a click (text, a button that cannot be pressed).
+    fn click_message(&self, view: &PluginViewId, column: u16, row: u16) -> Option<ToPlugin> {
+        let content = self.state.plugin_view(view)?.content();
         let body = self.state.plugin_body(view)?;
-        let inside = body.contains(ratatui::layout::Position::new(column, row));
-        let top = rows_scroll(*selected, rows.len(), usize::from(body.height));
-        let clicked = top + usize::from(row.checked_sub(body.y)?);
-        (inside && clicked < rows.len()).then_some(clicked)
+        let at = ratatui::layout::Position::new(column, row);
+        let (area, part) = content
+            .leaves(body)
+            .into_iter()
+            .find(|(area, _)| area.contains(at))?;
+        match part {
+            ViewNode::Rows { rows, selected } => {
+                let top = rows_scroll(*selected, rows.len(), usize::from(area.height));
+                let clicked = top + usize::from(row - area.y);
+                (clicked < rows.len()).then_some(ToPlugin::Click { row: clicked })
+            }
+            ViewNode::Buttons(buttons) => {
+                let button = buttons.get(button_at(buttons, column - area.x)?)?;
+                button.enabled.then(|| ToPlugin::Press {
+                    button: button.id.to_string(),
+                })
+            }
+            ViewNode::Input { prompt, value, .. } => Some(ToPlugin::InputClick {
+                column: input_column_at(prompt, value, column - area.x),
+            }),
+            _ => None,
+        }
     }
 
     /// Pasted text into a plugin's line to type into: it goes to the plugin.
@@ -339,9 +357,12 @@ impl App {
         let Some(view) = self.state.plugin_at(column, row) else {
             return false;
         };
+        // What was clicked is worked out before the focus moves: the plugin's reply
+        // to the click is what changes the view.
+        let message = self.click_message(&view, column, row);
         self.focus_plugin_view(view.as_str());
-        if let Some(clicked) = self.row_clicked(&view, column, row) {
-            self.send_to_plugin(view.as_str(), ToPlugin::Click { row: clicked });
+        if let Some(message) = message {
+            self.send_to_plugin(view.as_str(), message);
         }
         true
     }

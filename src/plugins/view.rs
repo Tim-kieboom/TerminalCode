@@ -1,7 +1,7 @@
 //! From what a plugin says to what the pane draws.
 
 use crate::plugin_api::{WireLine, WireView};
-use crate::ui::view::{ViewLine, ViewNode, ViewRow};
+use crate::ui::view::{ViewButton, ViewLine, ViewNode, ViewRow};
 
 /// The slot of the line that stands in for a view this version cannot draw.
 const PLACEHOLDER_SLOT: &str = "explorer.hint";
@@ -32,11 +32,24 @@ pub(super) fn node_of(view: WireView) -> ViewNode {
             prompt,
             value,
             cursor,
+            active,
         } => ViewNode::Input {
             prompt: prompt.into(),
             value: value.into(),
             cursor,
+            active,
         },
+        WireView::Buttons { buttons } => ViewNode::Buttons(
+            buttons
+                .into_iter()
+                .map(|button| ViewButton {
+                    id: button.id.into(),
+                    label: button.label.into(),
+                    enabled: button.enabled,
+                })
+                .collect(),
+        ),
+        WireView::Column { parts } => ViewNode::Column(parts.into_iter().map(node_of).collect()),
         _ => ViewNode::Lines(vec![ViewLine {
             text: "(this plugin sent a view this version cannot show)".into(),
             slot: PLACEHOLDER_SLOT.into(),
