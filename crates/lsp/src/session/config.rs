@@ -28,6 +28,8 @@ pub struct ServerConfig {
     /// What the server is told a file is, by bare file name (`settings.json`:
     /// `jsonc`), over the extension rule and the built-in names.
     pub language_ids: BTreeMap<String, String>,
+    /// Whether saving a file of this server first formats it with the server.
+    pub format_on_save: bool,
 }
 
 /// What a `language_servers` entry in the settings file may say. A word that is
@@ -45,6 +47,8 @@ struct Entry {
     initialization_options: Value,
     #[serde(default)]
     language_ids: BTreeMap<String, String>,
+    #[serde(default)]
+    format_on_save: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -71,36 +75,43 @@ pub struct LanguageServers {
 }
 
 impl Default for LanguageServers {
-    /// What is there with no setting at all: `rust-analyzer` for Rust.
+    /// No servers: the ones there are come from the settings (the default settings
+    /// file, with the user's file laid over it), see [`LanguageServers::layered`].
     fn default() -> Self {
-        let rust = ServerConfig {
-            command: "rust-analyzer".to_owned(),
-            args: Vec::new(),
-            extensions: vec!["rs".to_owned()],
-            root_files: vec!["Cargo.toml".to_owned()],
-            initialization_options: Value::Null,
-            language_ids: BTreeMap::new(),
-        };
         Self {
-            servers: BTreeMap::from([("rust".to_owned(), rust)]),
+            servers: BTreeMap::new(),
         }
     }
 }
 
 impl LanguageServers {
-    /// The built-in servers with the `language_servers` setting laid over them: an
-    /// entry with a name that is built in replaces that server whole, `null`
-    /// removes one, and any other name adds a server.
-    pub fn with_settings(setting: Value) -> Result<Self, ConfigError> {
-        let mut servers = Self::default().servers;
-        let Value::Object(entries) = setting else {
+    /// The servers `defaults` names with the user's `language_servers` laid over
+    /// them, by name and by field: an entry for a server that is in `defaults`
+    /// overrides only the fields it has and keeps the others, `null` removes a
+    /// server, and an entry with another name adds one (which needs its
+    /// `command` and `extensions`). Both are objects, `{ ... }`.
+    pub fn layered(defaults: &Value, user: &Value) -> Result<Self, ConfigError> {
+        let (Value::Object(base), Value::Object(user)) = (defaults, user) else {
             return Err(ConfigError::NotAnObject);
         };
-        for (name, entry) in entries {
-            if entry.is_null() {
-                servers.remove(&name);
-                continue;
+        let mut merged = base.clone();
+        for (name, entry) in user {
+            match (merged.get_mut(name), entry) {
+                (_, Value::Null) => {
+                    merged.remove(name);
+                }
+                (Some(Value::Object(fields)), Value::Object(over)) => {
+                    for (field, value) in over {
+                        fields.insert(field.clone(), value.clone());
+                    }
+                }
+                _ => {
+                    merged.insert(name.clone(), entry.clone());
+                }
             }
+        }
+        let mut servers = BTreeMap::new();
+        for (name, entry) in merged {
             let problem = |problem: String| ConfigError::Entry {
                 name: name.clone(),
                 problem,
@@ -184,6 +195,7 @@ impl Entry {
             root_files: self.root_files,
             initialization_options: self.initialization_options,
             language_ids: self.language_ids,
+            format_on_save: self.format_on_save,
         })
     }
 }

@@ -54,8 +54,6 @@ pub(crate) struct Settings {
     /// Whether the explorer leaves out the entries the ignore rules leave out,
     /// instead of listing them dimmed.
     pub(crate) hide_ignored: bool,
-    /// Whether saving first formats the document with its language server.
-    pub(crate) format_on_save: bool,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -77,8 +75,7 @@ impl Default for Settings {
             sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
             notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
             hide_ignored: false,
-            format_on_save: false,
-            language_servers: LanguageServers::default(),
+            language_servers: default_language_servers().clone(),
         }
     }
 }
@@ -172,9 +169,8 @@ impl Settings {
                 Duration::from_secs(seconds as u64)
             }),
             hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
-            format_on_save: take(&mut map, "format_on_save")?.unwrap_or(defaults.format_on_save),
             language_servers: match map.remove("language_servers") {
-                Some(setting) => LanguageServers::with_settings(setting)?,
+                Some(setting) => LanguageServers::layered(default_servers_setting(), &setting)?,
                 None => defaults.language_servers,
             },
         };
@@ -186,6 +182,30 @@ impl Settings {
             repeated,
         })
     }
+}
+
+/// The `language_servers` of the default settings file: the base layer the user's
+/// own `language_servers` is laid over.
+fn default_servers_setting() -> &'static Value {
+    static SETTING: std::sync::OnceLock<Value> = std::sync::OnceLock::new();
+    SETTING.get_or_init(|| {
+        let defaults: Result<Map<String, Value>, _> =
+            serde_json::from_str(&strip_jsonc(DEFAULT_SETTINGS_JSONC));
+        defaults
+            .ok()
+            .and_then(|mut map| map.remove("language_servers"))
+            .unwrap_or_else(|| Value::Object(Map::new()))
+    })
+}
+
+/// The servers there are with the user's file saying nothing: those of the
+/// default settings file.
+fn default_language_servers() -> &'static LanguageServers {
+    static SERVERS: std::sync::OnceLock<LanguageServers> = std::sync::OnceLock::new();
+    SERVERS.get_or_init(|| {
+        LanguageServers::layered(default_servers_setting(), &Value::Object(Map::new()))
+            .unwrap_or_default()
+    })
 }
 
 /// The names of the settings a settings file has, in file order.

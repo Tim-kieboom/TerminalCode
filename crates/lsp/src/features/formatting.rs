@@ -4,6 +4,7 @@
 
 use serde_json::{Value, json};
 
+use crate::position::LspPosition;
 use crate::rename::{RenameEdit, parse_text_edits};
 use crate::{Connection, LspError, PendingReply};
 
@@ -12,6 +13,15 @@ const METHOD: &str = "textDocument/formatting";
 /// Whether the capabilities of a server say it answers `textDocument/formatting`.
 pub fn offered(capabilities: &Value) -> bool {
     match capabilities.get("documentFormattingProvider") {
+        Some(Value::Bool(offered)) => *offered,
+        Some(Value::Object(_)) => true,
+        _ => false,
+    }
+}
+
+/// Whether the server also answers `textDocument/rangeFormatting`.
+pub fn range_offered(capabilities: &Value) -> bool {
+    match capabilities.get("documentRangeFormattingProvider") {
         Some(Value::Bool(offered)) => *offered,
         Some(Value::Object(_)) => true,
         _ => false,
@@ -43,6 +53,28 @@ pub fn request(
         "options": { "tabSize": tab_size, "insertSpaces": insert_spaces },
     });
     connection.request(METHOD, params).map(PendingFormat)
+}
+
+/// Asks the server to format the range `start..end` of the document `uri`.
+pub fn request_range(
+    connection: &Connection,
+    uri: &str,
+    start: LspPosition,
+    end: LspPosition,
+    tab_size: u32,
+    insert_spaces: bool,
+) -> Result<PendingFormat, LspError> {
+    let params = json!({
+        "textDocument": { "uri": uri },
+        "range": {
+            "start": { "line": start.line, "character": start.character },
+            "end": { "line": end.line, "character": end.character },
+        },
+        "options": { "tabSize": tab_size, "insertSpaces": insert_spaces },
+    });
+    connection
+        .request("textDocument/rangeFormatting", params)
+        .map(PendingFormat)
 }
 
 /// Reads the answer to `textDocument/formatting`: `null` (nothing to change) or

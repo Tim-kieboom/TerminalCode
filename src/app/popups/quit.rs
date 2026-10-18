@@ -37,8 +37,10 @@ impl App {
             quit_prompt::Command::Next => prompt.select_next(),
             quit_prompt::Command::Cancel => {
                 keep_open = false;
-                // Not quitting after all, so not starting again somewhere either.
+                // Not quitting after all, so not starting again somewhere either, and
+                // nothing is to quit when saves that are running are done.
                 self.restart_in = None;
+                self.forget_quit_after_saves();
             }
             quit_prompt::Command::Discard => prompt.remove_selected(),
             quit_prompt::Command::DiscardAll => self.flow = Flow::Quit,

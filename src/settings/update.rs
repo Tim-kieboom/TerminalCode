@@ -44,7 +44,7 @@ impl std::fmt::Display for Version {
 const BASELINE: &str = "0.6.1";
 
 /// A setting, and the version that introduced it.
-struct Introduced {
+pub(super) struct Introduced {
     key: &'static str,
     /// The version, or [`BASELINE`] for a setting that is older than the table.
     since: &'static str,
@@ -75,8 +75,55 @@ const INTRODUCED: &[Introduced] = &[
     setting("notification_seconds", BASELINE),
     setting("hide_ignored", BASELINE),
     setting("language_servers", BASELINE),
-    setting("format_on_save", "0.7.0"),
 ];
+
+/// The table in use: the real one, and in a test the one that test installed.
+fn current_table() -> &'static [Introduced] {
+    #[cfg(test)]
+    if let Some(table) = example::installed() {
+        return table;
+    }
+    INTRODUCED
+}
+
+/// A table with a setting newer than all the real ones, for the tests of what
+/// the app does with a new setting: the real table has none to show it with.
+#[cfg(test)]
+pub(crate) mod example {
+    use super::Introduced;
+
+    /// The key of the example setting.
+    pub(crate) const KEY: &str = "example_setting";
+
+    pub(super) const TABLE: &[Introduced] = &[Introduced {
+        key: KEY,
+        since: "0.7.0",
+        text: Some(
+            "    // an example of a setting that a new version added\n    \"example_setting\": 1,\n",
+        ),
+    }];
+
+    thread_local! {
+        static INSTALLED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    pub(super) fn installed() -> Option<&'static [Introduced]> {
+        INSTALLED.with(|on| on.get()).then_some(TABLE)
+    }
+
+    /// Runs `run` with the example table as the table of settings.
+    pub(crate) fn with_example_table<R>(run: impl FnOnce() -> R) -> R {
+        struct Restore;
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                INSTALLED.with(|on| on.set(false));
+            }
+        }
+        INSTALLED.with(|on| on.set(true));
+        let _restore = Restore;
+        run()
+    }
+}
 
 /// Why the file was not changed.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -125,9 +172,9 @@ pub(crate) enum Outcome {
     Refused(Refusal),
 }
 
-/// The newest version of the table: what a file that has everything is up to date with.
-fn newest() -> Version {
-    INTRODUCED
+/// The newest version of `table`: what a file that has everything is up to date with.
+fn newest(table: &[Introduced]) -> Version {
+    table
         .iter()
         .filter_map(|setting| Version::parse(setting.since))
         .max()
@@ -136,7 +183,12 @@ fn newest() -> Version {
 
 /// Adds what is new to the file at `path`, as far as `stored` says it has not
 /// seen. `unsaved_tab` is whether a tab has the file open with unsaved changes.
-pub(crate) fn add_new_settings(path: &Path, stored: Option<Version>, unsaved_tab: bool) -> Outcome {
+fn add_new_settings_in(
+    table: &[Introduced],
+    path: &Path,
+    stored: Option<Version>,
+    unsaved_tab: bool,
+) -> Outcome {
     let known = stored.unwrap_or_else(|| Version::parse(BASELINE).unwrap_or(Version(0, 0, 0)));
     let source = match std::fs::read_to_string(path) {
         Ok(source) => source,
@@ -147,8 +199,8 @@ pub(crate) fn add_new_settings(path: &Path, stored: Option<Version>, unsaved_tab
             return Outcome::Refused(Refusal::Io(format!("it cannot be read: {error}")));
         }
     };
-    let (text, keys) = match plan(&source, DEFAULT_SETTINGS_JSONC, known) {
-        Ok(Plan::Current) => return remember(stored, newest().max(known)),
+    let (text, keys) = match plan(table, &source, DEFAULT_SETTINGS_JSONC, known) {
+        Ok(Plan::Current) => return remember(stored, newest(table).max(known)),
         Ok(Plan::Insert { text, keys }) => (text, keys),
         Err(refusal) => return Outcome::Refused(refusal),
     };
@@ -161,7 +213,7 @@ pub(crate) fn add_new_settings(path: &Path, stored: Option<Version>, unsaved_tab
     }
     Outcome::Added {
         keys,
-        version: newest().max(known),
+        version: newest(table).max(known),
     }
 }
 
@@ -179,9 +231,18 @@ pub(crate) struct Report {
 /// Looks at the settings file at `path` and adds what is new to it, keeping the
 /// version in `saved` up to date. The caller writes `saved` when the report says so.
 pub(crate) fn update_file(path: &Path, saved: &mut SavedState, unsaved_tab: bool) -> Report {
+    update_file_in(current_table(), path, saved, unsaved_tab)
+}
+
+fn update_file_in(
+    table: &[Introduced],
+    path: &Path,
+    saved: &mut SavedState,
+    unsaved_tab: bool,
+) -> Report {
     let stored = saved.settings_version().and_then(Version::parse);
     let mut report = Report::default();
-    match add_new_settings(path, stored, unsaved_tab) {
+    match add_new_settings_in(table, path, stored, unsaved_tab) {
         Outcome::Nothing => {}
         Outcome::Remember(version) => {
             report.remember = saved.set_settings_version(&version.to_string());
@@ -223,10 +284,15 @@ pub(super) enum Plan {
 
 /// What the file `source` needs added, given that it has seen the settings up
 /// to `known`, taking the text of each from `defaults`.
-pub(super) fn plan(source: &str, defaults: &str, known: Version) -> Result<Plan, Refusal> {
+pub(super) fn plan(
+    table: &[Introduced],
+    source: &str,
+    defaults: &str,
+    known: Version,
+) -> Result<Plan, Refusal> {
     Settings::parse(source).map_err(|_| Refusal::DoesNotParse)?;
     let present = keys_of(source).map_err(|_| Refusal::DoesNotParse)?;
-    let missing: Vec<&Introduced> = INTRODUCED
+    let missing: Vec<&Introduced> = table
         .iter()
         .filter(|setting| Version::parse(setting.since).is_some_and(|since| since > known))
         .filter(|setting| !present.iter().any(|key| key == setting.key))

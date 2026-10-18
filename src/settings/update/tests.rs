@@ -1,5 +1,6 @@
 use std::fs;
 
+use super::example::TABLE;
 use super::*;
 use crate::persist::saved_state::SavedState;
 
@@ -11,7 +12,7 @@ fn v(text: &str) -> Version {
 const OLD_FILE: &str = "// my settings\n{\n    // my theme\n    \"theme\": null,\n    \"mouse\": false, // no mouse for me\n    \"tab_size\": 2\n}\n";
 
 fn inserted(source: &str, known: &str) -> String {
-    match plan(source, DEFAULT_SETTINGS_JSONC, v(known)).unwrap() {
+    match plan(TABLE, source, DEFAULT_SETTINGS_JSONC, v(known)).unwrap() {
         Plan::Insert { text, .. } => text,
         Plan::Current => panic!("nothing was added to {source:?}"),
     }
@@ -37,10 +38,17 @@ fn versions_are_read_and_compared_by_their_numbers() {
 fn a_missing_setting_is_added_with_its_comments_and_default_value() {
     let text = inserted(OLD_FILE, "0.6.1");
 
-    assert!(text.contains("\"format_on_save\": false,"), "{text}");
-    assert!(text.contains("// true: saving first asks"), "{text}");
-    let parsed = Settings::parse(&text).unwrap().settings;
-    assert!(!parsed.format_on_save);
+    assert!(text.contains("\"example_setting\": 1,"), "{text}");
+    assert!(
+        text.contains("// an example of a setting that a new version added"),
+        "{text}"
+    );
+    assert!(Settings::parse(&text).is_ok());
+    assert!(
+        keys_of(&text)
+            .unwrap()
+            .contains(&"example_setting".to_owned())
+    );
 }
 
 #[test]
@@ -81,7 +89,7 @@ fn a_file_on_one_line_gets_its_closing_brace_on_a_line_of_its_own() {
 
     assert!(text.starts_with("{ \"tab_size\": 2,\n"), "{text}");
     assert!(
-        text.trim_end().ends_with("\"format_on_save\": false,\n}"),
+        text.trim_end().ends_with("\"example_setting\": 1,\n}"),
         "{text}"
     );
     assert!(Settings::parse(&text).is_ok());
@@ -91,8 +99,12 @@ fn a_file_on_one_line_gets_its_closing_brace_on_a_line_of_its_own() {
 fn an_empty_object_gets_the_entries_inside() {
     for source in ["{}", "{ }", "{\n}\n", "// nothing yet\n{}\n"] {
         let text = inserted(source, "0.6.1");
-        assert!(text.contains("\"format_on_save\": false,"), "{text}");
-        assert!(!Settings::parse(&text).unwrap().settings.format_on_save);
+        assert!(text.contains("\"example_setting\": 1,"), "{text}");
+        assert!(
+            keys_of(&text)
+                .unwrap()
+                .contains(&"example_setting".to_owned())
+        );
     }
 }
 
@@ -113,10 +125,10 @@ fn text_with_accents_in_a_comment_does_not_shift_the_insertion() {
 #[test]
 fn a_setting_older_than_the_stored_version_stays_deleted() {
     // `hide_ignored` is not in the file, and was introduced before what the file has seen.
-    let source = "{\n    \"format_on_save\": true\n}\n";
+    let source = "{\n    \"example_setting\": 5\n}\n";
 
     assert_eq!(
-        plan(source, DEFAULT_SETTINGS_JSONC, v("0.6.1")).unwrap(),
+        plan(TABLE, source, DEFAULT_SETTINGS_JSONC, v("0.6.1")).unwrap(),
         Plan::Current
     );
 }
@@ -125,7 +137,7 @@ fn a_setting_older_than_the_stored_version_stays_deleted() {
 fn a_stored_version_at_or_above_the_newest_adds_nothing() {
     for known in ["0.7.0", "0.9.0", "9.9.9"] {
         assert_eq!(
-            plan(OLD_FILE, DEFAULT_SETTINGS_JSONC, v(known)).unwrap(),
+            plan(TABLE, OLD_FILE, DEFAULT_SETTINGS_JSONC, v(known)).unwrap(),
             Plan::Current,
             "{known}"
         );
@@ -147,16 +159,16 @@ fn a_file_with_no_stored_version_counts_as_0_6_1_and_gets_only_what_came_after()
     let (_dir, path) = file_with("{\n    \"tab_size\": 2\n}\n");
     let mut saved = SavedState::default();
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     let text = fs::read_to_string(&path).unwrap();
-    assert!(text.contains("\"format_on_save\": false"), "{text}");
+    assert!(text.contains("\"example_setting\": 1"), "{text}");
     assert!(!text.contains("hide_ignored"), "{text}");
     assert_eq!(saved.settings_version(), Some("0.7.0"));
     assert!(report.remember && report.warning.is_none());
     assert_eq!(
         report.info.as_deref(),
-        Some("added new settings to settings.json: format_on_save")
+        Some("added new settings to settings.json: example_setting")
     );
 }
 
@@ -164,10 +176,10 @@ fn a_file_with_no_stored_version_counts_as_0_6_1_and_gets_only_what_came_after()
 fn the_second_pass_adds_nothing_and_changes_nothing() {
     let (_dir, path) = file_with(OLD_FILE);
     let mut saved = SavedState::default();
-    update_file(&path, &mut saved, false);
+    update_file_in(TABLE, &path, &mut saved, false);
     let after_first = fs::read_to_string(&path).unwrap();
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert_eq!(fs::read_to_string(&path).unwrap(), after_first);
     assert!(!report.remember && report.info.is_none() && report.warning.is_none());
@@ -177,10 +189,10 @@ fn the_second_pass_adds_nothing_and_changes_nothing() {
 fn a_setting_the_user_deletes_afterwards_stays_deleted() {
     let (_dir, path) = file_with(OLD_FILE);
     let mut saved = SavedState::default();
-    update_file(&path, &mut saved, false);
+    update_file_in(TABLE, &path, &mut saved, false);
     fs::write(&path, OLD_FILE).unwrap();
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert_eq!(fs::read_to_string(&path).unwrap(), OLD_FILE);
     assert!(report.info.is_none());
@@ -192,7 +204,7 @@ fn a_file_that_does_not_exist_is_left_for_the_default_to_make() {
     let path = dir.path().join("settings.json");
     let mut saved = SavedState::default();
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert!(!path.exists());
     assert!(!report.remember && report.info.is_none() && report.warning.is_none());
@@ -201,14 +213,14 @@ fn a_file_that_does_not_exist_is_left_for_the_default_to_make() {
 
 #[test]
 fn a_file_that_has_everything_only_remembers_the_version() {
-    let (_dir, path) = file_with("{\n    \"format_on_save\": true\n}\n");
+    let (_dir, path) = file_with("{\n    \"example_setting\": 5\n}\n");
     let mut saved = SavedState::default();
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert_eq!(
         fs::read_to_string(&path).unwrap(),
-        "{\n    \"format_on_save\": true\n}\n"
+        "{\n    \"example_setting\": 5\n}\n"
     );
     assert_eq!(saved.settings_version(), Some("0.7.0"));
     assert!(report.remember && report.info.is_none());
@@ -220,7 +232,7 @@ fn a_newer_stored_version_is_not_lowered() {
     let mut saved = SavedState::default();
     saved.set_settings_version("9.0.0");
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert_eq!(fs::read_to_string(&path).unwrap(), OLD_FILE);
     assert_eq!(saved.settings_version(), Some("9.0.0"));
@@ -232,7 +244,7 @@ fn a_newer_stored_version_is_not_lowered() {
 fn refused(text: &str, unsaved: bool) -> (String, Report, SavedState) {
     let (_dir, path) = file_with(text);
     let mut saved = SavedState::default();
-    let report = update_file(&path, &mut saved, unsaved);
+    let report = update_file_in(TABLE, &path, &mut saved, unsaved);
     (fs::read_to_string(&path).unwrap(), report, saved)
 }
 
@@ -289,7 +301,7 @@ fn a_file_that_cannot_be_written_is_left_alone() {
     fs::set_permissions(&path, permissions).unwrap();
     let mut saved = SavedState::default();
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert_eq!(fs::read_to_string(&path).unwrap(), OLD_FILE);
     assert_eq!(saved.settings_version(), None);
@@ -301,15 +313,19 @@ fn a_file_that_cannot_be_written_is_left_alone() {
 fn a_refusal_is_tried_again_once_the_problem_is_gone() {
     let (_dir, path) = file_with(OLD_FILE);
     let mut saved = SavedState::default();
-    assert!(update_file(&path, &mut saved, true).warning.is_some());
+    assert!(
+        update_file_in(TABLE, &path, &mut saved, true)
+            .warning
+            .is_some()
+    );
 
-    let report = update_file(&path, &mut saved, false);
+    let report = update_file_in(TABLE, &path, &mut saved, false);
 
     assert!(report.warning.is_none() && report.info.is_some());
     assert!(
         fs::read_to_string(&path)
             .unwrap()
-            .contains("\"format_on_save\": false")
+            .contains("\"example_setting\": 1")
     );
 }
 

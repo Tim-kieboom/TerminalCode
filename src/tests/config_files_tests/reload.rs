@@ -163,106 +163,116 @@ fn told(app: &App) -> String {
 
 #[test]
 fn reload_adds_the_new_settings_to_the_users_file_and_remembers_the_version() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-    write(dir.path(), "settings.json", OLD_SETTINGS);
+    crate::settings::update::example::with_example_table(|| {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app_with_config_dir(dir.path());
+        write(dir.path(), "settings.json", OLD_SETTINGS);
 
-    reload(&mut app);
+        reload(&mut app);
 
-    let text = fs::read_to_string(dir.path().join("settings.json")).unwrap();
-    assert!(
-        text.contains("// my tab size\n    \"tab_size\": 2,\n"),
-        "{text}"
-    );
-    assert!(text.contains("\"format_on_save\": false,"), "{text}");
-    assert!(
-        told(&app).contains("added new settings to settings.json: format_on_save"),
-        "{}",
-        told(&app)
-    );
-    let state = fs::read_to_string(dir.path().join("state.json")).unwrap();
-    assert!(state.contains("\"settings_version\": \"0.7.0\""), "{state}");
+        let text = fs::read_to_string(dir.path().join("settings.json")).unwrap();
+        assert!(
+            text.contains("// my tab size\n    \"tab_size\": 2,\n"),
+            "{text}"
+        );
+        assert!(text.contains("\"example_setting\": 1,"), "{text}");
+        assert!(
+            told(&app).contains("added new settings to settings.json: example_setting"),
+            "{}",
+            told(&app)
+        );
+        let state = fs::read_to_string(dir.path().join("state.json")).unwrap();
+        assert!(state.contains("\"settings_version\": \"0.7.0\""), "{state}");
+    });
 }
 
 #[test]
 fn a_second_reload_changes_nothing() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-    write(dir.path(), "settings.json", OLD_SETTINGS);
-    reload(&mut app);
-    let once = fs::read_to_string(dir.path().join("settings.json")).unwrap();
+    crate::settings::update::example::with_example_table(|| {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app_with_config_dir(dir.path());
+        write(dir.path(), "settings.json", OLD_SETTINGS);
+        reload(&mut app);
+        let once = fs::read_to_string(dir.path().join("settings.json")).unwrap();
 
-    reload(&mut app);
+        reload(&mut app);
 
-    assert_eq!(
-        fs::read_to_string(dir.path().join("settings.json")).unwrap(),
-        once
-    );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("settings.json")).unwrap(),
+            once
+        );
+    });
 }
 
 #[test]
 fn a_setting_the_user_deleted_after_the_update_is_not_added_again() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-    write(dir.path(), "settings.json", OLD_SETTINGS);
-    reload(&mut app);
-    write(dir.path(), "settings.json", OLD_SETTINGS);
+    crate::settings::update::example::with_example_table(|| {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app_with_config_dir(dir.path());
+        write(dir.path(), "settings.json", OLD_SETTINGS);
+        reload(&mut app);
+        write(dir.path(), "settings.json", OLD_SETTINGS);
 
-    reload(&mut app);
+        reload(&mut app);
 
-    assert_eq!(
-        fs::read_to_string(dir.path().join("settings.json")).unwrap(),
-        OLD_SETTINGS
-    );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("settings.json")).unwrap(),
+            OLD_SETTINGS
+        );
+    });
 }
 
 #[test]
 fn a_settings_file_open_with_unsaved_changes_is_left_alone_and_the_reason_is_told() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-    write(dir.path(), "settings.json", OLD_SETTINGS);
-    app.state_mut()
-        .workspace_mut()
-        .open_path(&dir.path().join("settings.json"))
-        .unwrap();
-    app.state_mut()
-        .edit(|editor| editor.insert_text("// typing\n").unwrap());
+    crate::settings::update::example::with_example_table(|| {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app_with_config_dir(dir.path());
+        write(dir.path(), "settings.json", OLD_SETTINGS);
+        app.state_mut()
+            .workspace_mut()
+            .open_path(&dir.path().join("settings.json"))
+            .unwrap();
+        app.state_mut()
+            .edit(|editor| editor.insert_text("// typing\n").unwrap());
 
-    reload(&mut app);
+        reload(&mut app);
 
-    assert_eq!(
-        fs::read_to_string(dir.path().join("settings.json")).unwrap(),
-        OLD_SETTINGS
-    );
-    assert!(
-        told(&app).contains(
-            "not updated with the new settings (it is open in a tab with unsaved changes)"
-        ),
-        "{}",
-        told(&app)
-    );
-    assert!(
-        !dir.path().join("state.json").exists(),
-        "the version was not advanced"
-    );
+        assert_eq!(
+            fs::read_to_string(dir.path().join("settings.json")).unwrap(),
+            OLD_SETTINGS
+        );
+        assert!(
+            told(&app).contains(
+                "not updated with the new settings (it is open in a tab with unsaved changes)"
+            ),
+            "{}",
+            told(&app)
+        );
+        assert!(
+            !dir.path().join("state.json").exists(),
+            "the version was not advanced"
+        );
+    });
 }
 
 #[test]
 fn a_file_that_cannot_be_updated_still_applies_its_settings() {
-    let dir = tempfile::tempdir().unwrap();
-    let mut app = app_with_config_dir(dir.path());
-    write(
-        dir.path(),
-        "settings.json",
-        "{\n    \"tab_size\": 2\n    // last\n}\n",
-    );
+    crate::settings::update::example::with_example_table(|| {
+        let dir = tempfile::tempdir().unwrap();
+        let mut app = app_with_config_dir(dir.path());
+        write(
+            dir.path(),
+            "settings.json",
+            "{\n    \"tab_size\": 2\n    // last\n}\n",
+        );
 
-    reload(&mut app);
+        reload(&mut app);
 
-    assert!(
-        told(&app).contains("not updated with the new settings"),
-        "{}",
-        told(&app)
-    );
-    assert_eq!(app.settings_mut().tab_size.get(), 2);
+        assert!(
+            told(&app).contains("not updated with the new settings"),
+            "{}",
+            told(&app)
+        );
+        assert_eq!(app.settings_mut().tab_size.get(), 2);
+    });
 }

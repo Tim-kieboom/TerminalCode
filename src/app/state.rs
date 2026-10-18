@@ -73,6 +73,8 @@ pub(crate) struct AppState {
     pending_keys: Option<String>,
     /// How the language server of the file in front is doing, for the status bar.
     lsp_status: Option<String>,
+    /// Whether a format, or a save that formats first, is waiting for a server.
+    formatting: bool,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The suggestions for the word being typed, while there are any.

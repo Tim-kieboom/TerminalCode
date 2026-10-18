@@ -90,3 +90,67 @@ fn the_client_declares_formatting() {
 
     assert!(capabilities["textDocument"]["formatting"].is_object());
 }
+
+#[test]
+fn a_server_says_whether_it_formats_a_range() {
+    assert!(super::super::formatting::range_offered(
+        &json!({ "documentRangeFormattingProvider": true })
+    ));
+    assert!(!super::super::formatting::range_offered(
+        &json!({ "documentFormattingProvider": true })
+    ));
+}
+
+#[test]
+fn the_range_request_carries_the_range() {
+    let rig = connect(|server| {
+        server.start_up();
+        let (id, params) = server.expect_request("textDocument/rangeFormatting");
+        assert_eq!(
+            params["range"]["start"],
+            json!({ "line": 1, "character": 0 })
+        );
+        assert_eq!(params["range"]["end"], json!({ "line": 3, "character": 5 }));
+        assert_eq!(
+            params["options"],
+            json!({ "tabSize": 2, "insertSpaces": false })
+        );
+        server.respond(id, Value::Null);
+    });
+    crate::initialize(
+        &rig.connection,
+        std::path::Path::new(super::handshake_tests::root_for_tests()),
+        &Value::Null,
+        PATIENCE,
+    )
+    .unwrap();
+    let at = |line, character| crate::position::LspPosition { line, character };
+
+    let mut pending = super::super::formatting::request_range(
+        &rig.connection,
+        "file:///p/a.rs",
+        at(1, 0),
+        at(3, 5),
+        2,
+        false,
+    )
+    .unwrap();
+    let deadline = std::time::Instant::now() + PATIENCE;
+    let answer = loop {
+        if let Some(answer) = pending.try_take() {
+            break answer;
+        }
+        assert!(std::time::Instant::now() < deadline, "no answer");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    };
+
+    assert!(answer.unwrap().is_empty());
+    rig.server.finish();
+}
+
+#[test]
+fn the_client_declares_range_formatting() {
+    let capabilities = crate::handshake::client_capabilities();
+
+    assert!(capabilities["textDocument"]["rangeFormatting"].is_object());
+}

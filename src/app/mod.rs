@@ -38,6 +38,8 @@ mod open;
 mod recent;
 mod rename;
 #[cfg(test)]
+pub(crate) use formatting::whole_lines_for_tests;
+#[cfg(test)]
 pub(crate) use open::expand_path;
 mod jumps;
 mod keys;

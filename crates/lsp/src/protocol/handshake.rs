@@ -87,6 +87,7 @@ pub fn client_capabilities() -> Value {
                 "resolveSupport": { "properties": ["edit"] },
             },
             "formatting": { "dynamicRegistration": false },
+            "rangeFormatting": { "dynamicRegistration": false },
             "publishDiagnostics": {
                 "versionSupport": true,
             },

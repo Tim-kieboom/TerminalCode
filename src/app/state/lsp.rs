@@ -13,6 +13,15 @@ impl AppState {
         self.lsp_status = status;
     }
 
+    /// Whether a format, or a save that formats first, is waiting for a server.
+    pub(crate) fn formatting(&self) -> bool {
+        self.formatting
+    }
+
+    pub(crate) fn set_formatting(&mut self, formatting: bool) {
+        self.formatting = formatting;
+    }
+
     pub(crate) fn diagnostics(&self) -> &crate::lsp::Diagnostics {
         &self.lsp_diagnostics
     }

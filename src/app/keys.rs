@@ -161,6 +161,13 @@ impl App {
             return;
         }
 
+        // Escape gives up a quit that waits for its saves; the saves go on.
+        if key.code == KeyCode::Esc && key.kind == KeyEventKind::Press && self.cancel_waiting_quit()
+        {
+            self.needs_redraw = true;
+            return;
+        }
+
         // The terminal keeps the keyboard, except for the keys behind its prefix.
         if self.state.focus() == Focus::Terminal && !self.keyboard.is_pending() {
             return self.handle_terminal_key(key);
@@ -258,6 +265,7 @@ impl App {
             Action::RenameSymbol => self.rename_symbol(),
             Action::CodeActions => self.code_action(),
             Action::FormatDocument => self.format_document(),
+            Action::FormatSelection => self.format_selection(),
             Action::PreviousSearchResult => self.step_search_result(-1),
             Action::FindInFile => self.open_find(),
             Action::ReplaceInFile => self.open_replace(),

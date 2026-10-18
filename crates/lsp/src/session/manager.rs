@@ -388,3 +388,35 @@ impl Manager {
         crate::formatting::request(&session.connection, uri, tab_size, insert_spaces).ok()
     }
 }
+
+impl Manager {
+    /// Whether the server `key` runs and formats a range of a document.
+    pub fn offers_range_formatting(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| crate::formatting::range_offered(&session.server.capabilities))
+    }
+
+    /// Asks the server `key` to format `start..end` of `uri`. `None` when it is not
+    /// running or the request could not be sent.
+    pub fn request_range_formatting(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        start: crate::position::LspPosition,
+        end: crate::position::LspPosition,
+        tab_size: u32,
+        insert_spaces: bool,
+    ) -> Option<crate::PendingFormat> {
+        let session = self.sessions.get(key)?;
+        crate::formatting::request_range(
+            &session.connection,
+            uri,
+            start,
+            end,
+            tab_size,
+            insert_spaces,
+        )
+        .ok()
+    }
+}

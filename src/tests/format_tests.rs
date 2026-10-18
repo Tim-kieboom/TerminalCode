@@ -10,9 +10,11 @@ use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{Value, json};
 
 use super::completion_tests::{Answer, Rig, completing, write};
+use crate::buffer::Position;
 use crate::components::editor::Motion;
 use crate::lsp::test_support::FakeLauncher;
 use crate::lsp::{LaunchSpec, Launcher, Message, Session, StartError};
+use crate::settings::Settings;
 
 const SOURCE: &str = "fn main(){}\n";
 const FORMATTED: &str = "fn main() {}\n";
@@ -74,7 +76,9 @@ impl Rig {
     }
 
     fn format_on_save(mut self) -> Self {
-        self.app.settings_mut().format_on_save = true;
+        // The setting is the server's, in the `language_servers` of the settings.
+        let on = r#"{ "language_servers": { "rust": { "format_on_save": true } } }"#;
+        *self.app.settings_mut() = Settings::parse(on).unwrap().settings;
         self
     }
 
@@ -478,4 +482,193 @@ fn real_rust_analyzer_formats_before_the_file_is_saved() {
         "{on_disk}"
     );
     assert_eq!(rig.text(), on_disk);
+}
+
+// ---- a selection, the status bar, and giving up a quit
+
+fn range_provider() -> Value {
+    json!({
+        "textDocumentSync": 2,
+        "documentFormattingProvider": true,
+        "documentRangeFormattingProvider": true,
+    })
+}
+
+const TWO_LINES: &str = "fn main(){}\nfn other(){}\n";
+
+impl Rig {
+    fn run_from_palette(&mut self, query: &str) {
+        self.press(KeyCode::F(1));
+        for c in query.chars() {
+            self.press(KeyCode::Char(c));
+        }
+        self.press(KeyCode::Enter);
+    }
+
+    fn requests_of(&self, wanted: &str) -> Vec<Value> {
+        let mut found = Vec::new();
+        while let Ok(message) = self.received.recv_timeout(Duration::from_millis(150)) {
+            if let Message::Request { method, params, .. } = message
+                && method == wanted
+            {
+                found.push(params);
+            }
+        }
+        found
+    }
+}
+
+#[test]
+fn format_selection_formats_the_lines_of_the_selection_and_nothing_else() {
+    let mut rig = Rig::start(range_provider(), TWO_LINES, format_to_the_standard());
+    // Part of the first line is selected.
+    rig.app
+        .state_mut()
+        .edit(|editor| editor.select_range(Position::new(0, 3), Position::new(0, 6)));
+
+    rig.run_from_palette("Format Selection");
+    rig.pump_until(|app| app.state().editor().buffer().text().starts_with(FORMATTED));
+
+    let asked = rig.requests_of("textDocument/rangeFormatting");
+    assert_eq!(asked.len(), 1, "{asked:?}");
+    assert_eq!(
+        asked[0]["range"]["start"],
+        json!({ "line": 0, "character": 0 })
+    );
+    assert_eq!(
+        asked[0]["range"]["end"],
+        json!({ "line": 1, "character": 0 }),
+        "the whole line"
+    );
+    assert!(rig.on_disk().starts_with("fn main(){}"), "not saved");
+    assert!(
+        rig.formatting_requests().is_empty(),
+        "the whole document was not asked"
+    );
+}
+
+#[test]
+fn format_selection_without_a_selection_says_so() {
+    let mut rig = Rig::start(range_provider(), TWO_LINES, format_to_the_standard());
+
+    rig.run_from_palette("Format Selection");
+
+    let told = rig.app.state().notifications().texts().join("|");
+    assert!(told.contains("select the text to format first"), "{told}");
+    assert!(rig.requests_of("textDocument/rangeFormatting").is_empty());
+}
+
+#[test]
+fn format_selection_with_a_server_that_formats_only_whole_documents_says_so() {
+    let mut rig = Rig::start(provider(), TWO_LINES, format_to_the_standard());
+    rig.app
+        .state_mut()
+        .edit(|editor| editor.select_range(Position::new(0, 0), Position::new(0, 4)));
+
+    rig.run_from_palette("Format Selection");
+
+    let told = rig.app.state().notifications().texts().join("|");
+    assert!(told.contains("cannot format a selection"), "{told}");
+}
+
+#[test]
+fn the_lines_of_a_selection_end_where_it_ends_or_at_the_next_line() {
+    use ropey::Rope;
+    let text = Rope::from_str("one\ntwo\nthree");
+    let at = |line, character| crate::lsp::LspPosition { line, character };
+
+    // Inside the middle line: that line, to the start of the next.
+    assert_eq!(
+        crate::app::whole_lines_for_tests(&text, 5, 6),
+        (at(1, 0), at(2, 0))
+    );
+    // Ending at the start of a line: that line is not included.
+    assert_eq!(
+        crate::app::whole_lines_for_tests(&text, 1, 4),
+        (at(0, 0), at(1, 0))
+    );
+    // The last line has no break: to the end of the text.
+    assert_eq!(
+        crate::app::whole_lines_for_tests(&text, 9, 11),
+        (at(2, 0), at(2, 5))
+    );
+}
+
+#[test]
+fn the_status_bar_says_formatting_while_a_save_waits_and_not_after() {
+    let mut rig = Rig::dirty(provider(), silent());
+    rig.app
+        .set_format_patience(Duration::from_secs(10), Duration::from_millis(200));
+    assert!(!rig.screen().contains("formatting…"));
+
+    rig.ctrl('s');
+    assert!(rig.app.state().formatting());
+    assert!(rig.screen().contains("formatting…"), "{}", rig.screen());
+    rig.tick_until_saved();
+
+    assert!(!rig.app.state().formatting());
+    assert!(!rig.screen().contains("formatting…"));
+}
+
+#[test]
+fn escape_gives_up_the_quit_that_waits_and_the_save_goes_on() {
+    let mut rig = Rig::dirty(provider(), format_to_the_standard());
+    rig.ctrl('s');
+    rig.ctrl('q');
+    assert!(!rig.app.should_quit());
+
+    rig.press(KeyCode::Esc);
+    rig.wait_until_saved();
+
+    assert!(!rig.app.should_quit(), "the quit was given up");
+    assert_eq!(
+        rig.on_disk(),
+        format!("{FORMATTED}//\n"),
+        "the save was not"
+    );
+    let told = rig.app.state().notifications().texts().join("|");
+    assert!(told.contains("quit cancelled"), "{told}");
+}
+
+#[test]
+fn escape_without_a_waiting_quit_is_just_escape() {
+    let mut rig = Rig::dirty(provider(), silent());
+    rig.ctrl('s');
+
+    rig.press(KeyCode::Esc);
+
+    let told = rig.app.state().notifications().texts().join("|");
+    assert!(!told.contains("quit cancelled"), "{told}");
+    assert!(rig.app.state().formatting(), "the save still waits");
+}
+
+#[test]
+fn closing_the_quit_prompt_gives_up_the_quit_that_follows_its_saves() {
+    let mut rig = Rig::dirty(provider(), format_to_the_standard());
+    let notes = rig._dir.path().join("notes.txt");
+    write(&notes, "a\n");
+    rig.app
+        .state_mut()
+        .workspace_mut()
+        .open_path(&notes)
+        .unwrap();
+    rig.typed("b");
+    rig.ctrl('q');
+    assert!(rig.app.state().quit_prompt().is_some());
+
+    // ctrl+s saves the selected one, `main.rs`, through the formatter.
+    rig.ctrl('s');
+    rig.press(KeyCode::Esc);
+    rig.pump_until(|app| {
+        app.state()
+            .workspace()
+            .dirty_documents()
+            .iter()
+            .all(|item| item.name != "main.rs")
+    });
+
+    assert!(
+        !rig.app.should_quit(),
+        "esc closed the prompt: nothing quits"
+    );
 }

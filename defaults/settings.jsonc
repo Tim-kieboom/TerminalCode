@@ -49,27 +49,46 @@
     // them dimmed. The file finder and the project search never list them.
     "hide_ignored": false,
 
-    // true: saving first asks the file's language server to format it (for Rust,
-    // rust-analyzer runs rustfmt with your rustfmt.toml). A server that is not
-    // ready, has no formatter, fails or takes more than 2 seconds (10 while it is
-    // still starting) never blocks the save: the file is saved as it is, and a
-    // message says why. false: saving writes the text as it is.
-    "format_on_save": false,
-
-    // Language servers, by name. Rust is built in (rust-analyzer, found on your PATH),
-    // so this is empty unless you want to change that. An entry with the name of a
-    // built-in server replaces it whole, null turns it off, any other name adds one:
+    // Language servers, by name. These are the ones there are: Rust, Nix and JSON.
+    // Your entry for one of them overrides only the fields you write, and keeps the
+    // rest from here, so this is enough to change one thing:
     //
-    //   "language_servers": {
-    //       "rust": {
-    //           "command": "rust-analyzer",          // the program to run
-    //           "args": [],                          // its arguments
-    //           "extensions": ["rs"],                // the files it serves
-    //           "root_files": ["Cargo.toml"],        // the outermost folder with one is its project
-    //           "initialization_options": {          // sent to the server as they are
-    //               "cargo": { "features": "all" }
-    //           }
-    //       }
-    //   }
-    "language_servers": {}
+    //   "language_servers": { "rust": { "format_on_save": true } }
+    //
+    // null turns a server off, and any other name adds a server (which needs its
+    // "command" and "extensions"). A list, such as "args", is replaced, not added to.
+    // Fields:
+    //   "command"                 the program to run, found on your PATH
+    //   "args"                    its arguments
+    //   "extensions"              the files it serves, without the dot
+    //   "root_files"              the outermost folder with one of these is its project
+    //   "initialization_options"  sent to the server as they are
+    //   "language_ids"            what the server is told a file is, by file name
+    //   "format_on_save"          true: saving a file first formats it with the server
+    //                             (for Rust, rust-analyzer runs rustfmt with your
+    //                             rustfmt.toml). A server that is not ready (10
+    //                             seconds), has no formatter, fails or takes more than
+    //                             2 seconds never blocks the save: the file is saved as
+    //                             it is, and a message says why. Quitting waits for the
+    //                             saves, and ctrl+q again skips the formatting.
+    "language_servers": {
+        "rust": {
+            "command": "rust-analyzer",
+            "extensions": ["rs"],
+            "root_files": ["Cargo.toml"],
+            "format_on_save": false
+        },
+        "nix": {
+            "command": "nil",
+            "extensions": ["nix"],
+            "root_files": ["flake.nix"],
+            "format_on_save": false
+        },
+        "json": {
+            "command": "vscode-json-language-server",
+            "args": ["--stdio"],
+            "extensions": ["json", "jsonc"],
+            "format_on_save": false
+        }
+    }
 }

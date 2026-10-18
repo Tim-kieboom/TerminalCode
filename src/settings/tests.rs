@@ -1,5 +1,4 @@
 use super::*;
-use crate::lsp::LanguageServers;
 
 fn parse(source: &str) -> Parsed {
     match Settings::parse(source) {
@@ -287,10 +286,17 @@ fn a_detect_indent_that_is_not_true_or_false_is_rejected_by_name() {
 // ---- language_servers
 
 #[test]
-fn language_servers_default_to_rust_analyzer_for_rust() {
+fn language_servers_default_to_those_of_the_default_file() {
     let settings = parse("{}").settings;
 
-    assert_eq!(settings.language_servers, LanguageServers::default());
+    assert_eq!(
+        settings.language_servers,
+        Settings::default().language_servers
+    );
+    assert_eq!(
+        settings.language_servers.names().collect::<Vec<_>>(),
+        ["json", "nix", "rust"]
+    );
     assert_eq!(
         settings.language_servers.get("rust").unwrap().command,
         "rust-analyzer"
@@ -298,14 +304,14 @@ fn language_servers_default_to_rust_analyzer_for_rust() {
 }
 
 #[test]
-fn a_language_server_entry_is_read_and_the_built_in_ones_stay() {
+fn a_language_server_entry_is_read_and_the_default_ones_stay() {
     let settings =
         parse(r#"{ "language_servers": { "zig": { "command": "zls", "extensions": ["zig"] } } }"#)
             .settings;
 
     assert_eq!(
         settings.language_servers.names().collect::<Vec<_>>(),
-        ["rust", "zig"]
+        ["json", "nix", "rust", "zig"]
     );
 }
 
@@ -324,7 +330,10 @@ fn a_server_can_be_replaced_or_turned_off_in_the_file() {
         rust.initialization_options["cargo"]["features"],
         serde_json::json!("all")
     );
-    assert_eq!(off.language_servers.names().count(), 0);
+    assert_eq!(
+        off.language_servers.names().collect::<Vec<_>>(),
+        ["json", "nix"]
+    );
 }
 
 #[test]
@@ -350,12 +359,27 @@ fn a_bad_language_server_entry_rejects_the_file_and_names_the_setting_and_the_en
 }
 
 #[test]
-fn the_template_has_an_empty_language_servers_that_changes_nothing() {
-    assert!(DEFAULT_SETTINGS_JSONC.contains("\"language_servers\""));
+fn the_default_file_is_the_base_layer_of_the_servers() {
+    assert!(DEFAULT_SETTINGS_JSONC.contains("\"rust-analyzer\""));
+    // A user file that has `{}` for the servers (every file from before) keeps them all.
+    let kept = parse(r#"{ "language_servers": {} }"#).settings;
+    assert_eq!(kept.language_servers, Settings::default().language_servers);
     assert_eq!(
         parse(DEFAULT_SETTINGS_JSONC).settings.language_servers,
-        LanguageServers::default()
+        Settings::default().language_servers
     );
+}
+
+#[test]
+fn an_entry_for_a_default_server_changes_only_the_fields_it_names() {
+    let settings =
+        parse(r#"{ "language_servers": { "rust": { "format_on_save": true } } }"#).settings;
+
+    let rust = settings.language_servers.get("rust").unwrap();
+    assert!(rust.format_on_save);
+    assert_eq!(rust.command, "rust-analyzer");
+    assert_eq!(rust.extensions, ["rs"]);
+    assert_eq!(rust.root_files, ["Cargo.toml"]);
 }
 
 #[test]
@@ -436,14 +460,28 @@ fn hide_ignored_defaults_to_false_and_is_read() {
 }
 
 #[test]
-fn format_on_save_defaults_to_false_and_is_read() {
-    assert!(!parse("{}").settings.format_on_save);
+fn format_on_save_belongs_to_a_server_and_is_off_by_default() {
+    let settings = parse("{}").settings;
+    for name in settings.language_servers.names() {
+        assert!(
+            !settings.language_servers.get(name).unwrap().format_on_save,
+            "{name}"
+        );
+    }
+
+    let on = parse(r#"{ "language_servers": { "nix": { "format_on_save": true } } }"#).settings;
+    assert!(on.language_servers.get("nix").unwrap().format_on_save);
+    assert!(!on.language_servers.get("rust").unwrap().format_on_save);
     assert!(
-        parse(r#"{ "format_on_save": true }"#)
-            .settings
-            .format_on_save
+        error_of(r#"{ "language_servers": { "rust": { "format_on_save": 1 } } }"#).contains("rust")
     );
-    assert!(error_of(r#"{ "format_on_save": 1 }"#).contains("format_on_save"));
+}
+
+#[test]
+fn the_global_format_on_save_is_gone() {
+    let parsed = parse(r#"{ "format_on_save": true }"#);
+
+    assert_eq!(parsed.unknown, ["format_on_save"]);
 }
 
 #[test]

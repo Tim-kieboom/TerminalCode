@@ -6,12 +6,32 @@ use serde_json::{Value, json};
 use crate::config::root_for;
 use crate::{ConfigError, LanguageServers, ServerConfig};
 
+/// The servers the default settings file names: here, Rust.
+fn defaults() -> Value {
+    json!({
+        "rust": {
+            "command": "rust-analyzer",
+            "extensions": ["rs"],
+            "root_files": ["Cargo.toml"],
+        },
+    })
+}
+
+fn layered(setting: Value) -> Result<LanguageServers, ConfigError> {
+    LanguageServers::layered(&defaults(), &setting)
+}
+
+/// What there is with the user's file saying nothing.
+fn built_in() -> LanguageServers {
+    servers(json!({}))
+}
+
 fn servers(setting: Value) -> LanguageServers {
-    LanguageServers::with_settings(setting).unwrap()
+    layered(setting).unwrap()
 }
 
 fn error_of(setting: Value) -> String {
-    match LanguageServers::with_settings(setting) {
+    match layered(setting) {
         Ok(servers) => panic!("should not be accepted, got {servers:?}"),
         Err(error) => error.to_string(),
     }
@@ -29,7 +49,7 @@ fn touch(path: &Path) {
 // ---- what is configured
 
 #[test]
-fn with_no_setting_rust_analyzer_is_there_for_rust() {
+fn with_no_setting_the_servers_of_the_defaults_are_there() {
     let servers = servers(json!({}));
 
     let rust = servers.get("rust").unwrap();
@@ -39,7 +59,7 @@ fn with_no_setting_rust_analyzer_is_there_for_rust() {
     assert_eq!(rust.extensions, ["rs"]);
     assert_eq!(rust.root_files, ["Cargo.toml"]);
     assert_eq!(rust.initialization_options, Value::Null);
-    assert_eq!(servers, LanguageServers::default());
+    assert_eq!(servers, built_in());
 }
 
 #[test]
@@ -57,7 +77,7 @@ fn an_entry_with_a_new_name_adds_a_server() {
 }
 
 #[test]
-fn an_entry_named_rust_replaces_the_built_in_one_whole() {
+fn an_entry_for_a_default_server_overrides_only_the_fields_it_has() {
     let servers = servers(json!({
         "rust": { "command": "my-analyzer", "extensions": ["rs", "rlib"] },
     }));
@@ -65,10 +85,66 @@ fn an_entry_named_rust_replaces_the_built_in_one_whole() {
     let rust = servers.get("rust").unwrap();
     assert_eq!(rust.command, "my-analyzer");
     assert_eq!(rust.extensions, ["rs", "rlib"]);
+    assert_eq!(rust.root_files, ["Cargo.toml"], "kept from the default");
+}
+
+#[test]
+fn one_field_is_enough_to_change_one_thing_about_a_default_server() {
+    let servers = servers(json!({ "rust": { "format_on_save": true } }));
+
+    let rust = servers.get("rust").unwrap();
+    assert!(rust.format_on_save);
+    assert_eq!(rust.command, "rust-analyzer");
+    assert_eq!(rust.extensions, ["rs"]);
+}
+
+#[test]
+fn a_list_in_a_field_replaces_the_default_list_it_is_not_added_to() {
+    let servers = servers(json!({ "rust": { "root_files": ["Other.toml"] } }));
+
+    assert_eq!(servers.get("rust").unwrap().root_files, ["Other.toml"]);
+    let servers = self::servers(json!({ "rust": { "root_files": [] } }));
+    assert!(servers.get("rust").unwrap().root_files.is_empty());
+}
+
+#[test]
+fn format_on_save_is_off_unless_an_entry_says_so() {
+    assert!(!built_in().get("rust").unwrap().format_on_save);
+    let servers = servers(json!({
+        "zig": { "command": "zls", "extensions": ["zig"], "format_on_save": true },
+    }));
+    assert!(servers.get("zig").unwrap().format_on_save);
+}
+
+#[test]
+fn a_default_that_turns_it_on_can_be_turned_off_by_the_user() {
+    let on = json!({
+        "rust": { "command": "ra", "extensions": ["rs"], "format_on_save": true },
+    });
+
+    let kept = LanguageServers::layered(&on, &json!({})).unwrap();
+    let off =
+        LanguageServers::layered(&on, &json!({ "rust": { "format_on_save": false } })).unwrap();
+
+    assert!(kept.get("rust").unwrap().format_on_save);
+    assert!(!off.get("rust").unwrap().format_on_save);
+}
+
+#[test]
+fn the_defaults_must_be_an_object_too() {
     assert_eq!(
-        rust.root_files,
-        Vec::<String>::new(),
-        "nothing is kept of the built in one"
+        LanguageServers::layered(&json!([]), &json!({})),
+        Err(ConfigError::NotAnObject)
+    );
+}
+
+#[test]
+fn an_entry_that_makes_a_default_server_invalid_is_refused() {
+    let message = error_of(json!({ "rust": { "command": "" } }));
+
+    assert!(
+        message.contains("\"rust\"") && message.contains("command"),
+        "{message}"
     );
 }
 
@@ -116,10 +192,7 @@ fn a_command_is_trimmed() {
 #[test]
 fn the_setting_must_be_an_object() {
     for setting in [json!([]), json!("rust"), json!(3), json!(null)] {
-        assert_eq!(
-            LanguageServers::with_settings(setting),
-            Err(ConfigError::NotAnObject)
-        );
+        assert_eq!(layered(setting), Err(ConfigError::NotAnObject));
     }
 }
 
@@ -197,7 +270,7 @@ fn an_empty_command_empty_extensions_or_bad_names_are_refused() {
 
 #[test]
 fn one_bad_entry_refuses_the_whole_setting_so_nothing_half_applies() {
-    let result = LanguageServers::with_settings(json!({
+    let result = layered(json!({
         "good": { "command": "g", "extensions": ["g"] },
         "bad": { "command": "" , "extensions": ["b"] },
     }));
@@ -250,7 +323,7 @@ fn when_two_servers_want_an_extension_the_first_by_name_gets_it() {
 // ---- where its project is
 
 fn rust_server() -> ServerConfig {
-    LanguageServers::default().get("rust").unwrap().clone()
+    built_in().get("rust").unwrap().clone()
 }
 
 fn canonical(path: &Path) -> std::path::PathBuf {
@@ -466,7 +539,7 @@ fn the_key_names_the_server_and_its_root_so_one_workspace_is_one_key() {
     touch(&project.join("crates/a/src/lib.rs"));
     touch(&project.join("crates/b/Cargo.toml"));
     touch(&project.join("crates/b/src/lib.rs"));
-    let servers = LanguageServers::default();
+    let servers = built_in();
 
     let (a, _) = servers
         .resolve(&project.join("crates/a/src/lib.rs"), &project)
@@ -483,7 +556,7 @@ fn the_key_names_the_server_and_its_root_so_one_workspace_is_one_key() {
 fn a_file_no_server_wants_resolves_to_nothing() {
     let dir = tempfile::tempdir().unwrap();
 
-    let servers = LanguageServers::default();
+    let servers = built_in();
     let resolved = servers.resolve(&dir.path().join("notes.txt"), dir.path());
 
     assert!(resolved.is_none());

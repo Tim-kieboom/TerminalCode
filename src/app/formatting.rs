@@ -1,5 +1,5 @@
 //! Formatting documents with their language server: before a save when the
-//! `format_on_save` setting is on, and "Language: Format Document" without one.
+//! server's `format_on_save` setting is on, and "Language: Format Document" without one.
 //!
 //! A save that formats is asynchronous: the document is asked for formatting
 //! edits, and written when they are applied or when the wait ends. The wait
@@ -22,7 +22,9 @@ use crate::components::editor::IndentKind;
 use crate::components::workspace::SaveOutcome;
 use crate::ids::DocumentId;
 use crate::lsp::uri::file_uri;
-use crate::lsp::{FileEdits, PendingFormat, RenameEdit, ServerKey, WorkspaceEdit, from_lsp};
+use crate::lsp::{
+    FileEdits, LspPosition, PendingFormat, RenameEdit, ServerKey, WorkspaceEdit, from_lsp, to_lsp,
+};
 
 /// How long an answer to a formatting request is waited for.
 const FORMAT_PATIENCE: Duration = Duration::from_secs(2);
@@ -62,6 +64,8 @@ struct Pending {
     /// When it was asked for: the wait for a server counts from here.
     started: Instant,
     then: Then,
+    /// The part to format, when it is not the whole document.
+    range: Option<(LspPosition, LspPosition)>,
     state: State,
 }
 
@@ -116,9 +120,6 @@ impl App {
     /// its file has a server that formats (or is starting). `false` when the
     /// caller is to save as usual. The save is done when the formatting ends.
     pub(super) fn begin_format_save(&mut self, document: DocumentId) -> bool {
-        if !self.settings.format_on_save {
-            return false;
-        }
         if self.is_format_pending(document) {
             return true;
         }
@@ -130,6 +131,15 @@ impl App {
         let Some((key, uri)) = self.format_target(document).filter(|_| has_file) else {
             return false;
         };
+        // The setting is the server's: `format_on_save` in its `language_servers` entry.
+        let wanted = self
+            .settings
+            .language_servers
+            .get(&key.name)
+            .is_some_and(|server| server.format_on_save);
+        if !wanted {
+            return false;
+        }
         let Some(manager) = self.lsp.manager.as_ref() else {
             return false;
         };
@@ -149,7 +159,7 @@ impl App {
         if !running && !starting {
             return false;
         }
-        self.queue_format(document, key, uri, Then::Save);
+        self.queue_format(document, key, uri, Then::Save, None);
         true
     }
 
@@ -175,8 +185,69 @@ impl App {
             return;
         }
         if !self.is_format_pending(document) {
-            self.queue_format(document, key, uri, Then::Nothing);
+            self.queue_format(document, key, uri, Then::Nothing, None);
         }
+    }
+
+    /// "Language: Format Selection": formats the lines the selection touches,
+    /// without saving.
+    pub(super) fn format_selection(&mut self) {
+        let Some(document) = self.state.workspace().active_document_id() else {
+            return;
+        };
+        let editor = self.state.editor();
+        let selection = *editor.selections().primary();
+        let (Ok(anchor), Ok(head)) = (
+            editor.buffer().position_to_byte(selection.anchor()),
+            editor.buffer().position_to_byte(selection.head()),
+        ) else {
+            return;
+        };
+        if anchor == head {
+            self.state.notify("select the text to format first");
+            return;
+        }
+        let Some(text) = self.document_snapshot(document) else {
+            return;
+        };
+        let range = whole_lines(&text, anchor.min(head), anchor.max(head));
+        let Some((key, uri)) = self.format_target(document) else {
+            self.state.notify("no language server formats this file");
+            return;
+        };
+        let Some(manager) = self.lsp.manager.as_ref() else {
+            return;
+        };
+        if manager.is_running(&key) && !manager.offers_range_formatting(&key) {
+            self.state
+                .notify("this language server cannot format a selection");
+            return;
+        }
+        if !manager.is_running(&key) && !manager.is_starting(&key) {
+            self.state
+                .notify("the language server for this file is not running");
+            return;
+        }
+        if !self.is_format_pending(document) {
+            self.queue_format(document, key, uri, Then::Nothing, Some(range));
+        }
+    }
+
+    /// `esc` while a quit waits for its saves: the quit is given up and the saves
+    /// go on. Whether there was one.
+    pub(super) fn cancel_waiting_quit(&mut self) -> bool {
+        if !self.lsp.formatting.quit_after {
+            return false;
+        }
+        self.lsp.formatting.quit_after = false;
+        self.state
+            .notify("quit cancelled; the saves that are running go on");
+        true
+    }
+
+    /// The quit prompt was closed: nothing is to quit when the saves are done.
+    pub(super) fn forget_quit_after_saves(&mut self) {
+        self.lsp.formatting.quit_after = false;
     }
 
     fn is_format_pending(&self, document: DocumentId) -> bool {
@@ -199,13 +270,21 @@ impl App {
         Some((target.key, target.uri))
     }
 
-    fn queue_format(&mut self, document: DocumentId, key: ServerKey, uri: String, then: Then) {
+    fn queue_format(
+        &mut self,
+        document: DocumentId,
+        key: ServerKey,
+        uri: String,
+        then: Then,
+        range: Option<(LspPosition, LspPosition)>,
+    ) {
         self.lsp.formatting.pending.push(Pending {
             document,
             key,
             uri,
             started: Instant::now(),
             then,
+            range,
             state: State::Waiting,
         });
         self.formatting_step();
@@ -241,6 +320,10 @@ impl App {
             self.format_done(document, then, done);
         }
         self.formatting_settled();
+        let busy = self.formatting_busy();
+        if self.state.formatting() != busy {
+            self.state.set_formatting(busy);
+        }
         self.needs_redraw = true;
     }
 
@@ -277,9 +360,16 @@ impl App {
                 self.lsp_sync();
                 let tab_size = u32::try_from(self.settings.tab_size.get()).unwrap_or(4);
                 let spaces = self.settings.indent_style == IndentKind::Spaces;
-                let request = self.lsp.manager.as_ref().and_then(|manager| {
-                    manager.request_formatting(&item.key, &item.uri, tab_size, spaces)
-                });
+                let request = self
+                    .lsp
+                    .manager
+                    .as_ref()
+                    .and_then(|manager| match item.range {
+                        Some((start, end)) => manager.request_range_formatting(
+                            &item.key, &item.uri, start, end, tab_size, spaces,
+                        ),
+                        None => manager.request_formatting(&item.key, &item.uri, tab_size, spaces),
+                    });
                 match request {
                     Some(request) => {
                         item.state = State::Asked {
@@ -469,6 +559,22 @@ impl App {
     }
 }
 
+/// The range of the whole lines from the byte `start` to the byte `end` of
+/// `text`: from the start of the first line to the start of the line after the
+/// last (or to where `end` is, when that is the start of a line already).
+fn whole_lines(text: &ropey::Rope, start: usize, end: usize) -> (LspPosition, LspPosition) {
+    let first = text.byte_to_line(start.min(text.len_bytes()));
+    let from = text.line_to_byte(first);
+    let last = text.byte_to_line(end.min(text.len_bytes()));
+    let to = match text.line_to_byte(last) == end {
+        true => end,
+        false => text
+            .try_line_to_byte(last + 1)
+            .unwrap_or_else(|_| text.len_bytes()),
+    };
+    (to_lsp(text, from), to_lsp(text, to))
+}
+
 #[cfg(test)]
 impl App {
     /// Makes the waits short, so that a test does not take seconds.
@@ -476,4 +582,13 @@ impl App {
         self.lsp.formatting.ready_patience = ready;
         self.lsp.formatting.format_patience = answer;
     }
+}
+
+#[cfg(test)]
+pub(crate) fn whole_lines_for_tests(
+    text: &ropey::Rope,
+    start: usize,
+    end: usize,
+) -> (LspPosition, LspPosition) {
+    whole_lines(text, start, end)
 }

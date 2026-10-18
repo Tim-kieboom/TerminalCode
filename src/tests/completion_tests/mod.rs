@@ -45,7 +45,8 @@ pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script
                         || method == "textDocument/codeAction"
                         || method == "codeAction/resolve"
                         || method == "workspace/executeCommand"
-                        || method == "textDocument/formatting" =>
+                        || method == "textDocument/formatting"
+                        || method == "textDocument/rangeFormatting" =>
                 {
                     let value = answer(&params);
                     // An answer that says `__silent` is none: the server never replies.
