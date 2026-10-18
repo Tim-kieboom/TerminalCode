@@ -41,11 +41,12 @@ jobs:
       - name: Test
         timeout-minutes: 10
         run: cargo nextest run --workspace --no-fail-fast
-      # The Git pane is a WebAssembly plugin: build it and run the tests that load the
-      # module into the editor (they are ignored unless asked for).
+      # The Git pane is a plugin in a repository of its own: build its module and run
+      # the tests that load it into the editor (they are ignored unless asked for).
       - name: Git plugin (WebAssembly)
         if: matrix.os == 'ubuntu-latest'
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo build -p trcode-plugin-git --target wasm32-unknown-unknown --release
-          cargo test -p terminal_code real_plugin -- --ignored
+          git clone --depth 1 https://github.com/Tim-kieboom/trcode-plugin-git ../trcode-plugin-git
+          (cd ../trcode-plugin-git && cargo build --target wasm32-unknown-unknown --release)
+          TRCODE_PLUGIN_GIT_DIR="$PWD/../trcode-plugin-git" cargo test -p terminal_code real_plugin -- --ignored

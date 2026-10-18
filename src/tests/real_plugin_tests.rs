@@ -1,10 +1,11 @@
-//! The real Git pane: the module built from `plugins/git`, run by the editor
-//! against a real repository. These tests need that module, so they are ignored
-//! unless asked for:
+//! The real Git pane: the module built from the plugin's own repository
+//! (<https://github.com/Tim-kieboom/trcode-plugin-git>), run by the editor against a
+//! real repository. These tests need a checkout of it with the module built, so
+//! they are ignored unless asked for:
 //!
 //! ```text
-//! cargo build -p trcode-plugin-git --target wasm32-unknown-unknown --release
-//! cargo test -p terminal_code real_plugin -- --ignored
+//! (in the plugin's repository) cargo build --target wasm32-unknown-unknown --release
+//! TRCODE_PLUGIN_GIT_DIR=/path/to/trcode-plugin-git cargo test -p terminal_code real_plugin -- --ignored
 //! ```
 
 use std::fs;
@@ -29,14 +30,25 @@ use crate::ui::PluginViewId;
 use crate::ui::layout::LayoutTree;
 use crate::ui::view::ViewNode;
 
-const MANIFEST: &str = include_str!("../../plugins/git/manifest.toml");
+/// The checkout of the plugin's repository named by `TRCODE_PLUGIN_GIT_DIR`.
+fn plugin_dir() -> PathBuf {
+    std::env::var_os("TRCODE_PLUGIN_GIT_DIR")
+        .map(PathBuf::from)
+        .expect(
+            "set TRCODE_PLUGIN_GIT_DIR to a checkout of trcode-plugin-git with the module built",
+        )
+}
+
+fn manifest() -> String {
+    let path = plugin_dir().join("manifest.toml");
+    fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()))
+}
 
 fn module() -> Vec<u8> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("target/wasm32-unknown-unknown/release/trcode_plugin_git.wasm");
+    let path = plugin_dir().join("target/wasm32-unknown-unknown/release/trcode_plugin_git.wasm");
     fs::read(&path).unwrap_or_else(|error| {
         panic!(
-            "{}: {error}\nbuild it with: cargo build -p trcode-plugin-git --target wasm32-unknown-unknown --release",
+            "{}: {error}\nbuild it there with: cargo build --target wasm32-unknown-unknown --release",
             path.display()
         )
     })
@@ -76,7 +88,7 @@ fn rig() -> Rig {
     let config = tempfile::tempdir().unwrap();
     let folder = config.path().join("plugins/git");
     fs::create_dir_all(&folder).unwrap();
-    fs::write(folder.join("manifest.toml"), MANIFEST).unwrap();
+    fs::write(folder.join("manifest.toml"), manifest()).unwrap();
     fs::write(folder.join("git.wasm"), module()).unwrap();
     let mut saved = SavedState::default();
     saved.set_plugin(
