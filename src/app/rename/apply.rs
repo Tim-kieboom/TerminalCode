@@ -296,13 +296,15 @@ impl Plan {
     }
 }
 
-/// How a file is named in a message: from the project root when it is in it.
-fn shown(root: &Path, path: &Path) -> String {
+/// How a file is named in a message: from the project root when it is in it,
+/// with `/` between the parts on every system.
+pub(in crate::app) fn shown(root: &Path, path: &Path) -> String {
     let path = canonical(path);
     path.strip_prefix(root)
         .unwrap_or(&path)
         .display()
         .to_string()
+        .replace('\\', "/")
 }
 
 #[cfg(test)]

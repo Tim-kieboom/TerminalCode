@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
-use super::rename::apply::{Check, EditError, plan};
+use super::rename::apply::{Check, EditError, plan, shown};
 use super::rename::{count, open_document_of};
 use crate::components::popups::action_list::{ActionList, Command, Entry};
 use crate::files::paths::canonical;
@@ -469,12 +469,7 @@ impl App {
                 break;
             }
             let path = canonical(path);
-            names.push(
-                path.strip_prefix(&root)
-                    .unwrap_or(&path)
-                    .display()
-                    .to_string(),
-            );
+            names.push(shown(&root, &path));
         }
         // The tab the user was in stays in front.
         self.state.workspace_mut().show_document(context.document);
