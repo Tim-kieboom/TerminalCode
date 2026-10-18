@@ -44,9 +44,14 @@ pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script
                         || method == "textDocument/rename"
                         || method == "textDocument/codeAction"
                         || method == "codeAction/resolve"
-                        || method == "workspace/executeCommand" =>
+                        || method == "workspace/executeCommand"
+                        || method == "textDocument/formatting" =>
                 {
                     let value = answer(&params);
+                    // An answer that says `__silent` is none: the server never replies.
+                    if value.get("__silent").is_some() {
+                        continue;
+                    }
                     // An answer that says `__error` is an error of the server.
                     match value.get("__error").and_then(Value::as_str) {
                         Some(message) => session.respond_error(id, -32803, message),
@@ -123,6 +128,22 @@ impl Rig {
         launcher: Arc<dyn crate::lsp::Launcher>,
         received: Receiver<Message>,
     ) -> Self {
+        let mut rig = Self::with_launcher_not_waiting(dir, file, launcher, received);
+        rig.pump_until(|app| app.state().lsp_status() == Some("rust-analyzer"));
+        rig.app
+            .state_mut()
+            .edit(|editor| editor.move_cursor(Motion::DocumentEnd).unwrap());
+        rig.frame();
+        rig
+    }
+
+    /// Like [`Rig::with_launcher`], without waiting for the server to run.
+    pub(super) fn with_launcher_not_waiting(
+        dir: tempfile::TempDir,
+        file: std::path::PathBuf,
+        launcher: Arc<dyn crate::lsp::Launcher>,
+        received: Receiver<Message>,
+    ) -> Self {
         let mut state = initial_state(&[file]).unwrap();
         state.open_project(dir.path()).unwrap();
         let (tx, events) = mpsc::channel(256);
@@ -134,11 +155,6 @@ impl Rig {
             _dir: dir,
         };
         rig.app.handle_input(InputEvent::FocusLost);
-        rig.pump_until(|app| app.state().lsp_status() == Some("rust-analyzer"));
-        rig.app
-            .state_mut()
-            .edit(|editor| editor.move_cursor(Motion::DocumentEnd).unwrap());
-        rig.frame();
         rig
     }
 

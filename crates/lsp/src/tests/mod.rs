@@ -6,6 +6,7 @@ mod definition_tests;
 mod diagnostics_tests;
 mod diff_tests;
 mod docs_tests;
+mod formatting_tests;
 mod framing_tests;
 mod handshake_tests;
 mod hover_tests;

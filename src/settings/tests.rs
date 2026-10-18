@@ -436,6 +436,17 @@ fn hide_ignored_defaults_to_false_and_is_read() {
 }
 
 #[test]
+fn format_on_save_defaults_to_false_and_is_read() {
+    assert!(!parse("{}").settings.format_on_save);
+    assert!(
+        parse(r#"{ "format_on_save": true }"#)
+            .settings
+            .format_on_save
+    );
+    assert!(error_of(r#"{ "format_on_save": 1 }"#).contains("format_on_save"));
+}
+
+#[test]
 fn a_null_or_empty_theme_is_the_fallback() {
     for source in [
         r#"{ "theme": null }"#,

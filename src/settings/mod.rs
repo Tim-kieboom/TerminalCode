@@ -52,6 +52,8 @@ pub(crate) struct Settings {
     /// Whether the explorer leaves out the entries the ignore rules leave out,
     /// instead of listing them dimmed.
     pub(crate) hide_ignored: bool,
+    /// Whether saving first formats the document with its language server.
+    pub(crate) format_on_save: bool,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -73,6 +75,7 @@ impl Default for Settings {
             sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
             notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
             hide_ignored: false,
+            format_on_save: false,
             language_servers: LanguageServers::default(),
         }
     }
@@ -167,6 +170,7 @@ impl Settings {
                 Duration::from_secs(seconds as u64)
             }),
             hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
+            format_on_save: take(&mut map, "format_on_save")?.unwrap_or(defaults.format_on_save),
             language_servers: match map.remove("language_servers") {
                 Some(setting) => LanguageServers::with_settings(setting)?,
                 None => defaults.language_servers,

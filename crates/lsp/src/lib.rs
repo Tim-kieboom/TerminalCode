@@ -21,6 +21,7 @@ pub use definition::{Location, PendingDefinition, parse_definition};
 pub use diagnostics::{Diagnostic, Diagnostics, RawDiagnostic, Severity, parse_published};
 pub use diff::{ByteChange, change_between};
 pub use error::LspError;
+pub use formatting::{PendingFormat, parse_formatting};
 pub use handshake::{Server, initialize, shutdown};
 pub use hover::{PendingHover, parse_hover};
 pub use language::language_id_of;
@@ -46,8 +47,8 @@ mod tests;
 // The files of each group are named from here, so `crate::hover` and the like
 // keep working from inside the client.
 use features::{
-    code_action, completion, completion_state, definition, diagnostics, docs, hover, rename,
-    snippet,
+    code_action, completion, completion_state, definition, diagnostics, docs, formatting, hover,
+    rename, snippet,
 };
 pub use protocol::uri;
 use protocol::{connection, error, framing, handshake, message, position, replies};

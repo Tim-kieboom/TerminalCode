@@ -175,11 +175,15 @@ impl Workspace {
         self.closed.len()
     }
 
-    /// Saves every modified document that has a file. A file that changed on
+    /// Saves every modified document that has a file, except `except` (saved by
+    /// someone else). A file that changed on
     /// disk is left alone, and so is a document with no file yet.
-    pub(crate) fn save_all(&mut self) -> SaveAll {
+    pub(crate) fn save_all(&mut self, except: &[DocumentId]) -> SaveAll {
         let mut report = SaveAll::default();
         for item in self.dirty_documents() {
+            if except.contains(&item.document) {
+                continue;
+            }
             let Some(doc) = self.documents.get(&item.document) else {
                 continue;
             };

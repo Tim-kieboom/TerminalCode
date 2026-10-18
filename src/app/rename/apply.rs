@@ -78,6 +78,9 @@ pub(in crate::app) enum Check<'a> {
     /// insertion), so only open documents are edited, by the version they had
     /// when the server was asked.
     Action,
+    /// A format: like an action, and a file anywhere that can be saved is
+    /// formatted, not only one under the project root.
+    Format,
 }
 
 /// An open document, as it is now.
@@ -149,7 +152,7 @@ pub(in crate::app) fn plan(
     for file in &edit.files {
         let path = uri_to_path(&file.uri).ok_or_else(|| EditError::NotAFile(file.uri.clone()))?;
         let name = shown(&root, &path);
-        if !canonical(&path).starts_with(&root) {
+        if !matches!(check, Check::Format) && !canonical(&path).starts_with(&root) {
             return Err(EditError::Outside(name));
         }
         match open(&path) {
@@ -168,7 +171,7 @@ pub(in crate::app) fn plan(
                 });
             }
             None => {
-                if matches!(check, Check::Action) {
+                if matches!(check, Check::Action | Check::Format) {
                     return Err(EditError::NotOpen(name));
                 }
                 let text = read_closed(&path, &name)?;

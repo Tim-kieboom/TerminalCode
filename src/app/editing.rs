@@ -82,6 +82,12 @@ impl App {
     }
 
     pub(super) fn save(&mut self) -> IdeResult {
+        // Saving that formats first is finished when the formatting ends.
+        if let Some(document) = self.state.workspace().active_document_id()
+            && self.begin_format_save(document)
+        {
+            return Ok(());
+        }
         let outcome = match self.state.workspace_mut().save_active() {
             Ok(outcome) => outcome,
             // Not allowed to write there: the password prompt of a save as root, if it applies.
@@ -150,7 +156,15 @@ impl App {
 
     /// Saves every modified file, and says what it left alone.
     pub(super) fn save_all(&mut self) {
-        let report = self.state.workspace_mut().save_all();
+        // The documents that are formatted first are saved when that ends.
+        let dirty = self.state.workspace().dirty_documents();
+        let mut formatting = Vec::new();
+        for item in dirty {
+            if self.begin_format_save(item.document) {
+                formatting.push(item.document);
+            }
+        }
+        let report = self.state.workspace_mut().save_all(&formatting);
         for name in &report.changed_on_disk {
             self.state.notify_error(format!(
                 "{name} changed on disk since you opened it; save it on its own to overwrite it"

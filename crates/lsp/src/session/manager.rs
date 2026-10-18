@@ -356,3 +356,35 @@ impl Manager {
         crate::code_action::request_execute(&session.connection, command).ok()
     }
 }
+
+impl Manager {
+    /// Whether the server `key` runs (has finished starting).
+    pub fn is_running(&self, key: &ServerKey) -> bool {
+        self.sessions.contains_key(key)
+    }
+
+    /// Whether the server `key` is being started, and is not running yet.
+    pub fn is_starting(&self, key: &ServerKey) -> bool {
+        self.supervisor.is_starting(key) && !self.sessions.contains_key(key)
+    }
+
+    /// Whether the server `key` runs and formats documents.
+    pub fn offers_formatting(&self, key: &ServerKey) -> bool {
+        self.sessions
+            .get(key)
+            .is_some_and(|session| crate::formatting::offered(&session.server.capabilities))
+    }
+
+    /// Asks the server `key` to format `uri`. `None` when it is not running or the
+    /// request could not be sent.
+    pub fn request_formatting(
+        &self,
+        key: &ServerKey,
+        uri: &str,
+        tab_size: u32,
+        insert_spaces: bool,
+    ) -> Option<crate::PendingFormat> {
+        let session = self.sessions.get(key)?;
+        crate::formatting::request(&session.connection, uri, tab_size, insert_spaces).ok()
+    }
+}

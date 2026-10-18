@@ -49,6 +49,13 @@
     // them dimmed. The file finder and the project search never list them.
     "hide_ignored": false,
 
+    // true: saving first asks the file's language server to format it (for Rust,
+    // rust-analyzer runs rustfmt with your rustfmt.toml). A server that is not
+    // ready, has no formatter, fails or takes more than 2 seconds (10 while it is
+    // still starting) never blocks the save: the file is saved as it is, and a
+    // message says why. false: saving writes the text as it is.
+    "format_on_save": false,
+
     // Language servers, by name. Rust is built in (rust-analyzer, found on your PATH),
     // so this is empty unless you want to change that. An entry with the name of a
     // built-in server replaces it whole, null turns it off, any other name adds one:

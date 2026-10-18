@@ -47,6 +47,8 @@ pub(super) struct Lsp {
     pub(super) renaming: super::rename::Renaming,
     /// What the code actions wait for.
     pub(super) acting: super::code_actions::Acting,
+    /// Saves and formats waiting for a language server.
+    pub(super) formatting: super::formatting::Formatting,
     /// Files outside the project that a server pointed at (the source of the
     /// standard library), with the server that did: they stay with it, instead
     /// of getting a server of their own.
@@ -67,6 +69,7 @@ impl Default for Lsp {
             defining: super::definition::Defining::default(),
             renaming: super::rename::Renaming::default(),
             acting: super::code_actions::Acting::default(),
+            formatting: super::formatting::Formatting::default(),
             borrowed: HashMap::new(),
         }
     }
@@ -143,6 +146,7 @@ impl App {
         self.definition_answer();
         self.rename_answer();
         self.code_actions_answer();
+        self.formatting_step();
         self.refresh_lsp_status();
         self.needs_redraw = true;
     }
@@ -385,7 +389,11 @@ impl App {
 }
 
 /// The server for the file at `path` and how it names it, if there is one.
-fn find_target(servers: &LanguageServers, path: &Path, project: &Path) -> Option<Target> {
+pub(super) fn find_target(
+    servers: &LanguageServers,
+    path: &Path,
+    project: &Path,
+) -> Option<Target> {
     let (key, server) = servers.resolve(path, project)?;
     let uri = file_uri(&without_verbatim_prefix(&canonical(path)))?;
     Some(Target {

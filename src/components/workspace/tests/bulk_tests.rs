@@ -398,7 +398,7 @@ fn save_all_writes_every_modified_file_and_only_those() {
     workspace.open_path(&b).unwrap();
     dirty_open(&mut workspace, &c, "3");
 
-    let report = workspace.save_all();
+    let report = workspace.save_all(&[]);
 
     assert_eq!(report.saved, 2);
     assert_eq!(fs::read_to_string(a).unwrap(), "1a");
@@ -412,7 +412,7 @@ fn save_all_with_nothing_modified_saves_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let mut workspace = three_files(&dir);
 
-    assert_eq!(workspace.save_all(), Default::default());
+    assert_eq!(workspace.save_all(&[]), Default::default());
 }
 
 #[test]
@@ -423,7 +423,7 @@ fn save_all_leaves_untitled_documents_and_says_so() {
     type_in(&mut workspace, "x");
     dirty_open(&mut workspace, &a, "1");
 
-    let report = workspace.save_all();
+    let report = workspace.save_all(&[]);
 
     assert_eq!(report.saved, 1);
     assert_eq!(report.untitled, ["[no name] [+]"]);
@@ -440,7 +440,7 @@ fn save_all_skips_a_file_that_changed_on_disk() {
     std::thread::sleep(std::time::Duration::from_millis(20));
     fs::write(&a, "someone else").unwrap();
 
-    let report = workspace.save_all();
+    let report = workspace.save_all(&[]);
 
     assert_eq!(report.saved, 1);
     assert_eq!(report.changed_on_disk, ["a.txt"]);
@@ -456,7 +456,7 @@ fn save_all_does_not_leave_an_overwrite_armed() {
     dirty_open(&mut workspace, &a, "1");
     std::thread::sleep(std::time::Duration::from_millis(20));
     fs::write(&a, "someone else").unwrap();
-    workspace.save_all();
+    workspace.save_all(&[]);
 
     // The first save of the file on its own still asks.
     let outcome = workspace.save_active().unwrap();
@@ -480,7 +480,7 @@ fn save_all_reports_a_file_that_cannot_be_written_and_goes_on() {
     dirty_open(&mut workspace, &b, "2");
     fs::remove_dir_all(&gone).unwrap();
 
-    let report = workspace.save_all();
+    let report = workspace.save_all(&[]);
 
     assert_eq!(report.saved, 1);
     assert_eq!(report.failed.len(), 1);
@@ -631,7 +631,7 @@ fn save_all_leaves_a_deleted_file_alone_and_says_why() {
     dirty_open(&mut workspace, &b, "2");
     fs::remove_file(&a).unwrap();
 
-    let report = workspace.save_all();
+    let report = workspace.save_all(&[]);
 
     assert_eq!(report.saved, 1);
     assert!(!a.exists());
@@ -655,7 +655,7 @@ fn save_all_leaves_a_read_only_file_alone_and_says_why() {
     permissions.set_readonly(true);
     fs::set_permissions(&a, permissions).unwrap();
 
-    let report = workspace.save_all();
+    let report = workspace.save_all(&[]);
 
     assert_eq!(report.saved, 1);
     assert_eq!(fs::read_to_string(&a).unwrap(), "a");

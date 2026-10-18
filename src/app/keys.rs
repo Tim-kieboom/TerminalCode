@@ -257,6 +257,7 @@ impl App {
             Action::GoToDefinition => self.go_to_definition(),
             Action::RenameSymbol => self.rename_symbol(),
             Action::CodeActions => self.code_action(),
+            Action::FormatDocument => self.format_document(),
             Action::PreviousSearchResult => self.step_search_result(-1),
             Action::FindInFile => self.open_find(),
             Action::ReplaceInFile => self.open_replace(),

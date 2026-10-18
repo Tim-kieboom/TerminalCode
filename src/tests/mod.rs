@@ -19,6 +19,7 @@ mod explorer_tests;
 mod find_tests;
 mod finder_tests;
 mod focus_tests;
+mod format_tests;
 mod frame_tests;
 mod hide_tests;
 mod highlight_tests;

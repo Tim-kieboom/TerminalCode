@@ -189,25 +189,7 @@ fn operation(kind: &str, change: &Value) -> String {
 }
 
 fn add_edits(edit: &mut WorkspaceEdit, uri: &str, edits: &Value) -> Result<(), LspError> {
-    let Value::Array(edits) = edits else {
-        return Err(unexpected(RENAME, "edits that are not a list"));
-    };
-    let mut parsed = Vec::with_capacity(edits.len());
-    for item in edits {
-        let (start, end) = item
-            .get("range")
-            .and_then(range)
-            .ok_or_else(|| unexpected(RENAME, "an edit without a range"))?;
-        let new_text = item
-            .get("newText")
-            .and_then(Value::as_str)
-            .ok_or_else(|| unexpected(RENAME, "an edit without text"))?;
-        parsed.push(RenameEdit {
-            start,
-            end,
-            new_text: new_text.to_owned(),
-        });
-    }
+    let parsed = parse_text_edits(RENAME, edits)?;
     match edit.files.iter_mut().find(|file| file.uri == uri) {
         Some(file) => file.edits.extend(parsed),
         None => edit.files.push(FileEdits {
@@ -216,6 +198,30 @@ fn add_edits(edit: &mut WorkspaceEdit, uri: &str, edits: &Value) -> Result<(), L
         }),
     }
     Ok(())
+}
+
+/// Reads a list of text edits (`range`, `newText`) the answer to `method` has.
+pub(crate) fn parse_text_edits(method: &str, edits: &Value) -> Result<Vec<RenameEdit>, LspError> {
+    let Value::Array(edits) = edits else {
+        return Err(unexpected(method, "edits that are not a list"));
+    };
+    let mut parsed = Vec::with_capacity(edits.len());
+    for item in edits {
+        let (start, end) = item
+            .get("range")
+            .and_then(range)
+            .ok_or_else(|| unexpected(method, "an edit without a range"))?;
+        let new_text = item
+            .get("newText")
+            .and_then(Value::as_str)
+            .ok_or_else(|| unexpected(method, "an edit without text"))?;
+        parsed.push(RenameEdit {
+            start,
+            end,
+            new_text: new_text.to_owned(),
+        });
+    }
+    Ok(parsed)
 }
 
 fn range(value: &Value) -> Option<(LspPosition, LspPosition)> {

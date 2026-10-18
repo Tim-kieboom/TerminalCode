@@ -32,6 +32,7 @@ mod definition;
 mod diagnostics;
 mod editing;
 mod errors_view;
+mod formatting;
 mod hover;
 mod open;
 mod recent;
@@ -188,6 +189,7 @@ impl App {
                 self.definition_forget_stale();
                 self.rename_forget_stale();
                 self.code_actions_forget_stale();
+                self.formatting_step();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;
@@ -200,6 +202,7 @@ impl App {
             let sequence_deadline = self.pending_deadline().map(Instant::from_std);
             let notification_deadline = self.notification_deadline().map(Instant::from_std);
             let hover_deadline = self.hover_deadline().map(Instant::from_std);
+            let formatting_deadline = self.formatting_deadline().map(Instant::from_std);
 
             tokio::select! {
                 biased;
@@ -217,6 +220,8 @@ impl App {
                 if notification_deadline.is_some() => self.expire_notifications(std::time::Instant::now()),
                 _ = sleep_until(hover_deadline.unwrap_or_else(Instant::now)),
                 if hover_deadline.is_some() => self.hover_due(),
+                _ = sleep_until(formatting_deadline.unwrap_or_else(Instant::now)),
+                if formatting_deadline.is_some() => self.formatting_step(),
             }
 
             self.sync_watches();
@@ -258,6 +263,12 @@ impl App {
             saved: Saved::new([true, false, true, true]),
             recent: recent::Recents::default(),
         }
+    }
+
+    /// The settings, for a test to change one.
+    #[cfg(test)]
+    pub(crate) fn settings_mut(&mut self) -> &mut Settings {
+        &mut self.settings
     }
 
     /// Tells a reload which keymap fallbacks the terminal needs.
