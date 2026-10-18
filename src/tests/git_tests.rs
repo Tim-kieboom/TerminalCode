@@ -1,0 +1,312 @@
+//! What git says, kept up to date by the app: the answer of a refresh reaches
+//! the status bar, a failure keeps the marks, and the changes that make a
+//! refresh wanted.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{Duration, Instant};
+
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use tokio::sync::mpsc;
+
+use crate::app::App;
+use crate::app::state::AppState;
+use crate::components::prepare_and_render;
+use crate::event::Event;
+use crate::git::{Branch, Change, Entry, GitError, Kind, Status};
+
+struct Rig {
+    app: App,
+    events: mpsc::Receiver<Event>,
+    terminal: Terminal<TestBackend>,
+    dir: tempfile::TempDir,
+}
+
+fn rig() -> Rig {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("a.txt");
+    std::fs::write(&file, "alpha\n").unwrap();
+    let mut state = AppState::default();
+    state.open_project(dir.path()).unwrap();
+    state.workspace_mut().open_path(&file).unwrap();
+    let (tx, events) = mpsc::channel(1024);
+    Rig {
+        app: App::new(state).with_events(tx),
+        events,
+        terminal: Terminal::new(TestBackend::new(120, 30)).unwrap(),
+        dir,
+    }
+}
+
+impl Rig {
+    fn screen(&mut self) -> String {
+        let app = &mut self.app;
+        self.terminal
+            .draw(|frame| prepare_and_render(frame, app.state_mut()))
+            .unwrap();
+        self.terminal.backend().to_string()
+    }
+
+    fn texts(&self) -> Vec<String> {
+        let notifications = self.app.state().notifications();
+        notifications
+            .texts()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    fn answer(&mut self, result: Result<Status, GitError>) {
+        self.app.handle_event(Event::GitStatus {
+            took: Duration::from_millis(20),
+            result,
+        });
+    }
+
+    /// Waits for the refresh that is wanted to start, and for its answer.
+    fn refresh(&mut self) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while self
+            .app
+            .git_deadline()
+            .is_some_and(|at| Instant::now() < at)
+        {
+            assert!(Instant::now() < deadline, "the refresh never became due");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        self.app.git_due();
+        loop {
+            match self.events.try_recv() {
+                Ok(event @ Event::GitStatus { .. }) => return self.app.handle_event(event),
+                _ => {
+                    assert!(Instant::now() < deadline, "no answer from git");
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+        }
+    }
+}
+
+fn status(branch: &str, paths: &[&str]) -> Status {
+    Status {
+        root: PathBuf::from("/repo"),
+        branch: Branch {
+            name: Some(branch.to_owned()),
+            ..Branch::default()
+        },
+        entries: paths
+            .iter()
+            .map(|path| Entry {
+                path: PathBuf::from(path),
+                original: None,
+                change: Change::Untracked,
+            })
+            .collect(),
+    }
+}
+
+#[test]
+fn the_branch_shows_in_the_status_bar() {
+    let mut rig = rig();
+    assert!(!rig.screen().contains("on main"));
+
+    rig.answer(Ok(status("main", &["a.txt"])));
+
+    assert!(rig.screen().contains("on main"));
+}
+
+#[test]
+fn a_new_answer_replaces_the_old_one() {
+    let mut rig = rig();
+    rig.answer(Ok(status("main", &["a.txt"])));
+
+    rig.answer(Ok(status("topic", &[])));
+
+    assert!(rig.screen().contains("on topic"));
+    assert_eq!(rig.app.state().git_status().unwrap().entries, vec![]);
+}
+
+#[test]
+fn an_answer_that_changes_nothing_does_not_redraw() {
+    let mut rig = rig();
+    rig.answer(Ok(status("main", &[])));
+    rig.screen();
+    rig.app.mark_drawn();
+
+    rig.answer(Ok(status("main", &[])));
+
+    assert!(!rig.app.needs_redraw());
+}
+
+#[test]
+fn without_git_the_feature_stops_with_one_message() {
+    let mut rig = rig();
+    rig.answer(Ok(status("main", &[])));
+
+    rig.answer(Err(GitError::NotInstalled));
+    rig.app.git_changed();
+
+    assert!(rig.app.state().git_status().is_none(), "the marks go");
+    assert!(!rig.screen().contains("on main"));
+    assert_eq!(rig.app.git_deadline(), None, "nothing is asked any more");
+    assert_eq!(
+        rig.texts(),
+        vec!["git is off: `git` was not found on the PATH"]
+    );
+}
+
+#[test]
+fn outside_a_repository_the_feature_stops_with_git_s_own_words() {
+    let mut rig = rig();
+
+    rig.answer(Err(GitError::NoRepository(
+        "fatal: not a git repository".into(),
+    )));
+
+    assert_eq!(rig.texts(), vec!["git is off: fatal: not a git repository"]);
+    assert_eq!(rig.app.git_deadline(), None);
+}
+
+#[test]
+fn a_slow_or_failed_refresh_keeps_the_old_marks_and_says_so_once() {
+    let mut rig = rig();
+    rig.answer(Ok(status("main", &["a.txt"])));
+
+    rig.answer(Err(GitError::TimedOut(Duration::from_secs(5))));
+    rig.answer(Err(GitError::TimedOut(Duration::from_secs(5))));
+
+    assert!(rig.screen().contains("on main"), "the old marks stay");
+    assert_eq!(rig.texts().len(), 1);
+    assert!(rig.texts()[0].contains("took longer than 5 seconds"));
+}
+
+#[test]
+fn a_problem_that_comes_back_after_it_went_away_is_told_again() {
+    let mut rig = rig();
+    let slow = || Err(GitError::TimedOut(Duration::from_secs(5)));
+    let later = Instant::now() + Duration::from_secs(3600);
+    rig.answer(slow());
+    rig.app.expire_notifications(later);
+    assert_eq!(rig.texts().len(), 0);
+
+    rig.answer(slow());
+    assert_eq!(rig.texts().len(), 0, "still the same problem");
+    rig.answer(Ok(status("main", &[])));
+    rig.answer(slow());
+
+    assert_eq!(rig.texts().len(), 1);
+}
+
+#[test]
+fn a_slow_answer_makes_the_next_refresh_wait_twice_as_long() {
+    let mut rig = rig();
+
+    rig.app.handle_event(Event::GitStatus {
+        took: Duration::from_secs(5),
+        result: Err(GitError::TimedOut(Duration::from_secs(5))),
+    });
+    rig.app.git_changed();
+
+    let wait = rig.app.git_deadline().unwrap() - Instant::now();
+    assert!(wait > Duration::from_secs(9), "{wait:?}");
+}
+
+#[test]
+fn files_changed_outside_ask_for_a_refresh() {
+    let mut rig = rig();
+    assert_eq!(rig.app.git_deadline(), None);
+
+    rig.app.handle_event(Event::FilesChanged(vec![]));
+
+    assert!(rig.app.git_deadline().is_some());
+}
+
+#[test]
+fn coming_back_to_the_window_asks_for_a_refresh() {
+    let mut rig = rig();
+
+    rig.app.handle_input(crossterm::event::Event::FocusGained);
+
+    assert!(rig.app.git_deadline().is_some());
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let output = Command::new("git")
+        .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "git {args:?}");
+}
+
+#[test]
+fn a_refresh_reads_the_repository_of_the_project() {
+    let mut rig = rig();
+    let root = rig.dir.path().to_path_buf();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["add", "a.txt"]);
+    git(&root, &["commit", "-q", "-m", "first"]);
+    std::fs::write(root.join("b.txt"), "new\n").unwrap();
+
+    rig.app.git_changed();
+    rig.refresh();
+
+    let status = rig.app.state().git_status().expect("a status");
+    assert_eq!(status.branch.name.as_deref(), Some("main"));
+    assert_eq!(
+        status
+            .entries
+            .iter()
+            .map(|entry| entry.path.clone())
+            .collect::<Vec<_>>(),
+        vec![PathBuf::from("b.txt")]
+    );
+    assert_eq!(status.entries[0].change, Change::Untracked);
+    assert!(rig.screen().contains("on main"));
+}
+
+#[test]
+fn a_project_that_is_no_repository_turns_it_off() {
+    let mut rig = rig();
+
+    rig.app.git_changed();
+    rig.refresh();
+
+    assert!(rig.app.state().git_status().is_none());
+    assert_eq!(rig.app.git_deadline(), None);
+    assert!(
+        rig.texts()[0].starts_with("git is off: "),
+        "{:?}",
+        rig.texts()
+    );
+}
+
+#[test]
+fn the_second_refresh_sees_what_changed_since() {
+    let mut rig = rig();
+    let root = rig.dir.path().to_path_buf();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["add", "a.txt"]);
+    git(&root, &["commit", "-q", "-m", "first"]);
+    rig.app.git_changed();
+    rig.refresh();
+    assert_eq!(rig.app.state().git_status().unwrap().entries, vec![]);
+
+    std::fs::write(root.join("a.txt"), "changed\n").unwrap();
+    rig.app
+        .handle_event(Event::FilesChanged(vec![root.join("a.txt")]));
+    rig.refresh();
+
+    let entries = &rig.app.state().git_status().unwrap().entries;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(
+        entries[0].change,
+        Change::Tracked {
+            staged: None,
+            unstaged: Some(Kind::Modified)
+        }
+    );
+}

@@ -22,13 +22,17 @@ impl Render<AppState> for StatusBar {
                 .lsp_status()
                 .map(|status| format!("  [{status}]"))
                 .unwrap_or_default();
+            let branch = state
+                .git_status()
+                .map(|status| format!("  on {}", status.branch.label()))
+                .unwrap_or_default();
             let formatting = if state.formatting() {
                 "  formatting…"
             } else {
                 ""
             };
             format!(
-                " {}  Ln {}, Col {}{server}{formatting} -- quit: Ctr+Q, commandPallet: f1",
+                " {}  Ln {}, Col {}{branch}{server}{formatting} -- quit: Ctr+Q, commandPallet: f1",
                 editor.display_name(),
                 head.line + 1,
                 head.column + 1

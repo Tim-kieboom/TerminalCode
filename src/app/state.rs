@@ -32,6 +32,7 @@ use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
 
 mod components;
+mod git;
 mod lsp;
 mod notices;
 mod popups;
@@ -75,6 +76,8 @@ pub(crate) struct AppState {
     lsp_status: Option<String>,
     /// Whether a format, or a save that formats first, is waiting for a server.
     formatting: bool,
+    /// The branch and the changed files, once git has been asked.
+    git: Option<crate::git::Status>,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The suggestions for the word being typed, while there are any.

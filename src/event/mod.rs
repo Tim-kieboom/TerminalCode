@@ -46,6 +46,11 @@ pub(crate) enum Event {
     WatchFailed(String),
     /// A language server finished starting, said something, or died.
     LspChanged,
+    /// A refresh of what git says is over, and how long it took.
+    GitStatus {
+        took: std::time::Duration,
+        result: Result<crate::git::Status, crate::git::GitError>,
+    },
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
 }

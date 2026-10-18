@@ -27,6 +27,7 @@ mod components;
 mod config;
 pub mod error;
 mod event;
+mod git;
 mod keymap;
 mod persist;
 mod settings;

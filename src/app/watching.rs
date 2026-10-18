@@ -130,6 +130,7 @@ impl App {
         let events = self.state.workspace_mut().check_disk(paths);
         self.report_disk_events(events);
         self.refresh_explorer_for(paths);
+        self.git_changed();
         self.needs_redraw = true;
     }
 

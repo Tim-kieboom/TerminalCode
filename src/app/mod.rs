@@ -33,6 +33,7 @@ mod diagnostics;
 mod editing;
 mod errors_view;
 mod formatting;
+mod git;
 mod hover;
 mod open;
 mod recent;
@@ -114,6 +115,8 @@ pub(crate) struct App {
     recent: recent::Recents,
     /// The language servers.
     lsp: lsp::Lsp,
+    /// Asking git what changed.
+    git: git::Tracking,
 }
 
 /// Everything that can wake the app loop.
@@ -176,6 +179,7 @@ impl App {
         }
         // The file named on the command line is in front before any input.
         self.lsp_file_shown();
+        self.git_changed();
 
         loop {
             let draw_at = last_draw
@@ -205,6 +209,7 @@ impl App {
             let notification_deadline = self.notification_deadline().map(Instant::from_std);
             let hover_deadline = self.hover_deadline().map(Instant::from_std);
             let formatting_deadline = self.formatting_deadline().map(Instant::from_std);
+            let git_deadline = self.git_deadline().map(Instant::from_std);
 
             tokio::select! {
                 biased;
@@ -224,6 +229,8 @@ impl App {
                 if hover_deadline.is_some() => self.hover_due(),
                 _ = sleep_until(formatting_deadline.unwrap_or_else(Instant::now)),
                 if formatting_deadline.is_some() => self.formatting_step(),
+                _ = sleep_until(git_deadline.unwrap_or_else(Instant::now)),
+                if git_deadline.is_some() => self.git_due(),
             }
 
             self.sync_watches();
@@ -262,6 +269,7 @@ impl App {
             config_applied: None,
             front_view: None,
             lsp: lsp::Lsp::default(),
+            git: git::Tracking::default(),
             saved: Saved::new([true, false, true, true]),
             recent: recent::Recents::default(),
         }
@@ -407,7 +415,10 @@ impl App {
             InputEvent::Mouse(event) => self.handle_mouse(*event),
             InputEvent::Resize(..) => self.needs_redraw = true,
             // Back from another window: whatever was open may have changed.
-            InputEvent::FocusGained => self.check_files_on_disk(),
+            InputEvent::FocusGained => {
+                self.check_files_on_disk();
+                self.git_changed();
+            }
             _ => {}
         }
         self.track_jump(&input, before);
@@ -454,6 +465,7 @@ impl App {
             }
             Event::TerminalChanged => self.terminal_changed(),
             Event::LspChanged => self.lsp_changed(),
+            Event::GitStatus { took, result } => self.git_answer(took, result),
             Event::RootSaved(result) => self.root_save_finished(result),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {
@@ -474,7 +486,7 @@ impl App {
         !matches!(self.state.popup(), Popup::None)
     }
 
-    pub(super) fn mark_drawn(&mut self) {
+    pub(crate) fn mark_drawn(&mut self) {
         self.needs_redraw = false;
     }
 }
