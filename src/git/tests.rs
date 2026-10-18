@@ -1193,6 +1193,8 @@ fn unstaging_works_before_the_first_commit() {
     );
 }
 
+// `*` and `:` cannot be in a file name on Windows.
+#[cfg(unix)]
 #[test]
 fn a_name_that_looks_like_a_pattern_is_only_a_name() {
     let dir = repository();
