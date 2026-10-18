@@ -663,16 +663,15 @@ fn remote_rig() -> (Rig, PathBuf, PathBuf) {
     let mut rig = rig();
     let root = rig.root();
     let server = tempfile::tempdir().unwrap();
-    let bare = std::fs::canonicalize(server.path()).unwrap();
+    // Not canonical: on Windows that is `\\?\C:\...`, which git reads as a host name.
+    let bare = server.path().to_path_buf();
     git(&bare, &["init", "-q", "--bare", "-b", "main"]);
     git(&root, &["config", "user.name", "Test"]);
     git(&root, &["config", "user.email", "test@example.com"]);
     git(&root, &["remote", "add", "origin", bare.to_str().unwrap()]);
     git(&root, &["push", "-q", "-u", "origin", "main"]);
     let other_dir = tempfile::tempdir().unwrap();
-    let other = std::fs::canonicalize(other_dir.path())
-        .unwrap()
-        .join("other");
+    let other = other_dir.path().join("other");
     git(
         &bare,
         &[

@@ -1521,7 +1521,9 @@ struct Remote {
 
 fn remote() -> Remote {
     let dir = tempfile::tempdir().unwrap();
-    let base = canonical(dir.path());
+    // Not the canonical path: on Windows that is `\\?\C:\...`, which git reads as a
+    // host name when it is the address of a remote.
+    let base = dir.path().to_path_buf();
     let bare = base.join("server.git");
     std::fs::create_dir(&bare).unwrap();
     git(&bare, &["init", "-q", "--bare", "-b", "main"]);

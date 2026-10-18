@@ -369,7 +369,7 @@ fn a_stages_everything_and_c_then_a_message_and_enter_commit_it() {
 fn shift_p_pushes_and_the_count_on_the_button_goes_away() {
     let mut rig = started();
     let server = tempfile::tempdir().unwrap();
-    let bare = fs::canonicalize(server.path()).unwrap();
+    let bare = server.path().to_path_buf();
     git(&bare, &["init", "-q", "--bare", "-b", "main"]);
     git(
         &rig.root,
