@@ -163,7 +163,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.7.0
 - [x] Version 0.7.0 (after 0.6.2: git in the core (status model through the user's `git`, colors in the explorer and tabs, the branch in the status bar, gutter bars for the lines changed against the index); plugins as WebAssembly modules run by `wasmi` on a thread of their own (JSON messages, the `trcode-plugin-api` crate, capabilities the user allows once, keys and focus, a fuel budget, restart then disable); the Git pane as the first plugin, in its own repository `Tim-kieboom/trcode-plugin-git`; the plugin manager (`Plugins: Manage`: the index `plugins/index.json`, install, update and remove from GitHub with a SHA-256 check, placement in the Explorer's bar, the bottom bar or a popup); a fix for the tab strip covering the Explorer's first row). Changes to know when upgrading: plugins are off until you turn them on in the manager; `state.json` gets a `plugins` map (what was allowed, where it is placed); the plugins folder of the config folder is where they are installed
-- [ ] Tag `v0.7.0`
+- [x] Tag `v0.7.0` (tagged on f76a5c1; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
