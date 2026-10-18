@@ -11,10 +11,12 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+pub(crate) use marks::{Mark, Marks};
 pub(crate) use parse::parse_status;
 pub(crate) use run::Git;
 pub(crate) use schedule::Schedule;
 
+mod marks;
 mod parse;
 mod run;
 mod schedule;

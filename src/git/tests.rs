@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+use super::marks::MarkKind;
 use super::*;
 
 fn tracked(staged: Option<Kind>, unstaged: Option<Kind>) -> Change {
@@ -505,5 +506,171 @@ mod stand_in {
         let result = git.status(dir.path());
 
         assert!(result.is_ok(), "{result:?}");
+    }
+}
+
+// --- what shows beside a file ---
+
+fn changed(path: &str, change: Change) -> Entry {
+    entry(path, change)
+}
+
+fn status_of(root: &Path, entries: Vec<Entry>) -> Status {
+    Status {
+        root: root.to_path_buf(),
+        branch: Branch::default(),
+        entries,
+    }
+}
+
+fn mark(kind: MarkKind, letter: char) -> Option<Mark> {
+    Some(Mark { kind, letter })
+}
+
+#[test]
+fn a_file_has_the_mark_of_its_change() {
+    let root = Path::new("/repo");
+    let marks = Marks::from_status(&status_of(
+        root,
+        vec![
+            changed("m.rs", tracked(None, Some(Kind::Modified))),
+            changed("t.rs", tracked(None, Some(Kind::TypeChanged))),
+            changed("a.rs", tracked(Some(Kind::Added), None)),
+            changed("c.rs", tracked(Some(Kind::Copied), None)),
+            changed("d.rs", tracked(None, Some(Kind::Deleted))),
+            changed("r.rs", tracked(Some(Kind::Renamed), None)),
+            changed("u.rs", Change::Untracked),
+            changed("x.rs", Change::Conflicted),
+        ],
+    ));
+
+    let of = |name: &str| marks.of(&root.join(name));
+
+    assert_eq!(of("m.rs"), mark(MarkKind::Modified, 'M'));
+    assert_eq!(of("t.rs"), mark(MarkKind::Modified, 'M'));
+    assert_eq!(of("a.rs"), mark(MarkKind::Added, 'A'));
+    assert_eq!(of("c.rs"), mark(MarkKind::Added, 'A'));
+    assert_eq!(of("d.rs"), mark(MarkKind::Deleted, 'D'));
+    assert_eq!(of("r.rs"), mark(MarkKind::Added, 'R'));
+    assert_eq!(of("u.rs"), mark(MarkKind::Untracked, 'U'));
+    assert_eq!(of("x.rs"), mark(MarkKind::Conflict, '!'));
+    assert_eq!(of("clean.rs"), None);
+}
+
+#[test]
+fn a_file_changed_on_both_sides_shows_the_stronger_change() {
+    let root = Path::new("/repo");
+    let marks = Marks::from_status(&status_of(
+        root,
+        vec![
+            changed("a.rs", tracked(Some(Kind::Added), Some(Kind::Modified))),
+            changed("b.rs", tracked(Some(Kind::Modified), Some(Kind::Deleted))),
+        ],
+    ));
+
+    assert_eq!(marks.of(&root.join("a.rs")), mark(MarkKind::Modified, 'M'));
+    assert_eq!(marks.of(&root.join("b.rs")), mark(MarkKind::Deleted, 'D'));
+}
+
+#[test]
+fn a_folder_takes_the_strongest_mark_of_what_is_inside() {
+    let root = Path::new("/repo");
+    let marks = Marks::from_status(&status_of(
+        root,
+        vec![
+            changed("src/a/new.rs", Change::Untracked),
+            changed("src/a/deep/edit.rs", tracked(None, Some(Kind::Modified))),
+            changed("src/b/clash.rs", Change::Conflicted),
+            changed("docs/note.md", tracked(Some(Kind::Added), None)),
+        ],
+    ));
+
+    let kind = |folder: &str| marks.of(&root.join(folder)).map(|mark| mark.kind);
+
+    assert_eq!(kind("src/a/deep"), Some(MarkKind::Modified));
+    assert_eq!(kind("src/a"), Some(MarkKind::Modified));
+    assert_eq!(kind("src/b"), Some(MarkKind::Conflict));
+    assert_eq!(kind("src"), Some(MarkKind::Conflict));
+    assert_eq!(kind("docs"), Some(MarkKind::Added));
+    assert_eq!(kind("elsewhere"), None);
+}
+
+#[test]
+fn the_files_in_an_untracked_folder_are_untracked_too() {
+    let root = Path::new("/repo");
+    let marks = Marks::from_status(&status_of(root, vec![changed("build/", Change::Untracked)]));
+
+    assert_eq!(
+        marks.of(&root.join("build")).map(|mark| mark.kind),
+        Some(MarkKind::Untracked)
+    );
+    assert_eq!(
+        marks.of(&root.join("build/out/a.o")).map(|mark| mark.kind),
+        Some(MarkKind::Untracked)
+    );
+    assert_eq!(marks.of(&root.join("builder/a.o")), None);
+}
+
+#[test]
+fn a_file_inside_a_changed_folder_is_not_marked_by_the_folder() {
+    let root = Path::new("/repo");
+    let marks = Marks::from_status(&status_of(
+        root,
+        vec![changed("src/a.rs", tracked(None, Some(Kind::Modified)))],
+    ));
+
+    assert_eq!(marks.of(&root.join("src/b.rs")), None);
+}
+
+#[test]
+fn no_status_has_no_marks() {
+    assert_eq!(Marks::default().of(Path::new("/repo/a.rs")), None);
+}
+
+#[test]
+fn a_path_outside_the_repository_has_no_mark() {
+    let marks = Marks::from_status(&status_of(
+        Path::new("/repo"),
+        vec![changed("a.rs", tracked(None, Some(Kind::Modified)))],
+    ));
+
+    assert_eq!(marks.of(Path::new("/elsewhere/a.rs")), None);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_path_through_a_link_is_found_by_where_it_really_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = canonical(dir.path()).join("repo");
+    std::fs::create_dir_all(&real).unwrap();
+    std::fs::write(real.join("a.rs"), "").unwrap();
+    let link = dir.path().join("link");
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    let marks = Marks::from_status(&status_of(
+        &real,
+        vec![changed("a.rs", tracked(None, Some(Kind::Modified)))],
+    ));
+
+    assert_eq!(marks.of(&link.join("a.rs")), mark(MarkKind::Modified, 'M'));
+}
+
+#[test]
+fn every_mark_has_a_theme_slot_in_every_built_in_theme() {
+    for kind in [
+        MarkKind::Untracked,
+        MarkKind::Added,
+        MarkKind::Modified,
+        MarkKind::Deleted,
+        MarkKind::Conflict,
+    ] {
+        let slot = Mark { kind, letter: ' ' }.slot();
+        for theme in [
+            include_str!("../../crates/ui/defaults/default_theme.toml"),
+            include_str!("../../crates/ui/defaults/light_theme.toml"),
+            include_str!("../../crates/ui/defaults/sol_dark_theme.toml"),
+            include_str!("../../crates/ui/defaults/sol_light_theme.toml"),
+        ] {
+            assert!(theme.contains(&format!("[\"{slot}\"]")), "{slot}");
+        }
     }
 }

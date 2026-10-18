@@ -61,7 +61,13 @@ impl Render<AppState> for Workspace {
                     "tab.inactive"
                 };
 
-                frame.render_widget(Paragraph::new(label).style(theme.style(slot)), *rect);
+                let mut style = theme.style(slot);
+                let path = self.documents[&tab.document].buffer.path();
+                if let Some(mark) = path.and_then(|path| state.git_mark(path)) {
+                    style = style.patch(theme.style(mark.slot()));
+                }
+
+                frame.render_widget(Paragraph::new(label).style(style), *rect);
             }
 
             let focused = pane.id == self.focused;

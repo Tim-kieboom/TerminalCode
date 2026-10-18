@@ -78,6 +78,8 @@ pub(crate) struct AppState {
     formatting: bool,
     /// The branch and the changed files, once git has been asked.
     git: Option<crate::git::Status>,
+    /// What shows beside each changed file, from `git`.
+    git_marks: crate::git::Marks,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The suggestions for the word being typed, while there are any.

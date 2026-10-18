@@ -1,9 +1,12 @@
 use ratatui::Frame;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use unicode_width::UnicodeWidthStr;
 
 use super::{Explorer, NodeKind, Row};
 use crate::app::state::{AppState, Focus};
+use crate::files::paths::{canonical, without_verbatim_prefix};
+use crate::git::Mark;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::theme::Theme;
@@ -47,6 +50,7 @@ impl Render<AppState> for Explorer {
 
         let active_path = state.editor().buffer().path();
         let drop_target = self.drop_target();
+        let resolve = self.resolver();
         let lines: Vec<Line> = self
             .rows()
             .iter()
@@ -56,7 +60,16 @@ impl Render<AppState> for Explorer {
             .map(|(index, row)| {
                 let active = active_path.is_some_and(|path| path == row.path);
                 let drop = drop_target.is_some_and(|path| path == row.path);
-                line(row, index == self.selected, active, drop, live, theme)
+                let mark = state.git_mark(&resolve.path_of(&row.path));
+                let shown = Shown {
+                    selected: index == self.selected,
+                    active,
+                    drop,
+                    focused: live,
+                    mark,
+                    width: inner.width,
+                };
+                line(row, &shown, theme)
             })
             .collect();
 
@@ -64,14 +77,56 @@ impl Render<AppState> for Explorer {
     }
 }
 
-fn line<'a>(
-    row: &Row,
+/// Where the explorer's paths really are, for asking git about them: the
+/// project may be spelled with a link or a relative path, which git does not
+/// use. Worked out once for each frame, not for each row.
+struct Resolver<'a> {
+    spelled: &'a std::path::Path,
+    real: std::path::PathBuf,
+}
+
+impl Explorer {
+    fn resolver(&self) -> Resolver<'_> {
+        let spelled = self.root_path().unwrap_or(std::path::Path::new(""));
+        Resolver {
+            spelled,
+            real: without_verbatim_prefix(&canonical(spelled)),
+        }
+    }
+}
+
+impl Resolver<'_> {
+    fn path_of(&self, path: &std::path::Path) -> std::path::PathBuf {
+        match path.strip_prefix(self.spelled) {
+            Ok(inside) => self.real.join(inside),
+            Err(_) => path.to_path_buf(),
+        }
+    }
+}
+
+/// How one row is drawn, apart from the row itself.
+struct Shown {
     selected: bool,
+    /// The file open in the editor.
     active: bool,
+    /// The folder a dragged row would go into.
     drop: bool,
     focused: bool,
-    theme: &Theme,
-) -> Line<'a> {
+    /// What git says of the file, or of a folder with such files inside.
+    mark: Option<Mark>,
+    /// The width of the row.
+    width: u16,
+}
+
+fn line<'a>(row: &Row, shown: &Shown, theme: &Theme) -> Line<'a> {
+    let Shown {
+        selected,
+        active,
+        drop,
+        focused,
+        mark,
+        width,
+    } = *shown;
     let marker = match (row.kind, row.expanded) {
         (NodeKind::Dir, _) if row.looped => "↻ ",
         (NodeKind::Dir, true) => "▾ ",
@@ -93,10 +148,25 @@ fn line<'a>(
     if active {
         name_style = name_style.patch(theme.style("explorer.active"));
     }
-    let line = Line::from(vec![
+    if let Some(mark) = mark {
+        name_style = name_style.patch(theme.style(mark.slot()));
+    }
+    let used = guides.width() + text.width();
+    let mut spans = vec![
         Span::styled(guides, theme.style("explorer.guide")),
         Span::styled(text, name_style),
-    ]);
+    ];
+    // The letter sits at the right edge, when the name leaves room for it; a
+    // folder has the color only.
+    let letter = mark.filter(|_| row.kind == NodeKind::File);
+    if let Some(mark) = letter.filter(|_| used + 2 <= usize::from(width)) {
+        let gap = usize::from(width) - used - 1;
+        spans.push(Span::styled(
+            format!("{:gap$}{}", "", mark.letter),
+            theme.style(mark.slot()),
+        ));
+    }
+    let line = Line::from(spans);
     // The folder a dragged row would go into.
     if drop {
         return line.style(theme.style("explorer.drop"));

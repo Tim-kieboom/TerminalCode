@@ -147,6 +147,22 @@ background = "@selection"
 text = "@surface"
 background = "@text"
 
+["git.modified"]
+text = "@yellow"
+
+["git.added"]
+text = "@green"
+
+["git.deleted"]
+text = "@red"
+
+["git.conflict"]
+text = "@error"
+modifiers = ["bold"]
+
+["git.untracked"]
+text = "@teal"
+
 ["explorer.hint"]
 text = "@muted"
 

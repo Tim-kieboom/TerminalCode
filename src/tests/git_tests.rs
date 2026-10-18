@@ -310,3 +310,139 @@ fn the_second_refresh_sees_what_changed_since() {
         }
     );
 }
+
+// --- colors and letters ---
+
+use ratatui::style::Color;
+
+/// A status for the project of `rig`: `a.txt` modified, `sub/` has an
+/// untracked file, and `sub/new.txt` is the one.
+fn marked(rig: &mut Rig) {
+    let root = crate::files::paths::canonical(rig.dir.path());
+    std::fs::create_dir_all(root.join("sub")).unwrap();
+    std::fs::write(root.join("sub/new.txt"), "x").unwrap();
+    let entry = |path: &str, change| Entry {
+        path: PathBuf::from(path),
+        original: None,
+        change,
+    };
+    rig.answer(Ok(Status {
+        root,
+        branch: Branch::default(),
+        entries: vec![
+            entry(
+                "a.txt",
+                Change::Tracked {
+                    staged: None,
+                    unstaged: Some(Kind::Modified),
+                },
+            ),
+            entry("sub/new.txt", Change::Untracked),
+        ],
+    }));
+    rig.app
+        .state_mut()
+        .explorer_mut()
+        .refresh_paths(&[rig.dir.path().to_path_buf()])
+        .unwrap();
+}
+
+impl Rig {
+    fn fg_of(&self, slot: &str) -> Option<Color> {
+        self.app.state().theme().style(slot).fg
+    }
+
+    /// The cells of the first screen line, left of `limit`, that has `text`.
+    fn cells_with(&mut self, text: &str, limit: u16) -> Vec<(u16, String, Option<Color>)> {
+        self.screen();
+        let buffer = self.terminal.backend().buffer();
+        for y in 0..buffer.area.height {
+            let cells: Vec<_> = (0..limit.min(buffer.area.width))
+                .map(|x| {
+                    let cell = &buffer[(x, y)];
+                    (x, cell.symbol().to_owned(), cell.style().fg)
+                })
+                .collect();
+            let line: String = cells.iter().map(|(_, symbol, _)| symbol.as_str()).collect();
+            if line.contains(text) {
+                return cells;
+            }
+        }
+        panic!("no line with {text}");
+    }
+}
+
+#[test]
+fn a_changed_file_is_colored_and_has_its_letter_at_the_right_edge_of_the_explorer() {
+    let mut rig = rig();
+    marked(&mut rig);
+    let modified = rig.fg_of("git.modified");
+
+    let cells = rig.cells_with("a.txt", 30);
+
+    let letter = cells.iter().find(|(_, symbol, _)| symbol == "M").unwrap();
+    assert_eq!(letter.2, modified, "the letter has the color");
+    let name = cells.iter().find(|(_, symbol, _)| symbol == "a").unwrap();
+    assert_eq!(name.2, modified, "so has the name");
+    let right_edge = cells
+        .iter()
+        .rev()
+        .find(|(_, symbol, _)| symbol.chars().all(char::is_alphanumeric) && symbol != " ")
+        .unwrap();
+    assert_eq!(right_edge.1, "M", "the letter is the last thing in the row");
+}
+
+#[test]
+fn a_folder_has_the_color_of_what_is_inside_and_no_letter() {
+    let mut rig = rig();
+    marked(&mut rig);
+    let untracked = rig.fg_of("git.untracked");
+
+    let cells = rig.cells_with("sub", 30);
+
+    let name = cells.iter().find(|(_, symbol, _)| symbol == "s").unwrap();
+    assert_eq!(name.2, untracked);
+    assert!(!cells.iter().any(|(_, symbol, _)| symbol == "U"));
+}
+
+#[test]
+fn a_file_that_git_does_not_list_has_no_mark() {
+    let mut rig = rig();
+    marked(&mut rig);
+    std::fs::write(rig.dir.path().join("clean.txt"), "x").unwrap();
+    rig.app
+        .state_mut()
+        .explorer_mut()
+        .refresh_paths(&[rig.dir.path().to_path_buf()])
+        .unwrap();
+
+    let cells = rig.cells_with("clean.txt", 30);
+
+    let name = cells.iter().find(|(_, symbol, _)| symbol == "c").unwrap();
+    assert_eq!(name.2, rig.fg_of("explorer.file"));
+    assert!(!cells.iter().any(|(_, symbol, _)| symbol == "M"));
+}
+
+#[test]
+fn the_tab_of_a_changed_file_has_the_color() {
+    let mut rig = rig();
+    marked(&mut rig);
+    let modified = rig.fg_of("git.modified");
+
+    // The tab is further right than the explorer.
+    let cells = rig.cells_with("a.txt", 120);
+
+    let tab_name = cells.iter().rfind(|(_, symbol, _)| symbol == "a").unwrap();
+    assert_eq!(tab_name.2, modified);
+}
+
+#[test]
+fn marks_go_when_git_goes() {
+    let mut rig = rig();
+    marked(&mut rig);
+
+    rig.answer(Err(GitError::NotInstalled));
+
+    let cells = rig.cells_with("a.txt", 30);
+    assert!(!cells.iter().any(|(_, symbol, _)| symbol == "M"));
+}
