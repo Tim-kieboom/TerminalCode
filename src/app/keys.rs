@@ -298,6 +298,8 @@ impl App {
             Action::TerminalCloseTab => self.close_terminal_tab(),
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::FocusPluginView(id) => self.focus_plugin_view(&id),
+            Action::ShowPlugins => self.show_plugins(),
+            Action::TogglePlugin(id) => self.toggle_plugin(&id),
             // Focus went to the editor before the match (see `focuses_editor`).
             Action::FocusEditor => {}
             Action::Explorer(command) => self.explorer_command(command)?,

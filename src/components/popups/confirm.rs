@@ -27,6 +27,8 @@ pub(crate) enum Purpose {
     ResetConfig(ConfigFile),
     /// Forget which panes were hidden or shown, keeping `state.json` as `.bak`.
     ResetSavedState,
+    /// Let the plugin with this id run, with what it asked to be allowed to do.
+    EnablePlugin(Box<str>),
 }
 
 /// What a key press answers.
@@ -95,6 +97,29 @@ impl Confirm {
     /// Asks whether to put the built-in default in place of the config file `name`.
     pub(crate) fn reset_config(file: ConfigFile) -> Self {
         Self::reset(file.file_name(), Purpose::ResetConfig(file))
+    }
+
+    /// Asks whether to let a plugin run. `allowed` says what it will be able to do,
+    /// one line for each; no lines is a plugin that can only draw in its pane.
+    pub(crate) fn enable_plugin(id: &str, name: &str, version: &str, allowed: &[String]) -> Self {
+        let mut lines = vec![
+            format!("Turn on the plugin {name} {version}?"),
+            String::new(),
+        ];
+        match allowed.is_empty() {
+            true => lines.push("It can draw in its own pane and nothing else.".to_owned()),
+            false => {
+                lines.push("It will be able to:".to_owned());
+                lines.extend(allowed.iter().map(|line| format!("  - {line}")));
+            }
+        }
+        lines.push(String::new());
+        lines.push("It runs apart from the editor and cannot do anything else.".to_owned());
+        Self {
+            title: " Plugin ".to_owned(),
+            lines,
+            purpose: Purpose::EnablePlugin(id.into()),
+        }
     }
 
     /// Asks whether to forget which panes were hidden or shown.

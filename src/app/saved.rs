@@ -1,7 +1,7 @@
 //! Remembering which panes are hidden, between runs: see [`crate::persist::saved_state`].
 
 use super::App;
-use crate::persist::saved_state::{self, SavedState};
+use crate::persist::saved_state::{self, PluginRecord, SavedState};
 use crate::ui::ComponentKind;
 
 /// The panes that can be hidden and are remembered.
@@ -52,6 +52,13 @@ impl App {
     /// What is remembered.
     pub(super) fn saved_state(&self) -> SavedState {
         self.saved.state.clone()
+    }
+
+    /// Remembers what the user decided about the plugin `id`.
+    pub(super) fn remember_plugin(&mut self, id: &str, record: PluginRecord) {
+        if self.saved.state.set_plugin(id, record) {
+            self.write_saved_state();
+        }
     }
 
     /// Remembers that the settings up to `version` were added to `settings.json`.

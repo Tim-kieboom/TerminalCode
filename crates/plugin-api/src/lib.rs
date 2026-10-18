@@ -13,12 +13,14 @@
 //! refuses a plugin built for another major (see [`Abi::check`]).
 
 pub use abi::{Abi, AbiError};
+pub use manifest::Manifest;
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
     Refusal, ToPlugin, WireLine, WireView,
 };
 
 mod abi;
+mod manifest;
 mod message;
 #[cfg(test)]
 mod tests;

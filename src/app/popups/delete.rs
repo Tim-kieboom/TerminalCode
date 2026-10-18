@@ -65,6 +65,12 @@ impl App {
         };
         self.needs_redraw = true;
         if answer != Answer::Yes {
+            // A plugin that was said no to is not asked about again until it wants
+            // more; the next plugin that waits for an answer is asked.
+            if let Purpose::EnablePlugin(id) = confirm.purpose() {
+                self.refuse_plugin(id);
+            }
+            self.ask_about_next_plugin();
             return;
         }
         match confirm.purpose() {
@@ -72,7 +78,9 @@ impl App {
             Purpose::DeletePermanently(path) => self.delete_for_good(path),
             Purpose::ResetConfig(file) => self.reset_config(*file),
             Purpose::ResetSavedState => self.reset_saved_state(),
+            Purpose::EnablePlugin(id) => self.allow_plugin(id),
         }
+        self.ask_about_next_plugin();
     }
 
     /// Moves `path` to the trash; when that is not possible, asks whether to

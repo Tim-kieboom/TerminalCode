@@ -503,3 +503,91 @@ fn capabilities_are_written_as_their_names() {
         vec![Capability::GitWrite, Capability::Unknown]
     );
 }
+
+// --- the manifest ---
+
+use crate::Manifest;
+
+#[test]
+fn a_manifest_reads_from_toml_with_its_actions() {
+    let manifest: Manifest = toml::from_str(
+        r#"
+id = "git-viewer"
+name = "Git Viewer"
+version = "0.1.0"
+abi = "1.2"
+requires = "0.7.0"
+wasm = "git_viewer.wasm"
+capabilities = ["git.read", "git.write"]
+
+[[action]]
+id = "stage"
+title = "Stage File"
+keys = "s"
+
+[[action]]
+id = "refresh"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(manifest.id, "git-viewer");
+    assert_eq!(manifest.display_name(), "Git Viewer");
+    assert_eq!(manifest.requires.as_deref(), Some("0.7.0"));
+    assert_eq!(manifest.capabilities, ["git.read", "git.write"]);
+    assert_eq!(
+        manifest.actions,
+        vec![
+            ActionDecl::new("stage", "Stage File").with_keys("s"),
+            ActionDecl::new("refresh", ""),
+        ]
+    );
+}
+
+#[test]
+fn a_manifest_needs_only_an_id_a_version_an_abi_and_a_module() {
+    let manifest: Manifest =
+        toml::from_str("id = \"tiny\"\nversion = \"1.0.0\"\nabi = \"1.0\"\nwasm = \"tiny.wasm\"\n")
+            .unwrap();
+
+    assert_eq!(
+        manifest.display_name(),
+        "tiny",
+        "the id when there is no name"
+    );
+    assert_eq!(manifest.requires, None);
+    assert!(manifest.capabilities.is_empty());
+    assert!(manifest.actions.is_empty());
+}
+
+#[test]
+fn a_manifest_with_a_part_this_version_does_not_know_still_reads() {
+    let manifest: Result<Manifest, _> = toml::from_str(
+        "id = \"x\"\nversion = \"1.0.0\"\nabi = \"1.0\"\nwasm = \"x.wasm\"\nlicense = \"MIT\"\n[ui]\nicon = \"star\"\n",
+    );
+
+    assert!(manifest.is_ok());
+}
+
+#[test]
+fn a_manifest_without_what_it_needs_does_not_read() {
+    for text in [
+        "version = \"1\"\nabi = \"1.0\"\nwasm = \"x.wasm\"",
+        "id = \"x\"\nabi = \"1.0\"\nwasm = \"x.wasm\"",
+        "id = \"x\"\nversion = \"1\"\nwasm = \"x.wasm\"",
+        "id = \"x\"\nversion = \"1\"\nabi = \"1.0\"",
+    ] {
+        assert!(toml::from_str::<Manifest>(text).is_err(), "{text}");
+    }
+}
+
+#[test]
+fn capabilities_are_found_by_the_name_a_manifest_writes() {
+    assert_eq!(Capability::parse("git.read"), Some(Capability::GitRead));
+    assert_eq!(Capability::parse("git.write"), Some(Capability::GitWrite));
+    assert_eq!(Capability::parse("net.fetch"), None);
+    assert_eq!(Capability::parse("unknown"), None, "not a name to ask for");
+    for capability in Capability::ALL {
+        assert_eq!(Capability::parse(capability.name()), Some(capability));
+    }
+}

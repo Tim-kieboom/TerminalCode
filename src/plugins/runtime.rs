@@ -55,6 +55,10 @@ enum Command {
         plugin: Box<str>,
         message: ToPlugin,
     },
+    /// The plugin is turned off.
+    Unload {
+        plugin: Box<str>,
+    },
     /// The repository has a new state (`None`: there is none any more).
     Git(Option<Box<Sections>>),
 }
@@ -100,6 +104,13 @@ impl Runtime {
             plugin: plugin.into(),
             wasm,
             grants: grants.into_iter().collect(),
+        });
+    }
+
+    /// Stops `plugin` and forgets it.
+    pub(crate) fn unload(&self, plugin: &str) {
+        self.command(Command::Unload {
+            plugin: plugin.into(),
         });
     }
 
@@ -184,6 +195,9 @@ impl Host {
                 grants,
             } => self.load(plugin, &wasm, grants),
             Command::Send { plugin, message } => self.deliver(&plugin, message),
+            Command::Unload { plugin } => {
+                self.plugins.remove(&plugin);
+            }
             Command::Git(sections) => {
                 self.git = sections;
                 let message = self.git_news();

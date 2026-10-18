@@ -42,6 +42,7 @@ mod paths_tests;
 mod perf_tests;
 mod plugin_git_tests;
 mod plugin_key_tests;
+mod plugin_manage_tests;
 mod plugin_tests;
 mod quit_tests;
 mod recent_tests;

@@ -260,6 +260,28 @@ pub enum Capability {
     Unknown,
 }
 
+impl Capability {
+    /// Every capability this version has.
+    pub const ALL: [Self; 2] = [Self::GitRead, Self::GitWrite];
+
+    /// The name a manifest writes it by.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::GitRead => "git.read",
+            Self::GitWrite => "git.write",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// The capability a manifest names, or `None` for a name this version does not
+    /// have (a plugin built for a later version, or a misspelling).
+    pub fn parse(name: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|capability| capability.name() == name)
+    }
+}
+
 /// The files git lists, in the groups a Git pane shows. A file changed both in
 /// the index and since is in two of them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

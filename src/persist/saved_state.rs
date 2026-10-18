@@ -7,6 +7,7 @@
 //! the way the layout file says (`hidden: true`), and otherwise the way it always
 //! did, so editing the layout still moves a pane the user never touched.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -44,6 +45,17 @@ impl Shown {
     }
 }
 
+/// What the user decided about a plugin.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct PluginRecord {
+    /// Whether the plugin runs.
+    pub enabled: bool,
+    /// The names of the capabilities the user was shown when they decided; a
+    /// plugin that comes to need more is asked about again.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
 /// The remembered state. Names in the file that this version does not know are
 /// left alone when reading, so a file from a newer version still loads.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,6 +67,9 @@ pub(crate) struct SavedState {
     /// deleted would come back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     settings_version: Option<String>,
+    /// What the user decided about each plugin, by id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    plugins: BTreeMap<String, PluginRecord>,
 }
 
 impl SavedState {
@@ -76,12 +91,25 @@ impl SavedState {
         changed
     }
 
-    /// What a reset leaves: no pane remembered, but the settings version kept.
+    /// What a reset leaves: no pane and no plugin remembered (plugins are asked
+    /// about again), but the settings version kept.
     pub(crate) fn reset(&self) -> Self {
         Self {
             shown: Shown::default(),
             settings_version: self.settings_version.clone(),
+            plugins: BTreeMap::new(),
         }
+    }
+
+    /// What the user decided about the plugin `id`, if they ever did.
+    pub(crate) fn plugin(&self, id: &str) -> Option<&PluginRecord> {
+        self.plugins.get(id)
+    }
+
+    /// Remembers what the user decided about the plugin `id`. Returns whether that
+    /// is news.
+    pub(crate) fn set_plugin(&mut self, id: &str, record: PluginRecord) -> bool {
+        self.plugins.insert(id.to_owned(), record.clone()) != Some(record)
     }
 
     /// Remembers that the pane is `shown` now. Returns whether that is news.

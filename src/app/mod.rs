@@ -36,6 +36,7 @@ mod formatting;
 mod git;
 mod hover;
 mod open;
+mod plugin_manager;
 mod plugins;
 mod recent;
 mod rename;
@@ -320,6 +321,7 @@ impl App {
     pub(crate) fn with_events(mut self, events: mpsc::Sender<Event>) -> Self {
         self.background.connect(events);
         self.start_plugin_runtime();
+        self.load_installed_plugins();
         self.start_syntax_worker();
         self
     }

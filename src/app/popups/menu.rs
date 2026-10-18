@@ -312,6 +312,8 @@ impl App {
                     item("Toggle Menu Bar", Action::ToggleMenuBar),
                     item("Show Errors", Action::ShowErrors),
                     item("Toggle Mouse", Action::ToggleMouse),
+                    Entry::Separator,
+                    item("Plugins", Action::ShowPlugins),
                 ],
             ),
             group(

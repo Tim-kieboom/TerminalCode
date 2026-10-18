@@ -36,6 +36,11 @@ pub(crate) enum Action {
     /// Shows the view of the plugin with this id if it is hidden, and gives it the
     /// keyboard.
     FocusPluginView(Box<str>),
+    /// Opens the list of the plugins the user has, to turn each on or off.
+    ShowPlugins,
+    /// Turns the plugin with this id on (asking what it may do, when it has not
+    /// been asked) or off.
+    TogglePlugin(Box<str>),
     /// Opens the file finder.
     FindFile,
     /// Opens the project search.
@@ -233,6 +238,8 @@ impl Action {
                 | Self::FocusExplorer
                 | Self::FocusEditor
                 | Self::FocusPluginView(_)
+                | Self::ShowPlugins
+                | Self::TogglePlugin(_)
                 | Self::ToggleExplorer
                 | Self::ToggleStatusBar
                 | Self::TogglePluginView(_)
@@ -295,6 +302,7 @@ impl Action {
             Self::CommandPalette => "Application: Command Palette",
             Self::FocusExplorer => "Explorer: Focus",
             Self::FocusEditor => "Editor: Focus",
+            Self::ShowPlugins => "Plugins: Manage",
             Self::ToggleExplorer => "View: Toggle Explorer",
             Self::ToggleStatusBar => "View: Toggle Status Bar",
             Self::ToggleTerminal => "View: Toggle Terminal",
@@ -395,7 +403,9 @@ impl Action {
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) | Self::Errors(_) => return None,
             Self::OpenRecentFile(_) | Self::OpenRecentFolder(_) => return None,
-            Self::TogglePluginView(_) | Self::FocusPluginView(_) => return None,
+            Self::TogglePluginView(_) | Self::FocusPluginView(_) | Self::TogglePlugin(_) => {
+                return None;
+            }
             Self::Move(_)
             | Self::Select(_)
             | Self::InsertText(_)
@@ -431,6 +441,7 @@ impl Action {
             Self::ReplaceInFile,
             Self::FocusExplorer,
             Self::FocusEditor,
+            Self::ShowPlugins,
             Self::ToggleExplorer,
             Self::ToggleStatusBar,
             Self::ToggleTerminal,

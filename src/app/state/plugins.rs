@@ -45,6 +45,19 @@ impl AppState {
             .is_some_and(|view| view.content().is_input());
     }
 
+    /// Takes a plugin's pane away: its content, and the keyboard if it had it.
+    pub(crate) fn remove_plugin_view(&mut self, id: &PluginViewId) {
+        self.components.plugin_views.remove(id);
+        self.plugin_areas.remove(id);
+        if self.focused_plugin.as_ref() == Some(id) {
+            self.focused_plugin = None;
+            self.plugin_input = false;
+            if self.focus == Focus::Plugin {
+                self.focus = Focus::Editor;
+            }
+        }
+    }
+
     pub(crate) fn set_plugin_area(&mut self, id: PluginViewId, area: Rect) {
         self.plugin_areas.insert(id, area);
     }

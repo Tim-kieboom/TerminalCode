@@ -18,8 +18,9 @@ use crate::ui::{ComponentKind, PluginViewId};
 /// plugin declared.
 #[derive(Debug, Default)]
 pub(super) struct Plugins {
-    runtime: Option<Runtime>,
-    actions: HashMap<Box<str>, Vec<ActionDecl>>,
+    pub(super) runtime: Option<Runtime>,
+    pub(super) actions: HashMap<Box<str>, Vec<ActionDecl>>,
+    pub(super) manager: super::plugin_manager::Manager,
 }
 
 impl App {
@@ -44,9 +45,12 @@ impl App {
             Notice::Restarted { plugin, reason } => self
                 .state
                 .notify(format!("plugin {plugin} restarted: {reason}")),
-            Notice::Disabled { plugin, reason } => self.state.notify_error(format!(
-                "plugin {plugin} is off: it failed three times within a minute (last: {reason})"
-            )),
+            Notice::Disabled { plugin, reason } => {
+                self.state.notify_error(format!(
+                    "plugin {plugin} is off: it failed three times within a minute (last: {reason})"
+                ));
+                self.plugin_stopped_for_failing(&plugin, &reason);
+            }
             Notice::Broken { plugin, reason } => self
                 .state
                 .notify_error(format!("plugin {plugin} cannot run: {reason}")),

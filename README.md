@@ -25,6 +25,7 @@ needs a recent glibc; on an older system build from source.
 - **Syntax colors** for Rust, TOML, JSON, Markdown and Nix, computed on a background thread so typing never waits.
 - **Explorer:** a project tree that shows what `.gitignore` leaves out dimmed (you can still open it), with create, rename, move (also by drag and drop) and delete.
 - **Git:** the branch in the status bar, a color and a letter for changed files in the explorer and the tabs (folders take the strongest one inside), and a bar in the gutter for the lines that differ from what is staged (added, changed, removed). It uses your own `git` and only reads; a repository that is slow to answer is asked less often, and with no `git` or no repository it switches off with a message.
+- **Plugins** (WebAssembly, sandboxed, early): a folder with a `manifest.toml` and a module in the `plugins` folder of the config folder, listed by "Plugins: Manage" in the palette. Each plugin says what it needs to be allowed to do, and you are asked once when you turn it on. A plugin can draw in a pane, add actions to the palette and keys, and, if you allow it, read and change the state of the git repository. It runs apart from the editor with a budget, so a plugin that hangs or fails is stopped and cannot stop the editor.
 - **Finder and project search:** open a file by name from anywhere (`ctrl+p`), and search the whole project (`alt+f`).
 - **Integrated terminal:** a shell in a pane, with tabs, scrollback and mouse reporting, on Linux, macOS and Windows.
 - **Command palette** (`f1`) for every action.
