@@ -80,6 +80,15 @@ fn rig() -> Rig {
     let root = fs::canonicalize(project.path()).unwrap();
     fs::write(root.join("a.txt"), "alpha\n").unwrap();
     git(&root, &["init", "-q", "-b", "main"]);
+    // The pane's commits are made by the editor's own git, which reads this: a
+    // machine with no identity of its own (CI) could not commit otherwise.
+    for (key, value) in [
+        ("user.name", "Test"),
+        ("user.email", "test@example.com"),
+        ("commit.gpgsign", "false"),
+    ] {
+        git(&root, &["config", key, value]);
+    }
     git(&root, &["add", "a.txt"]);
     git(&root, &["commit", "-q", "-m", "first"]);
     fs::write(root.join("a.txt"), "alpha changed\n").unwrap();
