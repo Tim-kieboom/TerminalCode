@@ -1,4 +1,15 @@
 {
   "format": 1,
-  "plugins": []
+  "plugins": [
+    {
+      "id": "git",
+      "name": "Git",
+      "description": "The changed files of the repository: open, stage and unstage",
+      "version": "0.1.0",
+      "manifest": "https://github.com/Tim-kieboom/trcode-plugin-git/releases/download/v0.1.0/manifest.toml",
+      "module": "https://github.com/Tim-kieboom/trcode-plugin-git/releases/download/v0.1.0/git.wasm",
+      "sha256": "fd145e346a16af1a99548f5c58ca858ea252d1f40f2346484c3fbb8f33c181c4",
+      "abi": "1.3"
+    }
+  ]
 }

@@ -156,9 +156,13 @@ impl Index {
         })
     }
 
-    /// The index of this release.
+    /// The index of this release. Empty in tests, so that what ships does not change
+    /// what they see (`the_snapshot_of_the_release_reads` reads the real file).
     pub(crate) fn snapshot() -> Self {
-        Self::parse(SNAPSHOT).unwrap_or_default()
+        match cfg!(test) {
+            true => Self::default(),
+            false => Self::parse(SNAPSHOT).unwrap_or_default(),
+        }
     }
 
     /// The last index that was fetched, or the snapshot when there is none (or it

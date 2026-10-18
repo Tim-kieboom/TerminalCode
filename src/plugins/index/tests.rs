@@ -20,7 +20,11 @@ const HOST: Host<'static> = Host {
 #[test]
 fn the_snapshot_of_the_release_reads() {
     // The file in the repository is what ships; it must always be good.
-    assert!(Index::parse(SNAPSHOT).is_ok());
+    let index = Index::parse(SNAPSHOT).unwrap();
+    // Every plugin it lists can be installed by the editor it ships with.
+    for entry in &index.entries {
+        assert_eq!(entry.availability(HOST), Availability::Ready, "{}", entry.id);
+    }
 }
 
 #[test]
@@ -118,5 +122,5 @@ fn the_cache_wins_over_the_snapshot_and_a_broken_one_loses() {
             .entries
             .is_empty()
     );
-    assert!(Index::cached_or_snapshot(None).entries.is_empty());
+    assert_eq!(Index::cached_or_snapshot(None), Index::snapshot());
 }
