@@ -138,6 +138,9 @@ impl App {
             let result = match &op {
                 WriteOp::Stage(path) => git.stage(&root, path),
                 WriteOp::Unstage(path) => git.unstage(&root, path),
+                WriteOp::StageAll => git.stage_all(&root),
+                WriteOp::UnstageAll => git.unstage_all(&root),
+                WriteOp::Commit(message) => git.commit(&root, message),
             };
             let _ = events.blocking_send(Event::PluginGit {
                 plugin,
@@ -160,6 +163,7 @@ impl App {
             Err(ActionError::BadArgument(detail)) => {
                 refused(request, Refusal::BadArgument { detail })
             }
+            Err(ActionError::NothingStaged) => refused(request, Refusal::NothingStaged),
             Err(ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))) => {
                 refused(request, Refusal::NoRepository)
             }

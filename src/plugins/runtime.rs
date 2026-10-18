@@ -21,6 +21,9 @@ use crate::ui::view::ViewNode;
 pub(crate) enum WriteOp {
     Stage(String),
     Unstage(String),
+    StageAll,
+    UnstageAll,
+    Commit(String),
 }
 
 /// What the runtime tells the app.
@@ -355,9 +358,11 @@ impl Host {
         for request in requests {
             let (id, needs, needs_git) = match &request {
                 FromPlugin::GitEntries { request, .. } => (*request, Capability::GitRead, true),
-                FromPlugin::GitStage { request, .. } | FromPlugin::GitUnstage { request, .. } => {
-                    (*request, Capability::GitWrite, true)
-                }
+                FromPlugin::GitStage { request, .. }
+                | FromPlugin::GitUnstage { request, .. }
+                | FromPlugin::GitStageAll { request }
+                | FromPlugin::GitUnstageAll { request }
+                | FromPlugin::GitCommit { request, .. } => (*request, Capability::GitWrite, true),
                 FromPlugin::OpenFile { request, .. } => (*request, Capability::EditorOpen, false),
                 _ => continue,
             };
@@ -402,6 +407,18 @@ impl Host {
             }
             FromPlugin::GitUnstage { request, path } => {
                 self.to_app(plugin, request, WriteOp::Unstage(path));
+                None
+            }
+            FromPlugin::GitStageAll { request } => {
+                self.to_app(plugin, request, WriteOp::StageAll);
+                None
+            }
+            FromPlugin::GitUnstageAll { request } => {
+                self.to_app(plugin, request, WriteOp::UnstageAll);
+                None
+            }
+            FromPlugin::GitCommit { request, message } => {
+                self.to_app(plugin, request, WriteOp::Commit(message));
                 None
             }
             _ => None,

@@ -760,3 +760,36 @@ fn an_older_editor_reads_a_column_as_an_unknown_view_not_an_error() {
         Ok(FromPlugin::set_view(WireView::Unknown))
     );
 }
+
+const STAGE_ALL: &str = r#"{"type":"git_stage_all","request":1}"#;
+const UNSTAGE_ALL: &str = r#"{"type":"git_unstage_all","request":2}"#;
+const COMMIT: &str = r#"{"type":"git_commit","request":3,"message":"Fix it"}"#;
+const NOTHING_STAGED: &str = r#"{"type":"refused","request":3,"reason":{"type":"nothing_staged"}}"#;
+
+#[test]
+fn the_requests_to_stage_all_unstage_all_and_commit_are_written_as_pinned() {
+    for (message, text) in [
+        (FromPlugin::GitStageAll { request: 1 }, STAGE_ALL),
+        (FromPlugin::GitUnstageAll { request: 2 }, UNSTAGE_ALL),
+        (
+            FromPlugin::GitCommit {
+                request: 3,
+                message: "Fix it".into(),
+            },
+            COMMIT,
+        ),
+    ] {
+        assert_eq!(message.to_bytes().unwrap(), text.as_bytes());
+        assert_eq!(FromPlugin::from_bytes(text.as_bytes()), Ok(message));
+    }
+}
+
+#[test]
+fn nothing_staged_is_a_refusal_of_its_own() {
+    let refused = ToPlugin::Refused {
+        request: 3,
+        reason: Refusal::NothingStaged,
+    };
+    assert_eq!(refused.to_bytes().unwrap(), NOTHING_STAGED.as_bytes());
+    assert_eq!(ToPlugin::from_bytes(NOTHING_STAGED.as_bytes()), Ok(refused));
+}

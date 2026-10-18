@@ -505,3 +505,144 @@ fn a_file_is_opened_from_the_project_when_there_is_no_repository() {
     assert_eq!(answer, r#"{"type":"done","request":8}"#);
     assert_eq!(open_file_name(&rig).as_deref(), Some("a.txt"));
 }
+
+// --- stage all, unstage all, commit ---
+
+const STAGE_ALL: &str = r#"{"type":"git_stage_all","request":11}"#;
+const UNSTAGE_ALL: &str = r#"{"type":"git_unstage_all","request":12}"#;
+
+fn commit_request(message: &str) -> String {
+    format!(r#"{{"type":"git_commit","request":13,"message":"{message}"}}"#)
+}
+
+/// A rig whose repository may commit whatever the machine's own git config says.
+fn committing_rig() -> Rig {
+    let rig = rig();
+    let root = rig.root();
+    git(&root, &["config", "user.name", "Test"]);
+    git(&root, &["config", "user.email", "test@example.com"]);
+    git(&root, &["config", "commit.gpgsign", "false"]);
+    rig
+}
+
+fn subjects(rig: &Rig) -> String {
+    git(&rig.root(), &["log", "--format=%s"]).trim().to_owned()
+}
+
+#[test]
+fn a_plugin_that_may_write_stages_everything_and_is_told_it_is_done() {
+    let mut rig = rig();
+    rig.load(asking(STAGE_ALL), WRITE);
+
+    let answer = rig.ask(r#"{"type":"done","request":11}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":11}"#);
+    assert_eq!(staged(&rig), "b.txt");
+}
+
+#[test]
+fn everything_is_unstaged_again() {
+    let mut rig = rig();
+    git(&rig.root(), &["add", "b.txt"]);
+    rig.load(asking(UNSTAGE_ALL), WRITE);
+    assert_eq!(staged(&rig), "b.txt");
+
+    let answer = rig.ask(r#"{"type":"done","request":12}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":12}"#);
+    assert_eq!(staged(&rig), "");
+}
+
+#[test]
+fn a_plugin_that_may_write_commits_what_is_staged() {
+    let mut rig = committing_rig();
+    git(&rig.root(), &["add", "b.txt"]);
+    rig.load(asking(&commit_request("Add b")), WRITE);
+
+    let answer = rig.ask(r#"{"type":"done","request":13}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":13}"#);
+    assert_eq!(subjects(&rig), "Add b\nfirst");
+    assert_eq!(staged(&rig), "");
+}
+
+#[test]
+fn what_git_says_after_a_commit_is_read_at_once() {
+    let mut rig = committing_rig();
+    git(&rig.root(), &["add", "b.txt"]);
+    rig.load(asking(&commit_request("Add b")), WRITE);
+    let started = Instant::now();
+
+    rig.ask(r#"{"type":"done","request":13}"#);
+
+    // The file that was untracked is committed, so nothing is left to tell about.
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "no wait for a burst of changes to end"
+    );
+}
+
+#[test]
+fn an_empty_commit_message_is_refused_as_a_bad_argument() {
+    let mut rig = committing_rig();
+    git(&rig.root(), &["add", "b.txt"]);
+    rig.load(asking(&commit_request("  ")), WRITE);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":13,"reason":{"type":"bad_argument","detail":"the commit message is empty"}}"#
+    );
+    assert_eq!(subjects(&rig), "first");
+}
+
+#[test]
+fn a_commit_with_nothing_staged_is_refused_with_its_own_reason() {
+    let mut rig = committing_rig();
+    rig.load(asking(&commit_request("Nothing")), WRITE);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":13,"reason":{"type":"nothing_staged"}}"#
+    );
+}
+
+#[test]
+fn the_three_new_requests_need_the_capability_to_write() {
+    for (request, id) in [
+        (STAGE_ALL.to_owned(), 11),
+        (UNSTAGE_ALL.to_owned(), 12),
+        (commit_request("x"), 13),
+    ] {
+        let mut rig = rig();
+        git(&rig.root(), &["add", "b.txt"]);
+        rig.load(asking(&request), READ);
+
+        let answer = rig.ask(r#""type":"refused""#);
+
+        assert_eq!(
+            answer,
+            format!(
+                r#"{{"type":"refused","request":{id},"reason":{{"type":"denied","capability":"git.write"}}}}"#
+            )
+        );
+        assert_eq!(staged(&rig), "b.txt", "nothing changed");
+        assert_eq!(subjects(&rig), "first");
+    }
+}
+
+#[test]
+fn the_new_requests_in_a_folder_that_is_no_repository_are_refused() {
+    let mut rig = rig_in(false);
+    rig.load(asking(STAGE_ALL), WRITE);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":11,"reason":{"type":"no_repository"}}"#
+    );
+}

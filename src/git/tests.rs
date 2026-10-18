@@ -1269,3 +1269,237 @@ fn a_leftover_index_lock_fails_a_change_with_gits_words_and_not_a_read() {
     // And a read is not stopped by it.
     assert!(Git::default().status(&root).is_ok());
 }
+
+// --- stage all, unstage all, commit ---
+
+/// A repository that may commit: the identity is in its own config, so the test
+/// does not depend on the machine's.
+fn committer() -> tempfile::TempDir {
+    let dir = repository();
+    git(dir.path(), &["config", "user.name", "Test"]);
+    git(dir.path(), &["config", "user.email", "test@example.com"]);
+    git(dir.path(), &["config", "commit.gpgsign", "false"]);
+    dir
+}
+
+fn log(dir: &Path) -> Vec<String> {
+    let output = Command::new("git")
+        .args(["log", "--format=%s"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn stage_all_stages_new_changed_and_deleted_files_in_every_folder() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    std::fs::create_dir(root.join("sub")).unwrap();
+    std::fs::write(root.join("sub/new.txt"), "n\n").unwrap();
+    std::fs::write(root.join("kept.txt"), "changed\n").unwrap();
+    std::fs::write(root.join("top.txt"), "t\n").unwrap();
+    let tool = Git::default();
+
+    tool.stage_all(&root).unwrap();
+
+    let status = tool.status(&root).unwrap();
+    for (path, expected) in [
+        ("sub/new.txt", tracked(Some(Kind::Added), None)),
+        ("top.txt", tracked(Some(Kind::Added), None)),
+        ("kept.txt", tracked(Some(Kind::Modified), None)),
+    ] {
+        assert_eq!(staged_and_unstaged(&status, path), Some(expected), "{path}");
+    }
+}
+
+#[test]
+fn stage_all_stages_a_deletion() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    std::fs::remove_file(root.join("kept.txt")).unwrap();
+
+    Git::default().stage_all(&root).unwrap();
+
+    let status = Git::default().status(&root).unwrap();
+    assert_eq!(
+        staged_and_unstaged(&status, "kept.txt"),
+        Some(tracked(Some(Kind::Deleted), None))
+    );
+}
+
+#[test]
+fn unstage_all_keeps_the_files_and_unstages_everything() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("a.txt"), "a\n").unwrap();
+    std::fs::write(root.join("kept.txt"), "changed\n").unwrap();
+    let tool = Git::default();
+    tool.stage_all(&root).unwrap();
+
+    tool.unstage_all(&root).unwrap();
+
+    let status = tool.status(&root).unwrap();
+    assert_eq!(
+        staged_and_unstaged(&status, "kept.txt"),
+        Some(tracked(None, Some(Kind::Modified)))
+    );
+    assert_eq!(
+        staged_and_unstaged(&status, "a.txt"),
+        Some(Change::Untracked)
+    );
+    assert_eq!(std::fs::read_to_string(root.join("a.txt")).unwrap(), "a\n");
+}
+
+#[test]
+fn unstage_all_works_before_the_first_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    git(dir.path(), &["init", "-q", "-b", "main"]);
+    let root = canonical(dir.path());
+    std::fs::write(root.join("a.txt"), "a\n").unwrap();
+    let tool = Git::default();
+    tool.stage_all(&root).unwrap();
+
+    tool.unstage_all(&root).unwrap();
+
+    let status = tool.status(&root).unwrap();
+    assert_eq!(
+        staged_and_unstaged(&status, "a.txt"),
+        Some(Change::Untracked)
+    );
+}
+
+#[test]
+fn a_commit_records_what_is_staged_with_the_message_and_leaves_the_rest() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("kept.txt"), "changed\n").unwrap();
+    std::fs::write(root.join("other.txt"), "o\n").unwrap();
+    let tool = Git::default();
+    tool.stage(&root, "kept.txt").unwrap();
+
+    tool.commit(&root, "Change kept").unwrap();
+
+    assert_eq!(log(&root), ["Change kept", "first"]);
+    let status = tool.status(&root).unwrap();
+    assert_eq!(staged_and_unstaged(&status, "kept.txt"), None, "committed");
+    assert_eq!(
+        staged_and_unstaged(&status, "other.txt"),
+        Some(Change::Untracked)
+    );
+}
+
+#[test]
+fn a_message_is_only_a_message_whatever_it_looks_like() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    let tool = Git::default();
+    for (n, message) in ["--amend", "-m \"quoted\" and $HOME `x`", "  padded  "]
+        .into_iter()
+        .enumerate()
+    {
+        std::fs::write(root.join("kept.txt"), format!("{n}\n")).unwrap();
+        tool.stage(&root, "kept.txt").unwrap();
+
+        tool.commit(&root, message).unwrap();
+
+        assert_eq!(log(&root)[0], message.trim());
+    }
+    assert_eq!(log(&root).len(), 4, "each made a commit of its own");
+}
+
+#[test]
+fn an_empty_message_is_refused_and_nothing_is_committed() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("kept.txt"), "changed\n").unwrap();
+    let tool = Git::default();
+    tool.stage(&root, "kept.txt").unwrap();
+
+    for message in ["", "   ", "\n\t\n"] {
+        let error = tool.commit(&root, message).unwrap_err();
+        assert_eq!(
+            error,
+            ActionError::BadArgument("the commit message is empty".to_owned())
+        );
+    }
+    assert!(matches!(
+        tool.commit(&root, "a\0b"),
+        Err(ActionError::BadArgument(_))
+    ));
+    assert_eq!(log(&root), ["first"]);
+}
+
+#[test]
+fn a_commit_with_nothing_staged_says_so_even_when_files_changed() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("kept.txt"), "changed but not staged\n").unwrap();
+
+    let error = Git::default().commit(&root, "nothing").unwrap_err();
+
+    assert_eq!(error, ActionError::NothingStaged);
+    assert_eq!(log(&root), ["first"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_hook_that_says_no_fails_the_commit_with_what_it_printed() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = committer();
+    let root = canonical(dir.path());
+    let hook = root.join(".git/hooks/pre-commit");
+    std::fs::write(
+        &hook,
+        "#!/bin/sh\necho 'lint: tabs are not allowed' >&2\necho 'fix them first'\nexit 1\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::write(root.join("kept.txt"), "changed\n").unwrap();
+    let tool = Git::default();
+    tool.stage(&root, "kept.txt").unwrap();
+
+    let error = tool.commit(&root, "rejected").unwrap_err();
+
+    let ActionError::Git(GitError::Failed { command, detail }) = error else {
+        panic!("a failure of git");
+    };
+    assert_eq!(command, "commit");
+    assert!(detail.contains("lint: tabs are not allowed"), "{detail}");
+    assert!(detail.contains("fix them first"), "{detail}");
+    assert_eq!(log(&root), ["first"], "nothing was committed");
+}
+
+#[test]
+fn what_a_failed_command_printed_is_cut_short() {
+    let long = "x".repeat(2000);
+    let outcome = super::run::Outcome {
+        success: false,
+        code: Some(1),
+        stdout: Vec::new(),
+        stderr: format!("{long}\nsecond\n").into_bytes(),
+    };
+    let text = super::actions::output_of(&outcome);
+    assert!(text.chars().count() <= 603, "{}", text.len());
+    assert!(text.ends_with("..."));
+
+    let many: String = (0..30).map(|n| format!("line {n}\n")).collect();
+    let outcome = super::run::Outcome {
+        stderr: many.into_bytes(),
+        ..outcome
+    };
+    let text = super::actions::output_of(&outcome);
+    assert!(
+        text.contains("line 11") && !text.contains("line 12"),
+        "{text}"
+    );
+
+    let silent = super::run::Outcome {
+        stderr: Vec::new(),
+        ..outcome
+    };
+    assert_eq!(super::actions::output_of(&silent), "it said nothing");
+}

@@ -112,6 +112,18 @@ pub enum FromPlugin {
     GitStage { request: u64, path: String },
     /// Takes the file out of the staged changes (needs [`Capability::GitWrite`]).
     GitUnstage { request: u64, path: String },
+    /// Stages every change in the working folder (needs [`Capability::GitWrite`]).
+    /// Plugin API 1.4.
+    GitStageAll { request: u64 },
+    /// Takes everything out of the staged changes (needs [`Capability::GitWrite`]).
+    /// Plugin API 1.4.
+    GitUnstageAll { request: u64 },
+    /// Commits what is staged with `message` (needs [`Capability::GitWrite`]). The
+    /// answer is [`ToPlugin::Done`], or [`ToPlugin::Refused`] with
+    /// [`Refusal::BadArgument`] for an empty message, [`Refusal::NothingStaged`] when
+    /// nothing is staged, and [`Refusal::Failed`] with what git and its hooks printed.
+    /// Plugin API 1.4.
+    GitCommit { request: u64, message: String },
     /// A kind of message a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -559,6 +571,8 @@ pub enum Refusal {
         #[serde(default)]
         detail: String,
     },
+    /// A commit was asked for and nothing is staged. Plugin API 1.4.
+    NothingStaged,
     /// `git` itself said no; `detail` is what it said.
     Failed {
         #[serde(default)]

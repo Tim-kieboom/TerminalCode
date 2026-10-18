@@ -141,7 +141,7 @@ impl Git {
     /// make a `git commit` the user types in the terminal fail on `index.lock`,
     /// and it never asks for a password. Whether it succeeded is for the caller
     /// to look at; an error is only that it could not run or took too long.
-    fn run(&self, dir: &Path, args: &[&str]) -> Result<Outcome, GitError> {
+    pub(super) fn run(&self, dir: &Path, args: &[&str]) -> Result<Outcome, GitError> {
         self.spawn(dir, args, true)
     }
 
