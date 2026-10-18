@@ -24,6 +24,10 @@ pub(crate) enum WriteOp {
     StageAll,
     UnstageAll,
     Commit(String),
+    Fetch,
+    Pull,
+    Push,
+    Cancel,
 }
 
 /// What the runtime tells the app.
@@ -363,6 +367,10 @@ impl Host {
                 | FromPlugin::GitStageAll { request }
                 | FromPlugin::GitUnstageAll { request }
                 | FromPlugin::GitCommit { request, .. } => (*request, Capability::GitWrite, true),
+                FromPlugin::GitFetch { request }
+                | FromPlugin::GitPull { request }
+                | FromPlugin::GitPush { request }
+                | FromPlugin::GitCancel { request } => (*request, Capability::GitRemote, true),
                 FromPlugin::OpenFile { request, .. } => (*request, Capability::EditorOpen, false),
                 _ => continue,
             };
@@ -419,6 +427,22 @@ impl Host {
             }
             FromPlugin::GitCommit { request, message } => {
                 self.to_app(plugin, request, WriteOp::Commit(message));
+                None
+            }
+            FromPlugin::GitFetch { request } => {
+                self.to_app(plugin, request, WriteOp::Fetch);
+                None
+            }
+            FromPlugin::GitPull { request } => {
+                self.to_app(plugin, request, WriteOp::Pull);
+                None
+            }
+            FromPlugin::GitPush { request } => {
+                self.to_app(plugin, request, WriteOp::Push);
+                None
+            }
+            FromPlugin::GitCancel { request } => {
+                self.to_app(plugin, request, WriteOp::Cancel);
                 None
             }
             _ => None,

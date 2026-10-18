@@ -5,6 +5,7 @@ use std::ffi::OsString;
 use std::io::{ErrorKind, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -153,6 +154,42 @@ impl Git {
         self.spawn(dir, args, false)
     }
 
+    /// Runs a call that talks to another computer (fetch, pull, push): it never
+    /// asks for a password or a passphrase, because the editor owns the terminal and
+    /// nobody could answer (`GIT_TERMINAL_PROMPT=0`, no askpass program, and on Unix
+    /// the child has no controlling terminal, so `ssh` cannot open `/dev/tty`); a
+    /// credential helper or an ssh agent works as on the command line. It runs until
+    /// it ends, `cancel` is set (the child and what it started are killed) or
+    /// `limit` has passed.
+    pub(super) fn run_remote(
+        &self,
+        dir: &Path,
+        args: &[&str],
+        cancel: &AtomicBool,
+        limit: Duration,
+    ) -> Result<Outcome, GitError> {
+        let mut command = Command::new(&self.program);
+        command
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env("GIT_ASKPASS", "")
+            .env("SSH_ASKPASS", "")
+            .env("SSH_ASKPASS_REQUIRE", "never")
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        detach_from_terminal(&mut command);
+        let name = args.first().copied().unwrap_or_default();
+        run_cancellable(command, cancel, limit).map_err(|error| match error {
+            RunError::Spawn(error) if error.kind() == ErrorKind::NotFound => GitError::NotInstalled,
+            RunError::Spawn(error) => failed(name, error.to_string()),
+            RunError::TimedOut => GitError::TimedOut(limit),
+            RunError::Cancelled => GitError::Cancelled,
+        })
+    }
+
     fn spawn(&self, dir: &Path, args: &[&str], read_only: bool) -> Result<Outcome, GitError> {
         let mut command = Command::new(&self.program);
         if read_only {
@@ -178,6 +215,7 @@ impl Git {
             RunError::Spawn(error) if error.kind() == ErrorKind::NotFound => GitError::NotInstalled,
             RunError::Spawn(error) => failed(name, error.to_string()),
             RunError::TimedOut => GitError::TimedOut(timeout),
+            RunError::Cancelled => GitError::Cancelled,
         })
     }
 }
@@ -213,6 +251,73 @@ pub(super) struct Outcome {
 enum RunError {
     Spawn(std::io::Error),
     TimedOut,
+    Cancelled,
+}
+
+/// The child gets a session of its own, so that it has no controlling terminal and
+/// is the head of a group of processes that can be killed together.
+#[cfg(unix)]
+fn detach_from_terminal(command: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    // SAFETY: `setsid` is async-signal-safe and touches no memory of ours.
+    unsafe {
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+}
+
+#[cfg(not(unix))]
+fn detach_from_terminal(_: &mut Command) {}
+
+/// Kills the child and, on Unix, everything it started (`ssh`, a hook).
+fn kill_tree(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        if let Ok(pid) = i32::try_from(child.id()) {
+            // SAFETY: a signal to the group the child leads (see `detach_from_terminal`).
+            unsafe {
+                libc::kill(-pid, libc::SIGKILL);
+            }
+        }
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+/// Like [`run_with_timeout`], and ends at once when `cancel` is set.
+fn run_cancellable(
+    mut command: Command,
+    cancel: &AtomicBool,
+    limit: Duration,
+) -> Result<Outcome, RunError> {
+    let mut child = command.spawn().map_err(RunError::Spawn)?;
+    let stdout = child.stdout.take().map(drain);
+    let stderr = child.stderr.take().map(drain);
+
+    let deadline = Instant::now() + limit;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if cancel.load(Ordering::Relaxed) => {
+                kill_tree(&mut child);
+                return Err(RunError::Cancelled);
+            }
+            Ok(None) if Instant::now() < deadline => thread::sleep(POLL),
+            Ok(None) => {
+                kill_tree(&mut child);
+                return Err(RunError::TimedOut);
+            }
+            Err(error) => return Err(RunError::Spawn(error)),
+        }
+    };
+    Ok(Outcome {
+        success: status.success(),
+        code: status.code(),
+        stdout: stdout.map(collect).unwrap_or_default(),
+        stderr: stderr.map(collect).unwrap_or_default(),
+    })
 }
 
 /// Runs `command` and collects what it printed. The pipes are read on threads of

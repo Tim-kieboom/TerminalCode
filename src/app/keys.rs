@@ -150,6 +150,16 @@ impl App {
             return;
         }
 
+        // `esc` in the pane of a plugin that is fetching, pulling or pushing stops that.
+        if key.code == KeyCode::Esc
+            && key.kind == KeyEventKind::Press
+            && !self.state.plugin_input()
+            && self.esc_stops_remote()
+        {
+            self.needs_redraw = true;
+            return;
+        }
+
         // The popup of a plugin: `esc` closes it, unless the plugin is typing into a
         // line (then `esc` ends that first); every other key goes the way the keys
         // of a plugin's pane go.

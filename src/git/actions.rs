@@ -14,6 +14,14 @@ pub(crate) enum ActionError {
     /// The argument cannot be right.
     #[error("{0}")]
     BadArgument(String),
+    /// The remote wants a password, a passphrase or a key the editor cannot give it:
+    /// what git said. Done once in the terminal pane (or with a credential helper
+    /// or an ssh agent), it works from then on.
+    #[error("{0}")]
+    NeedsAuthentication(String),
+    /// Another fetch, pull or push is running.
+    #[error("another remote command is running")]
+    Busy,
     /// A commit was asked for and nothing is staged.
     #[error("nothing is staged: stage a file first")]
     NothingStaged,

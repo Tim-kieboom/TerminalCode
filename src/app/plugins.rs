@@ -2,6 +2,8 @@
 //! palette and the mouse reach them.
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
@@ -23,6 +25,17 @@ pub(super) struct Plugins {
     pub(super) actions: HashMap<Box<str>, Vec<ActionDecl>>,
     pub(super) manager: super::plugin_manager::Manager,
     pub(super) store: super::plugin_list::Store,
+    /// The fetch, pull or push that is running, if one is: only one runs at a time.
+    pub(super) remote: Option<RemoteJob>,
+}
+
+/// A fetch, pull or push on its way.
+#[derive(Debug)]
+pub(super) struct RemoteJob {
+    plugin: Box<str>,
+    request: u64,
+    what: &'static str,
+    cancel: Arc<AtomicBool>,
 }
 
 impl App {
@@ -134,8 +147,36 @@ impl App {
             return;
         };
         let plugin: Box<str> = plugin.into();
+        if op == WriteOp::Cancel {
+            self.cancel_remote();
+            self.send_to_plugin(&plugin, ToPlugin::Done { request });
+            return;
+        }
+        let remote = match op {
+            WriteOp::Fetch => Some("fetch"),
+            WriteOp::Pull => Some("pull"),
+            WriteOp::Push => Some("push"),
+            _ => None,
+        };
+        let cancel = Arc::new(AtomicBool::new(false));
+        if let Some(what) = remote {
+            if self.plugins.remote.is_some() {
+                self.send_to_plugin(&plugin, refused(request, Refusal::Busy));
+                return;
+            }
+            self.plugins.remote = Some(RemoteJob {
+                plugin: plugin.clone(),
+                request,
+                what,
+                cancel: Arc::clone(&cancel),
+            });
+        }
         std::thread::spawn(move || {
             let result = match &op {
+                WriteOp::Fetch => git.fetch(&root, &cancel),
+                WriteOp::Pull => git.pull(&root, &cancel),
+                WriteOp::Push => git.push(&root, &cancel),
+                WriteOp::Cancel => Ok(()),
                 WriteOp::Stage(path) => git.stage(&root, path),
                 WriteOp::Unstage(path) => git.unstage(&root, path),
                 WriteOp::StageAll => git.stage_all(&root),
@@ -158,12 +199,30 @@ impl App {
         request: u64,
         result: Result<(), ActionError>,
     ) {
+        if self
+            .plugins
+            .remote
+            .as_ref()
+            .is_some_and(|job| &*job.plugin == plugin && job.request == request)
+        {
+            self.plugins.remote = None;
+        }
+        // The plugin cannot show a message, and what git or a hook printed is what
+        // the user needs: it is shown here, until it is dismissed.
+        if let Err(error) = &result {
+            self.tell_about_failure(error);
+        }
         let reply = match result {
             Ok(()) => ToPlugin::Done { request },
             Err(ActionError::BadArgument(detail)) => {
                 refused(request, Refusal::BadArgument { detail })
             }
             Err(ActionError::NothingStaged) => refused(request, Refusal::NothingStaged),
+            Err(ActionError::NeedsAuthentication(detail)) => {
+                refused(request, Refusal::AuthRequired { detail })
+            }
+            Err(ActionError::Busy) => refused(request, Refusal::Busy),
+            Err(ActionError::Git(GitError::Cancelled)) => refused(request, Refusal::Cancelled),
             Err(ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))) => {
                 refused(request, Refusal::NoRepository)
             }
@@ -176,6 +235,47 @@ impl App {
         };
         self.send_to_plugin(plugin, reply);
         self.git_changed_now();
+    }
+
+    /// Shows why a change to the repository failed (not a stop, and not a refusal
+    /// of an argument, which the plugin shows itself).
+    fn tell_about_failure(&mut self, error: &ActionError) {
+        let message = match error {
+            ActionError::NeedsAuthentication(said) => {
+                format!("git: {said}; {}", crate::git::AUTH_HINT)
+            }
+            ActionError::Git(GitError::Cancelled)
+            | ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))
+            | ActionError::BadArgument(_)
+            | ActionError::NothingStaged
+            | ActionError::Busy => return,
+            ActionError::Git(error) => error.to_string(),
+        };
+        self.state.notify_error(message);
+    }
+
+    /// Stops the fetch, pull or push that is running; it ends within a moment and
+    /// its plugin hears that it was stopped. Returns whether one was running.
+    pub(super) fn cancel_remote(&mut self) -> bool {
+        let Some(job) = &self.plugins.remote else {
+            return false;
+        };
+        job.cancel.store(true, Ordering::Relaxed);
+        self.state.notify(format!("stopping git {}", job.what));
+        true
+    }
+
+    /// `esc` in the pane of the plugin that started a fetch, pull or push stops it
+    /// (and goes no further: the pane keeps the keyboard).
+    pub(super) fn esc_stops_remote(&mut self) -> bool {
+        let Some(job) = &self.plugins.remote else {
+            return false;
+        };
+        let in_its_pane = self
+            .state
+            .focused_plugin()
+            .is_some_and(|view| view.as_str() == &*job.plugin);
+        in_its_pane && self.cancel_remote()
     }
 
     fn send_to_plugin(&self, plugin: &str, message: ToPlugin) {

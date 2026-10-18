@@ -124,6 +124,26 @@ pub enum FromPlugin {
     /// nothing is staged, and [`Refusal::Failed`] with what git and its hooks printed.
     /// Plugin API 1.4.
     GitCommit { request: u64, message: String },
+    /// Fetches from the remote (needs [`Capability::GitRemote`]). It runs until it
+    /// ends, is stopped with [`FromPlugin::GitCancel`] or the user presses `esc`,
+    /// or five minutes have passed; the answer is [`ToPlugin::Done`] or
+    /// [`ToPlugin::Refused`]. Only one of fetch, pull and push runs at a time
+    /// ([`Refusal::Busy`]). Plugin API 1.4.
+    GitFetch { request: u64 },
+    /// Brings the branch up to date with its upstream when that is only a move
+    /// forward (`git pull --ff-only`); branches that diverged are refused with git's
+    /// text ([`Refusal::Failed`]) and nothing changes. Needs [`Capability::GitRemote`].
+    /// Plugin API 1.4.
+    GitPull { request: u64 },
+    /// Pushes the branch; one with no upstream is pushed with `-u` when the
+    /// repository has exactly one remote. Needs [`Capability::GitRemote`]. Plugin
+    /// API 1.4.
+    GitPush { request: u64 },
+    /// Stops the fetch, pull or push that is running (needs
+    /// [`Capability::GitRemote`]); the stopped one is answered with
+    /// [`Refusal::Cancelled`], and this with [`ToPlugin::Done`] whether one was
+    /// running or not. Plugin API 1.4.
+    GitCancel { request: u64 },
     /// A kind of message a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -417,6 +437,10 @@ pub enum Capability {
     /// Open files of the project in the editor.
     #[serde(rename = "editor.open")]
     EditorOpen,
+    /// Fetch from, pull from and push to the remotes of the repository: it reaches
+    /// the network. Plugin API 1.4.
+    #[serde(rename = "git.remote")]
+    GitRemote,
     /// A capability a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -424,7 +448,12 @@ pub enum Capability {
 
 impl Capability {
     /// Every capability this version has.
-    pub const ALL: [Self; 3] = [Self::GitRead, Self::GitWrite, Self::EditorOpen];
+    pub const ALL: [Self; 4] = [
+        Self::GitRead,
+        Self::GitWrite,
+        Self::EditorOpen,
+        Self::GitRemote,
+    ];
 
     /// The name a manifest writes it by.
     pub const fn name(self) -> &'static str {
@@ -432,6 +461,7 @@ impl Capability {
             Self::GitRead => "git.read",
             Self::GitWrite => "git.write",
             Self::EditorOpen => "editor.open",
+            Self::GitRemote => "git.remote",
             Self::Unknown => "unknown",
         }
     }
@@ -573,6 +603,17 @@ pub enum Refusal {
     },
     /// A commit was asked for and nothing is staged. Plugin API 1.4.
     NothingStaged,
+    /// A fetch, pull or push is running already. Plugin API 1.4.
+    Busy,
+    /// The user (or the plugin) stopped the command. Plugin API 1.4.
+    Cancelled,
+    /// The remote wants a password, a passphrase or a key the editor cannot give:
+    /// what git said. The user can authenticate once in the terminal pane, or set up
+    /// a credential helper or an ssh agent. Plugin API 1.4.
+    AuthRequired {
+        #[serde(default)]
+        detail: String,
+    },
     /// `git` itself said no; `detail` is what it said.
     Failed {
         #[serde(default)]

@@ -466,6 +466,22 @@ fn turning_a_plugin_on_from_the_list_asks_what_it_may_do_and_then_runs_it() {
 }
 
 #[test]
+fn a_plugin_that_wants_the_remote_says_in_the_question_that_it_uses_the_network() {
+    let mut rig = rig("capabilities = [\"git.remote\"]\n", SavedState::default());
+    rig.open_list();
+
+    rig.press(KeyCode::Enter);
+
+    assert!(rig.asking());
+    let question = rig.question();
+    assert!(
+        question.contains("fetch from, pull from and push to"),
+        "{question}"
+    );
+    assert!(question.contains("uses the network"), "{question}");
+}
+
+#[test]
 fn a_plugin_that_asks_for_nothing_is_still_asked_the_first_time() {
     let mut rig = rig("", SavedState::default());
     rig.open_list();

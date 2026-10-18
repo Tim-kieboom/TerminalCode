@@ -120,6 +120,13 @@ impl App {
         (self.git.git.clone(), self.git.root.clone())
     }
 
+    /// Runs this `git` instead of the user's, for tests.
+    #[cfg(test)]
+    pub(crate) fn with_git_tool(mut self, git: Git) -> Self {
+        self.git.git = git;
+        self
+    }
+
     fn git_problem(&mut self, error: &GitError) {
         if !std::mem::replace(&mut self.git.told, true) {
             self.state.notify(format!(

@@ -16,6 +16,7 @@ pub(crate) use diff::{HunkKind, hash_lines};
 pub(crate) use lines::Lines;
 pub(crate) use marks::{Mark, Marks};
 pub(crate) use parse::parse_status;
+pub(crate) use remote::AUTH_HINT;
 pub(crate) use run::Git;
 pub(crate) use schedule::Schedule;
 
@@ -24,6 +25,7 @@ mod diff;
 mod lines;
 mod marks;
 mod parse;
+mod remote;
 mod run;
 mod schedule;
 #[cfg(test)]
@@ -112,6 +114,9 @@ pub(crate) enum GitError {
     NoRepository(String),
     #[error("`git` took longer than {} seconds", .0.as_secs())]
     TimedOut(Duration),
+    /// The user stopped a command that was running.
+    #[error("stopped")]
+    Cancelled,
     #[error("`git {command}` failed: {detail}")]
     Failed { command: String, detail: String },
     #[error("`git` said something that was not understood: {0}")]

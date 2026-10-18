@@ -1503,3 +1503,338 @@ fn what_a_failed_command_printed_is_cut_short() {
     };
     assert_eq!(super::actions::output_of(&silent), "it said nothing");
 }
+
+// --- fetch, pull and push ---
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use super::remote::needs_secret;
+
+/// A bare repository standing in for the server, and two clones of it (`one` and
+/// `two`, two people), each with a commit identity of its own config.
+struct Remote {
+    _dir: tempfile::TempDir,
+    bare: PathBuf,
+    one: PathBuf,
+    two: PathBuf,
+}
+
+fn remote() -> Remote {
+    let dir = tempfile::tempdir().unwrap();
+    let base = canonical(dir.path());
+    let bare = base.join("server.git");
+    std::fs::create_dir(&bare).unwrap();
+    git(&bare, &["init", "-q", "--bare", "-b", "main"]);
+    let clone = |name: &str| {
+        let path = base.join(name);
+        git(&base, &["clone", "-q", bare.to_str().unwrap(), name]);
+        for (key, value) in [
+            ("user.name", "Test"),
+            ("user.email", "test@example.com"),
+            ("commit.gpgsign", "false"),
+        ] {
+            git(&path, &["config", key, value]);
+        }
+        path
+    };
+    let one = clone("one");
+    std::fs::write(one.join("a.txt"), "a\n").unwrap();
+    git(&one, &["add", "."]);
+    git(&one, &["commit", "-q", "-m", "first"]);
+    git(&one, &["push", "-q", "-u", "origin", "main"]);
+    let two = clone("two");
+    Remote {
+        _dir: dir,
+        bare,
+        one,
+        two,
+    }
+}
+
+fn commit_file(dir: &Path, name: &str, text: &str, message: &str) {
+    std::fs::write(dir.join(name), text).unwrap();
+    git(dir, &["add", name]);
+    git(dir, &["commit", "-q", "-m", message]);
+}
+
+fn never() -> AtomicBool {
+    AtomicBool::new(false)
+}
+
+fn head_of(dir: &Path) -> String {
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(dir)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout).trim().to_owned()
+}
+
+fn branches_of(bare: &Path) -> Vec<String> {
+    let output = Command::new("git")
+        .args(["branch", "--format=%(refname:short)"])
+        .current_dir(bare)
+        .output()
+        .unwrap();
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::to_owned)
+        .collect()
+}
+
+#[test]
+fn a_fetch_tells_how_far_behind_the_branch_is_without_touching_the_files() {
+    let remote = remote();
+    commit_file(&remote.two, "b.txt", "b\n", "second");
+    git(&remote.two, &["push", "-q"]);
+    let tool = Git::default();
+    let before = head_of(&remote.one);
+
+    tool.fetch(&remote.one, &never()).unwrap();
+
+    let status = tool.status(&remote.one).unwrap();
+    assert_eq!(status.branch.behind, 1);
+    assert_eq!(head_of(&remote.one), before, "the branch did not move");
+    assert!(!remote.one.join("b.txt").exists());
+}
+
+#[test]
+fn a_pull_moves_the_branch_forward_to_the_upstream() {
+    let remote = remote();
+    commit_file(&remote.two, "b.txt", "b\n", "second");
+    git(&remote.two, &["push", "-q"]);
+    let tool = Git::default();
+
+    tool.pull(&remote.one, &never()).unwrap();
+
+    assert!(remote.one.join("b.txt").exists());
+    assert_eq!(tool.status(&remote.one).unwrap().branch.behind, 0);
+}
+
+#[test]
+fn a_pull_of_branches_that_diverged_fails_and_changes_nothing() {
+    let remote = remote();
+    commit_file(&remote.two, "b.txt", "from two\n", "two");
+    git(&remote.two, &["push", "-q"]);
+    commit_file(&remote.one, "c.txt", "from one\n", "one");
+    let before = head_of(&remote.one);
+    let tool = Git::default();
+
+    let error = tool.pull(&remote.one, &never()).unwrap_err();
+
+    let ActionError::Git(GitError::Failed { command, detail }) = error else {
+        panic!("a failure of git: {error:?}");
+    };
+    assert_eq!(command, "pull");
+    assert!(
+        detail.to_lowercase().contains("fast-forward") || detail.contains("diverging"),
+        "{detail}"
+    );
+    assert_eq!(head_of(&remote.one), before);
+    assert!(
+        !remote.one.join(".git/MERGE_HEAD").exists(),
+        "no merge was started"
+    );
+    assert!(!remote.one.join("b.txt").exists());
+    assert!(remote.one.join("c.txt").exists());
+}
+
+#[test]
+fn a_push_sends_the_commits_of_the_branch() {
+    let remote = remote();
+    commit_file(&remote.one, "b.txt", "b\n", "second");
+    let tool = Git::default();
+    assert_eq!(tool.status(&remote.one).unwrap().branch.ahead, 1);
+
+    tool.push(&remote.one, &never()).unwrap();
+
+    assert_eq!(head_of(&remote.bare), head_of(&remote.one));
+    assert_eq!(tool.status(&remote.one).unwrap().branch.ahead, 0);
+}
+
+#[test]
+fn a_new_branch_is_pushed_with_an_upstream_when_there_is_one_remote() {
+    let remote = remote();
+    git(&remote.one, &["switch", "-q", "-c", "feature"]);
+    commit_file(&remote.one, "f.txt", "f\n", "feature work");
+    let tool = Git::default();
+
+    tool.push(&remote.one, &never()).unwrap();
+
+    assert!(branches_of(&remote.bare).contains(&"feature".to_owned()));
+    let status = tool.status(&remote.one).unwrap();
+    assert_eq!(status.branch.upstream.as_deref(), Some("origin/feature"));
+}
+
+#[test]
+fn a_new_branch_with_several_remotes_names_them_and_does_not_guess() {
+    let remote = remote();
+    git(
+        &remote.one,
+        &["remote", "add", "backup", remote.bare.to_str().unwrap()],
+    );
+    git(&remote.one, &["switch", "-q", "-c", "feature"]);
+    commit_file(&remote.one, "f.txt", "f\n", "feature work");
+
+    let error = Git::default().push(&remote.one, &never()).unwrap_err();
+
+    let ActionError::BadArgument(text) = error else {
+        panic!("a bad argument: {error:?}");
+    };
+    assert!(text.contains("backup") && text.contains("origin"), "{text}");
+    assert!(!branches_of(&remote.bare).contains(&"feature".to_owned()));
+}
+
+#[test]
+fn a_push_with_no_remote_or_no_branch_says_so() {
+    let dir = committer();
+    let root = canonical(dir.path());
+    let tool = Git::default();
+    let ActionError::BadArgument(text) = tool.push(&root, &never()).unwrap_err() else {
+        panic!("a bad argument");
+    };
+    assert!(text.contains("no remote"), "{text}");
+
+    git(&root, &["checkout", "-q", "--detach"]);
+    let ActionError::BadArgument(text) = tool.push(&root, &never()).unwrap_err() else {
+        panic!("a bad argument");
+    };
+    assert!(text.contains("no branch"), "{text}");
+}
+
+#[test]
+fn a_remote_that_wants_a_password_fails_at_once_and_says_what_to_do() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut stream) = stream else { continue };
+            let mut buffer = [0u8; 2048];
+            let _ = stream.read(&mut buffer);
+            let _ = stream.write_all(
+                b"HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"x\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+        }
+    });
+    let dir = committer();
+    let root = canonical(dir.path());
+    git(
+        &root,
+        &[
+            "remote",
+            "add",
+            "origin",
+            &format!("http://127.0.0.1:{port}/x.git"),
+        ],
+    );
+    let started = Instant::now();
+
+    let error = Git::default().fetch(&root, &never()).unwrap_err();
+
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "no waiting for a password"
+    );
+    assert!(
+        matches!(error, ActionError::NeedsAuthentication(_)),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn what_git_prints_when_it_wants_a_secret_is_recognised() {
+    for said in [
+        "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        "remote: Invalid username or password.\nfatal: Authentication failed for 'https://x/y.git/'",
+        "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.",
+        "Host key verification failed.",
+    ] {
+        assert!(needs_secret(said), "{said}");
+    }
+    for said in [
+        "fatal: Not possible to fast-forward, aborting.",
+        "error: failed to push some refs",
+        "fatal: unable to access 'https://x/': Could not resolve host: x",
+    ] {
+        assert!(!needs_secret(said), "{said}");
+    }
+}
+
+/// A stand-in for `git` that just waits, and leaves what it started running when it
+/// is killed unless the whole group is.
+#[cfg(unix)]
+fn waiting_program(dir: &Path) -> (PathBuf, PathBuf) {
+    use std::os::unix::fs::PermissionsExt;
+    let pids = dir.join("pids");
+    let script = dir.join("slow-git");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/bin/sh\nsleep 30 &\necho $! > '{}'\nwait\n",
+            pids.display()
+        ),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+    (script, pids)
+}
+
+#[cfg(unix)]
+#[test]
+fn a_stop_ends_a_remote_command_at_once_and_what_it_started() {
+    let dir = tempfile::tempdir().unwrap();
+    let (script, pids) = waiting_program(dir.path());
+    let tool = Git::with_program(&script, Duration::from_secs(5));
+    let cancel = std::sync::Arc::new(AtomicBool::new(false));
+    let flag = std::sync::Arc::clone(&cancel);
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        flag.store(true, Ordering::Relaxed);
+    });
+    let started = Instant::now();
+
+    let error = tool.fetch(dir.path(), &cancel).unwrap_err();
+
+    assert_eq!(error, ActionError::Git(GitError::Cancelled));
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "{:?}",
+        started.elapsed()
+    );
+    let child: i32 = std::fs::read_to_string(&pids)
+        .unwrap()
+        .trim()
+        .parse()
+        .unwrap();
+    // Gone (or about to be reaped): signal 0 only asks whether it exists.
+    std::thread::sleep(Duration::from_millis(200));
+    // SAFETY: signal 0 sends nothing.
+    let alive = unsafe { libc::kill(child, 0) } == 0;
+    assert!(!alive, "the child of the command was left running");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_remote_command_that_never_ends_is_given_up_on_at_the_limit() {
+    let dir = tempfile::tempdir().unwrap();
+    let (script, _) = waiting_program(dir.path());
+    let tool = Git::with_program(&script, Duration::from_secs(5));
+    let started = Instant::now();
+
+    let error = tool
+        .remote_call(
+            dir.path(),
+            "fetch",
+            &["fetch"],
+            &never(),
+            Duration::from_millis(300),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        ActionError::Git(GitError::TimedOut(Duration::from_millis(300)))
+    );
+    assert!(started.elapsed() < Duration::from_secs(5));
+}

@@ -793,3 +793,57 @@ fn nothing_staged_is_a_refusal_of_its_own() {
     assert_eq!(refused.to_bytes().unwrap(), NOTHING_STAGED.as_bytes());
     assert_eq!(ToPlugin::from_bytes(NOTHING_STAGED.as_bytes()), Ok(refused));
 }
+
+const FETCH: &str = r#"{"type":"git_fetch","request":4}"#;
+const PULL: &str = r#"{"type":"git_pull","request":5}"#;
+const PUSH: &str = r#"{"type":"git_push","request":6}"#;
+const CANCEL: &str = r#"{"type":"git_cancel","request":7}"#;
+
+#[test]
+fn the_remote_requests_are_written_as_pinned() {
+    for (message, text) in [
+        (FromPlugin::GitFetch { request: 4 }, FETCH),
+        (FromPlugin::GitPull { request: 5 }, PULL),
+        (FromPlugin::GitPush { request: 6 }, PUSH),
+        (FromPlugin::GitCancel { request: 7 }, CANCEL),
+    ] {
+        assert_eq!(message.to_bytes().unwrap(), text.as_bytes());
+        assert_eq!(FromPlugin::from_bytes(text.as_bytes()), Ok(message));
+    }
+}
+
+#[test]
+fn the_new_refusals_are_written_as_pinned() {
+    for (reason, text) in [
+        (Refusal::Busy, r#"{"type":"busy"}"#),
+        (Refusal::Cancelled, r#"{"type":"cancelled"}"#),
+        (
+            Refusal::AuthRequired {
+                detail: "terminal prompts disabled".into(),
+            },
+            r#"{"type":"auth_required","detail":"terminal prompts disabled"}"#,
+        ),
+    ] {
+        assert_eq!(serde_json::to_string(&reason).unwrap(), text);
+        assert_eq!(serde_json::from_str::<Refusal>(text).unwrap(), reason);
+    }
+}
+
+#[test]
+fn the_capability_for_the_remote_has_its_name_and_is_listed() {
+    assert_eq!(Capability::parse("git.remote"), Some(Capability::GitRemote));
+    assert_eq!(
+        serde_json::to_string(&Capability::GitRemote).unwrap(),
+        r#""git.remote""#
+    );
+    assert!(Capability::ALL.contains(&Capability::GitRemote));
+    // The other three keep their place, so what a manifest lists is shown in the same order.
+    assert_eq!(
+        &Capability::ALL[..3],
+        &[
+            Capability::GitRead,
+            Capability::GitWrite,
+            Capability::EditorOpen
+        ]
+    );
+}

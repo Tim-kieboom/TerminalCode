@@ -64,6 +64,9 @@ fn describe(capability: Capability) -> String {
         }
         Capability::GitWrite => "change the git repository: stage and unstage files",
         Capability::EditorOpen => "open files of the project in the editor",
+        Capability::GitRemote => {
+            "fetch from, pull from and push to the remotes of the git repository (uses the network)"
+        }
         _ => capability.name(),
     }
     .to_owned()
