@@ -80,7 +80,7 @@ fn the_shell_has_the_size_of_the_pane() {
 
 #[test]
 fn resizing_the_window_resizes_the_shell() {
-    let (mut rig, _dir) = rig("trap 'stty size' WINCH; stty size; while true; do sleep 0.1; done");
+    let (mut rig, _dir) = rig("while true; do stty size; sleep 0.1; done");
     rig.toggle();
     let (rows, columns) = rig.app.state().terminal().size().unwrap();
     rig.wait_for_text(&format!("{rows} {columns}"));
