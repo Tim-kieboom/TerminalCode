@@ -62,11 +62,11 @@ impl Runtime {
         });
     }
 
-    /// Tells `plugin` that something changed.
-    pub(crate) fn refresh(&self, plugin: &str) {
+    /// Sends `message` to `plugin`.
+    pub(crate) fn send(&self, plugin: &str, message: ToPlugin) {
         self.command(Command::Send {
             plugin: plugin.into(),
-            message: ToPlugin::Refresh,
+            message,
         });
     }
 

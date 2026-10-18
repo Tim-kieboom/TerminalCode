@@ -7,6 +7,7 @@ use crate::app::keys::PALETTE_CONTEXTS;
 use crate::components::popups::palette::{self, Entry, Palette};
 use crate::config;
 use crate::event::action::Action;
+use crate::keymap::Context;
 use crate::ui::PluginViewId;
 
 /// Most characters pasted into a popup's text.
@@ -36,14 +37,24 @@ impl App {
                 .into_iter()
                 .map(|id| Action::TogglePluginView(id.as_str().into())),
         );
+        // One entry for each action a plugin declared.
+        let plugin_titles = self.plugin_palette_actions();
+        actions.extend(plugin_titles.iter().map(|(action, _)| action.clone()));
         let entries = actions
             .into_iter()
             .filter_map(|action| {
-                let title = self.palette_title(&action)?;
+                let title = self.palette_title(&action).or_else(|| {
+                    plugin_titles
+                        .iter()
+                        .find(|(plugin_action, _)| *plugin_action == action)
+                        .map(|(_, title)| title.clone())
+                })?;
                 let keys = self
                     .keyboard
                     .keys_for(&action, self.contexts())
-                    .or_else(|| self.keyboard.keys_for(&action, &PALETTE_CONTEXTS));
+                    .or_else(|| self.keyboard.keys_for(&action, &PALETTE_CONTEXTS))
+                    .or_else(|| self.keyboard.keys_for(&action, &[Context::Plugin]))
+                    .or_else(|| self.plugin_declared_keys(&action));
                 Some(Entry {
                     title,
                     action,

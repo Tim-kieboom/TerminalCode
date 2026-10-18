@@ -3,7 +3,7 @@
 //! one of these fail breaks plugins in the field: it needs a new major version,
 //! not a change to the test.
 
-use crate::{FromPlugin, MAX_MESSAGE, MessageError, ToPlugin, WireLine, WireView};
+use crate::{ActionDecl, FromPlugin, MAX_MESSAGE, MessageError, ToPlugin, WireLine, WireView};
 
 // --- ABI 1.0, as written ---
 
@@ -190,4 +190,103 @@ fn text_with_quotes_and_unicode_survives_the_trip() {
     let bytes = message.to_bytes().unwrap();
 
     assert_eq!(FromPlugin::from_bytes(&bytes), Ok(message));
+}
+
+// --- ABI 1.1, as written: actions, keys and the input view ---
+
+const ACTION: &str = r#"{"type":"action","action":"stage"}"#;
+const TEXT: &str = r#"{"type":"text","text":"hi \"there\""}"#;
+const KEY: &str = r#"{"type":"key","key":"backspace","ctrl":false,"alt":false,"shift":false}"#;
+const KEY_WITH_CTRL: &str = r#"{"type":"key","key":"s","ctrl":true,"alt":false,"shift":false}"#;
+const INPUT_ENDED: &str = r#"{"type":"input_ended"}"#;
+const SET_INPUT: &str =
+    r#"{"type":"set_view","view":{"type":"input","prompt":"msg: ","value":"abc","cursor":2}}"#;
+
+#[test]
+fn the_messages_of_1_1_are_written_as_they_always_were() {
+    assert_eq!(
+        ToPlugin::action("stage").to_bytes().unwrap(),
+        ACTION.as_bytes()
+    );
+    assert_eq!(
+        ToPlugin::text("hi \"there\"").to_bytes().unwrap(),
+        TEXT.as_bytes()
+    );
+    assert_eq!(
+        ToPlugin::key("backspace", false, false, false)
+            .to_bytes()
+            .unwrap(),
+        KEY.as_bytes()
+    );
+    assert_eq!(
+        ToPlugin::key("s", true, false, false).to_bytes().unwrap(),
+        KEY_WITH_CTRL.as_bytes()
+    );
+    assert_eq!(
+        ToPlugin::InputEnded.to_bytes().unwrap(),
+        INPUT_ENDED.as_bytes()
+    );
+    assert_eq!(
+        FromPlugin::set_view(WireView::input("msg: ", "abc", 2))
+            .to_bytes()
+            .unwrap(),
+        SET_INPUT.as_bytes()
+    );
+}
+
+#[test]
+fn the_messages_of_1_1_are_still_read() {
+    assert_eq!(
+        ToPlugin::from_bytes(ACTION.as_bytes()),
+        Ok(ToPlugin::action("stage"))
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(TEXT.as_bytes()),
+        Ok(ToPlugin::text("hi \"there\""))
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(KEY.as_bytes()),
+        Ok(ToPlugin::key("backspace", false, false, false))
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(INPUT_ENDED.as_bytes()),
+        Ok(ToPlugin::InputEnded)
+    );
+    assert_eq!(
+        FromPlugin::from_bytes(SET_INPUT.as_bytes()),
+        Ok(FromPlugin::set_view(WireView::input("msg: ", "abc", 2)))
+    );
+}
+
+#[test]
+fn a_key_without_its_modifiers_has_none_held() {
+    assert_eq!(
+        ToPlugin::from_bytes(br#"{"type":"key","key":"left"}"#),
+        Ok(ToPlugin::key("left", false, false, false))
+    );
+}
+
+#[test]
+fn an_input_view_with_fields_left_out_takes_defaults() {
+    assert_eq!(
+        FromPlugin::from_bytes(br#"{"type":"set_view","view":{"type":"input"}}"#),
+        Ok(FromPlugin::set_view(WireView::input("", "", 0)))
+    );
+}
+
+#[test]
+fn an_action_declaration_reads_with_and_without_keys() {
+    let with: ActionDecl =
+        serde_json::from_str(r#"{"id":"stage","title":"Stage File","keys":"s"}"#).unwrap();
+    let without: ActionDecl = serde_json::from_str(r#"{"id":"commit"}"#).unwrap();
+    let later: ActionDecl =
+        serde_json::from_str(r#"{"id":"x","title":"X","icon":"star","when":"always"}"#).unwrap();
+
+    assert_eq!(with, ActionDecl::new("stage", "Stage File").with_keys("s"));
+    assert_eq!(without, ActionDecl::new("commit", ""));
+    assert_eq!(
+        later,
+        ActionDecl::new("x", "X"),
+        "what is not known is skipped"
+    );
 }

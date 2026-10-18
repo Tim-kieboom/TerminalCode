@@ -106,7 +106,7 @@ fn looping() -> Vec<u8> {
 fn a_plugin_draws_into_its_pane() {
     let mut rig = rig();
 
-    rig.app.load_plugin("hello", saying_hi());
+    rig.app.load_plugin("hello", saying_hi(), vec![]);
 
     rig.until("the plugin's view", |rig| {
         rig.screen().contains("plugin says hi")
@@ -117,7 +117,7 @@ fn a_plugin_draws_into_its_pane() {
 fn a_plugin_that_loops_is_stopped_with_a_message_while_the_editor_takes_keys() {
     let mut rig = rig();
 
-    rig.app.load_plugin("hello", looping());
+    rig.app.load_plugin("hello", looping(), vec![]);
     // The plugin is spinning on its own thread; typing goes through at once.
     rig.type_text("still typing");
     assert_eq!(rig.app.state().editor().buffer().text(), "still typing");
@@ -142,7 +142,7 @@ fn a_plugin_that_loops_is_stopped_with_a_message_while_the_editor_takes_keys() {
 fn a_plugin_that_cannot_run_is_told_once_and_leaves_its_pane_alone() {
     let mut rig = rig();
 
-    rig.app.load_plugin("hello", b"nonsense".to_vec());
+    rig.app.load_plugin("hello", b"nonsense".to_vec(), vec![]);
 
     rig.until("the message", |rig| !rig.notifications().is_empty());
     assert!(rig.notifications()[0].starts_with("plugin hello cannot run: "));
@@ -152,7 +152,7 @@ fn a_plugin_that_cannot_run_is_told_once_and_leaves_its_pane_alone() {
 #[test]
 fn a_refresh_reaches_the_plugin_and_it_draws_again() {
     let mut rig = rig();
-    rig.app.load_plugin("hello", saying_hi());
+    rig.app.load_plugin("hello", saying_hi(), vec![]);
     rig.until("the first view", |rig| {
         rig.screen().contains("plugin says hi")
     });

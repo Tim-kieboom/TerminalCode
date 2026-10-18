@@ -20,6 +20,10 @@ pub(super) const NO_FILE_MESSAGE: &str = "no open file (ctrl+n opens a new one)"
 pub(super) const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
 pub(super) const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
 pub(super) const ERRORS_CONTEXTS: [Context; 2] = [Context::Errors, Context::Global];
+/// A plugin's pane: the user's bindings for plugins, then the keys the plugin
+/// declared, then the global ones.
+pub(super) const PLUGIN_CONTEXTS: [Context; 3] =
+    [Context::Plugin, Context::PluginDefaults, Context::Global];
 /// Where the palette looks for the keys shown beside an action.
 pub(super) const PALETTE_CONTEXTS: [Context; 3] =
     [Context::Explorer, Context::Editor, Context::Global];
@@ -116,6 +120,15 @@ impl Keyboard {
         self.resolver.expire(&self.keymap, contexts)
     }
 
+    /// Puts in the keys of the plugin whose pane has the keyboard (see
+    /// [`Keymap::set_plugin_defaults`]).
+    pub(super) fn set_plugin_defaults(
+        &mut self,
+        bindings: &[(String, Action)],
+    ) -> Vec<crate::keymap::KeymapError> {
+        self.keymap.set_plugin_defaults(bindings)
+    }
+
     /// The shortest keys bound to `action` in `contexts`, for showing the user.
     pub(super) fn keys_for(&self, action: &Action, contexts: &[Context]) -> Option<String> {
         self.keymap.keys_for(action, contexts)
@@ -166,6 +179,11 @@ impl App {
         {
             self.needs_redraw = true;
             return;
+        }
+
+        // A plugin's line to type into has every key but `esc`.
+        if self.state.plugin_input() && !self.keyboard.is_pending() {
+            return self.handle_plugin_input_key(key);
         }
 
         // The terminal keeps the keyboard, except for the keys behind its prefix.
@@ -220,6 +238,7 @@ impl App {
             Focus::Explorer => &EXPLORER_CONTEXTS,
             Focus::Terminal => &EDITOR_CONTEXTS,
             Focus::Errors => &ERRORS_CONTEXTS,
+            Focus::Plugin => &PLUGIN_CONTEXTS,
         }
     }
 
@@ -278,6 +297,9 @@ impl App {
             Action::TerminalPreviousTab => self.step_terminal_tab(-1),
             Action::TerminalCloseTab => self.close_terminal_tab(),
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
+            Action::FocusPluginView(id) => self.focus_plugin_view(&id),
+            // Focus went to the editor before the match (see `focuses_editor`).
+            Action::FocusEditor => {}
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Errors(command) => self.errors_command(command),
             Action::ShowErrors => self.toggle_errors(),
@@ -357,8 +379,7 @@ impl App {
             Action::SplitDown => self.state.workspace_mut().split(Axis::Vertical),
             Action::FocusNextPane => self.state.workspace_mut().focus_next_pane(),
             Action::FocusPane(direction) => self.focus_toward(direction),
-            // Plugin actions need the plugin runtime, which is post-0.1.0.
-            Action::Plugin(_) => {}
+            Action::Plugin(action) => self.run_plugin_action(&action),
         }
         Ok(())
     }

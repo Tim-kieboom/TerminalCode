@@ -53,6 +53,9 @@ impl App {
         if self.modal_open() {
             return;
         }
+        if self.paste_into_plugin(&text) {
+            return;
+        }
         if self.state.focus() == crate::app::state::Focus::Terminal {
             self.paste_into_shell(&text);
             return;

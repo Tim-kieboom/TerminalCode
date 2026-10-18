@@ -51,6 +51,10 @@ impl App {
             Focus::Explorer => ComponentKind::Explorer,
             Focus::Terminal => ComponentKind::Terminal,
             Focus::Errors => ComponentKind::Errors,
+            Focus::Plugin => match self.state.focused_plugin() {
+                Some(id) => ComponentKind::Plugin(id.clone()),
+                None => return,
+            },
             Focus::Editor => {
                 self.state.notify("the editor is not in a bar");
                 return;

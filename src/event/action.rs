@@ -18,6 +18,8 @@ pub(crate) enum Action {
     CommandPalette,
     /// Moves the keyboard to the explorer, or back to the editor if it is there.
     FocusExplorer,
+    /// Moves the keyboard to the editor.
+    FocusEditor,
     /// Shows the explorer if it is hidden, hides it if it is shown.
     ToggleExplorer,
     ToggleStatusBar,
@@ -31,6 +33,9 @@ pub(crate) enum Action {
     TerminalCloseTab,
     /// Shows or hides the view of the plugin with this id.
     TogglePluginView(Box<str>),
+    /// Shows the view of the plugin with this id if it is hidden, and gives it the
+    /// keyboard.
+    FocusPluginView(Box<str>),
     /// Opens the file finder.
     FindFile,
     /// Opens the project search.
@@ -184,6 +189,8 @@ pub(crate) enum Action {
     FocusPane(FocusDirection),
     Move(Motion),
     Select(Motion),
+    /// Runs an action of a plugin, written `plugin:action` (the plugin's name, and
+    /// the `id` of the action in its manifest).
     Plugin(Box<str>),
 }
 
@@ -194,6 +201,7 @@ impl Action {
         matches!(
             self,
             Self::NewFile
+                | Self::FocusEditor
                 | Self::CloseOtherTabs
                 | Self::CloseTabsToLeft
                 | Self::CloseTabsToRight
@@ -223,6 +231,8 @@ impl Action {
             Self::Quit
                 | Self::CommandPalette
                 | Self::FocusExplorer
+                | Self::FocusEditor
+                | Self::FocusPluginView(_)
                 | Self::ToggleExplorer
                 | Self::ToggleStatusBar
                 | Self::TogglePluginView(_)
@@ -284,6 +294,7 @@ impl Action {
             Self::Quit => "Application: Quit",
             Self::CommandPalette => "Application: Command Palette",
             Self::FocusExplorer => "Explorer: Focus",
+            Self::FocusEditor => "Editor: Focus",
             Self::ToggleExplorer => "View: Toggle Explorer",
             Self::ToggleStatusBar => "View: Toggle Status Bar",
             Self::ToggleTerminal => "View: Toggle Terminal",
@@ -384,7 +395,7 @@ impl Action {
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) | Self::Errors(_) => return None,
             Self::OpenRecentFile(_) | Self::OpenRecentFolder(_) => return None,
-            Self::TogglePluginView(_) => return None,
+            Self::TogglePluginView(_) | Self::FocusPluginView(_) => return None,
             Self::Move(_)
             | Self::Select(_)
             | Self::InsertText(_)
@@ -419,6 +430,7 @@ impl Action {
             Self::FindInFile,
             Self::ReplaceInFile,
             Self::FocusExplorer,
+            Self::FocusEditor,
             Self::ToggleExplorer,
             Self::ToggleStatusBar,
             Self::ToggleTerminal,

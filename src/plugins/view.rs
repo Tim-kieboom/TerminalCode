@@ -24,6 +24,15 @@ pub(super) fn node_of(view: WireView) -> ViewNode {
             items: items.into_iter().map(Into::into).collect(),
             selected,
         },
+        WireView::Input {
+            prompt,
+            value,
+            cursor,
+        } => ViewNode::Input {
+            prompt: prompt.into(),
+            value: value.into(),
+            cursor,
+        },
         _ => ViewNode::Lines(vec![ViewLine {
             text: "(this plugin sent a view this version cannot show)".into(),
             slot: PLACEHOLDER_SLOT.into(),

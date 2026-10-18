@@ -35,6 +35,7 @@ mod components;
 mod git;
 mod lsp;
 mod notices;
+mod plugins;
 mod popups;
 
 /// How many palette actions are remembered as recent.
@@ -48,6 +49,8 @@ pub(crate) enum Focus {
     Explorer,
     Terminal,
     Errors,
+    /// A plugin's pane (see `AppState::focused_plugin`).
+    Plugin,
 }
 
 /// Everything the UI renders from. Owned by the app loop alone.
@@ -80,6 +83,13 @@ pub(crate) struct AppState {
     git: Option<crate::git::Status>,
     /// What shows beside each changed file, from `git`.
     git_marks: crate::git::Marks,
+    /// The plugin pane that has the keyboard while the focus is on a plugin.
+    focused_plugin: Option<PluginViewId>,
+    /// Whether the keys go to the focused plugin as text: its view is a line to
+    /// type into and `esc` has not ended that.
+    plugin_input: bool,
+    /// Where each plugin pane was drawn last, for clicks.
+    plugin_areas: HashMap<PluginViewId, ratatui::layout::Rect>,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The suggestions for the word being typed, while there are any.

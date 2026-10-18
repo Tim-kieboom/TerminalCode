@@ -1,9 +1,14 @@
 use crate::{Abi, AbiError};
 
 #[test]
-fn the_version_of_these_messages_is_1_0() {
-    assert_eq!(Abi::CURRENT, Abi::new(1, 0));
-    assert_eq!(Abi::CURRENT.to_string(), "1.0");
+fn the_version_of_these_messages_is_1_1() {
+    assert_eq!(Abi::CURRENT, Abi::new(1, 1));
+    assert_eq!(Abi::CURRENT.to_string(), "1.1");
+}
+
+#[test]
+fn a_plugin_built_for_1_0_still_runs() {
+    assert_eq!(Abi::CURRENT.check(Abi::new(1, 0)), Ok(()));
 }
 
 #[test]

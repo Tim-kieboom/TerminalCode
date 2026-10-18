@@ -191,6 +191,11 @@ impl App {
             Focus::Explorer => self.state.explorer().area(),
             Focus::Terminal => self.state.terminal().area(),
             Focus::Errors => self.state.errors().area(),
+            Focus::Plugin => self
+                .state
+                .focused_plugin()
+                .and_then(|id| self.state.plugin_area(id))
+                .unwrap_or_default(),
         };
 
         let mut best = self

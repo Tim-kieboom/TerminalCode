@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use super::policy::{Strikes, Verdict};
 use super::view::node_of;
 use super::{Notice, Runtime};
-use crate::plugin_api::{WireLine, WireView};
+use crate::plugin_api::{ToPlugin, WireLine, WireView};
 use crate::ui::view::{ViewLine, ViewNode};
 
 // --- the plugins the tests run, written as WebAssembly text ---
@@ -233,7 +233,7 @@ fn a_disabled_plugin_hears_nothing_more() {
         rig.next();
     }
 
-    rig.runtime.refresh("looper");
+    rig.runtime.send("looper", ToPlugin::Refresh);
 
     rig.nothing_more();
 }
@@ -244,7 +244,7 @@ fn a_restarted_plugin_is_fresh_and_draws_again() {
     rig.runtime.load("flaky", fails_on_the_second_call());
     assert!(matches!(rig.next(), Notice::View { .. }), "the first call");
 
-    rig.runtime.refresh("flaky");
+    rig.runtime.send("flaky", ToPlugin::Refresh);
 
     assert!(matches!(rig.next(), Notice::Restarted { .. }), "the second");
     // The fresh instance counts its first call again, so it draws.

@@ -13,7 +13,7 @@
 //! refuses a plugin built for another major (see [`Abi::check`]).
 
 pub use abi::{Abi, AbiError};
-pub use message::{FromPlugin, MessageError, ToPlugin, WireLine, WireView};
+pub use message::{ActionDecl, FromPlugin, MessageError, ToPlugin, WireLine, WireView};
 
 mod abi;
 mod message;

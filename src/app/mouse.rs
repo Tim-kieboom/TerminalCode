@@ -159,6 +159,15 @@ impl App {
             self.needs_redraw = true;
             return;
         }
+        // A click on a plugin's pane gives it the keyboard.
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && matches!(self.state.popup(), crate::app::state::Popup::None)
+            && self.click_in_plugin_pane(event.column, event.row)
+        {
+            self.needs_redraw = true;
+            return;
+        }
+
         if self.handle_errors_mouse(event) {
             self.needs_redraw = true;
             return;

@@ -54,6 +54,14 @@ pub(crate) enum Context {
     Editor,
     Explorer,
     Errors,
+    /// While a plugin's pane has the keyboard: the user's bindings for plugin
+    /// actions and for keys in a plugin pane.
+    Plugin,
+    /// While a plugin's pane has the keyboard: the keys its manifest declares,
+    /// for the plugin that has it (put in and taken out by the editor, never
+    /// written in a keymap file).
+    #[serde(skip_deserializing)]
+    PluginDefaults,
 }
 
 #[derive(Debug, Deserialize)]
@@ -148,6 +156,28 @@ impl Keymap {
             }
         }
         Ok(())
+    }
+
+    /// Puts in the keys a plugin declared, for the plugin whose pane has the
+    /// keyboard, in place of the ones of the plugin before it. Each binding is the
+    /// keys as text and the action. What cannot be bound (keys that do not read,
+    /// the same keys twice) is left out and comes back as errors.
+    pub(crate) fn set_plugin_defaults(
+        &mut self,
+        bindings: &[(String, Action)],
+    ) -> Vec<KeymapError> {
+        let mut root = Node::default();
+        let mut errors = Vec::new();
+        let mut seen = HashSet::new();
+        for (keys, action) in bindings {
+            match parse_sequence(keys) {
+                Ok(chords) if seen.insert(chords.clone()) => root.bind(&chords, action.clone()),
+                Ok(_) => errors.push(KeymapError::DuplicateBinding(keys.as_str().into())),
+                Err(error) => errors.push(error),
+            }
+        }
+        self.contexts.insert(Context::PluginDefaults, root);
+        errors
     }
 
     /// The shortest key sequence bound to `action` in any of `contexts`, as

@@ -2,9 +2,11 @@ use ratatui::{
     Frame,
     layout::Rect,
     style::Style,
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, List, ListState, Paragraph},
 };
+
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
     app::state::{AppState, Focus, PluginView, Popup},
@@ -93,7 +95,7 @@ fn paint_background(frame: &mut Frame, state: &AppState) {
 }
 
 fn prepare_component(state: &mut AppState, placement: &Placement) {
-    match placement.kind {
+    match &placement.kind {
         ComponentKind::Editor => {
             state.workspace_mut().prepare(placement);
             state.workspace_mut().refresh_git_lines();
@@ -109,6 +111,7 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
             let body = placement.frame.inner(placement.area);
             state.errors_mut().prepare(placement.area, body, count);
         }
+        ComponentKind::Plugin(id) => state.set_plugin_area(id.clone(), placement.area),
         _ => (),
     }
 }
@@ -130,7 +133,9 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
 
 fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
     let title = placement.frame.title_text(placement.kind.title());
-    let block = placement.frame.block(state.theme(), title, false);
+    let focused = matches!(&placement.kind, ComponentKind::Plugin(id)
+        if state.focused_plugin() == Some(id));
+    let block = placement.frame.block(state.theme(), title, focused);
 
     frame.render_widget(block, placement.area);
 
@@ -149,11 +154,15 @@ fn render_plain(frame: &mut Frame, state: &AppState, placement: &Placement) {
 impl Render<AppState> for PluginView {
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
         let inner = placement.frame.inner(placement.area);
-        render_view(frame, state, self.content(), inner);
+        let typing = matches!(&placement.kind, ComponentKind::Plugin(id)
+            if state.plugin_input() && state.focused_plugin() == Some(id));
+        render_view(frame, state, self.content(), inner, typing);
     }
 }
 
-fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect) {
+/// `typing`: the keys go to the plugin as text, so a line to type into gets the
+/// terminal cursor.
+fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect, typing: bool) {
     let theme = state.theme();
     match node {
         ViewNode::Lines(lines) => {
@@ -170,6 +179,24 @@ fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect)
 
             let mut list_state = ListState::default().with_selected(*selected);
             frame.render_stateful_widget(list, area, &mut list_state);
+        }
+        ViewNode::Input {
+            prompt,
+            value,
+            cursor,
+        } => {
+            let line = Line::from(vec![
+                Span::styled(prompt.as_ref(), theme.style("explorer.hint")),
+                Span::raw(value.as_ref()),
+            ]);
+            frame.render_widget(Paragraph::new(line), area);
+            if typing && area.width > 0 && area.height > 0 {
+                let before: String = value.chars().take(*cursor).collect();
+                let column = prompt.width() + before.width();
+                let column = u16::try_from(column).unwrap_or(u16::MAX);
+                let column = column.min(area.width - 1);
+                frame.set_cursor_position((area.x + column, area.y));
+            }
         }
     }
 }
