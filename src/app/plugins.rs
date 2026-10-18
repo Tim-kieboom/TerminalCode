@@ -8,8 +8,10 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use super::App;
 use crate::event::Event;
 use crate::event::action::Action;
-use crate::plugin_api::{ActionDecl, ToPlugin};
-use crate::plugins::{Notice, Runtime};
+use crate::git::ActionError;
+use crate::git::GitError;
+use crate::plugin_api::{ActionDecl, Refusal, ToPlugin};
+use crate::plugins::{Notice, Runtime, WriteOp};
 use crate::ui::{ComponentKind, PluginViewId};
 
 /// The plugin thread, once the app can hear from it, and the actions each
@@ -51,8 +53,71 @@ impl App {
             Notice::Rejected { plugin, reason } => self
                 .state
                 .notify_error(format!("plugin {plugin} said something wrong: {reason}")),
+            Notice::GitWrite {
+                plugin,
+                request,
+                op,
+            } => self.plugin_git_write(&plugin, request, op),
         }
         self.needs_redraw = true;
+    }
+
+    /// Hands the plugins the state of the repository (or that there is none).
+    pub(super) fn publish_git_to_plugins(&self) {
+        let Some(runtime) = &self.plugins.runtime else {
+            return;
+        };
+        let generation = self.git_generation();
+        runtime.publish_git(self.state.git_status().map(|status| (generation, status)));
+    }
+
+    /// A plugin with the capability asked to change the repository: it is done
+    /// in the background, and the plugin hears how it went.
+    fn plugin_git_write(&mut self, plugin: &str, request: u64, op: WriteOp) {
+        let (git, root) = self.git_tool();
+        let (Some(events), Some(root)) = (self.background.sender(), root) else {
+            self.send_to_plugin(plugin, refused(request, Refusal::NoRepository));
+            return;
+        };
+        let plugin: Box<str> = plugin.into();
+        std::thread::spawn(move || {
+            let result = match &op {
+                WriteOp::Stage(path) => git.stage(&root, path),
+                WriteOp::Unstage(path) => git.unstage(&root, path),
+            };
+            let _ = events.blocking_send(Event::PluginGit {
+                plugin,
+                request,
+                result,
+            });
+        });
+    }
+
+    /// A change a plugin asked for was done, or not: the plugin is told, and
+    /// what git shows is read again at once.
+    pub(super) fn plugin_git_done(
+        &mut self,
+        plugin: &str,
+        request: u64,
+        result: Result<(), ActionError>,
+    ) {
+        let reply = match result {
+            Ok(()) => ToPlugin::Done { request },
+            Err(ActionError::BadArgument(detail)) => {
+                refused(request, Refusal::BadArgument { detail })
+            }
+            Err(ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))) => {
+                refused(request, Refusal::NoRepository)
+            }
+            Err(ActionError::Git(error)) => refused(
+                request,
+                Refusal::Failed {
+                    detail: error.to_string(),
+                },
+            ),
+        };
+        self.send_to_plugin(plugin, reply);
+        self.git_changed_now();
     }
 
     fn send_to_plugin(&self, plugin: &str, message: ToPlugin) {
@@ -203,10 +268,16 @@ impl App {
 
     /// Loads a plugin from its module and starts it, with the actions it declares.
     #[cfg(test)]
-    pub(crate) fn load_plugin(&mut self, plugin: &str, wasm: Vec<u8>, actions: Vec<ActionDecl>) {
+    pub(crate) fn load_plugin(
+        &mut self,
+        plugin: &str,
+        wasm: Vec<u8>,
+        actions: Vec<ActionDecl>,
+        grants: &[crate::plugin_api::Capability],
+    ) {
         self.plugins.actions.insert(plugin.into(), actions);
         if let Some(runtime) = &self.plugins.runtime {
-            runtime.load(plugin, wasm);
+            runtime.load(plugin, wasm, grants.iter().copied());
         }
         self.apply_plugin_keys();
     }
@@ -216,6 +287,10 @@ impl App {
     pub(crate) fn refresh_plugin(&self, plugin: &str) {
         self.send_to_plugin(plugin, ToPlugin::Refresh);
     }
+}
+
+fn refused(request: u64, reason: Refusal) -> ToPlugin {
+    ToPlugin::Refused { request, reason }
 }
 
 /// What a key is to a plugin's line to type into: text when it is a character

@@ -12,8 +12,11 @@
 //! A trap cannot be resumed: the instance is thrown away, a fresh one is started,
 //! and a plugin that traps three times within a minute is disabled.
 
-pub(crate) use runtime::{Notice, Runtime};
+pub(crate) use runtime::{Notice, Runtime, WriteOp};
 
+#[cfg(test)]
+pub(crate) mod fixtures;
+mod git_view;
 mod instance;
 mod policy;
 mod runtime;

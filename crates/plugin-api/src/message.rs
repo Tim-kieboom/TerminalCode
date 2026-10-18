@@ -45,6 +45,30 @@ pub enum ToPlugin {
     /// The user pressed `esc` in the input view: the editor takes the keyboard
     /// back. The plugin should stop showing the input.
     InputEnded,
+    /// What git says changed: sent to a plugin with [`Capability::GitRead`] after
+    /// it starts, and whenever the repository's state differs from before. It
+    /// is a summary; the files are asked for with [`FromPlugin::GitEntries`].
+    GitChanged { summary: GitSummary },
+    /// The project is not in a git repository (any more), or `git` is not there:
+    /// what the plugin has of it is out of date and should be dropped.
+    GitUnavailable,
+    /// The answer to [`FromPlugin::GitEntries`]: the page asked for. It always
+    /// comes from the latest state of the repository, and `generation` says which
+    /// that is: when it is not the generation of the pages the plugin already
+    /// has, the plugin starts over.
+    GitEntries {
+        request: u64,
+        generation: u64,
+        section: GitSection,
+        /// Where the page starts, and how many entries the section has in all.
+        offset: usize,
+        total: usize,
+        entries: Vec<GitEntry>,
+    },
+    /// The request `request` was done.
+    Done { request: u64 },
+    /// The request `request` was not done.
+    Refused { request: u64, reason: Refusal },
     /// A kind of message a later version of the editor sends.
     #[serde(other)]
     Unknown,
@@ -57,6 +81,23 @@ pub enum ToPlugin {
 pub enum FromPlugin {
     /// Replace what the plugin's pane shows.
     SetView { view: WireView },
+    /// Asks for a page of the files git lists in a section (needs
+    /// [`Capability::GitRead`]). The answer is [`ToPlugin::GitEntries`] with the
+    /// same `request`, or [`ToPlugin::Refused`]. A `limit` over [`MAX_PAGE`] is
+    /// lowered to it.
+    GitEntries {
+        request: u64,
+        section: GitSection,
+        #[serde(default)]
+        offset: usize,
+        limit: usize,
+    },
+    /// Stages the file (needs [`Capability::GitWrite`]): `path` is from the root
+    /// of the repository, as in [`GitEntry::path`]. The answer is
+    /// [`ToPlugin::Done`] or [`ToPlugin::Refused`].
+    GitStage { request: u64, path: String },
+    /// Takes the file out of the staged changes (needs [`Capability::GitWrite`]).
+    GitUnstage { request: u64, path: String },
     /// A kind of message a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -201,6 +242,157 @@ impl FromPlugin {
     pub fn set_view(view: WireView) -> Self {
         Self::SetView { view }
     }
+}
+
+/// What a plugin may ask the editor for. The manifest lists what the plugin
+/// uses and the editor refuses the rest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum Capability {
+    /// Read what git says of the project: the branch, the files that changed.
+    #[serde(rename = "git.read")]
+    GitRead,
+    /// Change the repository: stage and unstage files.
+    #[serde(rename = "git.write")]
+    GitWrite,
+    /// A capability a later version of the plugin API has.
+    #[serde(other)]
+    Unknown,
+}
+
+/// The files git lists, in the groups a Git pane shows. A file changed both in
+/// the index and since is in two of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum GitSection {
+    /// Changes that are staged.
+    Staged,
+    /// Changes to files git knows that are not staged.
+    Changes,
+    /// Files git does not know.
+    Untracked,
+    /// Files a merge left with conflicts.
+    Conflicts,
+    #[serde(other)]
+    Unknown,
+}
+
+/// What happened to a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum GitKind {
+    Modified,
+    TypeChanged,
+    Added,
+    Deleted,
+    Renamed,
+    Copied,
+    Untracked,
+    Conflicted,
+    #[serde(other)]
+    Unknown,
+}
+
+/// One file in a [`GitSection`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct GitEntry {
+    /// From the root of the repository, with `/` between the parts.
+    pub path: String,
+    /// Where a renamed or copied file came from.
+    #[serde(default)]
+    pub original: Option<String>,
+    pub kind: GitKind,
+}
+
+impl GitEntry {
+    pub fn new(path: impl Into<String>, kind: GitKind) -> Self {
+        Self {
+            path: path.into(),
+            original: None,
+            kind,
+        }
+    }
+
+    #[must_use]
+    pub fn renamed_from(mut self, original: impl Into<String>) -> Self {
+        self.original = Some(original.into());
+        self
+    }
+}
+
+/// How the repository is, in a few numbers: what [`ToPlugin::GitChanged`] says.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct GitSummary {
+    /// Counts the states of the repository that differed from the one before; the
+    /// pages of [`ToPlugin::GitEntries`] say which of them they are from.
+    pub generation: u64,
+    /// The branch checked out; `None` when `HEAD` is detached.
+    #[serde(default)]
+    pub branch: Option<String>,
+    /// The commit `HEAD` is at; `None` before the first commit.
+    #[serde(default)]
+    pub commit: Option<String>,
+    /// The branch it follows, such as `origin/main`.
+    #[serde(default)]
+    pub upstream: Option<String>,
+    #[serde(default)]
+    pub ahead: u32,
+    #[serde(default)]
+    pub behind: u32,
+    /// How many files each [`GitSection`] has.
+    #[serde(default)]
+    pub staged: usize,
+    #[serde(default)]
+    pub changes: usize,
+    #[serde(default)]
+    pub untracked: usize,
+    #[serde(default)]
+    pub conflicts: usize,
+}
+
+impl GitSummary {
+    /// A summary of generation `generation` with nothing in it.
+    pub fn empty(generation: u64) -> Self {
+        Self {
+            generation,
+            branch: None,
+            commit: None,
+            upstream: None,
+            ahead: 0,
+            behind: 0,
+            staged: 0,
+            changes: 0,
+            untracked: 0,
+            conflicts: 0,
+        }
+    }
+}
+
+/// Why a request was not done.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum Refusal {
+    /// The plugin's manifest does not list the capability the request needs.
+    Denied { capability: Capability },
+    /// The project is not in a git repository, or `git` is not there.
+    NoRepository,
+    /// An argument that cannot be right: a path outside the repository, for one.
+    BadArgument {
+        #[serde(default)]
+        detail: String,
+    },
+    /// `git` itself said no; `detail` is what it said.
+    Failed {
+        #[serde(default)]
+        detail: String,
+    },
+    #[serde(other)]
+    Unknown,
 }
 
 macro_rules! bytes {

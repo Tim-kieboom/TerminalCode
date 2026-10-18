@@ -40,6 +40,7 @@ mod palette_tests;
 mod paragraph_tests;
 mod paths_tests;
 mod perf_tests;
+mod plugin_git_tests;
 mod plugin_key_tests;
 mod plugin_tests;
 mod quit_tests;

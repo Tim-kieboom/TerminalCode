@@ -14,6 +14,8 @@ use super::{GitError, Status, hash_lines, parse_status};
 const TIMEOUT: Duration = Duration::from_secs(5);
 /// The largest file whose lines are compared with the index.
 const MAX_BASE_BYTES: usize = 8 * 1024 * 1024;
+/// How long a call that changes the repository may take.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
 const POLL: Duration = Duration::from_millis(10);
 
 /// The way to run `git`: the user's own program, so their config, hooks,
@@ -22,6 +24,8 @@ const POLL: Duration = Duration::from_millis(10);
 pub(crate) struct Git {
     program: OsString,
     timeout: Duration,
+    /// How long a call that changes the repository may take: a hook may run.
+    write_timeout: Duration,
 }
 
 impl Default for Git {
@@ -29,6 +33,7 @@ impl Default for Git {
         Self {
             program: OsString::from("git"),
             timeout: TIMEOUT,
+            write_timeout: WRITE_TIMEOUT,
         }
     }
 }
@@ -40,6 +45,7 @@ impl Git {
         Self {
             program: program.into(),
             timeout,
+            write_timeout: timeout,
         }
     }
 
@@ -136,9 +142,25 @@ impl Git {
     /// and it never asks for a password. Whether it succeeded is for the caller
     /// to look at; an error is only that it could not run or took too long.
     fn run(&self, dir: &Path, args: &[&str]) -> Result<Outcome, GitError> {
+        self.spawn(dir, args, true)
+    }
+
+    /// Runs a call that changes the repository: the same, except that it may
+    /// take the locks it needs, may take longer, and `args` name files, so what
+    /// looks like a pattern in a name is only a name (`--literal-pathspecs`).
+    /// Whether it succeeded is for the caller to look at.
+    pub(super) fn run_write(&self, dir: &Path, args: &[&str]) -> Result<Outcome, GitError> {
+        self.spawn(dir, args, false)
+    }
+
+    fn spawn(&self, dir: &Path, args: &[&str], read_only: bool) -> Result<Outcome, GitError> {
         let mut command = Command::new(&self.program);
+        if read_only {
+            command.arg("--no-optional-locks");
+        } else {
+            command.arg("--literal-pathspecs");
+        }
         command
-            .arg("--no-optional-locks")
             .arg("-C")
             .arg(dir)
             .args(args)
@@ -148,10 +170,14 @@ impl Git {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let name = args.first().copied().unwrap_or_default();
-        run_with_timeout(command, self.timeout).map_err(|error| match error {
+        let timeout = match read_only {
+            true => self.timeout,
+            false => self.write_timeout,
+        };
+        run_with_timeout(command, timeout).map_err(|error| match error {
             RunError::Spawn(error) if error.kind() == ErrorKind::NotFound => GitError::NotInstalled,
             RunError::Spawn(error) => failed(name, error.to_string()),
-            RunError::TimedOut => GitError::TimedOut(self.timeout),
+            RunError::TimedOut => GitError::TimedOut(timeout),
         })
     }
 }
@@ -165,23 +191,23 @@ fn slashed(path: &Path) -> String {
     parts.join("/")
 }
 
-fn failed(command: &str, detail: String) -> GitError {
+pub(super) fn failed(command: &str, detail: String) -> GitError {
     GitError::Failed {
         command: command.to_owned(),
         detail,
     }
 }
 
-fn first_line(bytes: &[u8]) -> String {
+pub(super) fn first_line(bytes: &[u8]) -> String {
     let text = String::from_utf8_lossy(bytes);
     text.lines().next().unwrap_or("").trim().to_owned()
 }
 
-struct Outcome {
-    success: bool,
-    code: Option<i32>,
-    stdout: Vec<u8>,
-    stderr: Vec<u8>,
+pub(super) struct Outcome {
+    pub(super) success: bool,
+    pub(super) code: Option<i32>,
+    pub(super) stdout: Vec<u8>,
+    pub(super) stderr: Vec<u8>,
 }
 
 enum RunError {

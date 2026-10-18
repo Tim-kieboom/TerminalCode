@@ -472,6 +472,11 @@ impl App {
             Event::TerminalChanged => self.terminal_changed(),
             Event::LspChanged => self.lsp_changed(),
             Event::Plugin(notice) => self.plugin_notice(notice),
+            Event::PluginGit {
+                plugin,
+                request,
+                result,
+            } => self.plugin_git_done(&plugin, request, result),
             Event::GitStatus { took, result } => self.git_answer(took, result),
             Event::GitBase {
                 document,

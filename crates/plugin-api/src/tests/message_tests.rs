@@ -3,7 +3,10 @@
 //! one of these fail breaks plugins in the field: it needs a new major version,
 //! not a change to the test.
 
-use crate::{ActionDecl, FromPlugin, MAX_MESSAGE, MessageError, ToPlugin, WireLine, WireView};
+use crate::{
+    ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MAX_MESSAGE,
+    MessageError, Refusal, ToPlugin, WireLine, WireView,
+};
 
 // --- ABI 1.0, as written ---
 
@@ -288,5 +291,215 @@ fn an_action_declaration_reads_with_and_without_keys() {
         later,
         ActionDecl::new("x", "X"),
         "what is not known is skipped"
+    );
+}
+
+// --- ABI 1.2, as written: git ---
+
+const GIT_CHANGED: &str = r#"{"type":"git_changed","summary":{"generation":3,"branch":"main","commit":"abc1234","upstream":"origin/main","ahead":1,"behind":2,"staged":4,"changes":5,"untracked":6,"conflicts":0}}"#;
+const GIT_PAGE: &str = r#"{"type":"git_entries","request":7,"generation":3,"section":"changes","offset":0,"total":2,"entries":[{"path":"a.rs","original":null,"kind":"modified"},{"path":"new name.rs","original":"old.rs","kind":"renamed"}]}"#;
+const DONE: &str = r#"{"type":"done","request":7}"#;
+const GIT_UNAVAILABLE: &str = r#"{"type":"git_unavailable"}"#;
+const DENIED: &str =
+    r#"{"type":"refused","request":7,"reason":{"type":"denied","capability":"git.read"}}"#;
+const NO_REPOSITORY: &str = r#"{"type":"refused","request":7,"reason":{"type":"no_repository"}}"#;
+const BAD_ARGUMENT: &str =
+    r#"{"type":"refused","request":7,"reason":{"type":"bad_argument","detail":"outside"}}"#;
+const FAILED: &str =
+    r#"{"type":"refused","request":7,"reason":{"type":"failed","detail":"fatal: x"}}"#;
+const ASK_PAGE: &str =
+    r#"{"type":"git_entries","request":7,"section":"staged","offset":10,"limit":30}"#;
+const STAGE_FILE: &str = r#"{"type":"git_stage","request":8,"path":"src/a.rs"}"#;
+const UNSTAGE_FILE: &str = r#"{"type":"git_unstage","request":9,"path":"a.rs"}"#;
+
+fn summary() -> GitSummary {
+    let mut summary = GitSummary::empty(3);
+    summary.branch = Some("main".into());
+    summary.commit = Some("abc1234".into());
+    summary.upstream = Some("origin/main".into());
+    summary.ahead = 1;
+    summary.behind = 2;
+    summary.staged = 4;
+    summary.changes = 5;
+    summary.untracked = 6;
+    summary
+}
+
+fn page() -> ToPlugin {
+    ToPlugin::GitEntries {
+        request: 7,
+        generation: 3,
+        section: GitSection::Changes,
+        offset: 0,
+        total: 2,
+        entries: vec![
+            GitEntry::new("a.rs", GitKind::Modified),
+            GitEntry::new("new name.rs", GitKind::Renamed).renamed_from("old.rs"),
+        ],
+    }
+}
+
+fn refused(reason: Refusal) -> ToPlugin {
+    ToPlugin::Refused { request: 7, reason }
+}
+
+fn to_plugin_1_2() -> Vec<(&'static str, ToPlugin)> {
+    vec![
+        (GIT_CHANGED, ToPlugin::GitChanged { summary: summary() }),
+        (GIT_PAGE, page()),
+        (DONE, ToPlugin::Done { request: 7 }),
+        (GIT_UNAVAILABLE, ToPlugin::GitUnavailable),
+        (
+            DENIED,
+            refused(Refusal::Denied {
+                capability: Capability::GitRead,
+            }),
+        ),
+        (NO_REPOSITORY, refused(Refusal::NoRepository)),
+        (
+            BAD_ARGUMENT,
+            refused(Refusal::BadArgument {
+                detail: "outside".into(),
+            }),
+        ),
+        (
+            FAILED,
+            refused(Refusal::Failed {
+                detail: "fatal: x".into(),
+            }),
+        ),
+    ]
+}
+
+fn from_plugin_1_2() -> Vec<(&'static str, FromPlugin)> {
+    vec![
+        (
+            ASK_PAGE,
+            FromPlugin::GitEntries {
+                request: 7,
+                section: GitSection::Staged,
+                offset: 10,
+                limit: 30,
+            },
+        ),
+        (
+            STAGE_FILE,
+            FromPlugin::GitStage {
+                request: 8,
+                path: "src/a.rs".into(),
+            },
+        ),
+        (
+            UNSTAGE_FILE,
+            FromPlugin::GitUnstage {
+                request: 9,
+                path: "a.rs".into(),
+            },
+        ),
+    ]
+}
+
+#[test]
+fn the_messages_of_1_2_are_written_as_they_always_were() {
+    for (json, message) in to_plugin_1_2() {
+        assert_eq!(message.to_bytes().unwrap(), json.as_bytes(), "{json}");
+    }
+    for (json, message) in from_plugin_1_2() {
+        assert_eq!(message.to_bytes().unwrap(), json.as_bytes(), "{json}");
+    }
+}
+
+#[test]
+fn the_messages_of_1_2_are_still_read() {
+    for (json, message) in to_plugin_1_2() {
+        assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(message), "{json}");
+    }
+    for (json, message) in from_plugin_1_2() {
+        assert_eq!(
+            FromPlugin::from_bytes(json.as_bytes()),
+            Ok(message),
+            "{json}"
+        );
+    }
+}
+
+#[test]
+fn a_summary_from_an_older_editor_with_fewer_numbers_takes_defaults() {
+    let read = ToPlugin::from_bytes(
+        br#"{"type":"git_changed","summary":{"generation":9,"branch":"main"}}"#,
+    )
+    .unwrap();
+
+    let ToPlugin::GitChanged { summary } = read else {
+        panic!("{read:?}");
+    };
+    assert_eq!(summary.generation, 9);
+    assert_eq!(summary.branch.as_deref(), Some("main"));
+    assert_eq!((summary.staged, summary.changes, summary.ahead), (0, 0, 0));
+}
+
+#[test]
+fn what_a_later_editor_adds_to_git_is_unknown_not_an_error() {
+    let page = ToPlugin::from_bytes(
+        br#"{"type":"git_entries","request":1,"generation":2,"section":"stashes","offset":0,"total":1,"entries":[{"path":"x","kind":"ignored","icon":"!"}],"more":true}"#,
+    )
+    .unwrap();
+    let ToPlugin::GitEntries {
+        section, entries, ..
+    } = page
+    else {
+        panic!("{page:?}");
+    };
+    assert_eq!(section, GitSection::Unknown);
+    assert_eq!(entries[0].kind, GitKind::Unknown);
+    assert_eq!(entries[0].original, None, "left out reads as nothing");
+
+    assert_eq!(
+        ToPlugin::from_bytes(
+            br#"{"type":"refused","request":1,"reason":{"type":"rate_limited","wait":5}}"#
+        ),
+        Ok(refused_with(1, Refusal::Unknown))
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(
+            br#"{"type":"refused","request":1,"reason":{"type":"denied","capability":"net.fetch"}}"#
+        ),
+        Ok(refused_with(
+            1,
+            Refusal::Denied {
+                capability: Capability::Unknown
+            }
+        ))
+    );
+}
+
+fn refused_with(request: u64, reason: Refusal) -> ToPlugin {
+    ToPlugin::Refused { request, reason }
+}
+
+#[test]
+fn a_request_from_a_later_plugin_for_a_section_this_version_lacks_reads_as_unknown() {
+    assert_eq!(
+        FromPlugin::from_bytes(
+            br#"{"type":"git_entries","request":1,"section":"stashes","limit":10}"#
+        ),
+        Ok(FromPlugin::GitEntries {
+            request: 1,
+            section: GitSection::Unknown,
+            offset: 0,
+            limit: 10
+        })
+    );
+}
+
+#[test]
+fn capabilities_are_written_as_their_names() {
+    assert_eq!(
+        serde_json::to_string(&[Capability::GitRead, Capability::GitWrite]).unwrap(),
+        r#"["git.read","git.write"]"#
+    );
+    assert_eq!(
+        serde_json::from_str::<Vec<Capability>>(r#"["git.write","time.travel"]"#).unwrap(),
+        vec![Capability::GitWrite, Capability::Unknown]
     );
 }

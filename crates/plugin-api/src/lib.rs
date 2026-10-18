@@ -13,7 +13,10 @@
 //! refuses a plugin built for another major (see [`Abi::check`]).
 
 pub use abi::{Abi, AbiError};
-pub use message::{ActionDecl, FromPlugin, MessageError, ToPlugin, WireLine, WireView};
+pub use message::{
+    ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
+    Refusal, ToPlugin, WireLine, WireView,
+};
 
 mod abi;
 mod message;
@@ -22,3 +25,6 @@ mod tests;
 
 /// The largest message either way, in bytes. A larger one is refused.
 pub const MAX_MESSAGE: usize = 1024 * 1024;
+
+/// The most entries one page of [`ToPlugin::GitEntries`] has.
+pub const MAX_PAGE: usize = 500;

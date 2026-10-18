@@ -29,10 +29,24 @@ impl App {
     /// Says that what git shows may have changed: a refresh follows soon, and
     /// not before the one that is running ended.
     pub(crate) fn git_changed(&mut self) {
+        self.git_wanted(false);
+    }
+
+    /// Says that what git shows changed because of something the editor just
+    /// did (a plugin staged a file): the refresh does not wait for a burst of
+    /// changes to end.
+    pub(super) fn git_changed_now(&mut self) {
+        self.git_wanted(true);
+    }
+
+    fn git_wanted(&mut self, now: bool) {
         if self.git.off || !self.background.is_connected() {
             return;
         }
-        self.git.schedule.request(Instant::now());
+        match now {
+            true => self.git.schedule.request_now(Instant::now()),
+            false => self.git.schedule.request(Instant::now()),
+        }
     }
 
     /// When the next refresh may start, if one is wanted.
@@ -75,6 +89,7 @@ impl App {
                 self.git.told = false;
                 if self.state.set_git_status(Some(status)) {
                     self.git.generation += 1;
+                    self.publish_git_to_plugins();
                     self.needs_redraw = true;
                 }
                 self.git_bases_step();
@@ -86,6 +101,7 @@ impl App {
                 if self.state.set_git_status(None) {
                     self.needs_redraw = true;
                 }
+                self.publish_git_to_plugins();
                 self.state.notify(format!("git is off: {error}"));
             }
             Err(error) => self.git_problem(&error),
@@ -93,6 +109,17 @@ impl App {
     }
 
     /// Tells of a problem that is not final, once until something works again.
+    /// The generation of the state of the repository, for what plugins are told.
+    pub(crate) fn git_generation(&self) -> u64 {
+        self.git.generation
+    }
+
+    /// The directory of the repository and the way to run `git`, for work in the
+    /// background.
+    pub(super) fn git_tool(&self) -> (Git, Option<std::path::PathBuf>) {
+        (self.git.git.clone(), self.git.root.clone())
+    }
+
     fn git_problem(&mut self, error: &GitError) {
         if !std::mem::replace(&mut self.git.told, true) {
             self.state.notify(format!(

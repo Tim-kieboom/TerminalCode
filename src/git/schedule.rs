@@ -15,8 +15,10 @@ pub(crate) struct Schedule {
     wanted: bool,
     /// A refresh is running.
     running: bool,
-    /// The earliest the next refresh may start.
-    not_before: Option<Instant>,
+    /// Not before this, whatever changed: twice as long as the last refresh took.
+    backoff_until: Option<Instant>,
+    /// When a wanted refresh may start.
+    ready_at: Option<Instant>,
 }
 
 impl Schedule {
@@ -28,14 +30,26 @@ impl Schedule {
             return;
         }
         self.wanted = true;
-        let settled = now + SETTLE;
-        self.not_before = Some(self.not_before.map_or(settled, |held| held.max(settled)));
+        self.ready_at = Some(self.not_before(now + SETTLE));
+    }
+
+    /// Says that what git shows changed because of something the editor just
+    /// did: no wait for a burst to end, only for the back-off.
+    pub(crate) fn request_now(&mut self, now: Instant) {
+        let soon = self.not_before(now);
+        self.wanted = true;
+        self.ready_at = Some(self.ready_at.map_or(soon, |at| at.min(soon)));
+    }
+
+    /// `at`, or the end of the back-off when that is later.
+    fn not_before(&self, at: Instant) -> Instant {
+        self.backoff_until.map_or(at, |until| until.max(at))
     }
 
     /// When the loop should look again at this: when a wanted refresh may
     /// start. `None` when none is wanted or one is running.
     pub(crate) fn deadline(&self) -> Option<Instant> {
-        (self.wanted && !self.running).then_some(self.not_before?)
+        (self.wanted && !self.running).then_some(self.ready_at?)
     }
 
     /// Whether a refresh should start now.
@@ -52,6 +66,9 @@ impl Schedule {
     /// Notes that the refresh ended after `took`; the next waits twice that.
     pub(crate) fn finished(&mut self, now: Instant, took: Duration) {
         self.running = false;
-        self.not_before = Some(now + took * 2);
+        let until = now + took * 2;
+        self.backoff_until = Some(until);
+        // A change that came while it ran waits for the back-off too.
+        self.ready_at = self.ready_at.map(|at| at.max(until));
     }
 }

@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+pub(crate) use actions::ActionError;
 pub(crate) use diff::{HunkKind, hash_lines};
 pub(crate) use lines::Lines;
 pub(crate) use marks::{Mark, Marks};
@@ -18,6 +19,7 @@ pub(crate) use parse::parse_status;
 pub(crate) use run::Git;
 pub(crate) use schedule::Schedule;
 
+mod actions;
 mod diff;
 mod lines;
 mod marks;

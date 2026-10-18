@@ -1030,3 +1030,240 @@ fn a_file_that_is_not_text_has_no_base() {
 
     assert_eq!(text, None);
 }
+
+// --- doing it sooner after the editor's own change ---
+
+#[test]
+fn a_change_the_editor_made_does_not_wait_for_a_burst_to_end() {
+    let start = Instant::now();
+    let mut schedule = Schedule::default();
+
+    schedule.request_now(start);
+
+    assert_eq!(schedule.deadline(), Some(start));
+    assert!(schedule.is_due(start));
+}
+
+#[test]
+fn a_change_of_the_editor_pulls_a_waiting_refresh_forward() {
+    let start = Instant::now();
+    let mut schedule = Schedule::default();
+    schedule.request(start);
+
+    schedule.request_now(at(start, 50));
+
+    assert_eq!(schedule.deadline(), Some(at(start, 50)));
+}
+
+#[test]
+fn a_change_of_the_editor_still_waits_for_the_back_off() {
+    let start = Instant::now();
+    let mut schedule = Schedule::default();
+    schedule.request(start);
+    schedule.started();
+    schedule.finished(at(start, 2_000), Duration::from_secs(2));
+
+    schedule.request_now(at(start, 2_001));
+
+    assert_eq!(schedule.deadline(), Some(at(start, 6_000)));
+}
+
+// --- changing the repository ---
+
+use super::ActionError;
+use super::actions::repository_path;
+
+#[test]
+fn a_path_is_written_the_way_git_wants_it() {
+    assert_eq!(repository_path("a.rs").unwrap(), "a.rs");
+    assert_eq!(repository_path("src/a.rs").unwrap(), "src/a.rs");
+    assert_eq!(repository_path("./src//a.rs").unwrap(), "src/a.rs");
+    assert_eq!(repository_path("my dir/a b.rs").unwrap(), "my dir/a b.rs");
+}
+
+#[test]
+fn a_path_that_cannot_be_right_is_refused_naming_it() {
+    for path in [
+        "",
+        ".",
+        "./",
+        "../a.rs",
+        "src/../../a.rs",
+        "/etc/passwd",
+        ".git/config",
+        "src/.git/hooks/pre-commit",
+        "a\0b",
+    ] {
+        let error = repository_path(path).unwrap_err();
+        assert!(
+            matches!(&error, ActionError::BadArgument(text) if text.contains(&format!("`{path}`"))),
+            "{path:?}: {error:?}"
+        );
+    }
+}
+
+#[test]
+fn a_bad_path_is_refused_before_git_is_asked() {
+    let git = Git::with_program("trcode-no-such-git-program", Duration::from_secs(1));
+
+    let error = git.stage(Path::new("."), "../outside").unwrap_err();
+
+    assert!(matches!(error, ActionError::BadArgument(_)), "{error:?}");
+}
+
+fn staged_and_unstaged(status: &Status, path: &str) -> Option<Change> {
+    status
+        .entries
+        .iter()
+        .find(|entry| entry.path == Path::new(path))
+        .map(|entry| entry.change)
+}
+
+#[test]
+fn staging_moves_a_new_file_into_the_staged_changes_and_unstaging_puts_it_back() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("new.txt"), "x\n").unwrap();
+    let git = Git::default();
+
+    git.stage(&root, "new.txt").unwrap();
+    let staged = git.status(&root).unwrap();
+    git.unstage(&root, "new.txt").unwrap();
+    let unstaged = git.status(&root).unwrap();
+
+    assert_eq!(
+        staged_and_unstaged(&staged, "new.txt"),
+        Some(tracked(Some(Kind::Added), None))
+    );
+    assert_eq!(
+        staged_and_unstaged(&unstaged, "new.txt"),
+        Some(Change::Untracked)
+    );
+}
+
+#[test]
+fn staging_a_changed_file_and_unstaging_it() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("kept.txt"), "two\n").unwrap();
+    let git = Git::default();
+
+    git.stage(&root, "kept.txt").unwrap();
+    assert_eq!(
+        staged_and_unstaged(&git.status(&root).unwrap(), "kept.txt"),
+        Some(tracked(Some(Kind::Modified), None))
+    );
+    git.unstage(&root, "kept.txt").unwrap();
+
+    assert_eq!(
+        staged_and_unstaged(&git.status(&root).unwrap(), "kept.txt"),
+        Some(tracked(None, Some(Kind::Modified))),
+        "the change in the working folder is kept"
+    );
+}
+
+#[test]
+fn staging_a_deleted_file_stages_its_deletion() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::remove_file(root.join("kept.txt")).unwrap();
+
+    Git::default().stage(&root, "kept.txt").unwrap();
+
+    assert_eq!(
+        staged_and_unstaged(&Git::default().status(&root).unwrap(), "kept.txt"),
+        Some(tracked(Some(Kind::Deleted), None))
+    );
+}
+
+#[test]
+fn unstaging_works_before_the_first_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = canonical(dir.path());
+    git(&root, &["init", "-q", "-b", "main"]);
+    std::fs::write(root.join("first.txt"), "x\n").unwrap();
+    let tool = Git::default();
+    tool.stage(&root, "first.txt").unwrap();
+
+    tool.unstage(&root, "first.txt").unwrap();
+
+    assert_eq!(
+        staged_and_unstaged(&tool.status(&root).unwrap(), "first.txt"),
+        Some(Change::Untracked)
+    );
+}
+
+#[test]
+fn a_name_that_looks_like_a_pattern_is_only_a_name() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("a*b.txt"), "x\n").unwrap();
+    std::fs::write(root.join("axb.txt"), "y\n").unwrap();
+    std::fs::write(root.join(":(top)c.txt"), "z\n").unwrap();
+    let tool = Git::default();
+
+    tool.stage(&root, "a*b.txt").unwrap();
+    tool.stage(&root, ":(top)c.txt").unwrap();
+
+    let status = tool.status(&root).unwrap();
+    assert_eq!(
+        staged_and_unstaged(&status, "a*b.txt"),
+        Some(tracked(Some(Kind::Added), None))
+    );
+    assert_eq!(
+        staged_and_unstaged(&status, "axb.txt"),
+        Some(Change::Untracked),
+        "the pattern did not match another file"
+    );
+    assert_eq!(
+        staged_and_unstaged(&status, ":(top)c.txt"),
+        Some(tracked(Some(Kind::Added), None))
+    );
+}
+
+#[test]
+fn a_file_in_a_folder_with_spaces_can_be_staged() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::create_dir_all(root.join("my dir")).unwrap();
+    std::fs::write(root.join("my dir/a b.txt"), "x\n").unwrap();
+
+    Git::default().stage(&root, "my dir/a b.txt").unwrap();
+
+    assert_eq!(
+        staged_and_unstaged(&Git::default().status(&root).unwrap(), "my dir/a b.txt"),
+        Some(tracked(Some(Kind::Added), None))
+    );
+}
+
+#[test]
+fn what_git_says_when_it_cannot_is_in_the_error() {
+    let dir = repository();
+    let root = canonical(dir.path());
+
+    let error = Git::default().stage(&root, "no-such-file.txt").unwrap_err();
+
+    let ActionError::Git(GitError::Failed { command, detail }) = &error else {
+        panic!("{error:?}");
+    };
+    assert_eq!(command, "add");
+    assert!(detail.contains("no-such-file.txt"), "{detail}");
+}
+
+#[test]
+fn a_leftover_index_lock_fails_a_change_with_gits_words_and_not_a_read() {
+    // A leftover `index.lock` makes `git add` fail, and the error says why.
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("new.txt"), "x\n").unwrap();
+    std::fs::write(root.join(".git/index.lock"), "").unwrap();
+
+    let error = Git::default().stage(&root, "new.txt").unwrap_err();
+
+    let ActionError::Git(GitError::Failed { detail, .. }) = &error else {
+        panic!("{error:?}");
+    };
+    assert!(detail.contains("index.lock"), "{detail}");
+    // And a read is not stopped by it.
+    assert!(Git::default().status(&root).is_ok());
+}

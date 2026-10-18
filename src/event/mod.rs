@@ -48,6 +48,12 @@ pub(crate) enum Event {
     LspChanged,
     /// Something a plugin did, or happened to it.
     Plugin(crate::plugins::Notice),
+    /// A change to the repository that a plugin asked for is done, or why not.
+    PluginGit {
+        plugin: Box<str>,
+        request: u64,
+        result: Result<(), crate::git::ActionError>,
+    },
     /// A refresh of what git says is over, and how long it took.
     GitStatus {
         took: std::time::Duration,

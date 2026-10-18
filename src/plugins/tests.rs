@@ -149,6 +149,11 @@ fn rig() -> Rig {
 }
 
 impl Rig {
+    /// Loads a plugin that may do nothing but draw.
+    fn load(&self, plugin: &str, wasm: Vec<u8>) {
+        self.runtime.load(plugin, wasm, []);
+    }
+
     fn next(&self) -> Notice {
         self.notices
             .recv_timeout(Duration::from_secs(30))
@@ -174,7 +179,7 @@ fn lines(text: &str, slot: &str) -> ViewNode {
 fn a_plugin_draws_when_it_is_loaded() {
     let rig = rig();
 
-    rig.runtime.load("hello", sending(&[HELLO]));
+    rig.load("hello", sending(&[HELLO]));
 
     assert_eq!(
         rig.next(),
@@ -191,7 +196,7 @@ fn a_plugin_that_loops_is_trapped_restarted_and_then_disabled() {
     let rig = rig();
     let started = Instant::now();
 
-    rig.runtime.load("looper", looping());
+    rig.load("looper", looping());
 
     let reasons: Vec<_> = (0..3).map(|_| rig.next()).collect();
     let restarted = |reason: &str| Notice::Restarted {
@@ -218,7 +223,7 @@ fn a_plugin_that_loops_is_trapped_restarted_and_then_disabled() {
 fn a_plugin_that_loops_while_starting_is_disabled_too() {
     let rig = rig();
 
-    rig.runtime.load("spinner", looping_at_start());
+    rig.load("spinner", looping_at_start());
 
     assert!(matches!(rig.next(), Notice::Restarted { .. }));
     assert!(matches!(rig.next(), Notice::Restarted { .. }));
@@ -228,7 +233,7 @@ fn a_plugin_that_loops_while_starting_is_disabled_too() {
 #[test]
 fn a_disabled_plugin_hears_nothing_more() {
     let rig = rig();
-    rig.runtime.load("looper", looping());
+    rig.load("looper", looping());
     for _ in 0..3 {
         rig.next();
     }
@@ -241,7 +246,7 @@ fn a_disabled_plugin_hears_nothing_more() {
 #[test]
 fn a_restarted_plugin_is_fresh_and_draws_again() {
     let rig = rig();
-    rig.runtime.load("flaky", fails_on_the_second_call());
+    rig.load("flaky", fails_on_the_second_call());
     assert!(matches!(rig.next(), Notice::View { .. }), "the first call");
 
     rig.runtime.send("flaky", ToPlugin::Refresh);
@@ -256,7 +261,7 @@ fn a_restarted_plugin_is_fresh_and_draws_again() {
 fn the_memory_of_a_plugin_is_limited() {
     let rig = rig();
 
-    rig.runtime.load("greedy", asks_for_memory());
+    rig.load("greedy", asks_for_memory());
 
     assert_eq!(
         rig.next(),
@@ -271,7 +276,7 @@ fn the_memory_of_a_plugin_is_limited() {
 fn a_message_that_is_too_big_counts_against_the_plugin() {
     let rig = rig();
 
-    rig.runtime.load("loud", sends_too_much());
+    rig.load("loud", sends_too_much());
 
     let first = rig.next();
     let Notice::Restarted { reason, .. } = first else {
@@ -286,9 +291,8 @@ fn a_message_that_is_too_big_counts_against_the_plugin() {
 fn a_plugin_that_cannot_run_is_not_started_again() {
     let rig = rig();
 
-    rig.runtime
-        .load("garbage", b"this is not WebAssembly".to_vec());
-    rig.runtime.load("headless", without_handle());
+    rig.load("garbage", b"this is not WebAssembly".to_vec());
+    rig.load("headless", without_handle());
 
     let first = rig.next();
     assert!(
@@ -311,7 +315,7 @@ fn what_a_plugin_says_that_is_not_understood_is_ignored_and_told_once() {
     let unknown_kind = r#"{"type":"teleport","to":"mars"}"#;
     let unknown_view = r#"{"type":"set_view","view":{"type":"hologram"}}"#;
 
-    rig.runtime.load(
+    rig.load(
         "odd",
         sending(&[unknown_kind, unknown_view, "nope", "also nope"]),
     );
@@ -329,10 +333,10 @@ fn what_a_plugin_says_that_is_not_understood_is_ignored_and_told_once() {
 #[test]
 fn a_plugin_with_the_same_name_replaces_the_one_before() {
     let rig = rig();
-    rig.runtime.load("a", sending(&[HELLO]));
+    rig.load("a", sending(&[HELLO]));
     rig.next();
 
-    rig.runtime.load("a", looping());
+    rig.load("a", looping());
 
     assert!(matches!(rig.next(), Notice::Restarted { .. }));
 }
@@ -424,4 +428,427 @@ fn a_view_this_version_cannot_draw_is_a_line_that_says_so() {
 
     assert_eq!(lines.len(), 1);
     assert!(lines[0].text.contains("cannot show"));
+}
+
+// --- git for plugins, at the runtime ---
+
+use super::fixtures::{Echo, First};
+use crate::git::{Branch, Change, Entry, Kind, Status};
+use crate::plugin_api::Capability;
+
+fn status_with(paths: &[&str]) -> Status {
+    Status {
+        root: std::path::PathBuf::from("/repo"),
+        branch: Branch {
+            name: Some("main".into()),
+            oid: Some("abc1234".into()),
+            ..Branch::default()
+        },
+        entries: paths
+            .iter()
+            .map(|path| Entry {
+                path: std::path::PathBuf::from(path),
+                original: None,
+                change: Change::Tracked {
+                    staged: None,
+                    unstaged: Some(Kind::Modified),
+                },
+            })
+            .collect(),
+    }
+}
+
+/// The text a plugin showed, which is the last message it heard.
+fn shown(notice: &Notice) -> String {
+    match notice {
+        Notice::View {
+            content: ViewNode::Lines(lines),
+            ..
+        } => lines[0].text.to_string(),
+        other => panic!("not a view of lines: {other:?}"),
+    }
+}
+
+const CHANGED_PREFIX: &str =
+    r#"{"type":"git_changed","summary":{"generation":4,"branch":"main","commit":"abc1234","#;
+
+#[test]
+fn a_plugin_that_may_read_git_is_told_how_it_is_right_after_it_starts() {
+    let rig = rig();
+    rig.runtime
+        .publish_git(Some((4, &status_with(&["a.rs", "b.rs"]))));
+
+    rig.runtime
+        .load("g", Echo::new(First::Echo).build(), [Capability::GitRead]);
+
+    assert_eq!(shown(&rig.next()), r#"{"type":"start"}"#);
+    let told = shown(&rig.next());
+    assert!(told.starts_with(CHANGED_PREFIX), "{told}");
+    assert!(told.contains(r#""changes":2"#), "{told}");
+}
+
+#[test]
+fn a_plugin_that_may_not_read_git_is_not_told() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((4, &status_with(&["a.rs"]))));
+
+    rig.load("g", Echo::new(First::Echo).build());
+
+    assert_eq!(shown(&rig.next()), r#"{"type":"start"}"#);
+    rig.nothing_more();
+}
+
+#[test]
+fn a_new_state_is_pushed_to_the_plugins_that_may_read_it() {
+    let rig = rig();
+    rig.runtime.load(
+        "reader",
+        Echo::new(First::Echo).build(),
+        [Capability::GitRead],
+    );
+    rig.load("other", Echo::new(First::Echo).build());
+    assert_eq!(shown(&rig.next()), r#"{"type":"start"}"#);
+    assert_eq!(shown(&rig.next()), r#"{"type":"start"}"#);
+
+    rig.runtime.publish_git(Some((7, &status_with(&["a.rs"]))));
+
+    let Notice::View { plugin, content } = rig.next() else {
+        panic!("a view");
+    };
+    assert_eq!(&*plugin, "reader");
+    let ViewNode::Lines(lines) = content else {
+        panic!("lines");
+    };
+    assert!(lines[0].text.contains(r#""generation":7"#));
+    rig.nothing_more();
+}
+
+#[test]
+fn the_plugins_are_told_when_the_repository_goes_away() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((1, &status_with(&["a.rs"]))));
+    rig.runtime
+        .load("g", Echo::new(First::Echo).build(), [Capability::GitRead]);
+    rig.next();
+    rig.next();
+
+    rig.runtime.publish_git(None);
+
+    assert_eq!(shown(&rig.next()), r#"{"type":"git_unavailable"}"#);
+}
+
+#[test]
+fn a_plugin_that_traps_is_told_how_git_is_again_when_it_starts_fresh() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((4, &status_with(&["a.rs"]))));
+    rig.runtime.load(
+        "g",
+        Echo::new(First::Echo).traps_on_refresh().build(),
+        [Capability::GitRead],
+    );
+    assert_eq!(shown(&rig.next()), r#"{"type":"start"}"#);
+    assert!(shown(&rig.next()).starts_with(CHANGED_PREFIX));
+
+    rig.runtime.send("g", ToPlugin::Refresh);
+
+    assert!(matches!(rig.next(), Notice::Restarted { .. }));
+    assert_eq!(shown(&rig.next()), r#"{"type":"start"}"#);
+    assert!(
+        shown(&rig.next()).starts_with(CHANGED_PREFIX),
+        "a fresh instance knows nothing"
+    );
+}
+
+fn asking(request: &str) -> Vec<u8> {
+    Echo::new(First::Echo).asks_on_action(request).build()
+}
+
+/// What the plugin showed after it was sent an action that makes it ask.
+fn answer_to(rig: &Rig, plugin: &str) -> String {
+    rig.runtime.send(plugin, ToPlugin::action("go"));
+    // The action is echoed first, then the answer to what it asked.
+    assert_eq!(shown(&rig.next()), r#"{"type":"action","action":"go"}"#);
+    shown(&rig.next())
+}
+
+#[test]
+fn a_page_is_answered_from_the_state_the_runtime_holds_with_its_generation() {
+    let rig = rig();
+    rig.runtime
+        .publish_git(Some((4, &status_with(&["a.rs", "b.rs", "c.rs"]))));
+    rig.runtime.load(
+        "g",
+        asking(r#"{"type":"git_entries","request":5,"section":"changes","offset":1,"limit":1}"#),
+        [Capability::GitRead],
+    );
+    rig.next();
+    rig.next();
+
+    let answer = answer_to(&rig, "g");
+
+    assert_eq!(
+        answer,
+        r#"{"type":"git_entries","request":5,"generation":4,"section":"changes","offset":1,"total":3,"entries":[{"path":"b.rs","original":null,"kind":"modified"}]}"#
+    );
+}
+
+#[test]
+fn a_page_is_always_from_the_latest_state() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((4, &status_with(&["a.rs"]))));
+    rig.runtime.load(
+        "g",
+        asking(r#"{"type":"git_entries","request":5,"section":"changes","limit":10}"#),
+        [Capability::GitRead],
+    );
+    rig.next();
+    rig.next();
+    rig.runtime
+        .publish_git(Some((5, &status_with(&["a.rs", "z.rs"]))));
+    rig.next();
+
+    let answer = answer_to(&rig, "g");
+
+    assert!(answer.contains(r#""generation":5"#), "{answer}");
+    assert!(answer.contains(r#""total":2"#), "{answer}");
+}
+
+#[test]
+fn a_page_is_cut_to_the_most_entries_it_may_have_and_the_offset_may_run_out() {
+    let rig = rig();
+    let many: Vec<String> = (0..700).map(|n| format!("f{n:03}.rs")).collect();
+    let names: Vec<&str> = many.iter().map(String::as_str).collect();
+    rig.runtime.publish_git(Some((1, &status_with(&names))));
+    rig.runtime.load(
+        "big",
+        asking(r#"{"type":"git_entries","request":1,"section":"changes","limit":100000}"#),
+        [Capability::GitRead],
+    );
+    rig.runtime.load(
+        "past",
+        asking(r#"{"type":"git_entries","request":2,"section":"changes","offset":9000,"limit":5}"#),
+        [Capability::GitRead],
+    );
+    for _ in 0..4 {
+        rig.next();
+    }
+
+    let big = answer_to(&rig, "big");
+    let past = answer_to(&rig, "past");
+
+    let ToPlugin::GitEntries { entries, total, .. } = ToPlugin::from_bytes(big.as_bytes()).unwrap()
+    else {
+        panic!("{big}");
+    };
+    assert_eq!((entries.len(), total), (crate::plugin_api::MAX_PAGE, 700));
+    let ToPlugin::GitEntries {
+        entries, offset, ..
+    } = ToPlugin::from_bytes(past.as_bytes()).unwrap()
+    else {
+        panic!("{past}");
+    };
+    assert_eq!(
+        (entries.len(), offset),
+        (0, 700),
+        "no entries, from the end"
+    );
+}
+
+#[test]
+fn the_sections_are_the_ones_of_the_git_pane() {
+    let rig = rig();
+    let status = Status {
+        root: std::path::PathBuf::from("/repo"),
+        branch: Branch::default(),
+        entries: vec![
+            Entry {
+                path: "both.rs".into(),
+                original: None,
+                change: Change::Tracked {
+                    staged: Some(Kind::Added),
+                    unstaged: Some(Kind::Modified),
+                },
+            },
+            Entry {
+                path: "moved.rs".into(),
+                original: Some("old.rs".into()),
+                change: Change::Tracked {
+                    staged: Some(Kind::Renamed),
+                    unstaged: None,
+                },
+            },
+            Entry {
+                path: "new.rs".into(),
+                original: None,
+                change: Change::Untracked,
+            },
+            Entry {
+                path: "clash.rs".into(),
+                original: None,
+                change: Change::Conflicted,
+            },
+        ],
+    };
+    rig.runtime.publish_git(Some((1, &status)));
+    let mut sections = Vec::new();
+    for (index, name) in ["staged", "changes", "untracked", "conflicts"]
+        .into_iter()
+        .enumerate()
+    {
+        let request =
+            format!(r#"{{"type":"git_entries","request":{index},"section":"{name}","limit":10}}"#);
+        let plugin = format!("p{index}");
+        rig.runtime
+            .load(&plugin, asking(&request), [Capability::GitRead]);
+        rig.next();
+        rig.next();
+        sections.push(answer_to(&rig, &plugin));
+    }
+
+    let paths = |answer: &str| {
+        let Ok(ToPlugin::GitEntries { entries, .. }) = ToPlugin::from_bytes(answer.as_bytes())
+        else {
+            panic!("{answer}");
+        };
+        entries
+            .into_iter()
+            .map(|entry| (entry.path, entry.original))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        paths(&sections[0]),
+        vec![
+            ("both.rs".to_owned(), None),
+            ("moved.rs".to_owned(), Some("old.rs".to_owned()))
+        ]
+    );
+    assert_eq!(paths(&sections[1]), vec![("both.rs".to_owned(), None)]);
+    assert_eq!(paths(&sections[2]), vec![("new.rs".to_owned(), None)]);
+    assert_eq!(paths(&sections[3]), vec![("clash.rs".to_owned(), None)]);
+}
+
+#[test]
+fn a_request_without_the_capability_is_refused_naming_it() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((1, &status_with(&["a.rs"]))));
+    rig.load(
+        "g",
+        asking(r#"{"type":"git_entries","request":5,"section":"changes","limit":10}"#),
+    );
+    rig.next();
+
+    let answer = answer_to(&rig, "g");
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":5,"reason":{"type":"denied","capability":"git.read"}}"#
+    );
+}
+
+#[test]
+fn a_request_without_a_repository_is_refused() {
+    let rig = rig();
+    rig.runtime.load(
+        "g",
+        asking(r#"{"type":"git_entries","request":5,"section":"changes","limit":10}"#),
+        [Capability::GitRead],
+    );
+    rig.next();
+
+    let answer = answer_to(&rig, "g");
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":5,"reason":{"type":"no_repository"}}"#
+    );
+}
+
+#[test]
+fn a_section_this_version_does_not_have_is_a_bad_argument() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((1, &status_with(&["a.rs"]))));
+    rig.runtime.load(
+        "g",
+        asking(r#"{"type":"git_entries","request":5,"section":"stashes","limit":10}"#),
+        [Capability::GitRead],
+    );
+    rig.next();
+    rig.next();
+
+    let answer = answer_to(&rig, "g");
+
+    assert!(answer.contains(r#""type":"bad_argument""#), "{answer}");
+}
+
+#[test]
+fn a_change_to_the_repository_needs_its_own_capability() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((1, &status_with(&["a.rs"]))));
+    rig.runtime.load(
+        "reader",
+        asking(r#"{"type":"git_stage","request":6,"path":"a.rs"}"#),
+        [Capability::GitRead],
+    );
+    rig.next();
+    rig.next();
+
+    let answer = answer_to(&rig, "reader");
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":6,"reason":{"type":"denied","capability":"git.write"}}"#
+    );
+}
+
+#[test]
+fn a_change_with_the_capability_is_handed_to_the_app() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((1, &status_with(&["a.rs"]))));
+    rig.runtime.load(
+        "writer",
+        asking(r#"{"type":"git_unstage","request":6,"path":"src/a.rs"}"#),
+        [Capability::GitWrite],
+    );
+    rig.next();
+    rig.runtime.send("writer", ToPlugin::action("go"));
+    rig.next();
+
+    let notice = rig.next();
+
+    assert_eq!(
+        notice,
+        Notice::GitWrite {
+            plugin: "writer".into(),
+            request: 6,
+            op: super::WriteOp::Unstage("src/a.rs".into()),
+        }
+    );
+}
+
+#[test]
+fn a_plugin_that_answers_every_answer_with_a_question_does_not_starve_the_others() {
+    let rig = rig();
+    rig.runtime.publish_git(Some((1, &status_with(&["a.rs"]))));
+    rig.runtime.load(
+        "chatty",
+        Echo::new(First::Echo)
+            .asks_always(r#"{"type":"git_entries","request":1,"section":"changes","limit":1}"#)
+            .build(),
+        [Capability::GitRead],
+    );
+
+    rig.load("quiet", sending(&[HELLO]));
+
+    // The chatty plugin keeps the thread busy for ever; the quiet one still gets its turn.
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        match rig.notices.recv_timeout(Duration::from_secs(5)) {
+            Ok(Notice::View { plugin, .. }) if &*plugin == "quiet" => break,
+            Ok(_) => assert!(
+                Instant::now() < deadline,
+                "the quiet plugin waited too long"
+            ),
+            Err(error) => panic!("{error:?}"),
+        }
+    }
 }

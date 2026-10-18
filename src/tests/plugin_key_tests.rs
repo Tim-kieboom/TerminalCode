@@ -21,6 +21,7 @@ use crate::event::Event;
 use crate::event::action::Action;
 use crate::keymap::Keymap;
 use crate::plugin_api::ActionDecl;
+use crate::plugins::fixtures::{First, echo};
 use crate::terminal::KeyboardSupport;
 use crate::ui::PluginViewId;
 use crate::ui::layout::LayoutTree;
@@ -31,84 +32,6 @@ const LAYOUT: &str = r#"Row([
     Fixed(40, Pane(view: Plugin("hello"))),
     Fixed(40, Pane(view: Plugin("other"))),
 ])"#;
-
-const LINES_PREFIX: &str = r#"{"type":"set_view","view":{"type":"lines","lines":[{"text":""#;
-const LINES_SUFFIX: &str = r#"","slot":""}]}}"#;
-const INPUT_PREFIX: &str = r#"{"type":"set_view","view":{"type":"input","prompt":"> ","value":""#;
-const INPUT_SUFFIX: &str = r#"","cursor":0}}"#;
-
-/// What a plugin shows when the editor starts it, before it hears anything.
-enum First {
-    /// What it was sent, as lines.
-    Echo,
-    /// What it was sent, as a line to type into.
-    EchoInInput,
-    /// A line to type into, and what it was sent as lines from then on.
-    InputThenLines,
-}
-
-fn data(at: u32, text: &str) -> String {
-    format!(
-        "(data (i32.const {at}) \"{}\")",
-        text.replace('\\', "\\\\").replace('"', "\\\"")
-    )
-}
-
-/// A plugin that answers every message with a view that has the message in it.
-fn echo(first: First) -> Vec<u8> {
-    let (prefix, suffix) = match first {
-        First::EchoInInput => (INPUT_PREFIX, INPUT_SUFFIX),
-        First::Echo | First::InputThenLines => (LINES_PREFIX, LINES_SUFFIX),
-    };
-    let start_view = format!("{INPUT_PREFIX}{INPUT_SUFFIX}");
-    let on_start = match first {
-        First::InputThenLines => format!(
-            "(if (i32.eq (i32.load8_u (i32.add (local.get $ptr) (i32.const 9))) (i32.const 115))
-               (then (call $send (i32.const 3072) (i32.const {})) (return)))",
-            start_view.len()
-        ),
-        _ => String::new(),
-    };
-    let (prefix_data, suffix_data, start_data) = (
-        data(1024, prefix),
-        data(1536, suffix),
-        data(3072, &start_view),
-    );
-    wat::parse_str(format!(
-        r#"(module
-            (import "host" "send" (func $send (param i32 i32)))
-            (memory (export "memory") 4)
-            {prefix_data}
-            {suffix_data}
-            {start_data}
-            (func (export "alloc") (param i32) (result i32) (i32.const 65536))
-            (func (export "handle") (param $ptr i32) (param $len i32)
-              (local $out i32) (local $i i32) (local $b i32)
-              {on_start}
-              (local.set $out (i32.const 8192))
-              (memory.copy (local.get $out) (i32.const 1024) (i32.const {prefix_len}))
-              (local.set $out (i32.add (local.get $out) (i32.const {prefix_len})))
-              (block $done
-                (loop $next
-                  (br_if $done (i32.ge_u (local.get $i) (local.get $len)))
-                  (local.set $b (i32.load8_u (i32.add (local.get $ptr) (local.get $i))))
-                  (if (i32.or (i32.eq (local.get $b) (i32.const 34))
-                              (i32.eq (local.get $b) (i32.const 92)))
-                    (then
-                      (i32.store8 (local.get $out) (i32.const 92))
-                      (local.set $out (i32.add (local.get $out) (i32.const 1)))))
-                  (i32.store8 (local.get $out) (local.get $b))
-                  (local.set $out (i32.add (local.get $out) (i32.const 1)))
-                  (local.set $i (i32.add (local.get $i) (i32.const 1)))
-                  (br $next)))
-              (memory.copy (local.get $out) (i32.const 1536) (i32.const {suffix_len}))
-              (local.set $out (i32.add (local.get $out) (i32.const {suffix_len})))
-              (call $send (i32.const 8192) (i32.sub (local.get $out) (i32.const 8192)))))"#,
-        prefix_len = prefix.len(),
-        suffix_len = suffix.len(),
-    ))
-    .expect("the test module is valid")
-}
 
 struct Rig {
     app: App,
@@ -175,7 +98,7 @@ impl Rig {
 
     /// Loads a plugin and waits for the view it shows when started.
     fn load(&mut self, name: &str, wasm: Vec<u8>, actions: Vec<ActionDecl>) {
-        self.app.load_plugin(name, wasm, actions);
+        self.app.load_plugin(name, wasm, actions, &[]);
         self.wait_until("the plugin's first view", |rig| rig.view(name).is_some());
     }
 
@@ -379,6 +302,7 @@ fn a_key_a_plugin_declared_that_cannot_be_read_is_reported() {
         "hello",
         echo(First::Echo),
         vec![ActionDecl::new("stage", "Stage").with_keys("ctrl+nonsense+key")],
+        &[],
     );
     rig.wait_until("the first view", |rig| rig.view("hello").is_some());
     rig.focus("hello");
