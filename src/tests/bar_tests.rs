@@ -206,3 +206,58 @@ fn the_two_bars_switch_independently() {
     assert!(app.state().is_showing(&plugin("errors")));
     assert!(!app.state().is_showing(&ComponentKind::Terminal));
 }
+
+#[test]
+fn the_tab_strip_does_not_cover_the_first_row_of_the_explorer_when_the_bar_has_no_top_border() {
+    let mut app = app();
+    let root_name = app
+        .state()
+        .explorer()
+        .rows()
+        .first()
+        .map(|row| row.name.clone())
+        .expect("the project has a root row");
+
+    let screen = draw(&mut app);
+
+    let rows: Vec<&str> = screen.lines().collect();
+    let strip = rows
+        .iter()
+        .position(|row| row.contains("Explorer - git"))
+        .expect("the tab strip");
+    assert!(
+        rows[strip + 1].contains(&root_name),
+        "the row under the strip is the root of the explorer: {screen}"
+    );
+    assert!(
+        !rows[strip].contains(&root_name),
+        "and not the strip's own row: {}",
+        rows[strip]
+    );
+}
+
+#[test]
+fn a_plugin_view_starts_under_the_strip_too() {
+    let mut app = app();
+    let (x, y) = tab_of(&app, &ComponentKind::Explorer, 1);
+    click_at(&mut app, MouseEventKind::Down(MouseButton::Left), x, y);
+    app.state_mut().set_plugin_view(
+        PluginViewId::new("git"),
+        crate::ui::view::ViewNode::Lines(vec![crate::ui::view::ViewLine {
+            text: "first row of the plugin".into(),
+            slot: "".into(),
+        }]),
+    );
+
+    let screen = draw(&mut app);
+
+    let rows: Vec<&str> = screen.lines().collect();
+    let strip = rows
+        .iter()
+        .position(|row| row.contains("Explorer - git"))
+        .expect("the tab strip");
+    assert!(
+        rows[strip + 1].contains("first row of the plugin"),
+        "{screen}"
+    );
+}

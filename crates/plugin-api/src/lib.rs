@@ -16,12 +16,15 @@ pub use abi::{Abi, AbiError};
 pub use manifest::Manifest;
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
-    Refusal, ToPlugin, WireLine, WireView,
+    Refusal, ToPlugin, WireLine, WireSpan, WireView,
 };
+pub use plugin::Plugin;
 
 mod abi;
+pub mod guest;
 mod manifest;
 mod message;
+mod plugin;
 #[cfg(test)]
 mod tests;
 

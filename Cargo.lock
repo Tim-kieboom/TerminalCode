@@ -2588,6 +2588,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "trcode-plugin-git"
+version = "0.6.2"
+dependencies = [
+ "trcode-plugin-api",
+]
+
+[[package]]
 name = "trcode-pty"
 version = "0.6.2"
 dependencies = [

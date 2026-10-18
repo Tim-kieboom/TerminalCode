@@ -6,6 +6,24 @@ const LINES_PREFIX: &str = r#"{"type":"set_view","view":{"type":"lines","lines":
 const LINES_SUFFIX: &str = r#"","slot":""}]}}"#;
 const INPUT_PREFIX: &str = r#"{"type":"set_view","view":{"type":"input","prompt":"> ","value":""#;
 const INPUT_SUFFIX: &str = r#"","cursor":0}}"#;
+const ROWS_SUFFIX: &str = r#"","slot":""}],"selected":40}}"#;
+
+fn rows_prefix() -> String {
+    let rows: Vec<String> = (0..40)
+        .map(|n| format!(r#"{{"text":"row {n}","slot":""}}"#))
+        .collect();
+    format!(
+        r#"{{"type":"set_view","view":{{"type":"rows","lines":[{},{{"text":""#,
+        rows.join(",")
+    )
+}
+
+/// Where things are in the memory of a fixture plugin.
+const PREFIX_AT: u32 = 1024;
+const SUFFIX_AT: u32 = 4096;
+const START_AT: u32 = 4608;
+const REQUEST_AT: u32 = 5120;
+const OUT_AT: u32 = 12288;
 
 /// What a plugin shows before it has heard anything but `start`.
 #[derive(Clone, Copy)]
@@ -16,6 +34,9 @@ pub(crate) enum First {
     EchoInInput,
     /// A line to type into, and what it was sent as lines from then on.
     InputThenLines,
+    /// Forty rows, `row 0` to `row 39`, and what it was sent as the row after them,
+    /// which is the selected one.
+    EchoInRows,
 }
 
 /// When a plugin asks for what it was told to ask for.
@@ -72,14 +93,15 @@ impl Echo {
 
     pub(crate) fn build(self) -> Vec<u8> {
         let (prefix, suffix) = match self.first {
-            First::EchoInInput => (INPUT_PREFIX, INPUT_SUFFIX),
-            First::Echo | First::InputThenLines => (LINES_PREFIX, LINES_SUFFIX),
+            First::EchoInInput => (INPUT_PREFIX.to_owned(), INPUT_SUFFIX),
+            First::EchoInRows => (rows_prefix(), ROWS_SUFFIX),
+            First::Echo | First::InputThenLines => (LINES_PREFIX.to_owned(), LINES_SUFFIX),
         };
         let start_view = format!("{INPUT_PREFIX}{INPUT_SUFFIX}");
         let on_start = match self.first {
             First::InputThenLines => format!(
                 "(if (i32.eq (i32.load8_u (i32.add (local.get $ptr) (i32.const 9))) (i32.const 115))
-                   (then (call $send (i32.const 3072) (i32.const {})) (return)))",
+                   (then (call $send (i32.const {START_AT}) (i32.const {})) (return)))",
                 start_view.len()
             ),
             _ => String::new(),
@@ -93,7 +115,7 @@ impl Echo {
             ),
             Asks::OnAction => format!(
                 "(if (i32.eq (i32.load8_u (i32.add (local.get $ptr) (i32.const 9))) (i32.const 97))
-                   (then (call $send (i32.const 4096) (i32.const {}))))",
+                   (then (call $send (i32.const {REQUEST_AT}) (i32.const {}))))",
                 request.len()
             ),
         };
@@ -107,10 +129,10 @@ impl Echo {
                 .to_owned(),
         };
         let (prefix_data, suffix_data, start_data, request_data) = (
-            data(1024, prefix),
-            data(1536, suffix),
-            data(3072, &start_view),
-            data(4096, &request),
+            data(PREFIX_AT, &prefix),
+            data(SUFFIX_AT, suffix),
+            data(START_AT, &start_view),
+            data(REQUEST_AT, &request),
         );
         wat::parse_str(format!(
             r#"(module
@@ -126,8 +148,8 @@ impl Echo {
                   {on_start}
                   {trap}
                   {ask}
-                  (local.set $out (i32.const 8192))
-                  (memory.copy (local.get $out) (i32.const 1024) (i32.const {prefix_len}))
+                  (local.set $out (i32.const {OUT_AT}))
+                  (memory.copy (local.get $out) (i32.const {PREFIX_AT}) (i32.const {prefix_len}))
                   (local.set $out (i32.add (local.get $out) (i32.const {prefix_len})))
                   (block $done
                     (loop $next
@@ -142,9 +164,9 @@ impl Echo {
                       (local.set $out (i32.add (local.get $out) (i32.const 1)))
                       (local.set $i (i32.add (local.get $i) (i32.const 1)))
                       (br $next)))
-                  (memory.copy (local.get $out) (i32.const 1536) (i32.const {suffix_len}))
+                  (memory.copy (local.get $out) (i32.const {SUFFIX_AT}) (i32.const {suffix_len}))
                   (local.set $out (i32.add (local.get $out) (i32.const {suffix_len})))
-                  (call $send (i32.const 8192) (i32.sub (local.get $out) (i32.const 8192)))))"#,
+                  (call $send (i32.const {OUT_AT}) (i32.sub (local.get $out) (i32.const {OUT_AT})))))"#,
             prefix_len = prefix.len(),
             suffix_len = suffix.len(),
         ))

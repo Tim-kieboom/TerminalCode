@@ -45,6 +45,9 @@ pub enum ToPlugin {
     /// The user pressed `esc` in the input view: the editor takes the keyboard
     /// back. The plugin should stop showing the input.
     InputEnded,
+    /// The user clicked row `row` of the plugin's [`WireView::Rows`]: the index of
+    /// the line in `lines`, as the plugin sent them.
+    Click { row: usize },
     /// What git says changed: sent to a plugin with [`Capability::GitRead`] after
     /// it starts, and whenever the repository's state differs from before. It
     /// is a summary; the files are asked for with [`FromPlugin::GitEntries`].
@@ -92,6 +95,10 @@ pub enum FromPlugin {
         offset: usize,
         limit: usize,
     },
+    /// Opens a file in the editor (needs [`Capability::EditorOpen`]): `path` is
+    /// from the root of the repository, as in [`GitEntry::path`]. The answer is
+    /// [`ToPlugin::Done`] or [`ToPlugin::Refused`].
+    OpenFile { request: u64, path: String },
     /// Stages the file (needs [`Capability::GitWrite`]): `path` is from the root
     /// of the repository, as in [`GitEntry::path`]. The answer is
     /// [`ToPlugin::Done`] or [`ToPlugin::Refused`].
@@ -117,6 +124,16 @@ pub enum WireView {
     List {
         #[serde(default)]
         items: Vec<String>,
+        #[serde(default)]
+        selected: Option<usize>,
+    },
+    /// Lines with a row that is selected: the editor draws them with the row
+    /// highlighted and scrolls so that it is on screen, and tells the plugin of a
+    /// click on a row ([`ToPlugin::Click`]). Each line may be made of spans that
+    /// have styles of their own.
+    Rows {
+        #[serde(default)]
+        lines: Vec<WireLine>,
         #[serde(default)]
         selected: Option<usize>,
     },
@@ -148,9 +165,23 @@ pub struct WireLine {
     /// The theme slot that styles it; a slot the theme does not have is plain text.
     #[serde(default)]
     pub slot: String,
+    /// The line as pieces of text with styles of their own; when there are any,
+    /// they are the line and `text` is not drawn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spans: Vec<WireSpan>,
 }
 
-impl WireLine {
+/// A piece of a line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct WireSpan {
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub slot: String,
+}
+
+impl WireSpan {
     pub fn new(text: impl Into<String>, slot: impl Into<String>) -> Self {
         Self {
             text: text.into(),
@@ -159,10 +190,36 @@ impl WireLine {
     }
 }
 
+impl WireLine {
+    pub fn new(text: impl Into<String>, slot: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            slot: slot.into(),
+            spans: Vec::new(),
+        }
+    }
+
+    /// A line made of pieces with styles of their own.
+    pub fn of_spans(spans: impl IntoIterator<Item = WireSpan>) -> Self {
+        Self {
+            text: String::new(),
+            slot: String::new(),
+            spans: spans.into_iter().collect(),
+        }
+    }
+}
+
 impl WireView {
     pub fn lines(lines: impl IntoIterator<Item = WireLine>) -> Self {
         Self::Lines {
             lines: lines.into_iter().collect(),
+        }
+    }
+
+    pub fn rows(lines: impl IntoIterator<Item = WireLine>, selected: Option<usize>) -> Self {
+        Self::Rows {
+            lines: lines.into_iter().collect(),
+            selected,
         }
     }
 
@@ -255,6 +312,9 @@ pub enum Capability {
     /// Change the repository: stage and unstage files.
     #[serde(rename = "git.write")]
     GitWrite,
+    /// Open files of the project in the editor.
+    #[serde(rename = "editor.open")]
+    EditorOpen,
     /// A capability a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -262,13 +322,14 @@ pub enum Capability {
 
 impl Capability {
     /// Every capability this version has.
-    pub const ALL: [Self; 2] = [Self::GitRead, Self::GitWrite];
+    pub const ALL: [Self; 3] = [Self::GitRead, Self::GitWrite, Self::EditorOpen];
 
     /// The name a manifest writes it by.
     pub const fn name(self) -> &'static str {
         match self {
             Self::GitRead => "git.read",
             Self::GitWrite => "git.write",
+            Self::EditorOpen => "editor.open",
             Self::Unknown => "unknown",
         }
     }

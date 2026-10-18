@@ -12,6 +12,7 @@ use crate::git::ActionError;
 use crate::git::GitError;
 use crate::plugin_api::{ActionDecl, Refusal, ToPlugin};
 use crate::plugins::{Notice, Runtime, WriteOp};
+use crate::ui::view::{ViewNode, rows_scroll};
 use crate::ui::{ComponentKind, PluginViewId};
 
 /// The plugin thread, once the app can hear from it, and the actions each
@@ -62,6 +63,11 @@ impl App {
                 request,
                 op,
             } => self.plugin_git_write(&plugin, request, op),
+            Notice::OpenFile {
+                plugin,
+                request,
+                path,
+            } => self.plugin_open_file(&plugin, request, &path),
         }
         self.needs_redraw = true;
     }
@@ -73,6 +79,49 @@ impl App {
         };
         let generation = self.git_generation();
         runtime.publish_git(self.state.git_status().map(|status| (generation, status)));
+    }
+
+    /// A plugin with the capability asked to open a file of the repository (or of
+    /// the project, when there is no repository): the path is checked like the
+    /// path of any action, the file opens and the keyboard stays where it was, and
+    /// the plugin is told how it went.
+    fn plugin_open_file(&mut self, plugin: &str, request: u64, path: &str) {
+        let relative = match crate::git::repository_path(path) {
+            Ok(relative) => relative,
+            Err(ActionError::BadArgument(detail)) => {
+                self.send_to_plugin(plugin, refused(request, Refusal::BadArgument { detail }));
+                return;
+            }
+            Err(error) => {
+                let detail = error.to_string();
+                self.send_to_plugin(plugin, refused(request, Refusal::Failed { detail }));
+                return;
+            }
+        };
+        let root = match self.state.git_status() {
+            Some(status) => status.root.clone(),
+            None => self.project_root(),
+        };
+        let full = root.join(&relative);
+        let reply = match full.is_file() {
+            false => refused(
+                request,
+                Refusal::Failed {
+                    detail: format!("`{relative}` is not a file"),
+                },
+            ),
+            true => match self.state.workspace_mut().open_path(&full) {
+                Ok(_) => ToPlugin::Done { request },
+                Err(error) => refused(
+                    request,
+                    Refusal::Failed {
+                        detail: error.to_string(),
+                    },
+                ),
+            },
+        };
+        self.send_to_plugin(plugin, reply);
+        self.needs_redraw = true;
     }
 
     /// A plugin with the capability asked to change the repository: it is done
@@ -244,6 +293,18 @@ impl App {
         }
     }
 
+    /// The row of the plugin's rows a click at the cell is on, if it is on one.
+    fn row_clicked(&self, view: &PluginViewId, column: u16, row: u16) -> Option<usize> {
+        let ViewNode::Rows { rows, selected } = self.state.plugin_view(view)?.content() else {
+            return None;
+        };
+        let body = self.state.plugin_body(view)?;
+        let inside = body.contains(ratatui::layout::Position::new(column, row));
+        let top = rows_scroll(*selected, rows.len(), usize::from(body.height));
+        let clicked = top + usize::from(row.checked_sub(body.y)?);
+        (inside && clicked < rows.len()).then_some(clicked)
+    }
+
     /// Pasted text into a plugin's line to type into: it goes to the plugin.
     /// Returns whether it did.
     pub(super) fn paste_into_plugin(&mut self, text: &str) -> bool {
@@ -267,6 +328,9 @@ impl App {
             return false;
         };
         self.focus_plugin_view(view.as_str());
+        if let Some(clicked) = self.row_clicked(&view, column, row) {
+            self.send_to_plugin(view.as_str(), ToPlugin::Click { row: clicked });
+        }
         true
     }
 

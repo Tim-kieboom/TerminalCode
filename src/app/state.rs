@@ -89,7 +89,7 @@ pub(crate) struct AppState {
     /// type into and `esc` has not ended that.
     plugin_input: bool,
     /// Where each plugin pane was drawn last, for clicks.
-    plugin_areas: HashMap<PluginViewId, ratatui::layout::Rect>,
+    plugin_areas: HashMap<PluginViewId, (ratatui::layout::Rect, ratatui::layout::Rect)>,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The suggestions for the word being typed, while there are any.

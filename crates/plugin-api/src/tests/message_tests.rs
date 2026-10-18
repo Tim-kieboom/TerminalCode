@@ -5,7 +5,7 @@
 
 use crate::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MAX_MESSAGE,
-    MessageError, Refusal, ToPlugin, WireLine, WireView,
+    MessageError, Refusal, ToPlugin, WireLine, WireSpan, WireView,
 };
 
 // --- ABI 1.0, as written ---
@@ -590,4 +590,87 @@ fn capabilities_are_found_by_the_name_a_manifest_writes() {
     for capability in Capability::ALL {
         assert_eq!(Capability::parse(capability.name()), Some(capability));
     }
+}
+
+// --- ABI 1.3, as written: rows, clicks, opening files ---
+
+const SET_ROWS: &str = r#"{"type":"set_view","view":{"type":"rows","lines":[{"text":"Changes","slot":"explorer.dir"},{"text":"","slot":"","spans":[{"text":"M ","slot":"git.modified"},{"text":"a.rs","slot":"explorer.file"}]}],"selected":1}}"#;
+const CLICK: &str = r#"{"type":"click","row":3}"#;
+const OPEN_FILE: &str = r#"{"type":"open_file","request":9,"path":"src/a.rs"}"#;
+
+fn rows() -> FromPlugin {
+    FromPlugin::set_view(WireView::rows(
+        [
+            WireLine::new("Changes", "explorer.dir"),
+            WireLine::of_spans([
+                WireSpan::new("M ", "git.modified"),
+                WireSpan::new("a.rs", "explorer.file"),
+            ]),
+        ],
+        Some(1),
+    ))
+}
+
+#[test]
+fn the_messages_of_1_3_are_written_as_they_always_were() {
+    assert_eq!(rows().to_bytes().unwrap(), SET_ROWS.as_bytes());
+    assert_eq!(
+        ToPlugin::Click { row: 3 }.to_bytes().unwrap(),
+        CLICK.as_bytes()
+    );
+    assert_eq!(
+        FromPlugin::OpenFile {
+            request: 9,
+            path: "src/a.rs".into()
+        }
+        .to_bytes()
+        .unwrap(),
+        OPEN_FILE.as_bytes()
+    );
+}
+
+#[test]
+fn the_messages_of_1_3_are_still_read() {
+    assert_eq!(FromPlugin::from_bytes(SET_ROWS.as_bytes()), Ok(rows()));
+    assert_eq!(
+        ToPlugin::from_bytes(CLICK.as_bytes()),
+        Ok(ToPlugin::Click { row: 3 })
+    );
+    assert_eq!(
+        FromPlugin::from_bytes(OPEN_FILE.as_bytes()),
+        Ok(FromPlugin::OpenFile {
+            request: 9,
+            path: "src/a.rs".into()
+        })
+    );
+}
+
+#[test]
+fn a_line_without_spans_is_written_the_way_it_was_before_spans_existed() {
+    let line = WireLine::new("x", "y");
+
+    assert_eq!(
+        serde_json::to_string(&line).unwrap(),
+        r#"{"text":"x","slot":"y"}"#
+    );
+}
+
+#[test]
+fn rows_with_fields_left_out_take_defaults() {
+    assert_eq!(
+        FromPlugin::from_bytes(br#"{"type":"set_view","view":{"type":"rows"}}"#),
+        Ok(FromPlugin::set_view(WireView::rows([], None)))
+    );
+}
+
+#[test]
+fn the_capability_to_open_files_has_its_name() {
+    assert_eq!(
+        Capability::parse("editor.open"),
+        Some(Capability::EditorOpen)
+    );
+    assert_eq!(
+        serde_json::to_string(&Capability::EditorOpen).unwrap(),
+        r#""editor.open""#
+    );
 }

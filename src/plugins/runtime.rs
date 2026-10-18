@@ -36,6 +36,13 @@ pub(crate) enum Notice {
     Broken { plugin: Box<str>, reason: String },
     /// A plugin said something that was not understood (told once for each start).
     Rejected { plugin: Box<str>, reason: String },
+    /// A plugin with the capability asked to open a file. The app opens it and
+    /// answers the plugin with [`Runtime::send`].
+    OpenFile {
+        plugin: Box<str>,
+        request: u64,
+        path: String,
+    },
     /// A plugin with the capability asked to change the repository. The app does
     /// it and answers the plugin with [`Runtime::send`].
     GitWrite {
@@ -80,6 +87,7 @@ impl Runtime {
                 Host {
                     plugins: HashMap::new(),
                     git: None,
+                    git_known: false,
                     queue: VecDeque::new(),
                     notify: Box::new(notify),
                 }
@@ -162,6 +170,9 @@ struct Host {
     plugins: HashMap<Box<str>, Loaded>,
     /// The latest state of the repository; `None` without one.
     git: Option<Box<Sections>>,
+    /// Whether the app has said anything about git yet; before that `git` being
+    /// `None` means "not known yet", not "no repository".
+    git_known: bool,
     /// Messages to deliver, which a plugin's questions and the state of git
     /// gave rise to. They wait their turn behind what the app sends, so a plugin
     /// that answers every answer with a question cannot keep the others waiting.
@@ -200,6 +211,7 @@ impl Host {
             }
             Command::Git(sections) => {
                 self.git = sections;
+                self.git_known = true;
                 let message = self.git_news();
                 let readers: Vec<Box<str>> = self
                     .plugins
@@ -264,7 +276,7 @@ impl Host {
                     let requests = self.report(&name, delivered);
                     // A plugin that has just started (or started again) is told how
                     // git is; it knows nothing yet.
-                    if starting && grants.contains(&Capability::GitRead) && self.git.is_some() {
+                    if starting && grants.contains(&Capability::GitRead) && self.git_known {
                         let news = self.git_news();
                         self.queue.push_front(Command::Send {
                             plugin: name.clone(),
@@ -341,16 +353,17 @@ impl Host {
     /// against what the plugin may do first.
     fn answer(&mut self, plugin: &str, grants: &HashSet<Capability>, requests: Vec<FromPlugin>) {
         for request in requests {
-            let (id, needs) = match &request {
-                FromPlugin::GitEntries { request, .. } => (*request, Capability::GitRead),
+            let (id, needs, needs_git) = match &request {
+                FromPlugin::GitEntries { request, .. } => (*request, Capability::GitRead, true),
                 FromPlugin::GitStage { request, .. } | FromPlugin::GitUnstage { request, .. } => {
-                    (*request, Capability::GitWrite)
+                    (*request, Capability::GitWrite, true)
                 }
+                FromPlugin::OpenFile { request, .. } => (*request, Capability::EditorOpen, false),
                 _ => continue,
             };
             let reply = if !grants.contains(&needs) {
                 Some(refusal(id, Refusal::Denied { capability: needs }))
-            } else if self.git.is_none() {
+            } else if needs_git && self.git.is_none() {
                 Some(refusal(id, Refusal::NoRepository))
             } else {
                 self.carry_out(plugin, request)
@@ -367,6 +380,14 @@ impl Host {
     /// Does a request that is allowed and has a repository to do it in: the
     /// answer when it can be given here, nothing when the app will give it.
     fn carry_out(&self, plugin: &str, request: FromPlugin) -> Option<ToPlugin> {
+        if let FromPlugin::OpenFile { request, path } = request {
+            (self.notify)(Notice::OpenFile {
+                plugin: plugin.into(),
+                request,
+                path,
+            });
+            return None;
+        }
         let sections = self.git.as_ref()?;
         match request {
             FromPlugin::GitEntries {

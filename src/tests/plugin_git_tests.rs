@@ -419,3 +419,89 @@ fn staging_in_a_folder_that_is_no_repository_is_refused() {
 
     assert!(answer.contains(r#""type":"no_repository""#), "{answer}");
 }
+
+// --- opening files ---
+
+const OPEN_A: &str = r#"{"type":"open_file","request":8,"path":"a.txt"}"#;
+const OPEN: &[Capability] = &[Capability::EditorOpen];
+
+fn open_file_name(rig: &Rig) -> Option<String> {
+    let editor = rig.app.state().editor();
+    let path = editor.buffer().path()?;
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+}
+
+#[test]
+fn a_plugin_that_may_opens_a_file_of_the_repository_in_the_editor() {
+    let mut rig = rig();
+    rig.load(asking(OPEN_A), OPEN);
+
+    let answer = rig.ask(r#"{"type":"done","request":8}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":8}"#);
+    assert_eq!(open_file_name(&rig).as_deref(), Some("a.txt"));
+}
+
+#[test]
+fn opening_a_file_leaves_the_keyboard_in_the_plugin_pane() {
+    let mut rig = rig();
+    rig.load(asking(OPEN_A), OPEN);
+    rig.app.run_action(Action::FocusPluginView("hello".into()));
+
+    rig.ask(r#"{"type":"done","request":8}"#);
+
+    assert_eq!(rig.app.state().focus(), crate::app::state::Focus::Plugin);
+}
+
+#[test]
+fn opening_a_file_without_the_capability_is_refused_and_nothing_opens() {
+    let mut rig = rig();
+    rig.load(asking(OPEN_A), READ);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":8,"reason":{"type":"denied","capability":"editor.open"}}"#
+    );
+    assert_eq!(open_file_name(&rig), None);
+}
+
+#[test]
+fn a_path_outside_the_repository_is_not_opened() {
+    let mut rig = rig();
+    rig.load(
+        asking(r#"{"type":"open_file","request":8,"path":"../outside.txt"}"#),
+        OPEN,
+    );
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert!(answer.contains(r#""type":"bad_argument""#), "{answer}");
+}
+
+#[test]
+fn something_that_is_not_a_file_is_not_opened() {
+    let mut rig = rig();
+    rig.load(
+        asking(r#"{"type":"open_file","request":8,"path":"nothing-here.txt"}"#),
+        OPEN,
+    );
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert!(answer.contains(r#""type":"failed""#), "{answer}");
+    assert!(answer.contains("is not a file"), "{answer}");
+}
+
+#[test]
+fn a_file_is_opened_from_the_project_when_there_is_no_repository() {
+    let mut rig = rig_in(false);
+    rig.load(asking(OPEN_A), OPEN);
+
+    let answer = rig.ask(r#"{"type":"done","request":8}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":8}"#);
+    assert_eq!(open_file_name(&rig).as_deref(), Some("a.txt"));
+}

@@ -343,3 +343,36 @@ fn a_right_only_border_draws_just_the_right_edge() {
     assert_eq!(buffer[(0, 2)].symbol(), " ");
     assert_eq!(frame.inner(Rect::new(0, 0, 20, 5)), Rect::new(0, 0, 19, 5));
 }
+
+#[test]
+fn the_block_and_the_frame_agree_on_the_room_inside_whatever_the_tab_row_and_borders() {
+    let area = Rect::new(2, 3, 20, 8);
+    let theme = Theme::default();
+    for sides in [
+        None,
+        Some(vec![Side::Right]),
+        Some(vec![Side::Top]),
+        Some(vec![Side::Top, Side::Right]),
+        Some(vec![]),
+    ] {
+        for tabs in [false, true] {
+            let spec = FrameSpec {
+                sides: sides.clone(),
+                title: Some(Title::Hidden),
+                ..FrameSpec::default()
+            };
+            let mut frame = PaneFrame::resolve(&spec, &ComponentKind::Explorer);
+            if tabs {
+                frame = frame.with_tab_row();
+            }
+
+            let from_the_block = frame.block(&theme, None, false).inner(area);
+
+            assert_eq!(
+                from_the_block,
+                frame.inner(area),
+                "sides {sides:?}, tab row {tabs}"
+            );
+        }
+    }
+}

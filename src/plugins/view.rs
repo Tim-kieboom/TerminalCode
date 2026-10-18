@@ -1,7 +1,7 @@
 //! From what a plugin says to what the pane draws.
 
-use crate::plugin_api::WireView;
-use crate::ui::view::{ViewLine, ViewNode};
+use crate::plugin_api::{WireLine, WireView};
+use crate::ui::view::{ViewLine, ViewNode, ViewRow};
 
 /// The slot of the line that stands in for a view this version cannot draw.
 const PLACEHOLDER_SLOT: &str = "explorer.hint";
@@ -24,6 +24,10 @@ pub(super) fn node_of(view: WireView) -> ViewNode {
             items: items.into_iter().map(Into::into).collect(),
             selected,
         },
+        WireView::Rows { lines, selected } => ViewNode::Rows {
+            rows: lines.into_iter().map(row_of).collect(),
+            selected,
+        },
         WireView::Input {
             prompt,
             value,
@@ -38,4 +42,23 @@ pub(super) fn node_of(view: WireView) -> ViewNode {
             slot: PLACEHOLDER_SLOT.into(),
         }]),
     }
+}
+
+/// A line as a row: its spans, or the text it has as the only one.
+fn row_of(line: WireLine) -> ViewRow {
+    let spans = match line.spans.is_empty() {
+        true => vec![ViewLine {
+            text: line.text.into(),
+            slot: line.slot.into(),
+        }],
+        false => line
+            .spans
+            .into_iter()
+            .map(|span| ViewLine {
+                text: span.text.into(),
+                slot: span.slot.into(),
+            })
+            .collect(),
+    };
+    ViewRow { spans }
 }

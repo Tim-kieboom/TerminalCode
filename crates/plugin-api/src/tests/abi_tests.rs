@@ -1,15 +1,16 @@
 use crate::{Abi, AbiError};
 
 #[test]
-fn the_version_of_these_messages_is_1_2() {
-    assert_eq!(Abi::CURRENT, Abi::new(1, 2));
-    assert_eq!(Abi::CURRENT.to_string(), "1.2");
+fn the_version_of_these_messages_is_1_3() {
+    assert_eq!(Abi::CURRENT, Abi::new(1, 3));
+    assert_eq!(Abi::CURRENT.to_string(), "1.3");
 }
 
 #[test]
-fn plugins_built_for_1_0_and_1_1_still_run() {
+fn plugins_built_for_earlier_minors_still_run() {
     assert_eq!(Abi::CURRENT.check(Abi::new(1, 0)), Ok(()));
     assert_eq!(Abi::CURRENT.check(Abi::new(1, 1)), Ok(()));
+    assert_eq!(Abi::CURRENT.check(Abi::new(1, 2)), Ok(()));
 }
 
 #[test]

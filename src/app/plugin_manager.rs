@@ -57,6 +57,7 @@ fn describe(capability: Capability) -> String {
             "read the state of the git repository: the branch and the changed files"
         }
         Capability::GitWrite => "change the git repository: stage and unstage files",
+        Capability::EditorOpen => "open files of the project in the editor",
         _ => capability.name(),
     }
     .to_owned()

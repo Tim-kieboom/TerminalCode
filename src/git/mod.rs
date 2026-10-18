@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
-pub(crate) use actions::ActionError;
+pub(crate) use actions::{ActionError, repository_path};
 pub(crate) use diff::{HunkKind, hash_lines};
 pub(crate) use lines::Lines;
 pub(crate) use marks::{Mark, Marks};

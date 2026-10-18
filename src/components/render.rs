@@ -10,7 +10,11 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{
     app::state::{AppState, Focus, PluginView, Popup},
-    ui::{ComponentKind, Render, backdrop, bar, layout::Placement, view::ViewNode},
+    ui::{
+        ComponentKind, Render, backdrop, bar,
+        layout::Placement,
+        view::{ViewNode, rows_scroll},
+    },
 };
 
 /// Draws every component of the layout: first all `prepare` steps, then all
@@ -111,7 +115,10 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
             let body = placement.frame.inner(placement.area);
             state.errors_mut().prepare(placement.area, body, count);
         }
-        ComponentKind::Plugin(id) => state.set_plugin_area(id.clone(), placement.area),
+        ComponentKind::Plugin(id) => {
+            let inner = placement.frame.inner(placement.area);
+            state.set_plugin_area(id.clone(), placement.area, inner);
+        }
         _ => (),
     }
 }
@@ -156,13 +163,22 @@ impl Render<AppState> for PluginView {
         let inner = placement.frame.inner(placement.area);
         let typing = matches!(&placement.kind, ComponentKind::Plugin(id)
             if state.plugin_input() && state.focused_plugin() == Some(id));
-        render_view(frame, state, self.content(), inner, typing);
+        let has_keys = matches!(&placement.kind, ComponentKind::Plugin(id)
+            if state.focused_plugin() == Some(id));
+        render_view(frame, state, self.content(), inner, typing, has_keys);
     }
 }
 
 /// `typing`: the keys go to the plugin as text, so a line to type into gets the
 /// terminal cursor.
-fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect, typing: bool) {
+fn render_view(
+    frame: &mut Frame,
+    state: &AppState,
+    node: &ViewNode,
+    area: Rect,
+    typing: bool,
+    has_keys: bool,
+) {
     let theme = state.theme();
     match node {
         ViewNode::Lines(lines) => {
@@ -179,6 +195,35 @@ fn render_view(frame: &mut Frame, state: &AppState, node: &ViewNode, area: Rect,
 
             let mut list_state = ListState::default().with_selected(*selected);
             frame.render_stateful_widget(list, area, &mut list_state);
+        }
+        ViewNode::Rows { rows, selected } => {
+            let height = usize::from(area.height);
+            let top = rows_scroll(*selected, rows.len(), height);
+            let focused = typing || has_keys;
+            let highlight = match focused {
+                true => "explorer.selected",
+                false => "explorer.selected.inactive",
+            };
+            let lines: Vec<Line> = rows
+                .iter()
+                .enumerate()
+                .skip(top)
+                .take(height)
+                .map(|(index, row)| {
+                    let spans: Vec<Span> = row
+                        .spans
+                        .iter()
+                        .map(|span| Span::styled(span.text.as_ref(), theme.style(&span.slot)))
+                        .collect();
+                    let line = Line::from(spans);
+                    match Some(index) == *selected {
+                        // A line style covers the whole row, not just the text.
+                        true => line.style(theme.style(highlight)),
+                        false => line,
+                    }
+                })
+                .collect();
+            frame.render_widget(Paragraph::new(lines), area);
         }
         ViewNode::Input {
             prompt,

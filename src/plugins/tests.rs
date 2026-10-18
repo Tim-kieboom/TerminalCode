@@ -852,3 +852,72 @@ fn a_plugin_that_answers_every_answer_with_a_question_does_not_starve_the_others
         }
     }
 }
+
+// --- opening files ---
+
+#[test]
+fn a_file_to_open_is_handed_to_the_app_when_the_plugin_may() {
+    let rig = rig();
+    rig.runtime.load(
+        "opener",
+        asking(r#"{"type":"open_file","request":3,"path":"src/a.rs"}"#),
+        [Capability::EditorOpen],
+    );
+    rig.next();
+    rig.runtime.send("opener", ToPlugin::action("go"));
+    rig.next();
+
+    let notice = rig.next();
+
+    assert_eq!(
+        notice,
+        Notice::OpenFile {
+            plugin: "opener".into(),
+            request: 3,
+            path: "src/a.rs".into(),
+        }
+    );
+}
+
+#[test]
+fn a_file_to_open_needs_its_own_capability_and_no_repository() {
+    let rig = rig();
+    rig.load(
+        "opener",
+        asking(r#"{"type":"open_file","request":3,"path":"a.rs"}"#),
+    );
+    rig.next();
+
+    let answer = answer_to(&rig, "opener");
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":3,"reason":{"type":"denied","capability":"editor.open"}}"#
+    );
+}
+
+#[test]
+fn rows_with_spans_become_rows_of_spans_and_plain_lines_one_span() {
+    use crate::plugin_api::WireSpan;
+    let view = WireView::rows(
+        [
+            WireLine::new("header", "explorer.dir"),
+            WireLine::of_spans([
+                WireSpan::new("M ", "git.modified"),
+                WireSpan::new("a.rs", ""),
+            ]),
+        ],
+        Some(1),
+    );
+
+    let ViewNode::Rows { rows, selected } = node_of(view) else {
+        panic!("rows");
+    };
+
+    assert_eq!(selected, Some(1));
+    assert_eq!(rows[0].spans.len(), 1);
+    assert_eq!(&*rows[0].spans[0].text, "header");
+    assert_eq!(&*rows[0].spans[0].slot, "explorer.dir");
+    assert_eq!(rows[1].spans.len(), 2);
+    assert_eq!(&*rows[1].spans[0].slot, "git.modified");
+}

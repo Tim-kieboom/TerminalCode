@@ -58,12 +58,18 @@ impl AppState {
         }
     }
 
-    pub(crate) fn set_plugin_area(&mut self, id: PluginViewId, area: Rect) {
-        self.plugin_areas.insert(id, area);
+    /// Where a plugin's pane was drawn: all of it, and the part inside its frame.
+    pub(crate) fn set_plugin_area(&mut self, id: PluginViewId, area: Rect, inner: Rect) {
+        self.plugin_areas.insert(id, (area, inner));
     }
 
     pub(crate) fn plugin_area(&self, id: &PluginViewId) -> Option<Rect> {
-        self.plugin_areas.get(id).copied()
+        self.plugin_areas.get(id).map(|(area, _)| *area)
+    }
+
+    /// The part of a plugin's pane inside its frame, where its view is drawn.
+    pub(crate) fn plugin_body(&self, id: &PluginViewId) -> Option<Rect> {
+        self.plugin_areas.get(id).map(|(_, inner)| *inner)
     }
 
     /// The plugin pane drawn at the screen cell, if any.
@@ -71,7 +77,7 @@ impl AppState {
         let at = ratatui::layout::Position::new(column, row);
         self.plugin_areas
             .iter()
-            .find(|(id, area)| area.contains(at) && self.is_showing_plugin(id))
+            .find(|(id, (area, _))| area.contains(at) && self.is_showing_plugin(id))
             .map(|(id, _)| id.clone())
     }
 

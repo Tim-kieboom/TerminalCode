@@ -33,7 +33,7 @@ pub enum AbiError {
 
 impl Abi {
     /// The version of the messages in this crate.
-    pub const CURRENT: Self = Self::new(1, 2);
+    pub const CURRENT: Self = Self::new(1, 3);
 
     pub const fn new(major: u32, minor: u32) -> Self {
         Self { major, minor }

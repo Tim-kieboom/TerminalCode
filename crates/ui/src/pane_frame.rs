@@ -236,6 +236,13 @@ impl PaneFrame {
                 .title_alignment(self.alignment())
                 .title_style(theme.style(&self.title_slot));
         }
+        // The tab strip is drawn over the title row afterwards. Without a top border
+        // that row is the first row of the content, so the block says it is taken
+        // (as `inner` does), or whoever lays out the content from the block's own
+        // `inner` puts it under the strip.
+        if self.tabs && !self.sides.contains(Borders::TOP) {
+            block = block.title(" ");
+        }
         block
     }
 
