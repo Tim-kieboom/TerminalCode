@@ -51,6 +51,8 @@ impl Policy {
             "github.com",
             "raw.githubusercontent.com",
             "objects.githubusercontent.com",
+            // Where a release asset is sent to today (`objects` was before).
+            "release-assets.githubusercontent.com",
         ],
     };
 
