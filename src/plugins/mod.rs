@@ -1,0 +1,33 @@
+//! Plugins: WebAssembly modules run by `wasmi` on a thread of their own, that
+//! talk to the editor by JSON messages. A plugin can draw into its pane and
+//! nothing else yet; it cannot touch the editor, the files or the terminal. See
+//! "Plugin runtime" in `docs/design.md`.
+//!
+//! A plugin module exports `memory`, `alloc(len) -> ptr` and `handle(ptr, len)`,
+//! and imports `host.send(ptr, len)`. The editor writes a message into the
+//! memory `alloc` gave and calls `handle`; the plugin answers by calling `send`
+//! with messages of its own, once or more, before `handle` returns.
+//!
+//! Each call has a fuel budget (a runaway loop traps) and the memory has a limit.
+//! A trap cannot be resumed: the instance is thrown away, a fresh one is started,
+//! and a plugin that traps three times within a minute is disabled.
+
+pub(crate) use runtime::{Notice, Runtime};
+
+mod instance;
+mod message;
+mod policy;
+mod runtime;
+#[cfg(test)]
+mod tests;
+
+/// Fuel for one message the plugin is sent. About one unit for each WebAssembly
+/// instruction. A placeholder until the Git viewer is measured: the plan is about
+/// 50 times its slowest callback on a 10 000-entry status (todo, plugin step 6).
+const CALLBACK_FUEL: u64 = 5_000_000;
+/// Fuel for loading: compiling is not charged, but the plugin's start function runs.
+const LOAD_FUEL: u64 = 20_000_000;
+/// How much memory a plugin may have, in bytes.
+const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
+/// The largest message either way, in bytes.
+const MAX_MESSAGE: usize = 1024 * 1024;

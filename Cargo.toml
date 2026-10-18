@@ -99,6 +99,7 @@ trcode-ui.workspace = true
 tokio.workspace = true
 arboard.workspace = true
 serde_json.workspace = true
+wasmi = { version = "2.0.0", default-features = false, features = ["std", "stable", "validate", "auto-dispatch"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
@@ -108,3 +109,4 @@ trcode-lsp = { workspace = true, features = ["test-support"] }
 trcode-clipboard = { workspace = true, features = ["test-support"] }
 proptest.workspace = true
 tempfile.workspace = true
+wat = "1.262.0"

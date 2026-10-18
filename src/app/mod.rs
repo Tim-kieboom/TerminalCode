@@ -36,6 +36,7 @@ mod formatting;
 mod git;
 mod hover;
 mod open;
+mod plugins;
 mod recent;
 mod rename;
 #[cfg(test)]
@@ -117,6 +118,8 @@ pub(crate) struct App {
     lsp: lsp::Lsp,
     /// Asking git what changed.
     git: git::Tracking,
+    /// The plugin thread.
+    plugins: plugins::Plugins,
 }
 
 /// Everything that can wake the app loop.
@@ -271,6 +274,7 @@ impl App {
             front_view: None,
             lsp: lsp::Lsp::default(),
             git: git::Tracking::default(),
+            plugins: plugins::Plugins::default(),
             saved: Saved::new([true, false, true, true]),
             recent: recent::Recents::default(),
         }
@@ -315,6 +319,7 @@ impl App {
     /// the event channel.
     pub(crate) fn with_events(mut self, events: mpsc::Sender<Event>) -> Self {
         self.background.connect(events);
+        self.start_plugin_runtime();
         self.start_syntax_worker();
         self
     }
@@ -466,6 +471,7 @@ impl App {
             }
             Event::TerminalChanged => self.terminal_changed(),
             Event::LspChanged => self.lsp_changed(),
+            Event::Plugin(notice) => self.plugin_notice(notice),
             Event::GitStatus { took, result } => self.git_answer(took, result),
             Event::GitBase {
                 document,

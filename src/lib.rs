@@ -30,6 +30,10 @@ mod event;
 mod git;
 mod keymap;
 mod persist;
+// Nothing loads plugins yet (that comes with the manifest and the prompt that
+// enables one, todo plugin step 5), so outside the tests most of it is unused.
+#[cfg_attr(not(test), allow(dead_code))]
+mod plugins;
 mod settings;
 mod startup;
 pub mod terminal;

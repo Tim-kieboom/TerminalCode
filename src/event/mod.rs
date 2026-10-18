@@ -46,6 +46,8 @@ pub(crate) enum Event {
     WatchFailed(String),
     /// A language server finished starting, said something, or died.
     LspChanged,
+    /// Something a plugin did, or happened to it.
+    Plugin(crate::plugins::Notice),
     /// A refresh of what git says is over, and how long it took.
     GitStatus {
         took: std::time::Duration,
