@@ -15,11 +15,11 @@
 pub(crate) use runtime::{Notice, Runtime};
 
 mod instance;
-mod message;
 mod policy;
 mod runtime;
 #[cfg(test)]
 mod tests;
+mod view;
 
 /// Fuel for one message the plugin is sent. About one unit for each WebAssembly
 /// instruction. A placeholder until the Git viewer is measured: the plan is about
@@ -29,5 +29,3 @@ const CALLBACK_FUEL: u64 = 5_000_000;
 const LOAD_FUEL: u64 = 20_000_000;
 /// How much memory a plugin may have, in bytes.
 const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
-/// The largest message either way, in bytes.
-const MAX_MESSAGE: usize = 1024 * 1024;

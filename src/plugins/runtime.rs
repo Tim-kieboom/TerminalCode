@@ -7,8 +7,9 @@ use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
 use super::instance::{Compiled, Delivered, Failure, Instance};
-use super::message::{FromPlugin, ToPlugin};
 use super::policy::{Strikes, Verdict};
+use super::view::node_of;
+use crate::plugin_api::{FromPlugin, ToPlugin};
 use crate::ui::view::ViewNode;
 
 /// What the runtime tells the app.
@@ -190,14 +191,13 @@ fn call(loaded: &mut Loaded, message: ToPlugin) -> Result<Delivered, Failure> {
 /// Tells the app what the plugin said.
 fn report(name: &str, loaded: &mut Loaded, delivered: Delivered, notify: &dyn Fn(Notice)) {
     for message in delivered.messages {
-        match message {
-            FromPlugin::SetView { view } => notify(Notice::View {
+        // A message of a kind this version does not know (the plugin is newer
+        // than the editor) is ignored.
+        if let FromPlugin::SetView { view } = message {
+            notify(Notice::View {
                 plugin: name.into(),
-                content: view.into_node(),
-            }),
-            // A message of a kind this version does not know: the plugin is newer
-            // than the editor, and what it says is ignored.
-            FromPlugin::Unknown => {}
+                content: node_of(view),
+            });
         }
     }
     if let Some(reason) = delivered.rejected.into_iter().next()

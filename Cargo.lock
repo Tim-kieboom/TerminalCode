@@ -2301,6 +2301,7 @@ dependencies = [
  "trcode-ids",
  "trcode-jumplist",
  "trcode-lsp",
+ "trcode-plugin-api",
  "trcode-pty",
  "trcode-syntax",
  "trcode-ui",
@@ -2574,6 +2575,15 @@ dependencies = [
  "toml",
  "trcode-files",
  "trcode-ids",
+]
+
+[[package]]
+name = "trcode-plugin-api"
+version = "0.6.2"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

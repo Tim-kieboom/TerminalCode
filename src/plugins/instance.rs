@@ -6,8 +6,8 @@ use wasmi::{
     TypedFunc,
 };
 
-use super::message::{FromPlugin, ToPlugin};
-use super::{CALLBACK_FUEL, LOAD_FUEL, MAX_MESSAGE, MEMORY_LIMIT};
+use super::{CALLBACK_FUEL, LOAD_FUEL, MEMORY_LIMIT};
+use crate::plugin_api::{FromPlugin, MAX_MESSAGE, ToPlugin};
 
 /// Why a call into a plugin did not work out.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,9 +140,9 @@ impl Instance {
     /// Sends the plugin a message and collects what it said while handling it,
     /// within the budget of one callback.
     pub(super) fn deliver(&mut self, message: ToPlugin) -> Result<Delivered, Failure> {
-        let bytes = serde_json::to_vec(&message).map_err(|error| {
-            Failure::Broken(format!("a message that cannot be written: {error}"))
-        })?;
+        let bytes = message
+            .to_bytes()
+            .map_err(|error| Failure::Broken(error.to_string()))?;
         let len = i32::try_from(bytes.len())
             .map_err(|_| Failure::Broken("a message that is too long".into()))?;
         self.store
@@ -164,11 +164,9 @@ impl Instance {
 
         let mut delivered = Delivered::default();
         for bytes in std::mem::take(&mut self.store.data_mut().sent) {
-            match serde_json::from_slice::<FromPlugin>(&bytes) {
+            match FromPlugin::from_bytes(&bytes) {
                 Ok(message) => delivered.messages.push(message),
-                Err(error) => delivered.rejected.push(format!(
-                    "a message that is not JSON of a known shape: {error}"
-                )),
+                Err(error) => delivered.rejected.push(error.to_string()),
             }
         }
         Ok(delivered)

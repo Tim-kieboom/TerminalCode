@@ -1,9 +1,10 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use super::message::{FromPlugin, ToPlugin, WireView};
 use super::policy::{Strikes, Verdict};
+use super::view::node_of;
 use super::{Notice, Runtime};
+use crate::plugin_api::{WireLine, WireView};
 use crate::ui::view::{ViewLine, ViewNode};
 
 // --- the plugins the tests run, written as WebAssembly text ---
@@ -318,7 +319,7 @@ fn what_a_plugin_says_that_is_not_understood_is_ignored_and_told_once() {
     let first = rig.next();
     assert!(
         matches!(&first, Notice::View { content, .. }
-            if *content == WireView::Unknown.into_node()),
+            if *content == node_of(WireView::Unknown)),
         "an unknown view is drawn as a note: {first:?}"
     );
     assert!(matches!(rig.next(), Notice::Rejected { .. }), "told once");
@@ -381,92 +382,46 @@ fn traps_that_are_spread_out_never_disable() {
     }
 }
 
-// --- the messages ---
+// --- from a message to what the pane draws ---
 
 #[test]
-fn a_message_with_fields_this_version_does_not_know_still_reads() {
-    let message = r##"{"type":"set_view","zoom":2,"view":{"type":"lines","color":"red",
-        "lines":[{"text":"x","slot":"y","bold":true}]}}"##;
-
-    let read: FromPlugin = serde_json::from_str(message).unwrap();
+fn lines_become_lines_with_their_slots() {
+    let view = WireView::lines([WireLine::new("one", "a.slot"), WireLine::new("two", "")]);
 
     assert_eq!(
-        read,
-        FromPlugin::SetView {
-            view: WireView::Lines {
-                lines: vec![super::message::WireLine {
-                    text: "x".into(),
-                    slot: "y".into()
-                }]
-            }
-        }
+        node_of(view),
+        ViewNode::Lines(vec![
+            ViewLine {
+                text: "one".into(),
+                slot: "a.slot".into()
+            },
+            ViewLine {
+                text: "two".into(),
+                slot: "".into()
+            },
+        ])
     );
 }
 
 #[test]
-fn fields_that_are_missing_take_a_default() {
-    let read: FromPlugin =
-        serde_json::from_str(r#"{"type":"set_view","view":{"type":"lines","lines":[{}]}}"#)
-            .unwrap();
+fn a_list_becomes_a_list_with_its_selection() {
+    let view = WireView::list(["a".to_owned(), "b".to_owned()], Some(1));
 
     assert_eq!(
-        read,
-        FromPlugin::SetView {
-            view: WireView::Lines {
-                lines: vec![super::message::WireLine {
-                    text: String::new(),
-                    slot: String::new()
-                }]
-            }
-        }
-    );
-}
-
-#[test]
-fn a_kind_this_version_does_not_know_reads_as_unknown_both_ways() {
-    assert_eq!(
-        serde_json::from_str::<FromPlugin>(r#"{"type":"teleport"}"#).unwrap(),
-        FromPlugin::Unknown
-    );
-    assert_eq!(
-        serde_json::from_str::<ToPlugin>(r#"{"type":"hologram","x":1}"#).unwrap(),
-        ToPlugin::Unknown
-    );
-    assert_eq!(
-        serde_json::from_str::<FromPlugin>(r#"{"type":"set_view","view":{"type":"3d"}}"#).unwrap(),
-        FromPlugin::SetView {
-            view: WireView::Unknown
-        }
-    );
-}
-
-#[test]
-fn what_the_editor_sends_is_one_json_object_with_a_type() {
-    assert_eq!(
-        serde_json::to_string(&ToPlugin::Start).unwrap(),
-        r#"{"type":"start"}"#
-    );
-    assert_eq!(
-        serde_json::to_string(&ToPlugin::Refresh).unwrap(),
-        r#"{"type":"refresh"}"#
-    );
-}
-
-#[test]
-fn a_list_view_reads_into_a_list_node() {
-    let read: FromPlugin = serde_json::from_str(
-        r#"{"type":"set_view","view":{"type":"list","items":["a","b"],"selected":1}}"#,
-    )
-    .unwrap();
-
-    let FromPlugin::SetView { view } = read else {
-        panic!("{read:?}");
-    };
-    assert_eq!(
-        view.into_node(),
+        node_of(view),
         ViewNode::List {
             items: vec!["a".into(), "b".into()],
             selected: Some(1)
         }
     );
+}
+
+#[test]
+fn a_view_this_version_cannot_draw_is_a_line_that_says_so() {
+    let ViewNode::Lines(lines) = node_of(WireView::Unknown) else {
+        panic!("a line of text");
+    };
+
+    assert_eq!(lines.len(), 1);
+    assert!(lines[0].text.contains("cannot show"));
 }

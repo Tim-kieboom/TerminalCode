@@ -19,6 +19,7 @@ use trcode_files as files;
 use trcode_ids as ids;
 use trcode_jumplist as jumplist;
 use trcode_lsp as lsp;
+use trcode_plugin_api as plugin_api;
 use trcode_pty as pty;
 use trcode_syntax as syntax;
 use trcode_ui as ui;

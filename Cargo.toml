@@ -23,6 +23,7 @@ trcode-syntax = { path = "crates/syntax" }
 trcode-clipboard = { path = "crates/clipboard" }
 trcode-jumplist = { path = "crates/jumplist" }
 trcode-ui = { path = "crates/ui" }
+trcode-plugin-api = { path = "crates/plugin-api" }
 ron = "0.12.2"
 unicode-width = "0.2.2"
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
@@ -96,6 +97,7 @@ trcode-syntax.workspace = true
 trcode-clipboard.workspace = true
 trcode-jumplist.workspace = true
 trcode-ui.workspace = true
+trcode-plugin-api.workspace = true
 tokio.workspace = true
 arboard.workspace = true
 serde_json.workspace = true

@@ -1,0 +1,12 @@
+[package]
+name = "trcode-plugin-api"
+description = "What a TerminalCode plugin and the editor say to each other: the JSON messages and the ABI version"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
