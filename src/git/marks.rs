@@ -73,7 +73,7 @@ pub(crate) struct Marks {
     /// The top folder of the repository; empty before the first status.
     root: PathBuf,
     /// The files git lists, from the root of the repository.
-    files: HashMap<PathBuf, Mark>,
+    files: HashMap<PathBuf, (Mark, Change)>,
     /// The folders that have changed files inside, with the strongest mark of those.
     folders: HashMap<PathBuf, Mark>,
 }
@@ -86,7 +86,7 @@ impl Marks {
         };
         for entry in &status.entries {
             let mark = Mark::of(entry.change);
-            marks.files.insert(entry.path.clone(), mark);
+            marks.files.insert(entry.path.clone(), (mark, entry.change));
             // A folder listed as one entry (all its files are untracked) ends
             // with a separator; its own path is the one without it.
             for folder in entry.path.ancestors().skip(1) {
@@ -103,26 +103,40 @@ impl Marks {
     }
 
     /// The mark of the file or folder at `path`, which is a path in the
-    /// repository however it is spelled (a link, a relative path: such a path
-    /// is looked up by where it really is, which asks the file system, so
-    /// callers with many paths give them as they are under the root).
+    /// repository however it is spelled (see [`Marks::relative`]).
     pub(crate) fn of(&self, path: &Path) -> Option<Mark> {
         if self.files.is_empty() {
             return None;
         }
-        match path.strip_prefix(&self.root) {
-            Ok(inside) => self.inside(inside),
-            Err(_) => {
-                let real = without_verbatim_prefix(&canonical(path));
-                self.inside(real.strip_prefix(&self.root).ok()?)
-            }
+        self.inside(&self.relative(path)?)
+    }
+
+    /// How git says the file at `path` differs from the last commit; `None` for
+    /// a file it does not list.
+    pub(crate) fn change_of(&self, path: &Path) -> Option<Change> {
+        let (_, change) = self.files.get(&self.relative(path)?)?;
+        Some(*change)
+    }
+
+    /// `path` as a path from the root of the repository, or `None` when it is
+    /// not in it. A path that is not under the root as it is spelled (a link, a
+    /// relative path) is looked up by where it really is, which asks the file
+    /// system, so callers with many paths give them as they are under the root.
+    pub(crate) fn relative(&self, path: &Path) -> Option<PathBuf> {
+        if self.root.as_os_str().is_empty() {
+            return None;
         }
+        if let Ok(inside) = path.strip_prefix(&self.root) {
+            return Some(inside.to_path_buf());
+        }
+        let real = without_verbatim_prefix(&canonical(path));
+        real.strip_prefix(&self.root).ok().map(Path::to_path_buf)
     }
 
     /// The mark of a path from the root of the repository: its own, or the one
     /// of the folder it is in when git lists that folder as one entry.
     fn inside(&self, relative: &Path) -> Option<Mark> {
-        if let Some(mark) = self.files.get(relative) {
+        if let Some((mark, _)) = self.files.get(relative) {
             return Some(*mark);
         }
         if let Some(mark) = self.folders.get(relative) {
@@ -131,7 +145,7 @@ impl Marks {
         relative
             .ancestors()
             .skip(1)
-            .find_map(|folder| self.files.get(folder).copied())
+            .find_map(|folder| self.files.get(folder).map(|(mark, _)| *mark))
             .filter(|mark| mark.kind == MarkKind::Untracked)
     }
 }

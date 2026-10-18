@@ -51,6 +51,13 @@ pub(crate) enum Event {
         took: std::time::Duration,
         result: Result<crate::git::Status, crate::git::GitError>,
     },
+    /// The index text of a document's file, as the hash of each line, to mark the
+    /// lines that differ from it.
+    GitBase {
+        document: crate::ids::DocumentId,
+        request: u64,
+        result: Result<Option<Vec<u64>>, crate::git::GitError>,
+    },
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
 }

@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 
 use super::marks::MarkKind;
 use super::*;
+use crate::git::HunkKind;
 
 fn tracked(staged: Option<Kind>, unstaged: Option<Kind>) -> Change {
     Change::Tracked { staged, unstaged }
@@ -673,4 +674,359 @@ fn every_mark_has_a_theme_slot_in_every_built_in_theme() {
             assert!(theme.contains(&format!("[\"{slot}\"]")), "{slot}");
         }
     }
+}
+
+// --- the lines that differ from the index ---
+
+use super::diff::{Hunk, diff, hash_lines};
+
+fn hunks(old: &str, new: &str) -> Vec<(HunkKind, std::ops::Range<usize>)> {
+    diff(&hash_lines(old), &hash_lines(new))
+        .into_iter()
+        .map(|Hunk { kind, lines }| (kind, lines))
+        .collect()
+}
+
+#[test]
+fn equal_texts_have_no_hunks() {
+    assert_eq!(hunks("a\nb\nc\n", "a\nb\nc\n"), vec![]);
+    assert_eq!(hunks("", ""), vec![]);
+}
+
+#[test]
+fn a_changed_line_is_modified() {
+    assert_eq!(
+        hunks("a\nb\nc\n", "a\nB\nc\n"),
+        vec![(HunkKind::Modified, 1..2)]
+    );
+}
+
+#[test]
+fn a_new_line_is_added() {
+    assert_eq!(hunks("a\nc\n", "a\nb\nc\n"), vec![(HunkKind::Added, 1..2)]);
+    assert_eq!(
+        hunks("a\n", "a\nb\nc\n"),
+        vec![(HunkKind::Added, 1..3)],
+        "at the end"
+    );
+}
+
+#[test]
+fn a_line_that_is_gone_is_a_removal_at_the_line_that_follows() {
+    assert_eq!(
+        hunks("a\nb\nc\n", "a\nc\n"),
+        vec![(HunkKind::Removed, 1..1)]
+    );
+}
+
+#[test]
+fn a_line_replaced_by_more_lines_is_modified_and_added() {
+    assert_eq!(
+        hunks("a\nb\nc\n", "a\nx\ny\nz\nc\n"),
+        vec![(HunkKind::Modified, 1..2), (HunkKind::Added, 2..4)]
+    );
+}
+
+#[test]
+fn lines_replaced_by_fewer_lines_are_modified() {
+    assert_eq!(
+        hunks("a\nb\nc\nd\n", "a\nx\nd\n"),
+        vec![(HunkKind::Modified, 1..2)]
+    );
+}
+
+#[test]
+fn separate_changes_are_separate_hunks_in_order() {
+    assert_eq!(
+        hunks("a\nb\nc\nd\ne\nf\n", "a\nB\nc\nd\ne\nf\ng\n"),
+        vec![(HunkKind::Modified, 1..2), (HunkKind::Added, 6..7)]
+    );
+}
+
+#[test]
+fn a_text_that_has_nothing_yet_has_every_line_added() {
+    let hunks = diff(&[], &hash_lines("a\nb\n"));
+
+    assert_eq!(
+        hunks,
+        vec![Hunk {
+            kind: HunkKind::Added,
+            lines: 0..3
+        }]
+    );
+}
+
+#[test]
+fn a_text_that_became_empty_is_one_removal() {
+    assert_eq!(hunks("a\nb\n", ""), vec![(HunkKind::Removed, 0..0)]);
+}
+
+#[test]
+fn line_endings_do_not_count_as_a_difference() {
+    assert_eq!(hunks("a\r\nb\r\n", "a\nb\n"), vec![]);
+}
+
+#[test]
+fn a_difference_too_big_to_follow_is_one_modified_stretch() {
+    let old: String = (0..2000).map(|n| format!("old {n}\n")).collect();
+    let new: String = (0..2000).map(|n| format!("new {n}\n")).collect();
+
+    let found = hunks(&old, &new);
+
+    assert_eq!(found, vec![(HunkKind::Modified, 0..2000)]);
+}
+
+/// The length of the longest common subsequence, the slow and sure way.
+fn longest_common(a: &[u64], b: &[u64]) -> usize {
+    let mut table = vec![vec![0usize; b.len() + 1]; a.len() + 1];
+    for i in 0..a.len() {
+        for j in 0..b.len() {
+            table[i + 1][j + 1] = if a[i] == b[j] {
+                table[i][j] + 1
+            } else {
+                table[i][j + 1].max(table[i + 1][j])
+            };
+        }
+    }
+    table[a.len()][b.len()]
+}
+
+#[test]
+fn the_lines_without_a_mark_are_the_longest_common_part() {
+    // A small deterministic generator: texts of a few kinds of lines, so the
+    // two texts share much and differ in many ways.
+    let mut seed = 0x2545_F491_4F6C_DD1Du64;
+    let mut next = move |below: u64| {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed % below
+    };
+    for _ in 0..400 {
+        let old: Vec<u64> = (0..next(30)).map(|_| next(5)).collect();
+        let new: Vec<u64> = (0..next(30)).map(|_| next(5)).collect();
+
+        let found = diff(&old, &new);
+
+        let mut marked = vec![false; new.len()];
+        let mut last_end = 0;
+        for hunk in &found {
+            assert!(hunk.lines.start >= last_end, "in order, apart: {found:?}");
+            last_end = hunk.lines.end;
+            for line in hunk.lines.clone() {
+                marked[line] = true;
+            }
+        }
+        let unmarked: Vec<u64> = new
+            .iter()
+            .zip(&marked)
+            .filter(|(_, marked)| !**marked)
+            .map(|(line, _)| *line)
+            .collect();
+        assert_eq!(
+            unmarked.len(),
+            longest_common(&old, &new),
+            "old {old:?} new {new:?} found {found:?}"
+        );
+        // What is not marked is in the old text, in the same order.
+        let mut rest = old.iter();
+        assert!(
+            unmarked.iter().all(|line| rest.any(|old| old == line)),
+            "old {old:?} new {new:?} found {found:?}"
+        );
+    }
+}
+
+// --- the marks of one document ---
+
+use super::Lines;
+use crate::buffer::Buffer;
+
+fn lines_for(base: &str, text: &str) -> Lines {
+    let mut lines = Lines::default();
+    let request = lines.ask(PathBuf::from("a.txt"), None);
+    assert!(lines.accept(request, Some(hash_lines(base))));
+    lines.refresh(&Buffer::from_text(text));
+    lines
+}
+
+#[test]
+fn a_line_is_marked_by_the_hunk_it_is_in() {
+    let lines = lines_for("a\nb\nc\nd\ne\n", "a\nB\nc\nd\nx\ny\ne\n");
+
+    let marks: Vec<_> = (0..8).map(|line| lines.mark_at(line)).collect();
+
+    assert_eq!(
+        marks,
+        vec![
+            None,
+            Some(HunkKind::Modified),
+            None,
+            None,
+            Some(HunkKind::Added),
+            Some(HunkKind::Added),
+            None,
+            None,
+        ]
+    );
+}
+
+#[test]
+fn a_removal_marks_the_line_after_the_removed_ones() {
+    let lines = lines_for("a\nb\nc\n", "a\nc\n");
+
+    assert_eq!(lines.mark_at(0), None);
+    assert_eq!(lines.mark_at(1), Some(HunkKind::Removed));
+    assert_eq!(lines.mark_at(2), None);
+}
+
+#[test]
+fn without_a_base_nothing_is_marked() {
+    let mut lines = Lines::default();
+    lines.refresh(&Buffer::from_text("a\nb\n"));
+
+    assert_eq!(lines.mark_at(0), None);
+}
+
+#[test]
+fn a_file_git_does_not_have_yet_is_marked_as_added_all_through() {
+    let mut lines = Lines::default();
+    let request = lines.ask(PathBuf::from("new.txt"), Some(Change::Untracked));
+    lines.accept(request, Some(vec![]));
+    lines.refresh(&Buffer::from_text("a\nb"));
+
+    assert_eq!(lines.mark_at(0), Some(HunkKind::Added));
+    assert_eq!(lines.mark_at(1), Some(HunkKind::Added));
+}
+
+#[test]
+fn the_marks_follow_the_text_when_it_changes() {
+    let mut buffer = Buffer::from_text("a\nb\n");
+    let mut lines = Lines::default();
+    let request = lines.ask(PathBuf::from("a.txt"), None);
+    lines.accept(request, Some(hash_lines("a\nb\n")));
+    lines.refresh(&buffer);
+    assert_eq!(lines.mark_at(0), None);
+
+    let mut transaction = buffer.begin_transaction(crate::buffer::Selections::default());
+    transaction
+        .apply(&crate::buffer::Edit::insert(1, "x"))
+        .unwrap();
+    transaction.commit(crate::buffer::Selections::default());
+    lines.refresh(&buffer);
+
+    assert_eq!(lines.mark_at(0), Some(HunkKind::Modified));
+}
+
+#[test]
+fn the_index_is_asked_again_only_when_the_state_of_the_file_changed() {
+    let mut lines = Lines::default();
+    let path = Path::new("a.txt");
+    assert!(lines.wants(path, None), "never asked");
+
+    lines.ask(path.to_path_buf(), None);
+
+    assert!(!lines.wants(path, None));
+    assert!(lines.wants(path, Some(tracked(Some(Kind::Modified), None))));
+    assert!(lines.wants(Path::new("b.txt"), None));
+}
+
+#[test]
+fn the_answer_to_a_replaced_request_is_dropped() {
+    let mut lines = Lines::default();
+    let first = lines.ask(PathBuf::from("a.txt"), None);
+    let second = lines.ask(PathBuf::from("a.txt"), Some(Change::Untracked));
+
+    assert!(!lines.accept(first, Some(hash_lines("old"))));
+    assert!(lines.accept(second, Some(hash_lines("new"))));
+}
+
+#[test]
+fn a_failed_request_is_asked_again_and_clearing_drops_what_is_coming() {
+    let mut lines = Lines::default();
+    let path = Path::new("a.txt");
+    let request = lines.ask(path.to_path_buf(), None);
+
+    lines.failed(request);
+    assert!(lines.wants(path, None), "asked again");
+
+    let request = lines.ask(path.to_path_buf(), None);
+    lines.clear();
+    assert!(!lines.accept(request, Some(vec![])), "dropped");
+}
+
+// --- the index text of a real repository ---
+
+#[test]
+fn the_index_text_of_a_tracked_file_is_what_was_staged_not_the_working_file() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("kept.txt"), "one\nunstaged\n").unwrap();
+
+    let before = Git::default()
+        .index_lines(&root, Path::new("kept.txt"))
+        .unwrap();
+    git(&root, &["add", "kept.txt"]);
+    let after = Git::default()
+        .index_lines(&root, Path::new("kept.txt"))
+        .unwrap();
+
+    assert_eq!(before, Some(hash_lines("one\n")));
+    assert_eq!(after, Some(hash_lines("one\nunstaged\n")));
+}
+
+#[test]
+fn a_file_in_a_folder_with_spaces_is_found() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::create_dir_all(root.join("my dir")).unwrap();
+    std::fs::write(root.join("my dir/a b.txt"), "x\n").unwrap();
+    git(&root, &["add", "."]);
+
+    let text = Git::default()
+        .index_lines(&root, Path::new("my dir").join("a b.txt").as_path())
+        .unwrap();
+
+    assert_eq!(text, Some(hash_lines("x\n")));
+}
+
+#[test]
+fn a_file_git_does_not_have_yet_has_an_empty_base() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("new.txt"), "x\n").unwrap();
+
+    let text = Git::default()
+        .index_lines(&root, Path::new("new.txt"))
+        .unwrap();
+
+    assert_eq!(text, Some(vec![]));
+}
+
+#[test]
+fn an_ignored_file_has_no_base() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join(".gitignore"), "*.log\n").unwrap();
+    std::fs::write(root.join("a.log"), "x\n").unwrap();
+
+    let text = Git::default()
+        .index_lines(&root, Path::new("a.log"))
+        .unwrap();
+
+    assert_eq!(text, None);
+}
+
+#[test]
+fn a_file_that_is_not_text_has_no_base() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("blob.bin"), [0xff, 0xfe, 0x00, 0x80]).unwrap();
+    git(&root, &["add", "blob.bin"]);
+
+    let text = Git::default()
+        .index_lines(&root, Path::new("blob.bin"))
+        .unwrap();
+
+    assert_eq!(text, None);
 }

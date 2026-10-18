@@ -33,6 +33,7 @@ mod bulk;
 mod disk;
 mod documents;
 mod editing;
+mod git_lines;
 mod highlights;
 mod mouse;
 mod panes;
@@ -79,6 +80,8 @@ struct Document {
     last_editor: Option<ViewId>,
     /// Colors for the part of the text on screen.
     syntax: DocumentSyntax,
+    /// Which lines differ from the file in git's index.
+    git: crate::git::Lines,
 }
 
 #[derive(Debug)]

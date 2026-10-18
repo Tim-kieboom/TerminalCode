@@ -96,6 +96,7 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
     match placement.kind {
         ComponentKind::Editor => {
             state.workspace_mut().prepare(placement);
+            state.workspace_mut().refresh_git_lines();
             for error in state.refresh_highlights() {
                 state.notify_error(error);
             }

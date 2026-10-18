@@ -250,6 +250,7 @@ impl Workspace {
                 saves: 0,
                 reloads: 0,
                 syntax: DocumentSyntax::new(u64::from(id.number())),
+                git: crate::git::Lines::default(),
             },
         );
         id

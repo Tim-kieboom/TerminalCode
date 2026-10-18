@@ -85,6 +85,7 @@ impl Render<AppState> for Workspace {
                 live: focused && state.has_keyboard(Focus::Editor),
                 find: state.find().filter(|_| focused),
                 diagnostics: state.diagnostics().of(tab.document),
+                git: &document.git,
             };
             editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 

@@ -22,6 +22,11 @@ impl AppState {
         changed
     }
 
+    /// What shows beside each changed file.
+    pub(crate) fn git_marks(&self) -> &Marks {
+        &self.git_marks
+    }
+
     /// What shows beside the file or folder at `path`, when git lists it or
     /// something in it.
     pub(crate) fn git_mark(&self, path: &Path) -> Option<Mark> {

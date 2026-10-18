@@ -234,6 +234,7 @@ impl App {
             }
 
             self.sync_watches();
+            self.git_bases_step();
             if let Some(enabled) = self.take_mouse_change() {
                 terminal::set_mouse_capture(enabled);
             }
@@ -466,6 +467,11 @@ impl App {
             Event::TerminalChanged => self.terminal_changed(),
             Event::LspChanged => self.lsp_changed(),
             Event::GitStatus { took, result } => self.git_answer(took, result),
+            Event::GitBase {
+                document,
+                request,
+                result,
+            } => self.git_base_answer(document, request, result),
             Event::RootSaved(result) => self.root_save_finished(result),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {

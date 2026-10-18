@@ -14,6 +14,7 @@ use crate::buffer::{Buffer, Position, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
 use crate::components::popups::find::Find;
+use crate::git::HunkKind;
 use crate::lsp::{Diagnostic, Severity};
 use crate::syntax::Span as SyntaxSpan;
 use crate::ui::cursor::{dim_cell, extra_cell as extra_cursor_cell};
@@ -52,6 +53,8 @@ pub(crate) struct Content<'a> {
     pub(crate) find: Option<&'a Find>,
     /// What a language server says is wrong, in the order of the text.
     pub(crate) diagnostics: &'a [Diagnostic],
+    /// Which lines differ from git's index.
+    pub(crate) git: &'a crate::git::Lines,
 }
 
 /// Draws the editor into `area` inside `pane_frame`.
@@ -69,6 +72,7 @@ pub(crate) fn draw(
         live,
         find,
         diagnostics,
+        git,
     } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
@@ -81,6 +85,7 @@ pub(crate) fn draw(
         syntax,
         find,
         diagnostics,
+        git,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
     for selection in view.selections().iter() {
@@ -140,6 +145,7 @@ struct Overlays<'a> {
     syntax: &'a [SyntaxSpan],
     find: Option<&'a Find>,
     diagnostics: &'a [Diagnostic],
+    git: &'a crate::git::Lines,
 }
 
 fn draw_lines(
@@ -154,6 +160,7 @@ fn draw_lines(
         syntax,
         find,
         diagnostics,
+        git,
     } = *overlays;
     let scroll = view.scroll();
     let head_line = view.selections().primary().head().line;
@@ -174,10 +181,17 @@ fn draw_lines(
             .iter()
             .filter(|diagnostic| touches_line(diagnostic, line_start, next_start))
             .collect();
-        numbers.push(Line::styled(
-            format!("{:>width$} ", line + 1),
-            theme.style(number_slot),
-        ));
+        // The column after the number is a bar in the color of what git says
+        // about the line, when the line differs from the index.
+        let number_style = theme.style(number_slot);
+        let bar = match git.mark_at(line) {
+            Some(kind) => Span::styled(change_bar(kind), theme.style(change_slot(kind))),
+            None => Span::styled(" ", number_style),
+        };
+        numbers.push(Line::from(vec![
+            Span::styled(format!("{:>width$}", line + 1), number_style),
+            bar,
+        ]));
 
         let Ok(content) = buffer.line_content(line) else {
             continue;
@@ -250,6 +264,23 @@ fn draw_lines(
 
     frame.render_widget(Paragraph::new(numbers), geometry.gutter);
     frame.render_widget(Paragraph::new(texts), geometry.text);
+}
+
+/// What stands in the gutter for a line that differs from the index; a removal
+/// is drawn on the line after the removed ones, as a line above its text.
+fn change_bar(kind: HunkKind) -> &'static str {
+    match kind {
+        HunkKind::Added | HunkKind::Modified => "▎",
+        HunkKind::Removed => "▔",
+    }
+}
+
+fn change_slot(kind: HunkKind) -> &'static str {
+    match kind {
+        HunkKind::Added => "git.added",
+        HunkKind::Modified => "git.modified",
+        HunkKind::Removed => "git.deleted",
+    }
 }
 
 /// Grapheme columns of `line` covered by `selection`, and whether the

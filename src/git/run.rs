@@ -8,10 +8,12 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::{GitError, Status, parse_status};
+use super::{GitError, Status, hash_lines, parse_status};
 
 /// How long a call may take before it is given up on.
 const TIMEOUT: Duration = Duration::from_secs(5);
+/// The largest file whose lines are compared with the index.
+const MAX_BASE_BYTES: usize = 8 * 1024 * 1024;
 const POLL: Duration = Duration::from_millis(10);
 
 /// The way to run `git`: the user's own program, so their config, hooks,
@@ -80,11 +82,60 @@ impl Git {
         })
     }
 
+    /// The hash of each line of the file `relative` (a path from the root of the
+    /// repository) as the index has it, to compare the buffer with:
+    /// - `Some(hashes)`: the lines of the index text;
+    /// - `Some(vec![])`: git does not have the file yet, all its lines are new;
+    /// - `None`: nothing to compare with: a file that is ignored, one that is not
+    ///   text, or one that is too big.
+    pub(crate) fn index_lines(
+        &self,
+        root: &Path,
+        relative: &Path,
+    ) -> Result<Option<Vec<u64>>, GitError> {
+        let path = slashed(relative);
+        let shown = self.run(root, &["show", &format!(":0:{path}")])?;
+        if shown.success {
+            return Ok(String::from_utf8(shown.stdout)
+                .ok()
+                .filter(|text| text.len() <= MAX_BASE_BYTES)
+                .map(|text| hash_lines(&text)));
+        }
+        // 128 is what `show` ends with for a path that is not in the index.
+        if shown.code != Some(128) {
+            return Err(failed("show", first_line(&shown.stderr)));
+        }
+        let ignored = self.run(root, &["check-ignore", "-q", "--", &path])?;
+        match ignored.code {
+            Some(0) => Ok(None),
+            Some(1) => Ok(Some(Vec::new())),
+            // A path in a submodule, or one git refuses for another reason.
+            _ => Ok(None),
+        }
+    }
+
+    /// Runs a call that only reads and is expected to succeed.
+    fn read(&self, dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+        let name = args.first().copied().unwrap_or_default();
+        let outcome = self.run(dir, args)?;
+        if outcome.success {
+            return Ok(outcome.stdout);
+        }
+        let detail = first_line(&outcome.stderr);
+        // 128 is what `git` ends with for "not a repository" and for a folder
+        // it will not look at (another owner): both mean there is no git here.
+        match (name, outcome.code) {
+            ("rev-parse", Some(128)) => Err(GitError::NoRepository(detail)),
+            _ => Err(failed(name, detail)),
+        }
+    }
+
     /// Runs a call that only reads: it takes no locks (`--no-optional-locks`
     /// and `GIT_OPTIONAL_LOCKS=0`), because a refresh in the background must not
     /// make a `git commit` the user types in the terminal fail on `index.lock`,
-    /// and it never asks for a password.
-    fn read(&self, dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    /// and it never asks for a password. Whether it succeeded is for the caller
+    /// to look at; an error is only that it could not run or took too long.
+    fn run(&self, dir: &Path, args: &[&str]) -> Result<Outcome, GitError> {
         let mut command = Command::new(&self.program);
         command
             .arg("--no-optional-locks")
@@ -97,23 +148,21 @@ impl Git {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let name = args.first().copied().unwrap_or_default();
-        let outcome = run_with_timeout(command, self.timeout).map_err(|error| match error {
+        run_with_timeout(command, self.timeout).map_err(|error| match error {
             RunError::Spawn(error) if error.kind() == ErrorKind::NotFound => GitError::NotInstalled,
             RunError::Spawn(error) => failed(name, error.to_string()),
             RunError::TimedOut => GitError::TimedOut(self.timeout),
-        })?;
-
-        if outcome.success {
-            return Ok(outcome.stdout);
-        }
-        let detail = first_line(&outcome.stderr);
-        // 128 is what `git` ends with for "not a repository" and for a folder
-        // it will not look at (another owner): both mean there is no git here.
-        match (name, outcome.code) {
-            ("rev-parse", Some(128)) => Err(GitError::NoRepository(detail)),
-            _ => Err(failed(name, detail)),
-        }
+        })
     }
+}
+
+/// `path` with `/` between its parts, which is how git names a path on every platform.
+fn slashed(path: &Path) -> String {
+    let parts: Vec<_> = path
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect();
+    parts.join("/")
 }
 
 fn failed(command: &str, detail: String) -> GitError {

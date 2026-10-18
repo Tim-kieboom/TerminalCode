@@ -446,3 +446,166 @@ fn marks_go_when_git_goes() {
     let cells = rig.cells_with("a.txt", 30);
     assert!(!cells.iter().any(|(_, symbol, _)| symbol == "M"));
 }
+
+// --- the lines that differ from the index ---
+
+use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
+
+const BAR: &str = "▎";
+const ABOVE: &str = "▔";
+
+/// A rig whose project is a repository with `a.txt` ("alpha", committed), and
+/// whose status and index texts have been read.
+fn repository_rig() -> Rig {
+    let mut rig = rig();
+    let root = rig.dir.path().to_path_buf();
+    git(&root, &["init", "-q", "-b", "main"]);
+    git(&root, &["add", "a.txt"]);
+    git(&root, &["commit", "-q", "-m", "first"]);
+    rig.app.git_changed();
+    rig.refresh();
+    rig.take_base();
+    rig
+}
+
+impl Rig {
+    /// Waits for the answer to the request for an index text and takes it.
+    fn take_base(&mut self) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match self.events.try_recv() {
+                Ok(event @ Event::GitBase { .. }) => return self.app.handle_event(event),
+                _ => {
+                    assert!(Instant::now() < deadline, "no index text from git");
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+        }
+    }
+
+    fn type_text(&mut self, text: &str) {
+        for letter in text.chars() {
+            let key = KeyEvent::new(KeyCode::Char(letter), KeyModifiers::NONE);
+            self.app.handle_input(InputEvent::Key(key));
+        }
+    }
+
+    /// The gutter bars on the screen line that has `text`: the symbol and color.
+    fn bars_on_line_with(&mut self, text: &str) -> Vec<(String, Option<Color>)> {
+        self.cells_with(text, 120)
+            .into_iter()
+            .filter(|(_, symbol, _)| symbol == BAR || symbol == ABOVE)
+            .map(|(_, symbol, fg)| (symbol, fg))
+            .collect()
+    }
+}
+
+#[test]
+fn a_line_that_is_the_same_as_the_index_has_no_bar() {
+    let mut rig = repository_rig();
+
+    assert_eq!(rig.bars_on_line_with("alpha"), vec![]);
+}
+
+#[test]
+fn a_line_changed_since_the_index_has_a_bar_in_the_modified_color() {
+    let mut rig = repository_rig();
+
+    rig.type_text("x");
+
+    let modified = rig.fg_of("git.modified");
+    assert_eq!(
+        rig.bars_on_line_with("xalpha"),
+        vec![(BAR.to_owned(), modified)]
+    );
+}
+
+#[test]
+fn a_new_line_has_a_bar_in_the_added_color() {
+    let mut rig = repository_rig();
+
+    rig.app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::End,
+        KeyModifiers::NONE,
+    )));
+    rig.app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Enter,
+        KeyModifiers::NONE,
+    )));
+    rig.type_text("beta");
+
+    let added = rig.fg_of("git.added");
+    assert_eq!(rig.bars_on_line_with("beta"), vec![(BAR.to_owned(), added)]);
+}
+
+#[test]
+fn undoing_the_change_takes_the_bar_away() {
+    let mut rig = repository_rig();
+    rig.type_text("x");
+    assert_eq!(rig.bars_on_line_with("xalpha").len(), 1);
+
+    rig.app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('z'),
+        KeyModifiers::CONTROL,
+    )));
+
+    assert_eq!(rig.bars_on_line_with("alpha"), vec![]);
+}
+
+#[test]
+fn a_file_git_does_not_have_yet_is_green_all_through() {
+    let mut rig = rig();
+    let root = rig.dir.path().to_path_buf();
+    git(&root, &["init", "-q", "-b", "main"]);
+    rig.app.git_changed();
+    rig.refresh();
+    rig.take_base();
+
+    let added = rig.fg_of("git.added");
+
+    assert_eq!(
+        rig.bars_on_line_with("alpha"),
+        vec![(BAR.to_owned(), added)]
+    );
+}
+
+#[test]
+fn a_file_outside_the_repository_has_no_bars() {
+    let mut rig = rig();
+
+    rig.app.git_changed();
+    rig.refresh();
+
+    assert_eq!(rig.bars_on_line_with("alpha"), vec![]);
+}
+
+#[test]
+fn the_bars_go_when_git_goes() {
+    let mut rig = repository_rig();
+    rig.type_text("x");
+    assert_eq!(rig.bars_on_line_with("xalpha").len(), 1);
+
+    rig.answer(Err(GitError::NotInstalled));
+
+    assert_eq!(rig.bars_on_line_with("xalpha"), vec![]);
+}
+
+#[test]
+fn staging_the_change_makes_the_index_the_text_to_compare_with() {
+    let mut rig = repository_rig();
+    let root = rig.dir.path().to_path_buf();
+    // Saved to disk: the buffer and the file are the same text.
+    rig.type_text("x");
+    rig.app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('s'),
+        KeyModifiers::CONTROL,
+    )));
+    git(&root, &["add", "a.txt"]);
+
+    rig.app
+        .handle_event(Event::FilesChanged(vec![root.join("a.txt")]));
+    rig.refresh();
+    rig.take_base();
+
+    assert_eq!(rig.bars_on_line_with("xalpha"), vec![]);
+}

@@ -24,6 +24,7 @@ needs a recent glibc; on an older system build from source.
   (click, drag, double and triple click, the wheel, a right click menu, and a right click menu on a tab: close, close others, to the left or the right, close all, pin; a pinned tab stays at the left and is left alone by the close-many items). Files are UTF-8.
 - **Syntax colors** for Rust, TOML, JSON, Markdown and Nix, computed on a background thread so typing never waits.
 - **Explorer:** a project tree that shows what `.gitignore` leaves out dimmed (you can still open it), with create, rename, move (also by drag and drop) and delete.
+- **Git:** the branch in the status bar, a color and a letter for changed files in the explorer and the tabs (folders take the strongest one inside), and a bar in the gutter for the lines that differ from what is staged (added, changed, removed). It uses your own `git` and only reads; a repository that is slow to answer is asked less often, and with no `git` or no repository it switches off with a message.
 - **Finder and project search:** open a file by name from anywhere (`ctrl+p`), and search the whole project (`alt+f`).
 - **Integrated terminal:** a shell in a pane, with tabs, scrollback and mouse reporting, on Linux, macOS and Windows.
 - **Command palette** (`f1`) for every action.
