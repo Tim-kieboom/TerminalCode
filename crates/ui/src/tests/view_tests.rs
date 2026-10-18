@@ -42,7 +42,7 @@ fn the_selected_row_is_always_among_the_rows_shown() {
 }
 
 use crate::view::{
-    ViewButton, ViewLine, ViewNode, ViewRow, button_at, button_cells, input_column_at,
+    ViewButton, ViewLine, ViewNode, ViewRow, button_at, button_cells, button_lines, input_column_at,
 };
 use ratatui::layout::Rect;
 
@@ -123,7 +123,7 @@ fn two_flexible_parts_share_what_is_left_and_the_odd_row_goes_to_the_first() {
 fn a_column_in_a_pane_too_short_for_it_drops_the_last_parts_and_never_overflows() {
     let view = column();
     for height in 0..6u16 {
-        let area = Rect::new(0, 0, 10, height);
+        let area = Rect::new(0, 0, 40, height);
         let leaves = view.leaves(area);
         let total: u16 = leaves.iter().map(|(rect, _)| rect.height).sum();
         assert!(total <= height, "{height}: {total}");
@@ -134,7 +134,7 @@ fn a_column_in_a_pane_too_short_for_it_drops_the_last_parts_and_never_overflows(
         );
     }
     // Two rows: the buttons and the rows' last row; the input does not fit.
-    let two = column().leaves(Rect::new(0, 0, 10, 2)).len();
+    let two = column().leaves(Rect::new(0, 0, 40, 2)).len();
     assert_eq!(two, 1 + 1);
 }
 
@@ -158,13 +158,14 @@ fn only_an_active_line_makes_the_keys_the_plugins() {
 fn buttons_are_a_space_a_label_a_space_and_a_gap() {
     let buttons = [button("Commit", true), button("Push", true)];
     // " Commit " is 8 wide, then a gap, then " Push " from column 9.
-    assert_eq!(button_cells(&buttons), [(0, 8), (9, 6)]);
-    assert_eq!(button_at(&buttons, 0), Some(0));
-    assert_eq!(button_at(&buttons, 7), Some(0));
-    assert_eq!(button_at(&buttons, 8), None, "the gap");
-    assert_eq!(button_at(&buttons, 9), Some(1));
-    assert_eq!(button_at(&buttons, 14), Some(1));
-    assert_eq!(button_at(&buttons, 15), None);
+    assert_eq!(button_cells(&buttons, 40), [(0, 0, 8), (0, 9, 6)]);
+    assert_eq!(button_at(&buttons, 40, 0, 0), Some(0));
+    assert_eq!(button_at(&buttons, 40, 0, 7), Some(0));
+    assert_eq!(button_at(&buttons, 40, 0, 8), None, "the gap");
+    assert_eq!(button_at(&buttons, 40, 0, 9), Some(1));
+    assert_eq!(button_at(&buttons, 40, 0, 14), Some(1));
+    assert_eq!(button_at(&buttons, 40, 0, 15), None);
+    assert_eq!(button_at(&buttons, 40, 1, 2), None, "no second line");
 }
 
 #[test]
@@ -185,4 +186,48 @@ fn a_wide_character_takes_two_columns_of_the_click() {
     assert_eq!(input_column_at("", "a世b", 1), 1);
     assert_eq!(input_column_at("", "a世b", 2), 1, "the second half of 世");
     assert_eq!(input_column_at("", "a世b", 3), 2);
+}
+
+#[test]
+fn buttons_that_do_not_fit_go_on_the_next_line_and_the_column_gives_them_the_rows() {
+    let buttons = [
+        button("Commit", true),
+        button("Stage All", true),
+        button("Unstage All", true),
+        button("Fetch", true),
+    ];
+    // 8, 11, 13 and 7 wide, with a column between: 8+1+11 = 20 fits in 22, the
+    // third does not and starts the second line, the fourth fits beside it.
+    assert_eq!(
+        button_cells(&buttons, 22),
+        [(0, 0, 8), (0, 9, 11), (1, 0, 13), (1, 14, 7)]
+    );
+    assert_eq!(button_lines(&buttons, 22), 2);
+    assert_eq!(button_lines(&buttons, 200), 1);
+    assert_eq!(button_lines(&[], 22), 0);
+    assert_eq!(button_at(&buttons, 22, 1, 0), Some(2));
+    assert_eq!(button_at(&buttons, 22, 1, 15), Some(3));
+    assert_eq!(
+        button_at(&buttons, 22, 0, 20),
+        None,
+        "the first line ends at 20"
+    );
+
+    let view = ViewNode::Column(vec![
+        ViewNode::Buttons(buttons.to_vec()),
+        rows(9),
+        input(true),
+    ]);
+    let wide = view.leaves(Rect::new(0, 0, 200, 10));
+    let narrow = view.leaves(Rect::new(0, 0, 22, 10));
+    assert_eq!((wide[0].0.height, wide[1].0.height), (1, 8));
+    assert_eq!((narrow[0].0.height, narrow[1].0.height), (2, 7));
+}
+
+#[test]
+fn a_button_wider_than_the_row_is_alone_on_a_line() {
+    let buttons = [button("A very long label indeed", true), button("B", true)];
+    let cells = button_cells(&buttons, 10);
+    assert_eq!(cells[0], (0, 0, 26));
+    assert_eq!(cells[1].0, 1);
 }

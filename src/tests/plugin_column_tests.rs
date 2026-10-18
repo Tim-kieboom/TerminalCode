@@ -32,11 +32,15 @@ fn id() -> PluginViewId {
 }
 
 fn rig() -> Rig {
+    rig_of_width(40)
+}
+
+fn rig_of_width(width: u16) -> Rig {
     let mut state = AppState::new(Editor::new(Buffer::from_text("")));
     state.set_layout(
-        LayoutTree::from_ron(
-            r#"Row([Pane(view: Editor), Fixed(40, Pane(view: Plugin("hello")))])"#,
-        )
+        LayoutTree::from_ron(&format!(
+            r#"Row([Pane(view: Editor), Fixed({width}, Pane(view: Plugin("hello")))])"#
+        ))
         .unwrap(),
     );
     let (tx, events) = mpsc::channel(1024);
@@ -156,6 +160,7 @@ fn a_disabled_button_is_drawn_in_the_dim_style_and_an_enabled_one_in_the_active_
         theme.style("bar.tab.active"),
         theme.style("bar.tab.inactive"),
     );
+    let buttons_area = rig.part(0);
     let cells = {
         let view = rig.app.state().plugin_view(&id()).unwrap();
         let ViewNode::Column(parts) = view.content() else {
@@ -164,12 +169,12 @@ fn a_disabled_button_is_drawn_in_the_dim_style_and_an_enabled_one_in_the_active_
         let ViewNode::Buttons(buttons) = &parts[0] else {
             panic!()
         };
-        button_cells(buttons)
+        button_cells(buttons, buttons_area.width)
     };
     let buffer = rig.terminal.backend().buffer();
 
-    let commit = &buffer[(buttons.x + cells[0].0 + 1, buttons.y)];
-    let push = &buffer[(buttons.x + cells[1].0 + 1, buttons.y)];
+    let commit = &buffer[(buttons.x + cells[0].1 + 1, buttons.y)];
+    let push = &buffer[(buttons.x + cells[1].1 + 1, buttons.y)];
 
     assert_eq!(commit.fg, active.fg.unwrap_or(commit.fg));
     assert_eq!(push.fg, inactive.fg.unwrap_or(push.fg));
@@ -268,5 +273,28 @@ fn an_idle_line_leaves_the_keys_to_the_editor() {
     assert!(
         !rig.app.state().plugin_input(),
         "the line says it is not active, so the keys are not the plugin's text"
+    );
+}
+
+#[test]
+fn buttons_that_do_not_fit_the_pane_wrap_and_a_click_finds_them_on_their_line() {
+    // 14 columns: the frame takes 2, so 12 are left; " Commit " is 8, and
+    // " Push " (6) does not fit beside it.
+    let mut rig = rig_of_width(14);
+    let screen = rig.draw();
+    let buttons = rig.part(0);
+    assert_eq!(buttons.height, 2, "two lines of buttons\n{screen}");
+    let rows = rig.part(1);
+    assert_eq!(rows.y, buttons.y + 2, "the rows start under both lines");
+    let before = rig.heard();
+
+    // The second line has the disabled Push: a click on it says nothing.
+    rig.click(buttons.x + 2, buttons.y + 1);
+    assert!(rig.stays_quiet(&before));
+    // The first line has Commit, and it is pressed.
+    rig.click(buttons.x + 2, buttons.y);
+    assert_eq!(
+        rig.wait_for_news(&before),
+        r#"{"type":"press","button":"commit"}"#
     );
 }

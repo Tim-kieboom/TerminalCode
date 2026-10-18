@@ -245,12 +245,16 @@ fn render_part(
         // A column is cut into its parts before they get here.
         ViewNode::Column(_) => {}
         ViewNode::Buttons(buttons) => {
-            let cells = button_cells(buttons);
-            for (button, (start, width)) in buttons.iter().zip(cells) {
+            let cells = button_cells(buttons, area.width);
+            for (button, (line, start, width)) in buttons.iter().zip(cells) {
                 let Some(x) = area.x.checked_add(start).filter(|x| *x < area.right()) else {
-                    break;
+                    continue;
                 };
-                let rect = Rect::new(x, area.y, width.min(area.right() - x), 1);
+                let y = area.y.saturating_add(line);
+                if y >= area.bottom() {
+                    break;
+                }
+                let rect = Rect::new(x, y, width.min(area.right() - x), 1);
                 let slot = match button.enabled {
                     true => "bar.tab.active",
                     false => "bar.tab.inactive",

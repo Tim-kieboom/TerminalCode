@@ -427,7 +427,8 @@ impl App {
                 (clicked < rows.len()).then_some(ToPlugin::Click { row: clicked })
             }
             ViewNode::Buttons(buttons) => {
-                let button = buttons.get(button_at(buttons, column - area.x)?)?;
+                let at = button_at(buttons, area.width, row - area.y, column - area.x)?;
+                let button = buttons.get(at)?;
                 button.enabled.then(|| ToPlugin::Press {
                     button: button.id.to_string(),
                 })

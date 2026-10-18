@@ -64,7 +64,8 @@ impl ViewNode {
         };
         let fixed = |part: &ViewNode| -> Option<u16> {
             match part {
-                Self::Buttons(_) | Self::Input { .. } => Some(1),
+                Self::Buttons(buttons) => Some(button_lines(buttons, area.width)),
+                Self::Input { .. } => Some(1),
                 Self::Lines(lines) => Some(u16::try_from(lines.len()).unwrap_or(u16::MAX)),
                 Self::Column(_) => Some(0),
                 Self::List { .. } | Self::Rows { .. } => None,
@@ -99,26 +100,43 @@ impl ViewNode {
     }
 }
 
-/// Where each button of a row is drawn, as (offset from the left edge, width): a
-/// space, the label and a space, with one column between buttons.
-pub fn button_cells(buttons: &[ViewButton]) -> Vec<(u16, u16)> {
+/// Where each button is drawn in a row of buttons `width` columns wide, as (line,
+/// offset from the left edge, width): a space, the label and a space, with one
+/// column between buttons. A button that would pass the right edge starts a new
+/// line; one that is wider than the row is cut by the edge.
+pub fn button_cells(buttons: &[ViewButton], width: u16) -> Vec<(u16, u16, u16)> {
+    let mut line = 0u16;
     let mut at = 0u16;
     buttons
         .iter()
         .map(|button| {
-            let width = u16::try_from(button.label.width() + 2).unwrap_or(u16::MAX);
-            let cell = (at, width);
-            at = at.saturating_add(width).saturating_add(1);
+            let size = u16::try_from(button.label.width() + 2).unwrap_or(u16::MAX);
+            if at > 0 && at.saturating_add(size) > width {
+                line += 1;
+                at = 0;
+            }
+            let cell = (line, at, size);
+            at = at.saturating_add(size).saturating_add(1);
             cell
         })
         .collect()
 }
 
-/// The button a click `offset` columns from the left edge of the row is on.
-pub fn button_at(buttons: &[ViewButton], offset: u16) -> Option<usize> {
-    button_cells(buttons)
+/// How many lines a row of buttons takes in `width` columns.
+pub fn button_lines(buttons: &[ViewButton], width: u16) -> u16 {
+    button_cells(buttons, width)
+        .last()
+        .map_or(0, |&(line, _, _)| line + 1)
+}
+
+/// The button a click on `line` of the row, `offset` columns from the left edge,
+/// is on.
+pub fn button_at(buttons: &[ViewButton], width: u16, line: u16, offset: u16) -> Option<usize> {
+    button_cells(buttons, width)
         .iter()
-        .position(|&(start, width)| offset >= start && offset < start.saturating_add(width))
+        .position(|&(at_line, start, size)| {
+            at_line == line && offset >= start && offset < start.saturating_add(size)
+        })
 }
 
 /// The character of `value` a click `offset` columns from the left edge of a line

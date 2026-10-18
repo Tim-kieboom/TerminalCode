@@ -95,7 +95,7 @@ fn rig() -> Rig {
         "git",
         PluginRecord {
             enabled: true,
-            capabilities: ["git.read", "git.write", "editor.open"]
+            capabilities: ["git.read", "git.write", "git.remote", "editor.open"]
                 .map(str::to_owned)
                 .to_vec(),
             place: None,
@@ -136,12 +136,46 @@ impl Rig {
         let Some(view) = self.app.state().plugin_view(&PluginViewId::new("git")) else {
             return Vec::new();
         };
-        let ViewNode::Rows { rows, .. } = view.content() else {
+        // The files are the middle part of a column of buttons, files and the message.
+        let ViewNode::Column(parts) = view.content() else {
+            return Vec::new();
+        };
+        let Some(ViewNode::Rows { rows, .. }) = parts.get(1) else {
             return Vec::new();
         };
         rows.iter()
             .map(|row| row.spans.iter().map(|span| span.text.as_ref()).collect())
             .collect()
+    }
+
+    /// Whether the screen shows `text` now.
+    fn screen_has(&self, text: &str) -> bool {
+        let Some(view) = self.app.state().plugin_view(&PluginViewId::new("git")) else {
+            return false;
+        };
+        let ViewNode::Column(parts) = view.content() else {
+            return false;
+        };
+        match parts.first() {
+            Some(ViewNode::Buttons(buttons)) => {
+                buttons.iter().any(|button| button.label.as_ref() == text)
+            }
+            _ => false,
+        }
+    }
+
+    /// The text of the commit message line.
+    fn message(&self) -> String {
+        let Some(view) = self.app.state().plugin_view(&PluginViewId::new("git")) else {
+            return String::new();
+        };
+        let ViewNode::Column(parts) = view.content() else {
+            return String::new();
+        };
+        match parts.get(2) {
+            Some(ViewNode::Input { value, .. }) => value.to_string(),
+            _ => String::new(),
+        }
     }
 
     fn pump(&mut self) {
@@ -271,4 +305,80 @@ fn a_change_made_outside_shows_in_the_pane() {
         .handle_event(Event::FilesChanged(vec![rig.root.clone()]));
 
     rig.wait_until("the new file", |rig| rig.has_row("Untracked (2)"));
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn the_buttons_are_on_the_screen_and_wrap_in_a_narrow_pane() {
+    let mut rig = started();
+
+    let screen = rig.screen();
+
+    for label in [
+        "Commit",
+        "Stage All",
+        "Unstage All",
+        "Fetch",
+        "Pull",
+        "Push",
+    ] {
+        assert!(screen.contains(label), "{label}\n{screen}");
+    }
+    assert!(screen.contains("Message:"), "{screen}");
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn a_stages_everything_and_c_then_a_message_and_enter_commit_it() {
+    let mut rig = started();
+    rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
+
+    rig.press(KeyCode::Char('a'));
+    rig.wait_until("everything to be staged", |rig| {
+        rig.cached() == "a.txt\nb.txt"
+    });
+
+    rig.press(KeyCode::Char('c'));
+    rig.wait_until("the message to take the keys", |rig| {
+        rig.app.state().plugin_input()
+    });
+    for letter in "Add both".chars() {
+        rig.press(KeyCode::Char(letter));
+    }
+    rig.wait_until("the text to show", |rig| rig.message() == "Add both");
+    rig.press(KeyCode::Enter);
+
+    rig.wait_until("the commit", |rig| {
+        git(&rig.root, &["log", "--format=%s", "-1"]).trim() == "Add both"
+    });
+    assert_eq!(rig.cached(), "");
+    rig.wait_until("the message to be cleared", |rig| rig.message().is_empty());
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn shift_p_pushes_and_the_count_on_the_button_goes_away() {
+    let mut rig = started();
+    let server = tempfile::tempdir().unwrap();
+    let bare = fs::canonicalize(server.path()).unwrap();
+    git(&bare, &["init", "-q", "--bare", "-b", "main"]);
+    git(
+        &rig.root,
+        &["remote", "add", "origin", bare.to_str().unwrap()],
+    );
+    git(&rig.root, &["push", "-q", "-u", "origin", "main"]);
+    git(&rig.root, &["commit", "-q", "-am", "local change"]);
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.clone()]));
+    rig.wait_until("a commit to push", |rig| rig.screen_has("Push (1)"));
+
+    rig.app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('P'),
+        KeyModifiers::SHIFT,
+    )));
+
+    rig.wait_until("the push", |_| {
+        git(&bare, &["log", "--format=%s", "-1"]).trim() == "local change"
+    });
+    rig.wait_until("the count to go", |rig| !rig.screen_has("Push (1)"));
 }
