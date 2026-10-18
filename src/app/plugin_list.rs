@@ -114,6 +114,7 @@ impl App {
             return;
         };
         self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
+        self.stop_plugins_that_are_gone();
         let mut list = PluginList::new(self.plugin_rows(), self.plugins.store.note.clone());
         if let Some(id) = chosen {
             list.select(id);
@@ -123,6 +124,23 @@ impl App {
         }
         self.state.open_plugin_list(list);
         self.needs_redraw = true;
+    }
+
+    /// A plugin that runs but whose folder was deleted by hand (or whose manifest no
+    /// longer reads) is stopped, and its tab goes with it.
+    fn stop_plugins_that_are_gone(&mut self) {
+        let gone: Vec<Box<str>> = self
+            .plugins
+            .manager
+            .running_ids()
+            .filter(|id| self.plugins.manager.installed(id).is_none())
+            .collect();
+        for id in gone {
+            self.stop_plugin(&id);
+            self.state.notify(format!(
+                "plugin {id} is gone from the plugins folder: stopped"
+            ));
+        }
     }
 
     /// Makes the open list say what is true now.

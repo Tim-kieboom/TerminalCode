@@ -132,11 +132,6 @@ impl PluginList {
         };
     }
 
-    #[cfg(test)]
-    pub(crate) fn rows(&self) -> &[Row] {
-        &self.rows
-    }
-
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
         let screen = frame.area();
         let wanted = self

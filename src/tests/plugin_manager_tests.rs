@@ -385,7 +385,7 @@ fn saying_no_to_what_it_may_do_leaves_it_installed_and_off_and_asks_nothing_more
     assert!(rig.folder().is_dir(), "installed");
     assert!(!rig.running());
     assert!(!rig.menu_open(), "no question about where");
-    assert_eq!(rig.remembered().plugin("echo").unwrap().enabled, false);
+    assert!(!rig.remembered().plugin("echo").unwrap().enabled);
 }
 
 #[test]
@@ -525,6 +525,14 @@ fn removing_deletes_the_folder_stops_the_plugin_and_keeps_what_was_decided() {
     assert!(!rig.folder().exists());
     assert!(!rig.running());
     assert!(matches!(rig.app.state().popup(), Popup::PluginList(_)));
+    assert!(
+        rig.app
+            .state()
+            .layout()
+            .bar_views(&ComponentKind::Plugin(PluginViewId::new("echo")))
+            .is_none(),
+        "no tab is left for a plugin that is gone"
+    );
 }
 
 #[test]
@@ -543,6 +551,35 @@ fn installing_again_after_a_removal_brings_it_back_as_it_was() {
             .layout()
             .bar_views(&ComponentKind::Plugin(PluginViewId::new("echo")))
             .is_some()
+    );
+}
+
+#[test]
+fn a_plugin_whose_folder_was_deleted_by_hand_is_stopped_when_the_manager_opens() {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        saved(record(true, Some(Place::Explorer))),
+        installed_by_the_manager("1.0.0"),
+    );
+    rig.wait_until("the plugin", |rig| rig.running());
+    let bar = |rig: &Rig| {
+        rig.app
+            .state()
+            .layout()
+            .bar_views(&ComponentKind::Plugin(PluginViewId::new("echo")))
+            .is_some()
+    };
+    assert!(bar(&rig), "its tab is there while it runs");
+
+    fs::remove_dir_all(rig.folder()).unwrap();
+    rig.open_manager();
+
+    assert!(!bar(&rig), "no tab for a plugin that is gone");
+    assert!(!rig.running());
+    assert!(
+        rig.notification()
+            .unwrap()
+            .contains("is gone from the plugins folder")
     );
 }
 

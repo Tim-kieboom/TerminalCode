@@ -38,6 +38,11 @@ impl Manager {
             .find(|installed| installed.id() == id)
     }
 
+    /// The ids of the plugins that are running.
+    pub(super) fn running_ids(&self) -> impl Iterator<Item = Box<str>> + '_ {
+        self.running.iter().cloned()
+    }
+
     /// Whether the plugin is running.
     pub(super) fn is_running(&self, id: &str) -> bool {
         self.running.contains(id)

@@ -23,7 +23,12 @@ fn the_snapshot_of_the_release_reads() {
     let index = Index::parse(SNAPSHOT).unwrap();
     // Every plugin it lists can be installed by the editor it ships with.
     for entry in &index.entries {
-        assert_eq!(entry.availability(HOST), Availability::Ready, "{}", entry.id);
+        assert_eq!(
+            entry.availability(HOST),
+            Availability::Ready,
+            "{}",
+            entry.id
+        );
     }
 }
 
