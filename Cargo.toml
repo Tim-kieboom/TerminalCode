@@ -102,6 +102,8 @@ tokio.workspace = true
 arboard.workspace = true
 serde_json.workspace = true
 wasmi = { version = "2.0.0", default-features = false, features = ["std", "stable", "validate", "auto-dispatch"] }
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+sha2 = "0.11.1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

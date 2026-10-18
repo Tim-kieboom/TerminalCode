@@ -16,6 +16,7 @@ use crate::components::popups::finder::Finder;
 use crate::components::popups::menu::Menu;
 use crate::components::popups::name_prompt::NamePrompt;
 use crate::components::popups::palette::Palette;
+use crate::components::popups::plugin_list::PluginList;
 use crate::components::popups::quit_prompt::QuitPrompt;
 use crate::components::popups::root_prompt::RootPrompt;
 use crate::components::popups::search::Search;
@@ -23,6 +24,7 @@ use crate::components::status_view::StatusBar;
 use crate::components::terminal::TerminalPane;
 use crate::components::workspace::Workspace;
 use crate::event::action::Action;
+use crate::persist::saved_state::Place;
 use crate::syntax::SyntaxWorker;
 use crate::ui::ComponentKind;
 use crate::ui::Hideable;
@@ -59,7 +61,12 @@ pub(crate) struct AppState {
     theme: Theme,
     focus: Focus,
     popup: Popup,
+    /// The layout as the file says it, and `layout` is that with the views of
+    /// plugins the user placed added (see `plugin_places`).
+    base_layout: LayoutTree,
     layout: LayoutTree,
+    /// Where the user put the plugins that run, for `layout` and the popup.
+    plugin_places: Vec<(PluginViewId, Place)>,
     /// The view each bar shows, as an index into the bar's views; a bar is
     /// named by its first view, and one that is not here shows its first.
     bar_views: HashMap<ComponentKind, usize>,
@@ -119,6 +126,10 @@ pub(crate) enum Popup {
     Finder(Finder),
     Search(Search),
     Find(Find),
+    /// The view of a plugin the user put in a popup.
+    PluginView(PluginViewId),
+    /// The plugin manager.
+    PluginList(PluginList),
 }
 
 /// The parts of the screen the layout places. The explorer, the status bar and

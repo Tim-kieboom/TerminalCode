@@ -86,6 +86,7 @@ fn rig() -> Rig {
             capabilities: ["git.read", "git.write", "editor.open"]
                 .map(str::to_owned)
                 .to_vec(),
+            place: None,
         },
     );
 

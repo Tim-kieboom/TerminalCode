@@ -45,6 +45,11 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     state.set_notification_hits(hits);
 
     let screen = frame.area();
+    if let Some(id) = state.plugin_popup().cloned() {
+        let area = plugin_popup_area(screen);
+        let inner = Block::bordered().inner(area);
+        state.set_plugin_area(id, area, inner);
+    }
     if let Some(menu) = state.menu_mut() {
         menu.place(screen);
     }
@@ -69,6 +74,8 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         Popup::RootPassword(prompt) => prompt.render(frame, theme),
         // The find bar is drawn with its pane, which knows where its row is.
         Popup::Find(_) => {}
+        Popup::PluginView(id) => draw_plugin_popup(frame, state, id, screen),
+        Popup::PluginList(list) => list.render(frame, theme),
     }
 
     // The suggestions sit by the cursor, and only while no popup covers the editor.
@@ -135,6 +142,47 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
             state.errors().render(frame, state, placement, &rows);
         }
         _ => render_plain(frame, state, placement),
+    }
+}
+
+/// Where the popup of a plugin goes: most of the screen, in the middle.
+pub(crate) fn plugin_popup_area(screen: Rect) -> Rect {
+    let width = (screen.width * 7 / 10)
+        .max(40.min(screen.width))
+        .min(screen.width);
+    let height = (screen.height * 7 / 10)
+        .max(10.min(screen.height))
+        .min(screen.height);
+    Rect {
+        x: screen.x + (screen.width - width) / 2,
+        y: screen.y + (screen.height - height) / 2,
+        width,
+        height,
+    }
+}
+
+/// A plugin's view over the editor, in a frame with the plugin's name.
+fn draw_plugin_popup(
+    frame: &mut Frame,
+    state: &AppState,
+    id: &crate::ui::PluginViewId,
+    screen: Rect,
+) {
+    let theme = state.theme();
+    let area = plugin_popup_area(screen);
+    let block = Block::bordered()
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(theme.style("pane.border.focused"))
+        .title(Line::styled(
+            format!(" {} ", id.as_str()),
+            theme.style("pane.title"),
+        ));
+    let inner = block.inner(area);
+    backdrop::clear(frame, theme, area);
+    frame.render_widget(block, area);
+    if let Some(view) = state.plugin_view(id) {
+        let typing = state.plugin_input() && state.focused_plugin() == Some(id);
+        render_view(frame, state, view.content(), inner, typing, true);
     }
 }
 

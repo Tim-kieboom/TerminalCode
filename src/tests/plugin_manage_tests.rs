@@ -31,6 +31,7 @@ fn what_the_user_decided_about_a_plugin_is_remembered_and_a_reset_forgets_it() {
     let record = PluginRecord {
         enabled: true,
         capabilities: vec!["git.read".into()],
+        place: None,
     };
 
     assert!(state.set_plugin("viewer", record.clone()), "news");
@@ -52,6 +53,7 @@ fn the_decisions_are_written_to_the_state_file_and_read_back() {
         PluginRecord {
             enabled: true,
             capabilities: vec!["git.read".into(), "git.write".into()],
+            place: None,
         },
     );
 
@@ -101,6 +103,7 @@ fn on(capabilities: &[&str]) -> PluginRecord {
     PluginRecord {
         enabled: true,
         capabilities: capabilities.iter().map(|name| (*name).to_owned()).collect(),
+        place: None,
     }
 }
 
@@ -420,10 +423,8 @@ fn the_list_shows_each_plugin_and_whether_it_is_on() {
 
     let screen = list_text(&mut rig);
 
-    assert!(screen.contains("[ ] Hello 0.1.0"), "{screen}");
-    assert!(screen.contains("off"), "{screen}");
-    assert!(screen.contains("[!] broken"), "{screen}");
-    assert!(screen.contains("cannot run"), "{screen}");
+    assert!(screen.contains("Hello 0.1.0  local · off"), "{screen}");
+    assert!(screen.contains("broken       cannot run"), "{screen}");
 }
 
 #[test]
@@ -433,20 +434,18 @@ fn a_plugin_that_runs_is_marked_on_in_the_list() {
 
     let screen = list_text(&mut rig);
 
-    assert!(screen.contains("[x] Hello 0.1.0"), "{screen}");
+    assert!(screen.contains("Hello 0.1.0  local · on"), "{screen}");
 }
 
 #[test]
-fn an_empty_plugins_folder_says_where_plugins_go() {
+fn an_empty_list_says_there_are_no_plugins() {
     let config = tempfile::tempdir().unwrap();
     let mut rig = started(config, SavedState::default());
 
-    rig.open_list();
+    let screen = list_text(&mut rig);
 
-    let notice = rig.notification().unwrap();
-    assert!(notice.contains("no plugins"), "{notice}");
-    assert!(notice.contains("plugins"), "{notice}");
-    assert!(!matches!(rig.app.state().popup(), Popup::Menu(_)));
+    assert!(matches!(rig.app.state().popup(), Popup::PluginList(_)));
+    assert!(screen.contains("No plugins in the index"), "{screen}");
 }
 
 #[test]
@@ -490,7 +489,7 @@ fn turning_a_plugin_off_takes_its_pane_and_actions_away_and_it_is_not_asked_agai
     assert_eq!(rig.app.state().focus(), Focus::Plugin);
 
     rig.open_list();
-    rig.press(KeyCode::Enter);
+    rig.press(KeyCode::Char(' '));
 
     assert!(!rig.has_view(), "its pane is empty");
     assert_eq!(
@@ -502,6 +501,7 @@ fn turning_a_plugin_off_takes_its_pane_and_actions_away_and_it_is_not_asked_agai
         rig.remembered().plugin("hello").map(|r| r.enabled),
         Some(false)
     );
+    rig.press(KeyCode::Esc);
     rig.press(KeyCode::F(1));
     for letter in "hello".chars() {
         rig.press(KeyCode::Char(letter));
@@ -587,7 +587,7 @@ fn a_plugin_that_fails_too_often_is_shown_as_stopped_in_the_list() {
     });
     let screen = list_text(&mut rig);
 
-    assert!(screen.contains("[ ] Hello 0.1.0"), "{screen}");
+    assert!(screen.contains("Hello 0.1.0"), "{screen}");
     assert!(screen.contains("off: it failed too often"), "{screen}");
 }
 
@@ -602,6 +602,6 @@ fn the_palette_opens_the_list() {
     assert!(rig.screen().contains("Plugins: Manage"));
     rig.press(KeyCode::Enter);
 
-    assert!(matches!(rig.app.state().popup(), Popup::Menu(_)));
+    assert!(matches!(rig.app.state().popup(), Popup::PluginList(_)));
     assert!(rig.screen().contains("Hello 0.1.0"));
 }

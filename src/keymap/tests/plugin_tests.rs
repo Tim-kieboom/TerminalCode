@@ -133,6 +133,24 @@ action = { focus_plugin_view = "git" }"#,
 }
 
 #[test]
+fn the_popup_of_a_plugin_can_be_opened_from_a_key() {
+    let mut keymap = Keymap::default();
+
+    keymap
+        .apply_toml(
+            r#"[[binding]]
+keys = "ctrl+alt+g"
+action = { open_plugin_popup = "git" }"#,
+        )
+        .unwrap();
+
+    assert_eq!(
+        found(&keymap, "ctrl+alt+g"),
+        Some(Action::OpenPluginPopup("git".into()))
+    );
+}
+
+#[test]
 fn the_context_of_declared_keys_cannot_be_written_in_a_keymap_file() {
     let mut keymap = Keymap::default();
 

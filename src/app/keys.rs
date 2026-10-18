@@ -150,9 +150,24 @@ impl App {
             return;
         }
 
+        // The popup of a plugin: `esc` closes it, unless the plugin is typing into a
+        // line (then `esc` ends that first); every other key goes the way the keys
+        // of a plugin's pane go.
+        if self.state.plugin_popup().is_some()
+            && key.code == KeyCode::Esc
+            && !self.state.plugin_input()
+            && !self.keyboard.is_pending()
+        {
+            if key.kind == KeyEventKind::Press {
+                self.close_plugin_popup();
+            }
+            return;
+        }
+
         // An open popup has all the keys.
         match self.state.popup() {
-            Popup::None => {}
+            Popup::None | Popup::PluginView(_) => {}
+            Popup::PluginList(_) => return self.handle_plugin_list_key(key),
             Popup::QuitPrompt(_) => return self.handle_prompt_key(key),
             Popup::Confirm(_) => return self.handle_confirm_key(key),
             Popup::NewEntry(_) => return self.handle_name_key(key),
@@ -299,6 +314,8 @@ impl App {
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::FocusPluginView(id) => self.focus_plugin_view(&id),
             Action::ShowPlugins => self.show_plugins(),
+            Action::OpenPluginPopup(id) => self.open_plugin_popup(&id),
+            Action::PluginPlaced(chosen) => self.plugin_placed(&chosen),
             Action::TogglePlugin(id) => self.toggle_plugin(&id),
             // Focus went to the editor before the match (see `focuses_editor`).
             Action::FocusEditor => {}

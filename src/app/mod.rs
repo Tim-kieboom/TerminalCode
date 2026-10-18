@@ -36,7 +36,9 @@ mod formatting;
 mod git;
 mod hover;
 mod open;
+mod plugin_list;
 mod plugin_manager;
+mod plugin_place;
 mod plugins;
 mod recent;
 mod rename;
@@ -485,6 +487,7 @@ impl App {
                 request,
                 result,
             } => self.git_base_answer(document, request, result),
+            Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {

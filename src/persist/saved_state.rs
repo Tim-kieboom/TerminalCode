@@ -45,6 +45,48 @@ impl Shown {
     }
 }
 
+/// Where the user put a plugin's view: in the bar that holds the Explorer, in the
+/// bar that holds the Terminal, or in a popup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum Place {
+    Explorer,
+    Bottom,
+    Popup,
+    /// A place a later version has, which this one cannot put anything in.
+    #[serde(other)]
+    Unknown,
+}
+
+impl Place {
+    /// The name in an action: `explorer`, `bottom` or `popup`.
+    pub(crate) fn key(self) -> &'static str {
+        match self {
+            Self::Explorer => "explorer",
+            Self::Bottom => "bottom",
+            Self::Popup => "popup",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// The place an action names.
+    pub(crate) fn from_key(key: &str) -> Option<Self> {
+        [Self::Explorer, Self::Bottom, Self::Popup]
+            .into_iter()
+            .find(|place| place.key() == key)
+    }
+
+    /// The words the manager uses for it.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Explorer => "Explorer's bar",
+            Self::Bottom => "bottom bar",
+            Self::Popup => "popup",
+            Self::Unknown => "somewhere this version does not have",
+        }
+    }
+}
+
 /// What the user decided about a plugin.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct PluginRecord {
@@ -54,6 +96,9 @@ pub(crate) struct PluginRecord {
     /// plugin that comes to need more is asked about again.
     #[serde(default)]
     pub capabilities: Vec<String>,
+    /// Where its view goes; `None` until the user chose.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub place: Option<Place>,
 }
 
 /// The remembered state. Names in the file that this version does not know are
@@ -99,6 +144,13 @@ impl SavedState {
             settings_version: self.settings_version.clone(),
             plugins: BTreeMap::new(),
         }
+    }
+
+    /// What the user decided about every plugin, by id.
+    pub(crate) fn plugins(&self) -> impl Iterator<Item = (&str, &PluginRecord)> {
+        self.plugins
+            .iter()
+            .map(|(id, record)| (id.as_str(), record))
     }
 
     /// What the user decided about the plugin `id`, if they ever did.

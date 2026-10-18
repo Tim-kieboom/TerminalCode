@@ -17,6 +17,8 @@ pub(crate) use runtime::{Notice, Runtime, WriteOp};
 #[cfg(test)]
 pub(crate) mod fixtures;
 mod git_view;
+pub(crate) mod index;
+pub(crate) mod install;
 mod instance;
 pub(crate) mod manifest;
 mod policy;

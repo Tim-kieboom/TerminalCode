@@ -10,6 +10,7 @@ pub mod finder;
 pub mod menu;
 pub mod name_prompt;
 pub mod palette;
+pub mod plugin_list;
 pub mod quit_prompt;
 pub mod root_prompt;
 pub mod search;

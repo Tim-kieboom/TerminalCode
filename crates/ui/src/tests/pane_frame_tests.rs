@@ -99,8 +99,8 @@ fn a_spec_overrides_only_what_it_names() {
     assert_eq!(frame.border(), BorderStyle::Rounded);
     assert_eq!(frame.title_align(), TitleAlign::Center);
     assert_eq!(frame.title(), &Title::Name);
-    assert_eq!(&*frame.title_slot(), "pane.title");
-    assert_eq!(&*frame.border_slot(), "pane.border");
+    assert_eq!(frame.title_slot(), "pane.title");
+    assert_eq!(frame.border_slot(), "pane.border");
 }
 
 #[test]

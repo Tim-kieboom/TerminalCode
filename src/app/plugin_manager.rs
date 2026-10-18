@@ -7,42 +7,43 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
-use ratatui::layout::Position;
-
 use super::App;
 use crate::components::popups::confirm::Confirm;
-use crate::components::popups::menu::{Entry, Menu};
-use crate::event::action::Action;
 use crate::persist::saved_state::PluginRecord;
 use crate::plugin_api::Capability;
 use crate::plugins::manifest::{self, Found, Host, Installed};
 use crate::ui::PluginViewId;
 
 /// The folder inside the config folder where plugins are.
-const PLUGINS_FOLDER: &str = "plugins";
+pub(super) const PLUGINS_FOLDER: &str = "plugins";
 
 /// What is known of the plugins.
 #[derive(Debug, Default)]
 pub(super) struct Manager {
     /// What was in the plugins folder when it was last looked at.
-    found: Vec<Found>,
+    pub(super) found: Vec<Found>,
     /// The plugins that are running.
     running: HashSet<Box<str>>,
     /// The plugins that were stopped because they failed too often, and why.
-    stopped: HashMap<Box<str>, String>,
+    pub(super) stopped: HashMap<Box<str>, String>,
     /// Plugins whose user has to be asked before they run.
-    waiting: VecDeque<Box<str>>,
+    pub(super) waiting: VecDeque<Box<str>>,
 }
 
 impl Manager {
-    fn installed(&self, id: &str) -> Option<&Installed> {
+    pub(super) fn installed(&self, id: &str) -> Option<&Installed> {
         self.found
             .iter()
             .filter_map(|found| found.as_ref().ok())
             .find(|installed| installed.id() == id)
     }
 
-    fn broken(&self, id: &str) -> Option<String> {
+    /// Whether the plugin is running.
+    pub(super) fn is_running(&self, id: &str) -> bool {
+        self.running.contains(id)
+    }
+
+    pub(super) fn broken(&self, id: &str) -> Option<String> {
         self.found.iter().find_map(|found| match found {
             Err((folder, error)) if folder == id => Some(error.to_string()),
             _ => None,
@@ -71,7 +72,7 @@ fn names(capabilities: &[Capability]) -> Vec<String> {
 }
 
 /// Whether what the user decided about a plugin covers everything it asks for now.
-fn covers(record: &PluginRecord, installed: &Installed) -> bool {
+pub(super) fn covers(record: &PluginRecord, installed: &Installed) -> bool {
     installed.capabilities.iter().all(|capability| {
         record
             .capabilities
@@ -81,7 +82,7 @@ fn covers(record: &PluginRecord, installed: &Installed) -> bool {
 }
 
 impl App {
-    fn plugins_dir(&self) -> Option<PathBuf> {
+    pub(super) fn plugins_dir(&self) -> Option<PathBuf> {
         Some(self.config_dir.as_deref()?.join(PLUGINS_FOLDER))
     }
 
@@ -128,7 +129,7 @@ impl App {
     }
 
     /// Reads the module and starts it with what it declared.
-    fn start_plugin(&mut self, installed: &Installed) {
+    pub(super) fn start_plugin(&mut self, installed: &Installed) {
         let id = installed.id();
         let wasm = match installed.module() {
             Ok(wasm) => wasm,
@@ -146,12 +147,13 @@ impl App {
         }
         self.plugins.manager.running.insert(id.into());
         self.plugins.manager.stopped.remove(id);
+        self.apply_plugin_places();
         self.apply_plugin_keys();
         self.needs_redraw = true;
     }
 
     /// Stops the plugin and takes its pane and actions away.
-    fn stop_plugin(&mut self, id: &str) {
+    pub(super) fn stop_plugin(&mut self, id: &str) {
         if let Some(runtime) = &self.plugins.runtime {
             runtime.unload(id);
         }
@@ -162,7 +164,15 @@ impl App {
     pub(super) fn forget_plugin(&mut self, id: &str) {
         self.plugins.actions.remove(id);
         self.plugins.manager.running.remove(id);
+        if self
+            .state
+            .plugin_popup()
+            .is_some_and(|open| open.as_str() == id)
+        {
+            self.state.close_plugin_popup();
+        }
         self.state.remove_plugin_view(&PluginViewId::new(id));
+        self.apply_plugin_places();
         self.apply_plugin_keys();
         self.needs_redraw = true;
     }
@@ -214,9 +224,19 @@ impl App {
             PluginRecord {
                 enabled: true,
                 capabilities: names(&installed.capabilities),
+                place: self.saved_plugin(id).and_then(|record| record.place),
             },
         );
         self.start_plugin(&installed);
+        // Where it goes is the next question, unless the layout file says or other
+        // plugins still wait for their answer (they are asked first).
+        let unplaced = self
+            .saved_plugin(id)
+            .and_then(|record| record.place)
+            .is_none();
+        if unplaced && !self.layout_places(id) && self.plugins.manager.waiting.is_empty() {
+            self.ask_where(id);
+        }
     }
 
     /// The user said no: the plugin stays off, and what it was allowed before stays.
@@ -267,61 +287,11 @@ impl App {
         }
     }
 
-    /// Opens the list of the plugins in the plugins folder.
-    pub(super) fn show_plugins(&mut self) {
-        let Some(dir) = self.plugins_dir() else {
-            self.state.notify("there is no folder for plugins here");
-            return;
-        };
-        self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
-        if self.plugins.manager.found.is_empty() {
-            self.state.notify(format!(
-                "no plugins: put each in a folder of its own in {}",
-                dir.display()
-            ));
-            return;
-        }
-        let entries: Vec<Entry> = self
-            .plugins
-            .manager
-            .found
-            .iter()
-            .map(|found| match found {
-                Ok(installed) => {
-                    let id = installed.id();
-                    let running = self.plugins.manager.running.contains(id);
-                    let status = match (running, self.plugins.manager.stopped.get(id)) {
-                        (true, _) => "on".to_owned(),
-                        (false, Some(_)) => "off: it failed too often".to_owned(),
-                        (false, None) => "off".to_owned(),
-                    };
-                    let mark = if running { "[x]" } else { "[ ]" };
-                    Entry::Item {
-                        label: format!(
-                            "{mark} {} {}",
-                            installed.manifest.display_name(),
-                            installed.manifest.version
-                        )
-                        .into(),
-                        action: Action::TogglePlugin(id.into()),
-                        keys: Some(status),
-                    }
-                }
-                Err((folder, _)) => Entry::Item {
-                    label: format!("[!] {folder}").into(),
-                    action: Action::TogglePlugin(folder.as_str().into()),
-                    keys: Some("cannot run".to_owned()),
-                },
-            })
-            .collect();
-        let screen = self.state.screen();
-        let menu = Menu::on_app(entries, Position::new(screen.x + 2, screen.y + 1))
-            .starting_on_anchor_row();
-        self.state.open_menu(menu);
-        self.needs_redraw = true;
+    pub(super) fn saved_plugin(&self, id: &str) -> Option<PluginRecord> {
+        self.saved_state().plugin(id).cloned()
     }
 
-    fn saved_plugin(&self, id: &str) -> Option<PluginRecord> {
-        self.saved_state().plugin(id).cloned()
+    pub(super) fn saved_plugin_record(&self, id: &str) -> Option<PluginRecord> {
+        self.saved_plugin(id)
     }
 }

@@ -286,6 +286,22 @@ impl LayoutNode {
         }
     }
 
+    /// Adds `view` at the end of the bar that has `anchor` among its views.
+    /// Returns whether there was such a bar.
+    fn push_to_bar_of(&mut self, anchor: &ComponentKind, view: &ComponentKind) -> bool {
+        match self {
+            Self::SideBar(bar) | Self::BottomBar(bar) if bar.views.contains(anchor) => {
+                bar.views.push(view.clone());
+                true
+            }
+            Self::Row(children) | Self::Col(children) => children
+                .iter_mut()
+                .any(|child| child.push_to_bar_of(anchor, view)),
+            Self::Fixed(_, node) | Self::Percent(_, node) => node.push_to_bar_of(anchor, view),
+            _ => false,
+        }
+    }
+
     /// The views of the bar that has `kind` among them.
     fn bar_of(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
         match self.content() {
@@ -379,6 +395,21 @@ impl LayoutTree {
     /// `None` when `kind` is not in a bar.
     pub fn bar_views(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
         self.root.bar_of(kind)
+    }
+
+    /// This layout with `view` added to the bar that holds `anchor`, the layout
+    /// itself being left as it is. `None` when no bar holds `anchor`, or the layout
+    /// already has `view` somewhere (a view is in one place).
+    pub fn with_view_in_bar_of(
+        &self,
+        anchor: &ComponentKind,
+        view: &ComponentKind,
+    ) -> Option<LayoutTree> {
+        if self.root.contains(view) {
+            return None;
+        }
+        let mut root = self.root.clone();
+        root.push_to_bar_of(anchor, view).then_some(Self { root })
     }
 
     /// What the layout says about the component of this kind starting hidden,

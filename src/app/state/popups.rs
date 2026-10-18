@@ -10,9 +10,11 @@ use crate::components::popups::finder::Finder;
 use crate::components::popups::menu::Menu;
 use crate::components::popups::name_prompt::NamePrompt;
 use crate::components::popups::palette::Palette;
+use crate::components::popups::plugin_list::PluginList;
 use crate::components::popups::quit_prompt::QuitPrompt;
 use crate::components::popups::root_prompt::RootPrompt;
 use crate::components::popups::search::Search;
+use crate::ui::PluginViewId;
 
 impl AppState {
     /// The popup that is open, which has all the keys.
@@ -187,6 +189,45 @@ impl AppState {
         match &self.popup {
             Popup::Diagnostics(popup) => Some(popup),
             _ => None,
+        }
+    }
+
+    pub(crate) fn open_plugin_list(&mut self, list: PluginList) {
+        self.popup = Popup::PluginList(list);
+    }
+
+    pub(crate) fn plugin_list_mut(&mut self) -> Option<&mut PluginList> {
+        match &mut self.popup {
+            Popup::PluginList(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// Closes the plugin manager; any other popup stays open.
+    pub(crate) fn close_plugin_list(&mut self) {
+        if matches!(self.popup, Popup::PluginList(_)) {
+            self.popup = Popup::None;
+        }
+    }
+
+    /// Opens the view of a plugin in a popup.
+    pub(crate) fn open_plugin_popup(&mut self, id: PluginViewId) {
+        self.popup = Popup::PluginView(id);
+    }
+
+    /// The plugin whose popup is open.
+    pub(crate) fn plugin_popup(&self) -> Option<&PluginViewId> {
+        match &self.popup {
+            Popup::PluginView(id) => Some(id),
+            _ => None,
+        }
+    }
+
+    /// Closes the popup of a plugin; any other popup stays open.
+    pub(crate) fn close_plugin_popup(&mut self) {
+        if let Popup::PluginView(id) = &self.popup {
+            self.plugin_areas.remove(id);
+            self.popup = Popup::None;
         }
     }
 

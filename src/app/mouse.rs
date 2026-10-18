@@ -161,8 +161,18 @@ impl App {
         }
         // A click on a plugin's pane gives it the keyboard.
         if event.kind == MouseEventKind::Down(MouseButton::Left)
-            && matches!(self.state.popup(), crate::app::state::Popup::None)
+            && matches!(
+                self.state.popup(),
+                crate::app::state::Popup::None | crate::app::state::Popup::PluginView(_)
+            )
             && self.click_in_plugin_pane(event.column, event.row)
+        {
+            self.needs_redraw = true;
+            return;
+        }
+        // A click outside the popup of a plugin closes it.
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && self.click_outside_plugin_popup(event.column, event.row)
         {
             self.needs_redraw = true;
             return;

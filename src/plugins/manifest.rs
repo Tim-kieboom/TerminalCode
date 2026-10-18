@@ -99,6 +99,12 @@ pub(crate) fn scan(plugins_dir: &Path, host: Host<'_>) -> Vec<Found> {
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .filter(|path| path.is_dir() && path.join(MANIFEST_FILE).is_file())
+        // A folder whose name starts with a dot is the installer's workshop.
+        .filter(|path| {
+            !path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+        })
         .collect();
     folders.sort();
     folders
@@ -183,7 +189,7 @@ fn judge(
 }
 
 /// Lower case letters, digits, `-` and `_`, starting with a letter or digit.
-fn is_id(id: &str) -> bool {
+pub(super) fn is_id(id: &str) -> bool {
     let mut chars = id.chars();
     chars
         .next()
@@ -192,16 +198,22 @@ fn is_id(id: &str) -> bool {
 }
 
 /// A relative path with no way out of the folder it is in.
-fn inside_folder(path: &str) -> bool {
+pub(super) fn inside_folder(path: &str) -> bool {
     !path.is_empty()
         && Path::new(path)
             .components()
             .all(|part| matches!(part, Component::Normal(_)))
 }
 
+/// Whether version `candidate` is later than `than`; `false` when either is not a
+/// version.
+pub(crate) fn is_newer(candidate: &str, than: &str) -> bool {
+    matches!(at_least(than, candidate), Ok(false))
+}
+
 /// Whether version `have` is `required` or later; both are `major.minor.patch`
 /// (the later parts may be left out).
-fn at_least(have: &str, required: &str) -> Result<bool, ManifestError> {
+pub(super) fn at_least(have: &str, required: &str) -> Result<bool, ManifestError> {
     let parse = |text: &str| -> Result<[u64; 3], ManifestError> {
         let invalid = || ManifestError::Invalid(format!("`{text}` is not a version such as 0.7.0"));
         let mut parts = [0; 3];

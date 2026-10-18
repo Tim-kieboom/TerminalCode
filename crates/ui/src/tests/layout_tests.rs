@@ -654,3 +654,62 @@ fn a_placement_that_is_not_a_bar_has_no_tabs() {
 
     assert!(tab_rects(&placement).is_empty());
 }
+
+fn git() -> ComponentKind {
+    ComponentKind::Plugin(PluginViewId::new("git"))
+}
+
+#[test]
+fn a_view_is_added_to_the_bar_that_holds_another() {
+    let layout = LayoutTree::default();
+    let with = layout
+        .with_view_in_bar_of(&ComponentKind::Explorer, &git())
+        .unwrap();
+    assert_eq!(
+        with.bar_views(&ComponentKind::Explorer),
+        Some(&[ComponentKind::Explorer, git()][..])
+    );
+    // The bottom bar is untouched and the layout it came from too.
+    assert_eq!(
+        with.bar_views(&ComponentKind::Terminal),
+        layout.bar_views(&ComponentKind::Terminal)
+    );
+    assert!(!layout.contains(&git()));
+}
+
+#[test]
+fn a_view_is_added_to_the_bottom_bar() {
+    let with = LayoutTree::default()
+        .with_view_in_bar_of(&ComponentKind::Terminal, &git())
+        .unwrap();
+    assert_eq!(with.bar_views(&git()).unwrap().last(), Some(&git()));
+    assert!(
+        with.bar_views(&git())
+            .unwrap()
+            .contains(&ComponentKind::Terminal)
+    );
+}
+
+#[test]
+fn a_view_the_layout_already_has_is_not_added_again() {
+    let layout = LayoutTree::default()
+        .with_view_in_bar_of(&ComponentKind::Explorer, &git())
+        .unwrap();
+    assert!(
+        layout
+            .with_view_in_bar_of(&ComponentKind::Terminal, &git())
+            .is_none()
+    );
+}
+
+#[test]
+fn there_is_nowhere_to_add_a_view_without_the_bar() {
+    let layout =
+        LayoutTree::from_ron("Col([Pane(view: Editor), Fixed(5, Pane(view: Terminal))])").unwrap();
+    // `Pane(view: Terminal)` is a pane, not a bar with views to add to.
+    assert!(
+        layout
+            .with_view_in_bar_of(&ComponentKind::Terminal, &git())
+            .is_none()
+    );
+}

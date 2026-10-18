@@ -67,8 +67,12 @@ impl App {
         if answer != Answer::Yes {
             // A plugin that was said no to is not asked about again until it wants
             // more; the next plugin that waits for an answer is asked.
-            if let Purpose::EnablePlugin(id) = confirm.purpose() {
-                self.refuse_plugin(id);
+            match confirm.purpose() {
+                Purpose::EnablePlugin(id) => self.refuse_plugin(id),
+                Purpose::UpdatePlugin(id) | Purpose::RemovePlugin(id) => {
+                    self.show_plugin_list(Some(id));
+                }
+                _ => {}
             }
             self.ask_about_next_plugin();
             return;
@@ -79,6 +83,8 @@ impl App {
             Purpose::ResetConfig(file) => self.reset_config(*file),
             Purpose::ResetSavedState => self.reset_saved_state(),
             Purpose::EnablePlugin(id) => self.allow_plugin(id),
+            Purpose::UpdatePlugin(id) => self.update_plugin(id),
+            Purpose::RemovePlugin(id) => self.remove_plugin(id),
         }
         self.ask_about_next_plugin();
     }

@@ -38,6 +38,12 @@ pub(crate) enum Action {
     FocusPluginView(Box<str>),
     /// Opens the list of the plugins the user has, to turn each on or off.
     ShowPlugins,
+    /// Opens the view of the plugin with this id in a popup (the plugins the user
+    /// placed in one), or gives the plugin the keyboard where it is placed.
+    OpenPluginPopup(Box<str>),
+    /// Puts the plugin's view where the user chose; written `plugin-id:place` with the
+    /// place `explorer`, `bottom` or `popup`.
+    PluginPlaced(Box<str>),
     /// Turns the plugin with this id on (asking what it may do, when it has not
     /// been asked) or off.
     TogglePlugin(Box<str>),
@@ -239,6 +245,8 @@ impl Action {
                 | Self::FocusEditor
                 | Self::FocusPluginView(_)
                 | Self::ShowPlugins
+                | Self::OpenPluginPopup(_)
+                | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
                 | Self::ToggleExplorer
                 | Self::ToggleStatusBar
@@ -403,7 +411,11 @@ impl Action {
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) | Self::Errors(_) => return None,
             Self::OpenRecentFile(_) | Self::OpenRecentFolder(_) => return None,
-            Self::TogglePluginView(_) | Self::FocusPluginView(_) | Self::TogglePlugin(_) => {
+            Self::TogglePluginView(_)
+            | Self::FocusPluginView(_)
+            | Self::OpenPluginPopup(_)
+            | Self::PluginPlaced(_)
+            | Self::TogglePlugin(_) => {
                 return None;
             }
             Self::Move(_)

@@ -29,6 +29,10 @@ pub(crate) enum Purpose {
     ResetSavedState,
     /// Let the plugin with this id run, with what it asked to be allowed to do.
     EnablePlugin(Box<str>),
+    /// Replace the plugin with this id by the newer version of the index.
+    UpdatePlugin(Box<str>),
+    /// Delete the folder of the plugin with this id, which the manager installed.
+    RemovePlugin(Box<str>),
 }
 
 /// What a key press answers.
@@ -119,6 +123,35 @@ impl Confirm {
             title: " Plugin ".to_owned(),
             lines,
             purpose: Purpose::EnablePlugin(id.into()),
+        }
+    }
+
+    /// Asks whether to replace the plugin `id` by a newer version; `running`: it is
+    /// stopped and started again.
+    pub(crate) fn update_plugin(id: &str, name: &str, from: &str, to: &str, running: bool) -> Self {
+        let mut lines = vec![format!("Update the plugin {name} from {from} to {to}?")];
+        if running {
+            lines.push(String::new());
+            lines.push("It is running: it stops, and the new version starts.".to_owned());
+        }
+        Self {
+            title: " Update plugin ".to_owned(),
+            lines,
+            purpose: Purpose::UpdatePlugin(id.into()),
+        }
+    }
+
+    /// Asks whether to remove the plugin `id` that the manager installed. What was
+    /// decided about it (what it may do, where it is) is kept.
+    pub(crate) fn remove_plugin(id: &str, name: &str) -> Self {
+        Self {
+            title: " Remove plugin ".to_owned(),
+            lines: vec![
+                format!("Remove the plugin {name}?"),
+                String::new(),
+                "Its folder is deleted. What you decided about it is kept, so installing it again brings it back as it was.".to_owned(),
+            ],
+            purpose: Purpose::RemovePlugin(id.into()),
         }
     }
 

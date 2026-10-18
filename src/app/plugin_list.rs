@@ -1,0 +1,655 @@
+//! The plugin manager popup: the plugins of the index and the ones in the plugins
+//! folder in one list, and what the user does with them: install, update, remove,
+//! turn on or off, place. Downloading runs on a thread of its own and tells the app
+//! by events; nothing is written in the plugins folder until the module is checked.
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use crossterm::event::KeyEvent;
+use ratatui::layout::Position;
+
+use super::App;
+use crate::components::popups::confirm::Confirm;
+use crate::components::popups::menu::{Entry, Menu};
+use crate::components::popups::plugin_list::{Command, PluginList, Row};
+use crate::event::Event;
+use crate::event::action::Action;
+use crate::persist::saved_state::Place;
+use crate::plugins::index::{Availability, Entry as IndexEntry, Index};
+use crate::plugins::install::{self, InstallError, JobEvent, Policy, Stage};
+use crate::plugins::manifest::{self, Host, Installed, is_newer};
+
+/// Where the index is fetched from and what may be downloaded.
+#[derive(Debug, Clone)]
+pub(super) struct Source {
+    /// `None`: nothing is fetched, the index is what the release came with.
+    index_url: Option<String>,
+    policy: Policy,
+}
+
+impl Default for Source {
+    fn default() -> Self {
+        Self {
+            // Tests never reach for the network unless they say so.
+            index_url: (!cfg!(test)).then(|| install::INDEX_URL.to_owned()),
+            policy: Policy::GITHUB,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Source {
+    pub(super) fn local(index_url: String, policy: Policy) -> Self {
+        Self {
+            index_url: Some(index_url),
+            policy,
+        }
+    }
+}
+
+/// An install that is running.
+#[derive(Debug)]
+pub(super) struct Job {
+    id: Box<str>,
+    cancel: Arc<AtomicBool>,
+}
+
+/// What is known of the index and of the install in progress.
+#[derive(Debug, Default)]
+pub(super) struct Store {
+    /// The index shown: the cached one or the one of the release at first, the
+    /// fetched one when it comes.
+    index: Index,
+    /// What the index is, when that is worth saying: it could not be fetched, or it is being.
+    note: Option<String>,
+    job: Option<Job>,
+    source: Source,
+}
+
+#[cfg(test)]
+impl Store {
+    pub(super) fn with_source(source: Source) -> Self {
+        Self {
+            source,
+            ..Self::default()
+        }
+    }
+}
+
+/// What the user most likely wants to do with a plugin of the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Next {
+    Install,
+    Update,
+    TurnOn,
+    Place,
+    Open,
+    Say(String),
+}
+
+impl App {
+    /// Fetches the index and the plugins from this server, whatever it is (tests).
+    #[cfg(test)]
+    pub(crate) fn with_plugin_source(mut self, index_url: String) -> Self {
+        self.plugins.store =
+            Store::with_source(Source::local(index_url, Policy::local(&["127.0.0.1"])));
+        self
+    }
+
+    /// Opens the manager with the index known so far and asks for a fresh one.
+    pub(super) fn show_plugins(&mut self) {
+        if self.plugins_dir().is_none() {
+            self.state.notify("there is no folder for plugins here");
+            return;
+        }
+        self.plugins.store.index = Index::cached_or_snapshot(self.config_dir.as_deref());
+        self.show_plugin_list(None);
+        self.fetch_index();
+    }
+
+    /// Opens the list with the plugin `chosen` chosen.
+    pub(super) fn show_plugin_list(&mut self, chosen: Option<&str>) {
+        let Some(dir) = self.plugins_dir() else {
+            return;
+        };
+        self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
+        let mut list = PluginList::new(self.plugin_rows(), self.plugins.store.note.clone());
+        if let Some(id) = chosen {
+            list.select(id);
+        }
+        if let Some(job) = &self.plugins.store.job {
+            list.set_busy(Some(format!("installing {}", job.id)));
+        }
+        self.state.open_plugin_list(list);
+        self.needs_redraw = true;
+    }
+
+    /// Makes the open list say what is true now.
+    fn refresh_plugin_list(&mut self) {
+        let rows = self.plugin_rows();
+        let note = self.plugins.store.note.clone();
+        if let Some(list) = self.state.plugin_list_mut() {
+            list.set_rows(rows);
+            list.set_note(note);
+        }
+        self.needs_redraw = true;
+    }
+
+    fn fetch_index(&mut self) {
+        let (Some(url), Some(events)) = (
+            self.plugins.store.source.index_url.clone(),
+            self.background.sender(),
+        ) else {
+            return;
+        };
+        let policy = self.plugins.store.source.policy;
+        let config = self.config_dir.clone();
+        self.plugins.store.note = Some("asking for the latest list of plugins".to_owned());
+        std::thread::spawn(move || {
+            let cancel = AtomicBool::new(false);
+            let result = install::fetch_index(&url, policy, config.as_deref(), &cancel)
+                .map_err(|error| error.to_string());
+            let _ = events.blocking_send(Event::PluginJob(JobEvent::Index(result)));
+        });
+    }
+
+    /// The rows of the list: every plugin of the index, then the ones that are only in
+    /// the plugins folder.
+    fn plugin_rows(&self) -> Vec<Row> {
+        let index = &self.plugins.store.index;
+        let mut rows: Vec<Row> = index
+            .entries
+            .iter()
+            .map(|entry| self.row_of_entry(entry))
+            .collect();
+        for found in &self.plugins.manager.found {
+            match found {
+                Ok(installed) if index.entry(installed.id()).is_none() => {
+                    rows.push(self.row_of_installed(installed, None));
+                }
+                Err((folder, error)) => rows.push(Row {
+                    id: folder.as_str().into(),
+                    name: folder.clone(),
+                    tag: "cannot run".to_owned(),
+                    detail: error.to_string(),
+                    grey: true,
+                }),
+                Ok(_) => {}
+            }
+        }
+        rows
+    }
+
+    fn row_of_entry(&self, entry: &IndexEntry) -> Row {
+        match self.plugins.manager.installed(&entry.id) {
+            Some(installed) => self.row_of_installed(installed, Some(entry)),
+            None => {
+                if let Some(error) = self.plugins.manager.broken(&entry.id) {
+                    return Row {
+                        id: entry.id.as_str().into(),
+                        name: format!("{} {}", entry.name, entry.version),
+                        tag: "cannot run".to_owned(),
+                        detail: error,
+                        grey: true,
+                    };
+                }
+                let missing = entry.availability(Host::THIS).missing();
+                Row {
+                    id: entry.id.as_str().into(),
+                    name: format!("{} {}", entry.name, entry.version),
+                    tag: missing
+                        .clone()
+                        .unwrap_or_else(|| "not installed".to_owned()),
+                    detail: entry.description.clone(),
+                    grey: missing.is_some(),
+                }
+            }
+        }
+    }
+
+    fn row_of_installed(&self, installed: &Installed, entry: Option<&IndexEntry>) -> Row {
+        let id = installed.id();
+        let managed = install::marker(&installed.dir).is_some();
+        let update = entry
+            .filter(|entry| managed && is_newer(&entry.version, &installed.manifest.version))
+            .filter(|entry| entry.availability(Host::THIS) == Availability::Ready);
+        let mut parts = Vec::new();
+        if !managed {
+            parts.push("local".to_owned());
+        }
+        if let Some(entry) = update {
+            parts.push(format!("update {} available", entry.version));
+        }
+        parts.push(self.state_of(id));
+        let detail = match (managed, update) {
+            (false, _) => "a plugin of your own: the manager leaves it alone".to_owned(),
+            (true, Some(entry)) => format!(
+                "{} is installed, {} is in the index",
+                installed.manifest.version, entry.version
+            ),
+            (true, None) => entry
+                .map(|entry| entry.description.clone())
+                .unwrap_or_default(),
+        };
+        Row {
+            id: id.into(),
+            name: format!(
+                "{} {}",
+                installed.manifest.display_name(),
+                installed.manifest.version
+            ),
+            tag: parts.join(" · "),
+            detail,
+            grey: false,
+        }
+    }
+
+    /// Whether a plugin of the plugins folder is on, and where it is.
+    fn state_of(&self, id: &str) -> String {
+        let manager = &self.plugins.manager;
+        if manager.is_running(id) {
+            return match self.saved_plugin_record(id).and_then(|record| record.place) {
+                _ if self.layout_places(id) => "on".to_owned(),
+                Some(place) => format!("on · {}", place.label()),
+                None => "on · not placed".to_owned(),
+            };
+        }
+        match manager.stopped.get(id) {
+            Some(_) => "off: it failed too often".to_owned(),
+            None => "off".to_owned(),
+        }
+    }
+
+    /// What Enter does for the plugin `id`.
+    fn next_for(&self, id: &str) -> Next {
+        let manager = &self.plugins.manager;
+        let entry = self.plugins.store.index.entry(id);
+        let Some(installed) = manager.installed(id) else {
+            if let Some(error) = manager.broken(id) {
+                return Next::Say(format!("plugin {id} cannot run: {error}"));
+            }
+            return match entry.map(|entry| entry.availability(Host::THIS)) {
+                Some(Availability::Ready) => Next::Install,
+                Some(missing) => Next::Say(format!(
+                    "plugin {id} {}",
+                    missing.missing().unwrap_or_default()
+                )),
+                None => Next::Say(format!("no plugin named {id}")),
+            };
+        };
+        let managed = install::marker(&installed.dir).is_some();
+        let update = entry.is_some_and(|entry| {
+            managed
+                && is_newer(&entry.version, &installed.manifest.version)
+                && entry.availability(Host::THIS) == Availability::Ready
+        });
+        match (manager.is_running(id), update) {
+            (_, true) => Next::Update,
+            (false, false) => Next::TurnOn,
+            (true, false)
+                if self.saved_plugin_record(id).and_then(|r| r.place).is_none()
+                    && !self.layout_places(id) =>
+            {
+                Next::Place
+            }
+            (true, false) => Next::Open,
+        }
+    }
+
+    pub(super) fn handle_plugin_list_key(&mut self, key: KeyEvent) {
+        let Some(command) = Command::from_key(key) else {
+            return;
+        };
+        self.needs_redraw = true;
+        let busy = self
+            .state
+            .plugin_list_mut()
+            .is_some_and(|list| list.is_busy());
+        if busy {
+            if command == Command::Cancel
+                && let Some(job) = &self.plugins.store.job
+            {
+                job.cancel.store(true, Ordering::Relaxed);
+                if let Some(list) = self.state.plugin_list_mut() {
+                    list.set_busy(Some("stopping".to_owned()));
+                }
+            }
+            return;
+        }
+        let Some(chosen) = self
+            .state
+            .plugin_list_mut()
+            .and_then(|list| list.selected_id().map(str::to_owned))
+        else {
+            if command == Command::Cancel {
+                self.state.close_plugin_list();
+            }
+            return;
+        };
+        match command {
+            Command::Previous | Command::Next => {
+                if let Some(list) = self.state.plugin_list_mut() {
+                    list.step(command == Command::Next);
+                }
+            }
+            Command::Cancel => self.state.close_plugin_list(),
+            Command::Refresh => {
+                self.fetch_index();
+                self.refresh_plugin_list();
+            }
+            Command::Primary => match self.next_for(&chosen) {
+                Next::Install => self.install_plugin(&chosen),
+                Next::Update => self.ask_to_update(&chosen),
+                Next::TurnOn => self.toggle_in_list(&chosen),
+                Next::Place => self.ask_where(&chosen),
+                Next::Open => {
+                    self.state.close_plugin_list();
+                    self.open_plugin_popup(&chosen);
+                }
+                Next::Say(message) => self.state.notify(message),
+            },
+            Command::Install => match self.next_for(&chosen) {
+                Next::Install => self.install_plugin(&chosen),
+                Next::Update => self.ask_to_update(&chosen),
+                Next::Say(message) => self.state.notify(message),
+                _ => self.say_about_install(&chosen),
+            },
+            Command::Remove => self.ask_to_remove(&chosen),
+            Command::Toggle => self.toggle_in_list(&chosen),
+            Command::Place => match self.plugins.manager.is_running(&chosen) {
+                true => self.ask_where(&chosen),
+                false => self.state.notify(format!(
+                    "plugin {chosen} is not on: turn it on first, then place it"
+                )),
+            },
+        }
+    }
+
+    fn say_about_install(&mut self, id: &str) {
+        let managed = self
+            .plugins
+            .manager
+            .installed(id)
+            .is_some_and(|installed| install::marker(&installed.dir).is_some());
+        match managed {
+            true => self.state.notify(format!("plugin {id} is up to date")),
+            false => self.state.notify(format!(
+                "plugin {id} is one of your own: remove its folder by hand to install the one of the index"
+            )),
+        }
+    }
+
+    fn toggle_in_list(&mut self, id: &str) {
+        if self.plugins.manager.installed(id).is_none() && self.plugins.manager.broken(id).is_none()
+        {
+            self.state
+                .notify(format!("plugin {id} is not installed: press i"));
+            return;
+        }
+        // Turning on may ask what the plugin may do, and a question cannot open over
+        // the list: the list closes first. Turning off keeps it and shows what changed.
+        if !self.plugins.manager.is_running(id) {
+            self.state.close_plugin_list();
+        }
+        self.toggle_plugin(id);
+        if self.state.plugin_list_mut().is_some() {
+            self.refresh_plugin_list();
+        }
+    }
+
+    // --- install and update ---
+
+    fn install_plugin(&mut self, id: &str) {
+        let Some(entry) = self.plugins.store.index.entry(id).cloned() else {
+            return;
+        };
+        self.start_install(entry, false);
+    }
+
+    fn ask_to_update(&mut self, id: &str) {
+        let (Some(entry), Some(installed)) = (
+            self.plugins.store.index.entry(id),
+            self.plugins.manager.installed(id),
+        ) else {
+            return;
+        };
+        let confirm = Confirm::update_plugin(
+            id,
+            &entry.name,
+            &installed.manifest.version,
+            &entry.version,
+            self.plugins.manager.is_running(id),
+        );
+        self.state.open_confirm(confirm);
+    }
+
+    /// The user said yes to an update.
+    pub(super) fn update_plugin(&mut self, id: &str) {
+        match self.plugins.store.index.entry(id).cloned() {
+            Some(entry) => self.start_install(entry, true),
+            None => self.show_plugin_list(Some(id)),
+        }
+    }
+
+    fn start_install(&mut self, entry: IndexEntry, update: bool) {
+        let Some(events) = self.background.sender() else {
+            self.state
+                .notify_error("nothing can be downloaded here".to_owned());
+            return;
+        };
+        let Some(dir) = self.plugins_dir() else {
+            return;
+        };
+        if self.plugins.store.job.is_some() {
+            self.state.notify("a plugin is being installed already");
+            return;
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.plugins.store.job = Some(Job {
+            id: entry.id.as_str().into(),
+            cancel: Arc::clone(&cancel),
+        });
+        let policy = self.plugins.store.source.policy;
+        let chosen = entry.id.clone();
+        let id: Box<str> = entry.id.as_str().into();
+        std::thread::spawn(move || {
+            let progress = |stage| {
+                let _ = events.blocking_send(Event::PluginJob(JobEvent::Stage {
+                    id: id.clone(),
+                    stage,
+                }));
+            };
+            let result = install::install(&entry, &dir, Host::THIS, policy, &cancel, progress)
+                .map(|_| ())
+                .map_err(|error| match error {
+                    InstallError::Cancelled => "stopped".to_owned(),
+                    other => other.to_string(),
+                });
+            let _ = events.blocking_send(Event::PluginJob(JobEvent::Done { id, update, result }));
+        });
+        self.show_plugin_list(Some(&chosen));
+    }
+
+    /// Something happened on a thread of the manager.
+    pub(super) fn plugin_job_event(&mut self, event: JobEvent) {
+        self.needs_redraw = true;
+        match event {
+            JobEvent::Index(Ok(index)) => {
+                self.plugins.store.index = index;
+                self.plugins.store.note = None;
+                self.refresh_plugin_list();
+            }
+            JobEvent::Index(Err(reason)) => {
+                self.plugins.store.note =
+                    Some(format!("offline, showing the list known so far: {reason}"));
+                self.refresh_plugin_list();
+            }
+            JobEvent::Stage { id, stage } => {
+                let what = match stage {
+                    Stage::Manifest => "downloading the manifest",
+                    Stage::Module => "downloading the module",
+                    Stage::Checking => "checking the module",
+                    Stage::Installing => "installing",
+                };
+                if let Some(list) = self.state.plugin_list_mut() {
+                    list.set_busy(Some(format!("{id}: {what}")));
+                }
+            }
+            JobEvent::Done { id, update, result } => {
+                self.plugins.store.job = None;
+                if let Some(list) = self.state.plugin_list_mut() {
+                    list.set_busy(None);
+                }
+                match result {
+                    Ok(()) => self.installed_plugin(&id, update),
+                    Err(reason) if reason == "stopped" => {
+                        self.state
+                            .notify(format!("plugin {id}: stopped, nothing was installed"));
+                        self.show_plugin_list(Some(&id));
+                    }
+                    Err(reason) => {
+                        self.state
+                            .notify_error(format!("plugin {id} was not installed: {reason}"));
+                        self.show_plugin_list(Some(&id));
+                    }
+                }
+            }
+        }
+    }
+
+    /// The module is in the plugins folder: a new plugin is asked about (what it may
+    /// do, then where it goes); an updated one that ran runs again.
+    fn installed_plugin(&mut self, id: &str, update: bool) {
+        let Some(dir) = self.plugins_dir() else {
+            return;
+        };
+        let was_running = self.plugins.manager.is_running(id);
+        if was_running {
+            self.stop_plugin(id);
+        }
+        self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
+        if update && was_running {
+            let Some(installed) = self.plugins.manager.installed(id).cloned() else {
+                self.show_plugin_list(Some(id));
+                return;
+            };
+            self.state.notify(format!(
+                "plugin {} is now {}",
+                installed.manifest.display_name(),
+                installed.manifest.version
+            ));
+            match self.saved_plugin_record(id) {
+                Some(record) if super::plugin_manager::covers(&record, &installed) => {
+                    self.start_plugin(&installed);
+                    self.show_plugin_list(Some(id));
+                }
+                // The new version wants more than the user allowed: ask again.
+                _ => {
+                    self.state.close_plugin_list();
+                    self.plugins.manager.waiting.push_front(id.into());
+                    self.ask_about_next_plugin();
+                }
+            }
+            return;
+        }
+        self.state.notify(format!("plugin {id} installed"));
+        // A plugin the user allowed and placed before, then removed, comes back as it was.
+        match self.saved_plugin_record(id) {
+            Some(record)
+                if record.enabled
+                    && self.plugins.manager.installed(id).is_some_and(|installed| {
+                        super::plugin_manager::covers(&record, installed)
+                    }) =>
+            {
+                if let Some(installed) = self.plugins.manager.installed(id).cloned() {
+                    self.start_plugin(&installed);
+                }
+                self.show_plugin_list(Some(id));
+            }
+            _ => {
+                self.state.close_plugin_list();
+                self.plugins.manager.waiting.push_front(id.into());
+                self.ask_about_next_plugin();
+            }
+        }
+    }
+
+    // --- remove ---
+
+    fn ask_to_remove(&mut self, id: &str) {
+        let Some(installed) = self.plugins.manager.installed(id) else {
+            self.state.notify(match self.plugins.manager.broken(id) {
+                Some(_) => format!(
+                    "plugin {id} was not installed by the manager: remove its folder by hand"
+                ),
+                None => format!("plugin {id} is not installed"),
+            });
+            return;
+        };
+        if install::marker(&installed.dir).is_none() {
+            self.state.notify(format!(
+                "plugin {id} is one of your own: the manager does not remove it, delete its folder by hand"
+            ));
+            return;
+        }
+        let confirm = Confirm::remove_plugin(id, installed.manifest.display_name());
+        self.state.open_confirm(confirm);
+    }
+
+    /// The user said yes to removing a plugin: it stops and its folder goes; what
+    /// was decided about it stays.
+    pub(super) fn remove_plugin(&mut self, id: &str) {
+        let Some(dir) = self.plugins_dir() else {
+            return;
+        };
+        self.stop_plugin(id);
+        match install::remove(&dir, id) {
+            Ok(()) => self.state.notify(format!("plugin {id} removed")),
+            Err(error) => self
+                .state
+                .notify_error(format!("plugin {id} was not removed: {error}")),
+        }
+        self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
+        self.show_plugin_list(Some(id));
+    }
+
+    // --- placing ---
+
+    /// Asks where the plugin's view goes: a menu of the places this layout has.
+    pub(super) fn ask_where(&mut self, id: &str) {
+        if self.layout_places(id) {
+            self.state
+                .notify(format!("plugin {id} is placed by your layout file"));
+            return;
+        }
+        let entries: Vec<Entry> = self
+            .available_places()
+            .into_iter()
+            .map(|place| Entry::Item {
+                label: format!("Put {id} in the {}", place.label()).into(),
+                action: Action::PluginPlaced(format!("{id}:{}", place.key()).into()),
+                keys: None,
+            })
+            .collect();
+        let screen = self.state.screen();
+        let menu = Menu::on_app(
+            entries,
+            Position::new(screen.x + screen.width / 3, screen.y + screen.height / 3),
+        )
+        .starting_on_anchor_row();
+        self.state.open_menu(menu);
+        self.needs_redraw = true;
+    }
+
+    /// The user chose a place from the menu.
+    pub(super) fn plugin_placed(&mut self, chosen: &str) {
+        let Some((id, place)) = chosen
+            .rsplit_once(':')
+            .and_then(|(id, place)| Some((id, Place::from_key(place)?)))
+        else {
+            return;
+        };
+        self.place_plugin(id, place);
+    }
+}

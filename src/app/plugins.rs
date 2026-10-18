@@ -22,6 +22,7 @@ pub(super) struct Plugins {
     pub(super) runtime: Option<Runtime>,
     pub(super) actions: HashMap<Box<str>, Vec<ActionDecl>>,
     pub(super) manager: super::plugin_manager::Manager,
+    pub(super) store: super::plugin_list::Store,
 }
 
 impl App {
@@ -199,6 +200,17 @@ impl App {
                 })
             })
             .collect();
+        // The plugins the user put in a popup are opened from the palette too.
+        for (id, record) in self.saved_state().plugins() {
+            if record.place == Some(crate::persist::saved_state::Place::Popup)
+                && self.plugins.manager.is_running(id)
+            {
+                found.push((
+                    Action::OpenPluginPopup(id.into()),
+                    format!("plugins: open {id}"),
+                ));
+            }
+        }
         found.sort_by(|a, b| a.1.cmp(&b.1));
         found
     }

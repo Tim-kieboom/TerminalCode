@@ -6,6 +6,7 @@ use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::menu_bar::MenuBar;
 use crate::components::status_view::StatusBar;
 use crate::components::terminal::TerminalPane;
+use crate::persist::saved_state::Place;
 use crate::ui::Hideable;
 use crate::ui::layout::{LayoutTree, Placement, Scene};
 use crate::ui::view::ViewNode;
@@ -240,7 +241,41 @@ impl AppState {
         Ok(())
     }
 
+    /// Takes the layout the file describes; the views of plugins placed in a bar
+    /// are added to it again.
     pub(crate) fn set_layout(&mut self, layout: LayoutTree) {
+        self.base_layout = layout;
+        self.rebuild_layout();
+    }
+
+    /// The layout as the file says it, without the views the user placed.
+    pub(crate) fn base_layout(&self) -> &LayoutTree {
+        &self.base_layout
+    }
+
+    /// Sets where the plugins that run are placed; a plugin the layout file names
+    /// itself stays where the file puts it.
+    pub(crate) fn set_plugin_places(&mut self, places: Vec<(PluginViewId, Place)>) {
+        if self.plugin_places == places {
+            return;
+        }
+        self.plugin_places = places;
+        self.rebuild_layout();
+    }
+
+    fn rebuild_layout(&mut self) {
+        let mut layout = self.base_layout.clone();
+        for (id, place) in &self.plugin_places {
+            let anchor = match place {
+                Place::Explorer => ComponentKind::Explorer,
+                Place::Bottom => ComponentKind::Terminal,
+                Place::Popup | Place::Unknown => continue,
+            };
+            let view = ComponentKind::Plugin(id.clone());
+            if let Some(with) = layout.with_view_in_bar_of(&anchor, &view) {
+                layout = with;
+            }
+        }
         self.layout = layout;
     }
 

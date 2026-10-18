@@ -66,6 +66,8 @@ pub(crate) enum Event {
         request: u64,
         result: Result<Option<Vec<u64>>, crate::git::GitError>,
     },
+    /// The index was fetched or an install moved on (see the plugin manager).
+    PluginJob(crate::plugins::install::JobEvent),
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
 }
