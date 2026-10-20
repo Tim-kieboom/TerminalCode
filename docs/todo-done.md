@@ -171,7 +171,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.8.0
 - [x] Version 0.8.0 (after 0.7.1: the official plugin list moved out of the editor to `Tim-kieboom/trcode-plugins` (no copy is embedded any more; the last fetch is cached in the config folder) and the setting `plugin_sources` adds more lists, whose plugins are marked with where they come from and are asked about before they install; trust on first use: a version's module hash is pinned in `.trust.json` in the plugins folder, a version that changes is refused, and a module is checked against its marker and pin before it runs; the plugin manager looks better (symbols, versions, sources, rule, warnings, bold keys), comes back after the questions of turning a plugin on, `d` shows a plugin's `description.md` (the new part of the plugin standard, installed with the plugin) or its README, and `I` (shift+i) updates every plugin; Rust formats on save by default). Changes to know when upgrading: `settings.json` gets `plugin_sources` (empty); editors up to 0.7.1 read the old list address, which is gone, so update to see new plugins; `"rust": { "format_on_save": false }` turns formatting on save off; Git 0.2.1 is the first plugin with a `description.md`
-- [ ] Tag `v0.8.0`
+- [x] Tag `v0.8.0` (tagged on 283290e; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
