@@ -50,6 +50,7 @@ mod plugin_place_tests;
 mod plugin_rows_tests;
 mod plugin_tests;
 mod quit_tests;
+mod real_markdown_tests;
 mod real_plugin_tests;
 mod recent_tests;
 mod rename_symbol_tests;

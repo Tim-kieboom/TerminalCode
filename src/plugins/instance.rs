@@ -35,6 +35,8 @@ pub(super) struct Delivered {
     pub messages: Vec<FromPlugin>,
     /// What was said that could not be read, one reason each.
     pub rejected: Vec<String>,
+    /// How much of the budget the call used.
+    pub fuel_used: u64,
 }
 
 /// What host functions reach: the memory limit and what the plugin sent.
@@ -162,7 +164,10 @@ impl Instance {
             .call(&mut self.store, (ptr, len))
             .map_err(|error| Failure::Trap(describe(&error)))?;
 
-        let mut delivered = Delivered::default();
+        let mut delivered = Delivered {
+            fuel_used: fuel.saturating_sub(self.store.get_fuel().unwrap_or(0)),
+            ..Delivered::default()
+        };
         for bytes in std::mem::take(&mut self.store.data_mut().sent) {
             match FromPlugin::from_bytes(&bytes) {
                 Ok(message) => delivered.messages.push(message),

@@ -979,9 +979,11 @@ fn the_budget_grows_with_the_text_only_on_a_thread_of_its_own_and_has_a_ceiling(
 }
 
 #[test]
-fn a_megabyte_of_text_fits_the_ceiling_with_the_provisional_rate() {
-    let wanted = CALLBACK_FUEL + FUEL_PER_BYTE * 1024 * 1024;
-    assert!(wanted <= OWNED_FUEL_CEILING, "{wanted}");
+fn a_big_text_gets_the_ceiling_and_a_text_of_the_size_of_a_readme_gets_much_less() {
+    // 1 MB is far past where the rate meets the ceiling.
+    assert_eq!(fuel_for(&file_text(1024 * 1024), true), OWNED_FUEL_CEILING);
+    // 20 KB: 3 times the measured cost of a dense document, well under it.
+    assert!(fuel_for(&file_text(20 * 1024), true) < OWNED_FUEL_CEILING / 5);
 }
 
 #[test]
