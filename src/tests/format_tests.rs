@@ -82,6 +82,13 @@ impl Rig {
         self
     }
 
+    fn format_on_save_off(mut self) -> Self {
+        // Rust formats on save by default, so "off" is the user saying so.
+        let off = r#"{ "language_servers": { "rust": { "format_on_save": false } } }"#;
+        *self.app.settings_mut() = Settings::parse(off).unwrap().settings;
+        self
+    }
+
     fn typed(&mut self, text: &str) {
         self.app
             .state_mut()
@@ -128,7 +135,7 @@ impl Rig {
 
 #[test]
 fn with_the_setting_off_saving_writes_the_text_as_it_is() {
-    let mut rig = Rig::start(provider(), SOURCE, format_to_the_standard());
+    let mut rig = Rig::start(provider(), SOURCE, format_to_the_standard()).format_on_save_off();
     rig.typed("//\n");
 
     rig.ctrl('s');

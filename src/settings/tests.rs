@@ -460,18 +460,21 @@ fn hide_ignored_defaults_to_false_and_is_read() {
 }
 
 #[test]
-fn format_on_save_belongs_to_a_server_and_is_off_by_default() {
+fn format_on_save_belongs_to_a_server_and_is_on_by_default_only_for_rust() {
     let settings = parse("{}").settings;
     for name in settings.language_servers.names() {
-        assert!(
-            !settings.language_servers.get(name).unwrap().format_on_save,
+        assert_eq!(
+            settings.language_servers.get(name).unwrap().format_on_save,
+            name == "rust",
             "{name}"
         );
     }
+    let off = parse(r#"{ "language_servers": { "rust": { "format_on_save": false } } }"#).settings;
+    assert!(!off.language_servers.get("rust").unwrap().format_on_save);
 
     let on = parse(r#"{ "language_servers": { "nix": { "format_on_save": true } } }"#).settings;
     assert!(on.language_servers.get("nix").unwrap().format_on_save);
-    assert!(!on.language_servers.get("rust").unwrap().format_on_save);
+    assert!(on.language_servers.get("rust").unwrap().format_on_save);
     assert!(
         error_of(r#"{ "language_servers": { "rust": { "format_on_save": 1 } } }"#).contains("rust")
     );
