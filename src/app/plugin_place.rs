@@ -1,5 +1,5 @@
 //! Where a plugin's view goes: the bar that holds the Explorer, the bar that holds
-//! the Terminal, or a popup. What the user chose is kept in `state.json` and put
+//! the Terminal, a pane right of the editor, or a popup. What the user chose is kept in `state.json` and put
 //! on the layout in memory (see [`crate::app::state::AppState::set_plugin_places`]);
 //! the layout file is never written. A plugin the layout file names itself stays
 //! where the file puts it.
@@ -13,7 +13,8 @@ use crate::ui::{ComponentKind, PluginViewId};
 
 impl App {
     /// The places the layout has room for: a bar that holds the Explorer, a bar
-    /// that holds the Terminal, and a popup, which every layout has.
+    /// that holds the Terminal, a pane right of the editor and a popup, which every
+    /// layout has.
     pub(crate) fn available_places(&self) -> Vec<Place> {
         let layout = self.state.base_layout();
         let mut places = Vec::new();
@@ -23,6 +24,8 @@ impl App {
         if layout.bar_views(&ComponentKind::Terminal).is_some() {
             places.push(Place::Bottom);
         }
+        // Every layout has an editor to put a pane beside.
+        places.push(Place::Side);
         places.push(Place::Popup);
         places
     }
@@ -75,7 +78,7 @@ impl App {
     fn show_placed_plugin(&mut self, id: &str, place: Place) {
         match place {
             Place::Popup => self.open_plugin_popup(id),
-            Place::Explorer | Place::Bottom => {
+            Place::Explorer | Place::Bottom | Place::Side => {
                 self.show_bar_view(&ComponentKind::Plugin(PluginViewId::new(id)));
             }
             Place::Unknown => {}

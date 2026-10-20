@@ -22,6 +22,7 @@ use crate::persist::saved_state::Place;
 use crate::plugins::index::{Availability, Entry as IndexEntry, Index};
 use crate::plugins::install::{self, InstallError, JobEvent, Policy, Stage};
 use crate::plugins::manifest::{self, Host, Installed, is_newer};
+use crate::ui::layout::RIGHT_BAR_MIN_WIDTH;
 
 /// Where the index is fetched from and what may be downloaded.
 #[derive(Debug, Clone)]
@@ -410,6 +411,9 @@ impl App {
         if manager.is_running(id) {
             return match self.saved_plugin_record(id).and_then(|record| record.place) {
                 _ if self.layout_places(id) => "on".to_owned(),
+                Some(Place::Side) if self.state.screen().width < RIGHT_BAR_MIN_WIDTH => {
+                    format!("on · side pane (hidden: needs {RIGHT_BAR_MIN_WIDTH} columns)")
+                }
                 Some(place) => format!("on · {}", place.label()),
                 None => "on · not placed".to_owned(),
             };

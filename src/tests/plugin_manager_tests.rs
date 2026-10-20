@@ -348,7 +348,8 @@ fn installing_downloads_then_asks_what_it_may_do_then_where_it_goes() {
     rig.press(KeyCode::Char('y'));
     rig.wait_until("the question about where", |rig| rig.menu_open());
     assert!(rig.screen().contains("Put echo in the popup"));
-    // The third place: the popup.
+    // The fourth place: the popup.
+    rig.press(KeyCode::Down);
     rig.press(KeyCode::Down);
     rig.press(KeyCode::Down);
     rig.press(KeyCode::Enter);

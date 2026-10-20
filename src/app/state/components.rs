@@ -12,6 +12,9 @@ use crate::ui::layout::{LayoutTree, Placement, Scene};
 use crate::ui::view::ViewNode;
 use crate::ui::{ComponentKind, PluginViewId};
 
+/// How much of the editor's row a pane right of the editor takes.
+const SIDE_PANE_PERCENT: u16 = 40;
+
 impl AppState {
     /// Whether the component takes part in the layout. Hidden ones take no
     /// space. The editor and anything this does not know are always shown.
@@ -269,6 +272,13 @@ impl AppState {
             let anchor = match place {
                 Place::Explorer => ComponentKind::Explorer,
                 Place::Bottom => ComponentKind::Terminal,
+                Place::Side => {
+                    let view = ComponentKind::Plugin(id.clone());
+                    if let Some(with) = layout.with_view_beside_editor(&view, SIDE_PANE_PERCENT) {
+                        layout = with;
+                    }
+                    continue;
+                }
                 Place::Popup | Place::Unknown => continue,
             };
             let view = ComponentKind::Plugin(id.clone());

@@ -246,12 +246,12 @@ fn a_plugin_the_layout_file_names_stays_where_the_file_puts_it() {
 }
 
 #[test]
-fn a_layout_without_bars_offers_only_the_popup() {
+fn a_layout_without_bars_offers_the_side_pane_and_the_popup() {
     let layout = "Row([Fixed(30, Pane(view: Explorer)), Pane(view: Editor)])";
     let mut rig = rig_with(layout, First::Echo, Some(record(true, None)));
     rig.wait_for_view();
 
-    assert_eq!(rig.app.available_places(), [Place::Popup]);
+    assert_eq!(rig.app.available_places(), [Place::Side, Place::Popup]);
     rig.app.place_plugin("hello", Place::Explorer);
     assert!(rig.notification().unwrap().contains("no Explorer's bar"));
     assert!(
@@ -261,11 +261,11 @@ fn a_layout_without_bars_offers_only_the_popup() {
 }
 
 #[test]
-fn a_layout_with_both_bars_offers_all_three_places() {
+fn a_layout_with_both_bars_offers_all_four_places() {
     let rig = rig(None);
     assert_eq!(
         rig.app.available_places(),
-        [Place::Explorer, Place::Bottom, Place::Popup]
+        [Place::Explorer, Place::Bottom, Place::Side, Place::Popup]
     );
 }
 
@@ -409,5 +409,95 @@ fn a_record_without_a_place_writes_none() {
         !fs::read_to_string(saved_state::path_in(dir.path()))
             .unwrap()
             .contains("place")
+    );
+}
+
+// --- the side pane, right of the editor ---
+
+/// The column the text `needle` starts at on the screen, in the first row it is on.
+fn column_of(screen: &str, needle: &str) -> Option<usize> {
+    screen
+        .lines()
+        .find_map(|line| line.find(needle).map(|at| line[..at].chars().count()))
+}
+
+#[test]
+fn a_plugin_placed_in_the_side_pane_is_right_of_the_editor() {
+    let mut rig = rig(Some(record(true, None)));
+    rig.wait_for_view();
+
+    rig.app.place_plugin("hello", Place::Side);
+
+    assert_eq!(rig.bar_of_hello(), Some(vec![hello()]));
+    assert_eq!(
+        rig.remembered().plugin("hello").unwrap().place,
+        Some(Place::Side)
+    );
+    let screen = rig.screen();
+    // The editor's line number is left of the plugin's frame, and the plugin is
+    // right of the Explorer.
+    let editor = column_of(&screen, "  1 ").unwrap();
+    let plugin = column_of(&screen, "┌hello").expect(&screen);
+    assert!(editor < plugin, "{screen}");
+    assert!(column_of(&screen, "Explorer").unwrap() < editor, "{screen}");
+    // The terminal's bar still spans under both.
+    assert!(screen.contains("start"), "{screen}");
+    // The layout file is as it was.
+    assert!(!rig.app.state().base_layout().contains(&hello()));
+    assert_eq!(rig.app.state().base_layout().right_bar_anchor(), None);
+}
+
+#[test]
+fn a_placement_in_the_side_pane_is_applied_when_the_app_starts() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    assert_eq!(rig.bar_of_hello(), Some(vec![hello()]));
+}
+
+#[test]
+fn the_side_pane_gives_way_on_a_narrow_screen_and_the_manager_says_so() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    let wide = rig.screen();
+    assert!(wide.contains("┌hello"));
+
+    rig.terminal = Terminal::new(TestBackend::new(90, 30)).unwrap();
+    rig.app.handle_input(InputEvent::Resize(90, 30));
+    let narrow = rig.screen();
+    assert!(!narrow.contains("┌hello"), "{narrow}");
+
+    rig.app.run_action(Action::ShowPlugins);
+    let listed = rig.screen();
+    assert!(listed.contains("side pane"), "{listed}");
+    assert!(listed.contains("hidden: needs 100 columns"), "{listed}");
+}
+
+#[test]
+fn a_second_plugin_in_the_side_pane_shares_its_bar() {
+    use crate::ui::layout::LayoutTree;
+    let base = LayoutTree::from_ron(&default_layout()).unwrap();
+    let first = hello();
+    let second = ComponentKind::Plugin(PluginViewId::new("other"));
+    let one = base.with_view_beside_editor(&first, 40).unwrap();
+    let two = one.with_view_beside_editor(&second, 40).unwrap();
+    assert_eq!(
+        two.bar_views(&second),
+        Some(&[first.clone(), second.clone()][..])
+    );
+    assert_eq!(two.right_bar_anchor(), Some(first));
+    // Not twice.
+    assert!(two.with_view_beside_editor(&second, 40).is_none());
+}
+
+#[test]
+fn a_menu_for_where_names_the_side_pane() {
+    let mut rig = rig(Some(record(true, None)));
+    rig.wait_for_view();
+    rig.app.run_action(Action::ShowPlugins);
+    rig.press(KeyCode::Char('p'));
+    let screen = rig.screen();
+    assert!(
+        screen.contains("Put hello in the side pane (right of the editor)"),
+        "{screen}"
     );
 }

@@ -713,3 +713,111 @@ fn there_is_nowhere_to_add_a_view_without_the_bar() {
             .is_none()
     );
 }
+
+// --- a bar to the right of the editor ---
+
+fn plugin(id: &str) -> ComponentKind {
+    ComponentKind::Plugin(PluginViewId::new(id))
+}
+
+fn kinds(layout: &LayoutTree, width: u16) -> Vec<ComponentKind> {
+    layout
+        .resolve(Rect::new(0, 0, width, 30))
+        .into_iter()
+        .map(|placement| placement.kind)
+        .collect()
+}
+
+#[test]
+fn a_right_bar_is_read_from_ron_and_sits_right_of_the_editor() {
+    let layout = LayoutTree::from_ron(
+        r#"Row([Pane(view: Editor), Percent(40, RightBar(views: [Plugin("preview")]))])"#,
+    )
+    .unwrap();
+    let placements = layout.resolve(Rect::new(0, 0, 120, 30));
+    let editor = placements
+        .iter()
+        .find(|p| p.kind == ComponentKind::Editor)
+        .unwrap();
+    let preview = placements
+        .iter()
+        .find(|p| p.kind == plugin("preview"))
+        .unwrap();
+    assert!(editor.area.right() <= preview.area.x);
+    assert_eq!(preview.area.width, 48);
+    assert_eq!(layout.right_bar_anchor(), Some(plugin("preview")));
+}
+
+#[test]
+fn a_right_bar_gives_way_below_the_minimum_width_and_the_editor_takes_all() {
+    let layout = LayoutTree::from_ron(
+        r#"Row([Pane(view: Editor), Percent(40, RightBar(views: [Plugin("preview")]))])"#,
+    )
+    .unwrap();
+    assert_eq!(
+        kinds(&layout, RIGHT_BAR_MIN_WIDTH),
+        [ComponentKind::Editor, plugin("preview")]
+    );
+    assert_eq!(
+        kinds(&layout, RIGHT_BAR_MIN_WIDTH - 1),
+        [ComponentKind::Editor]
+    );
+    let narrow = layout.resolve(Rect::new(0, 0, RIGHT_BAR_MIN_WIDTH - 1, 30));
+    assert_eq!(narrow[0].area.width, RIGHT_BAR_MIN_WIDTH - 1);
+}
+
+#[test]
+fn a_right_bar_follows_the_rules_of_the_other_bars() {
+    // Only Explorer, Terminal and Plugin views; a view in one place only.
+    assert!(LayoutTree::from_ron(r#"Row([Pane(view: Editor), RightBar(views: [])])"#).is_err());
+    assert!(
+        LayoutTree::from_ron(r#"Row([Pane(view: Editor), RightBar(views: [Editor])])"#).is_err()
+    );
+    assert!(
+        LayoutTree::from_ron(
+            r#"Row([Pane(view: Editor), RightBar(views: [Terminal]), BottomBar(views: [Terminal])])"#
+        )
+        .is_err()
+    );
+    let two = LayoutTree::from_ron(
+        r#"Row([Pane(view: Editor), Percent(30, RightBar(views: [Plugin("a"), Plugin("b")]))])"#,
+    )
+    .unwrap();
+    assert_eq!(
+        two.bar_views(&plugin("b")),
+        Some(&[plugin("a"), plugin("b")][..])
+    );
+}
+
+#[test]
+fn a_view_is_put_beside_the_editor_wherever_the_editor_is() {
+    let layout = LayoutTree::from_ron(
+        "Col([Row([Fixed(30, SideBar(views: [Explorer])), Pane(view: Editor)]), \
+         Fixed(8, BottomBar(views: [Terminal]))])",
+    )
+    .unwrap();
+    let with = layout.with_view_beside_editor(&plugin("p"), 40).unwrap();
+    let placements = with.resolve(Rect::new(0, 0, 160, 40));
+    let by = |kind: &ComponentKind| placements.iter().find(|p| &p.kind == kind).unwrap().area;
+    let (explorer, editor, side, terminal) = (
+        by(&ComponentKind::Explorer),
+        by(&ComponentKind::Editor),
+        by(&plugin("p")),
+        by(&ComponentKind::Terminal),
+    );
+    assert!(explorer.right() <= editor.x);
+    assert!(editor.right() <= side.x);
+    // The editor and the pane are both above the terminal, which is still full width.
+    assert_eq!(editor.y, side.y);
+    assert!(editor.bottom() <= terminal.y);
+    assert_eq!(terminal.width, 160);
+    // The layout itself is as it was.
+    assert!(!layout.contains(&plugin("p")));
+    // A second view joins the bar; one that is in the layout already is refused.
+    assert!(with.with_view_beside_editor(&plugin("p"), 40).is_none());
+    let both = with.with_view_beside_editor(&plugin("q"), 40).unwrap();
+    assert_eq!(
+        both.bar_views(&plugin("q")),
+        Some(&[plugin("p"), plugin("q")][..])
+    );
+}

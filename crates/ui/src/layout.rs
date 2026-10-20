@@ -213,6 +213,10 @@ pub enum LayoutNode {
     SideBar(BarSpec),
     /// A bar under the editor, with views such as the terminal.
     BottomBar(BarSpec),
+    /// A bar to the right of the editor, for views that want width and to stay in
+    /// sight while the text is edited, such as a plugin's preview. It is left out when
+    /// the screen is narrower than [`RIGHT_BAR_MIN_WIDTH`].
+    RightBar(BarSpec),
 }
 
 impl LayoutNode {
@@ -225,6 +229,7 @@ impl LayoutNode {
             Self::Pane(_) => "Pane",
             Self::SideBar(_) => "SideBar",
             Self::BottomBar(_) => "BottomBar",
+            Self::RightBar(_) => "RightBar",
         }
     }
 
@@ -253,7 +258,7 @@ impl LayoutNode {
     fn has_visible(&self, scene: &Scene<'_>) -> bool {
         match self.content() {
             Self::Pane(pane) => (scene.visible)(&pane.view),
-            Self::SideBar(bar) | Self::BottomBar(bar) => {
+            Self::SideBar(bar) | Self::BottomBar(bar) | Self::RightBar(bar) => {
                 (scene.visible)(&bar.views[bar.shown_view(scene)])
             }
             Self::Row(children) | Self::Col(children) => {
@@ -266,8 +271,12 @@ impl LayoutNode {
     fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
         match self.content() {
             Self::Pane(pane) if pane.view == *kind => pane.hidden,
-            Self::SideBar(bar) | Self::BottomBar(bar) if bar.views[0] == *kind => bar.hidden,
-            Self::Pane(_) | Self::SideBar(_) | Self::BottomBar(_) => None,
+            Self::SideBar(bar) | Self::BottomBar(bar) | Self::RightBar(bar)
+                if bar.views[0] == *kind =>
+            {
+                bar.hidden
+            }
+            Self::Pane(_) | Self::SideBar(_) | Self::BottomBar(_) | Self::RightBar(_) => None,
             Self::Fixed(..) | Self::Percent(..) => None,
             Self::Row(children) | Self::Col(children) => {
                 children.iter().find_map(|child| child.starts_hidden(kind))
@@ -278,7 +287,9 @@ impl LayoutNode {
     fn contains(&self, kind: &ComponentKind) -> bool {
         match self.content() {
             Self::Pane(pane) => pane.view == *kind,
-            Self::SideBar(bar) | Self::BottomBar(bar) => bar.views.contains(kind),
+            Self::SideBar(bar) | Self::BottomBar(bar) | Self::RightBar(bar) => {
+                bar.views.contains(kind)
+            }
             Self::Row(children) | Self::Col(children) => {
                 children.iter().any(|child| child.contains(kind))
             }
@@ -290,7 +301,9 @@ impl LayoutNode {
     /// Returns whether there was such a bar.
     fn push_to_bar_of(&mut self, anchor: &ComponentKind, view: &ComponentKind) -> bool {
         match self {
-            Self::SideBar(bar) | Self::BottomBar(bar) if bar.views.contains(anchor) => {
+            Self::SideBar(bar) | Self::BottomBar(bar) | Self::RightBar(bar)
+                if bar.views.contains(anchor) =>
+            {
                 bar.views.push(view.clone());
                 true
             }
@@ -302,10 +315,40 @@ impl LayoutNode {
         }
     }
 
+    /// The first view of the first bar to the right of the editor.
+    fn right_bar_anchor(&self) -> Option<ComponentKind> {
+        match self.content() {
+            Self::RightBar(bar) => bar.views.first().cloned(),
+            Self::Row(children) | Self::Col(children) => {
+                children.iter().find_map(|child| child.right_bar_anchor())
+            }
+            _ => None,
+        }
+    }
+
+    /// Replaces the editor's pane by a row of it and `bar`, which takes `percent` of
+    /// the width. Returns whether there was an editor pane.
+    fn put_beside_editor(&mut self, bar: LayoutNode, percent: u16) -> bool {
+        match self {
+            Self::Pane(pane) if pane.view == ComponentKind::Editor => {
+                let editor = std::mem::replace(self, Self::Row(Vec::new()));
+                *self = Self::Row(vec![editor, Self::Percent(percent, Box::new(bar))]);
+                true
+            }
+            Self::Row(children) | Self::Col(children) => children
+                .iter_mut()
+                .any(|child| child.put_beside_editor(bar.clone(), percent)),
+            Self::Fixed(_, node) | Self::Percent(_, node) => node.put_beside_editor(bar, percent),
+            _ => false,
+        }
+    }
+
     /// The views of the bar that has `kind` among them.
     fn bar_of(&self, kind: &ComponentKind) -> Option<&[ComponentKind]> {
         match self.content() {
-            Self::SideBar(bar) | Self::BottomBar(bar) if bar.views.contains(kind) => {
+            Self::SideBar(bar) | Self::BottomBar(bar) | Self::RightBar(bar)
+                if bar.views.contains(kind) =>
+            {
                 Some(&bar.views)
             }
             Self::Row(children) | Self::Col(children) => {
@@ -315,6 +358,10 @@ impl LayoutNode {
         }
     }
 }
+
+/// The narrowest screen, in columns, a [`LayoutNode::RightBar`] is drawn on: on a
+/// narrower one the editor keeps the room.
+pub const RIGHT_BAR_MIN_WIDTH: u16 = 100;
 
 /// Where a component ended up on screen.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -412,6 +459,36 @@ impl LayoutTree {
         root.push_to_bar_of(anchor, view).then_some(Self { root })
     }
 
+    /// The first view of a bar to the right of the editor, when the layout has one.
+    pub fn right_bar_anchor(&self) -> Option<ComponentKind> {
+        self.root.right_bar_anchor()
+    }
+
+    /// This layout with `view` in a bar to the right of the editor, the layout itself
+    /// being left as it is: in the bar the layout has there, or in a new one that takes
+    /// `percent` of the width of the editor's row. `None` when the layout already has
+    /// `view` somewhere.
+    pub fn with_view_beside_editor(
+        &self,
+        view: &ComponentKind,
+        percent: u16,
+    ) -> Option<LayoutTree> {
+        if self.root.contains(view) {
+            return None;
+        }
+        if let Some(anchor) = self.right_bar_anchor() {
+            return self.with_view_in_bar_of(&anchor, view);
+        }
+        let mut root = self.root.clone();
+        let bar = LayoutNode::RightBar(BarSpec {
+            views: vec![view.clone()],
+            frame: FrameSpec::default(),
+            hidden: None,
+        });
+        root.put_beside_editor(bar, percent)
+            .then_some(Self { root })
+    }
+
     /// What the layout says about the component of this kind starting hidden,
     /// `None` when it has no such component or does not say.
     pub fn starts_hidden(&self, kind: &ComponentKind) -> Option<bool> {
@@ -444,7 +521,8 @@ impl LayoutTree {
     /// view it shows.
     pub fn resolve_scene(&self, area: Rect, scene: &Scene<'_>) -> Vec<Placement> {
         let mut placements = Vec::new();
-        place(&self.root, area, scene, &mut placements);
+        let wide = area.width >= RIGHT_BAR_MIN_WIDTH;
+        place(&self.root, area, scene, wide, &mut placements);
         placements
     }
 }
@@ -469,7 +547,9 @@ struct Checks {
 /// Every view the bars of `node` list.
 fn bar_views_of(node: &LayoutNode) -> Vec<ComponentKind> {
     match node.content() {
-        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) => bar.views.clone(),
+        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) | LayoutNode::RightBar(bar) => {
+            bar.views.clone()
+        }
         LayoutNode::Row(children) | LayoutNode::Col(children) => {
             children.iter().flat_map(bar_views_of).collect()
         }
@@ -494,7 +574,7 @@ fn validate(
             }
             Ok(())
         }
-        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) => {
+        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) | LayoutNode::RightBar(bar) => {
             if bar.views.is_empty() {
                 return Err(LayoutError::EmptyBar {
                     path: LayoutPath(path.clone()),
@@ -575,7 +655,7 @@ fn validate_child(
     Ok(())
 }
 
-fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, out: &mut Vec<Placement>) {
+fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, wide: bool, out: &mut Vec<Placement>) {
     match node.content() {
         LayoutNode::Pane(pane) if !(scene.visible)(&pane.view) => {}
         LayoutNode::Pane(pane) => out.push(Placement {
@@ -584,7 +664,7 @@ fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, out: &mut Vec<Placeme
             frame: PaneFrame::resolve(&pane.frame, &pane.view),
             bar: None,
         }),
-        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) => {
+        LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) | LayoutNode::RightBar(bar) => {
             let active = bar.shown_view(scene);
             let kind = &bar.views[active];
             if !(scene.visible)(kind) {
@@ -611,10 +691,10 @@ fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, out: &mut Vec<Placeme
             });
         }
         LayoutNode::Row(children) => {
-            place_children(Direction::Horizontal, children, area, scene, out)
+            place_children(Direction::Horizontal, children, area, scene, wide, out)
         }
         LayoutNode::Col(children) => {
-            place_children(Direction::Vertical, children, area, scene, out)
+            place_children(Direction::Vertical, children, area, scene, wide, out)
         }
         // `content` has taken the size wrapper off.
         LayoutNode::Fixed(..) | LayoutNode::Percent(..) => {}
@@ -626,11 +706,14 @@ fn place_children(
     children: &[LayoutNode],
     area: Rect,
     scene: &Scene<'_>,
+    wide: bool,
     out: &mut Vec<Placement>,
 ) {
     let shown: Vec<&LayoutNode> = children
         .iter()
         .filter(|child| child.has_visible(scene))
+        // A bar to the right of the editor gives way on a narrow screen.
+        .filter(|child| wide || !matches!(child.content(), LayoutNode::RightBar(_)))
         .collect();
 
     let areas = Layout::default()
@@ -639,6 +722,6 @@ fn place_children(
         .split(area);
 
     for (child, child_area) in shown.iter().zip(areas.iter()) {
-        place(child, *child_area, scene, out);
+        place(child, *child_area, scene, wide, out);
     }
 }

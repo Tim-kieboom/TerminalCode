@@ -46,12 +46,14 @@ impl Shown {
 }
 
 /// Where the user put a plugin's view: in the bar that holds the Explorer, in the
-/// bar that holds the Terminal, or in a popup.
+/// bar that holds the Terminal, a pane right of the editor, or in a popup.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum Place {
     Explorer,
     Bottom,
+    /// A bar to the right of the editor (`RightBar` in a layout): for a preview.
+    Side,
     Popup,
     /// A place a later version has, which this one cannot put anything in.
     #[serde(other)]
@@ -64,6 +66,7 @@ impl Place {
         match self {
             Self::Explorer => "explorer",
             Self::Bottom => "bottom",
+            Self::Side => "side",
             Self::Popup => "popup",
             Self::Unknown => "unknown",
         }
@@ -71,7 +74,7 @@ impl Place {
 
     /// The place an action names.
     pub(crate) fn from_key(key: &str) -> Option<Self> {
-        [Self::Explorer, Self::Bottom, Self::Popup]
+        [Self::Explorer, Self::Bottom, Self::Side, Self::Popup]
             .into_iter()
             .find(|place| place.key() == key)
     }
@@ -81,6 +84,7 @@ impl Place {
         match self {
             Self::Explorer => "Explorer's bar",
             Self::Bottom => "bottom bar",
+            Self::Side => "side pane (right of the editor)",
             Self::Popup => "popup",
             Self::Unknown => "somewhere this version does not have",
         }
