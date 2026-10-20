@@ -41,8 +41,6 @@ impl KeyCapture {
         self.problem = Some(why);
     }
 
-    #[cfg(test)]
-
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
         let screen = frame.area();
         let width = WIDTH.min(screen.width);
