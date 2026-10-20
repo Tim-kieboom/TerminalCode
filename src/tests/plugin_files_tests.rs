@@ -348,3 +348,28 @@ fn a_path_is_from_the_root_of_the_repository_when_there_is_one() {
     rig.open("docs/guide.md");
     rig.wait_for(r#""path":"docs/guide.md""#);
 }
+
+#[test]
+fn the_wheel_over_a_plugins_pane_is_told_to_the_plugin_and_not_to_the_editor() {
+    use crossterm::event::{MouseEvent, MouseEventKind};
+    let mut rig = md_rig();
+    rig.draw();
+    let mut wheel = |rig: &mut Rig, kind, column| {
+        rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row: 5,
+            modifiers: KeyModifiers::NONE,
+        }));
+    };
+
+    // Over the editor (the left half): the plugin hears nothing about it.
+    wheel(&mut rig, MouseEventKind::ScrollDown, 10);
+    rig.tick();
+    assert!(!rig.text().unwrap().contains("scroll"));
+
+    wheel(&mut rig, MouseEventKind::ScrollDown, 90);
+    rig.wait_for(r#""type":"scroll","lines":3"#);
+    wheel(&mut rig, MouseEventKind::ScrollUp, 90);
+    rig.wait_for(r#""type":"scroll","lines":-3"#);
+}

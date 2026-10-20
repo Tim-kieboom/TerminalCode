@@ -951,3 +951,13 @@ fn the_size_of_the_pane_is_a_message_with_its_golden_json() {
     assert_eq!(size.to_bytes().unwrap(), json.as_bytes());
     assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(size));
 }
+
+#[test]
+fn the_wheel_over_a_pane_is_a_message_with_its_golden_json() {
+    let down = ToPlugin::Scroll { lines: 3 };
+    let json = r#"{"type":"scroll","lines":3}"#;
+    assert_eq!(down.to_bytes().unwrap(), json.as_bytes());
+    assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(down));
+    let up = ToPlugin::from_bytes(br#"{"type":"scroll","lines":-3}"#).unwrap();
+    assert_eq!(up, ToPlugin::Scroll { lines: -3 });
+}

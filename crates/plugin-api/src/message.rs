@@ -52,6 +52,9 @@ pub enum ToPlugin {
     /// is on screen (and when its size changes), so that a plugin can wrap its text.
     /// A plugin that has not been told assumes 80 columns. Plugin API 1.5.
     Size { width: u16, height: u16 },
+    /// The mouse wheel was turned over the plugin's pane: `lines` is how far, down when
+    /// positive (a notch is 3). The plugin decides what to scroll. Plugin API 1.5.
+    Scroll { lines: i16 },
     /// The user pressed the button with this `id` of a [`WireView::Buttons`] (a
     /// button that is not enabled is never reported). Plugin API 1.4.
     Press { button: String },

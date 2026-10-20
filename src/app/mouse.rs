@@ -58,6 +58,9 @@ impl MouseInput {
     }
 }
 
+/// How many lines one notch of the wheel is, as a plugin is told.
+const WHEEL_LINES: i16 = 3;
+
 impl App {
     /// A mouse change the terminal has to be told about, once.
     pub(crate) fn take_mouse_change(&mut self) -> Option<bool> {
@@ -117,6 +120,22 @@ impl App {
                 event.kind == MouseEventKind::ScrollDown,
             )
         {
+            return;
+        }
+
+        // The wheel over a plugin's pane is told to the plugin, which scrolls what it shows.
+        if wheel
+            && matches!(
+                self.state.popup(),
+                crate::app::state::Popup::None | crate::app::state::Popup::PluginView(_)
+            )
+            && let Some(view) = self.state.plugin_at(event.column, event.row)
+        {
+            let lines = match event.kind == MouseEventKind::ScrollDown {
+                true => WHEEL_LINES,
+                false => -WHEEL_LINES,
+            };
+            self.send_to_plugin(view.as_str(), crate::plugin_api::ToPlugin::Scroll { lines });
             return;
         }
 

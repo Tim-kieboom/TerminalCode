@@ -352,3 +352,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Resizable lines: drag the border between the editor and the pane beside it (remembered as `side_percent` in `state.json`, 15 to 70 percent) and between editor panes (each pane at least a tenth), with the palette commands "View: Wider/Narrower Side Pane" and "Pane: Grow/Shrink"
 
 - [x] A key that opens a plugin: `k` in the plugin manager takes the next key (refusing a bare letter or a key that is used), writes `{ open_plugin = "name" }` to `keymap.toml` and reads the keymap again; the manager shows the key in the plugin's row
+
+- [x] Scroll control for plugin panes: the mouse wheel over a plugin's pane is `ToPlugin::Scroll` (3 lines a notch), and the markdown preview scrolls with it, with `j`/`k`, `ctrl+d`/`ctrl+u` and a percent in its header
