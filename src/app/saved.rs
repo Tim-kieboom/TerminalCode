@@ -39,6 +39,9 @@ impl App {
         if let Some(percent) = state.side_percent() {
             self.state.set_side_percent(percent);
         }
+        if let Some(shown) = state.side_shown() {
+            self.state.set_side_pane_shown(shown);
+        }
         self.saved = Saved {
             state,
             seen: self.panes_shown(),
@@ -60,6 +63,13 @@ impl App {
     /// Remembers what the user decided about the plugin `id`.
     pub(super) fn remember_plugin(&mut self, id: &str, record: PluginRecord) {
         if self.saved.state.set_plugin(id, record) {
+            self.write_saved_state();
+        }
+    }
+
+    /// Remembers whether the pane right of the editor is shown.
+    pub(super) fn remember_side_shown(&mut self, shown: bool) {
+        if self.saved.state.set_side_shown(shown) {
             self.write_saved_state();
         }
     }

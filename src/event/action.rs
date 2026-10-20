@@ -197,6 +197,9 @@ pub(crate) enum Action {
     PreviousTab,
     SplitRight,
     SplitDown,
+    /// Shows the pane right of the editor (a plugin's preview) if it is hidden, hides it if
+    /// it is shown.
+    ToggleSidePane,
     /// Gives the pane right of the editor (a plugin's preview) more of the width.
     SidePaneWider,
     SidePaneNarrower,
@@ -300,6 +303,7 @@ impl Action {
                 | Self::SplitRight
                 | Self::SplitDown
                 | Self::FocusNextPane
+                | Self::ToggleSidePane
                 | Self::SidePaneWider
                 | Self::SidePaneNarrower
                 | Self::PaneGrow
@@ -386,6 +390,7 @@ impl Action {
             Self::PreviousTab => "Tab: Previous",
             Self::SplitRight => "Pane: Split Right",
             Self::SplitDown => "Pane: Split Down",
+            Self::ToggleSidePane => "View: Toggle Side Pane",
             Self::SidePaneWider => "View: Wider Side Pane",
             Self::SidePaneNarrower => "View: Narrower Side Pane",
             Self::PaneGrow => "Pane: Grow",
@@ -513,6 +518,7 @@ impl Action {
             Self::PreviousTab,
             Self::SplitRight,
             Self::SplitDown,
+            Self::ToggleSidePane,
             Self::SidePaneWider,
             Self::SidePaneNarrower,
             Self::PaneGrow,

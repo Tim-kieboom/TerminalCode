@@ -354,3 +354,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] A key that opens a plugin: `k` in the plugin manager takes the next key (refusing a bare letter or a key that is used), writes `{ open_plugin = "name" }` to `keymap.toml` and reads the keymap again; the manager shows the key in the plugin's row
 
 - [x] Scroll control for plugin panes: the mouse wheel over a plugin's pane is `ToPlugin::Scroll` (3 lines a notch), and the markdown preview scrolls with it, with `j`/`k`, `ctrl+d`/`ctrl+u` and a percent in its header
+
+- [x] Show and hide the side pane: "View: Toggle Side Pane" (`ctrl+k p`, also in the View menu), remembered in `state.json`, `hidden: true` on a `RightBar` of the layout file, and `RightBar` documented in the default layout

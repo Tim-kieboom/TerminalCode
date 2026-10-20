@@ -72,6 +72,9 @@ pub(crate) struct AppState {
     /// How much of the editor's row the pane right of the editor takes, in percent, when
     /// the user moved the line; `SIDE_PANE_PERCENT` until then.
     side_percent: Option<u16>,
+    /// Whether the user hid the pane right of the editor (it keeps its place and its
+    /// width; only the space is given back).
+    side_hidden: bool,
     /// The view each bar shows, as an index into the bar's views; a bar is
     /// named by its first view, and one that is not here shows its first.
     bar_views: HashMap<ComponentKind, usize>,

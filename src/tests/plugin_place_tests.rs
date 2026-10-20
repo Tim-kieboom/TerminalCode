@@ -643,3 +643,99 @@ fn the_line_between_two_editor_panes_is_dragged_with_the_mouse() {
     let again = rig.app.state().workspace().pane_areas();
     assert!(again[1].width < after[1].width);
 }
+
+// --- showing and hiding the side pane ---
+
+fn chord(rig: &mut Rig, keys: &[(KeyCode, KeyModifiers)]) {
+    for (code, modifiers) in keys {
+        rig.app
+            .handle_input(InputEvent::Key(KeyEvent::new(*code, *modifiers)));
+    }
+}
+
+#[test]
+fn toggling_the_side_pane_gives_the_space_back_and_takes_it_again_and_is_remembered() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    let editor_width = |rig: &mut Rig| {
+        rig.screen();
+        rig.app
+            .state()
+            .placements(rig.app.state().screen())
+            .into_iter()
+            .find(|p| p.kind == ComponentKind::Editor)
+            .unwrap()
+            .area
+            .width
+    };
+    let with = editor_width(&mut rig);
+    assert!(rig.screen().contains("┌hello"));
+
+    rig.app.run_action(Action::ToggleSidePane);
+
+    assert!(!rig.screen().contains("┌hello"), "the pane is gone");
+    assert!(editor_width(&mut rig) > with, "and the editor has its room");
+    assert_eq!(rig.remembered().side_shown(), Some(false));
+
+    rig.app.run_action(Action::ToggleSidePane);
+    assert!(rig.screen().contains("┌hello"));
+    assert_eq!(editor_width(&mut rig), with);
+    assert_eq!(rig.remembered().side_shown(), Some(true));
+}
+
+#[test]
+fn ctrl_k_p_toggles_it() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    assert!(rig.screen().contains("┌hello"));
+    chord(
+        &mut rig,
+        &[
+            (KeyCode::Char('k'), KeyModifiers::CONTROL),
+            (KeyCode::Char('p'), KeyModifiers::NONE),
+        ],
+    );
+    assert!(!rig.screen().contains("┌hello"));
+}
+
+#[test]
+fn hiding_the_pane_takes_the_keyboard_back_and_a_remembered_hide_applies_at_start() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    rig.app.run_action(Action::FocusPluginView("hello".into()));
+    assert_eq!(rig.app.state().focus(), Focus::Plugin);
+    rig.app.run_action(Action::ToggleSidePane);
+    assert_eq!(rig.app.state().focus(), Focus::Editor);
+
+    let mut saved = SavedState::default();
+    saved.set_plugin("hello", record(true, Some(Place::Side)));
+    saved.set_side_shown(false);
+    let mut ui = AppState::new(Editor::new(Buffer::from_text("")));
+    ui.set_layout(LayoutTree::from_ron(&default_layout()).unwrap());
+    let app = App::new(ui).with_saved_state(saved);
+    assert!(!app.state().side_pane_shown());
+}
+
+#[test]
+fn with_no_pane_there_it_says_where_to_put_one() {
+    let mut rig = rig_with(&default_layout(), First::Echo, None);
+    rig.app.run_action(Action::ToggleSidePane);
+    let note = rig.notification().unwrap();
+    assert!(
+        note.contains("there is no pane right of the editor"),
+        "{note}"
+    );
+    assert!(rig.remembered().side_shown().is_none());
+}
+
+#[test]
+fn a_right_bar_of_the_layout_file_is_toggled_too() {
+    let layout = "Col([Row([Fixed(30, SideBar(views: [Explorer])), Row([Pane(view: Editor), \
+                  Percent(40, RightBar(views: [Plugin(\"hello\")]))])]), \
+                  Fixed(8, BottomBar(views: [Terminal]))])";
+    let mut rig = rig_with(layout, First::Echo, Some(record(true, None)));
+    rig.wait_for_view();
+    assert!(rig.screen().contains("┌hello"));
+    rig.app.run_action(Action::ToggleSidePane);
+    assert!(!rig.screen().contains("┌hello"));
+}

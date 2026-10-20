@@ -132,6 +132,9 @@ pub(crate) struct SavedState {
     /// the user moved the line between them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     side_percent: Option<u16>,
+    /// Whether the pane right of the editor was last shown or hidden, if it was ever changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    side_shown: Option<bool>,
 }
 
 impl SavedState {
@@ -161,7 +164,20 @@ impl SavedState {
             settings_version: self.settings_version.clone(),
             plugins: BTreeMap::new(),
             side_percent: None,
+            side_shown: None,
         }
+    }
+
+    /// Whether the pane right of the editor was last shown (`true`) or hidden.
+    pub(crate) fn side_shown(&self) -> Option<bool> {
+        self.side_shown
+    }
+
+    /// Remembers that the pane right of the editor is `shown` now. Returns whether that is news.
+    pub(crate) fn set_side_shown(&mut self, shown: bool) -> bool {
+        let changed = self.side_shown != Some(shown);
+        self.side_shown = Some(shown);
+        changed
     }
 
     /// How wide the user made the pane right of the editor, in percent, if they did.

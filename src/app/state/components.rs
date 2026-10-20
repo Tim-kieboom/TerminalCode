@@ -25,11 +25,13 @@ impl AppState {
         match kind {
             ComponentKind::Explorer => self.components.explorer.is_shown(),
             ComponentKind::StatusBar => self.components.status_bar.is_shown(),
-            ComponentKind::Plugin(id) => self
-                .components
-                .plugin_views
-                .get(id)
-                .is_none_or(Hideable::is_shown),
+            ComponentKind::Plugin(id) => {
+                self.components
+                    .plugin_views
+                    .get(id)
+                    .is_none_or(Hideable::is_shown)
+                    && !(self.side_hidden && self.in_side_pane(kind))
+            }
             ComponentKind::Terminal => self.components.terminal.is_shown(),
             ComponentKind::Errors => self.components.errors.is_shown(),
             ComponentKind::MenuBar => self.components.menu_bar.is_shown(),
@@ -290,6 +292,38 @@ impl AppState {
             }
         }
         self.layout = layout;
+    }
+
+    /// Whether `kind` is a view of the bar to the right of the editor.
+    fn in_side_pane(&self, kind: &ComponentKind) -> bool {
+        match (self.layout.right_bar_anchor(), self.layout.bar_views(kind)) {
+            (Some(anchor), Some(views)) => views.first() == Some(&anchor),
+            _ => false,
+        }
+    }
+
+    /// Whether the layout has a bar to the right of the editor (a plugin placed there, or
+    /// one of the user's own layout).
+    pub(crate) fn has_side_pane(&self) -> bool {
+        self.layout.right_bar_anchor().is_some()
+    }
+
+    /// Whether the pane right of the editor is shown (it is when there is none).
+    pub(crate) fn side_pane_shown(&self) -> bool {
+        !self.side_hidden
+    }
+
+    /// Shows or hides the pane right of the editor. Returns whether that is news.
+    pub(crate) fn set_side_pane_shown(&mut self, shown: bool) -> bool {
+        let changed = self.side_hidden == shown;
+        self.side_hidden = !shown;
+        changed
+    }
+
+    /// Whether the keyboard is on a plugin's view in the pane right of the editor.
+    pub(crate) fn side_pane_has_keyboard(&self) -> bool {
+        self.focused_plugin()
+            .is_some_and(|id| self.in_side_pane(&ComponentKind::Plugin(id.clone())))
     }
 
     /// How much of the editor's row the side pane takes, in percent.

@@ -259,3 +259,15 @@ fn toggling_the_menu_bar_of_a_layout_that_has_none_says_so_and_remembers_nothing
     let told = app.state().notifications().texts().join("|");
     assert!(told.contains("no menu bar"), "{told}");
 }
+
+#[test]
+fn the_view_menu_toggles_the_side_pane_and_shows_its_key() {
+    let mut app = app();
+    app.state_mut().set_focus(Focus::Explorer);
+    key(&mut app, KeyCode::F(10));
+    key(&mut app, KeyCode::Down);
+    key(&mut app, KeyCode::Right);
+    let screen = draw(&mut app);
+    assert!(screen.contains("Toggle Side Pane"), "{screen}");
+    assert!(screen.contains("ctrl+k p"), "{screen}");
+}

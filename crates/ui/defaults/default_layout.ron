@@ -5,6 +5,19 @@
 // Percent(0..=100), written Fixed(30, child). Only one child of a Row or Col
 // may be left without a size.
 //
+// A RightBar is a bar to the right of the editor, for a plugin's preview (a plugin placed
+// in the "side pane" in Plugins: Manage gets one made for it, 40% of the editor's row, which
+// can be dragged wider or narrower). Write one yourself to choose its place and size, for example
+// in place of the editor's Pane:
+//
+//   Row([
+//       Pane(view: Editor, sides: [], title: Hidden),
+//       Percent(40, RightBar(views: [Plugin("markdown")], hidden: true)),
+//   ])
+//
+// `hidden: true` starts it hidden. "View: Toggle Side Pane" (ctrl+k p) shows and hides it,
+// and what you did last time is remembered. It is left out on a screen under 100 columns.
+//
 // A Pane shows one component: Explorer, Editor, Terminal, StatusBar, MenuBar (the
 // row with the menu icon; leave it out for no row) or Plugin("view.id"). A SideBar or a BottomBar holds a list of views (Explorer,
 // Errors, Terminal and Plugin("view.id")) and shows one at a time; with more than one it

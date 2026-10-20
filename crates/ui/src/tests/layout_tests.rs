@@ -821,3 +821,13 @@ fn a_view_is_put_beside_the_editor_wherever_the_editor_is() {
         Some(&[plugin("p"), plugin("q")][..])
     );
 }
+
+#[test]
+fn a_right_bar_can_start_hidden() {
+    let layout = LayoutTree::from_ron(
+        r#"Row([Pane(view: Editor), Percent(40, RightBar(views: [Plugin("preview")], hidden: true))])"#,
+    )
+    .unwrap();
+    assert_eq!(layout.starts_hidden(&plugin("preview")), Some(true));
+    assert_eq!(layout.right_bar_anchor(), Some(plugin("preview")));
+}

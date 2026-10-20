@@ -105,7 +105,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+k right`, `ctrl+k down` | Split the pane |
 | `alt+h`, `alt+j`, `alt+k`, `alt+l` | Move to the pane on the left, below, above, on the right |
 | `ctrl+b` | Move to the explorer (inside the explorer: `a` new file, `shift+a` new folder, `r` or `f2` rename, `m` move, `delete`, `.` show or hide dotfiles, `f5` refresh) |
-| `ctrl+k b`, `ctrl+k s` | Show or hide the explorer, the status bar |
+| `ctrl+k b`, `ctrl+k s`, `ctrl+k p` | Show or hide the explorer, the status bar, the side pane (the pane right of the editor: a plugin's preview) |
 | `` ctrl+` `` | Show, focus or hide the terminal |
 | `alt+m` | Mouse on or off for this run (off lets the terminal select text) |
 
@@ -154,7 +154,7 @@ does the same for `state.json`.
 - **`layout.ron`** says which panes there are and how they are arranged: see
   [crates/ui/defaults/default_layout.ron](crates/ui/defaults/default_layout.ron). A `SideBar`, `BottomBar` or `RightBar` holds a list of views (the
   explorer, the terminal, plugin views) and shows one at a time, with their names in its title row; click a name to
-  switch, or use `Bar: Next View` from the palette. A `RightBar` sits to the right of the editor (for example
+  switch, or use `Bar: Next View` from the palette. A `RightBar` sits to the right of the editor (`hidden: true` starts it hidden; `ctrl+k p` shows and hides it, and what you did last time is remembered; for example
   `Row([Pane(view: Editor), Percent(40, RightBar(views: [Plugin("markdown")]))])`) and is left out on a screen narrower
   than 100 columns.
   A pane can say `hidden: true` to start hidden. What you hide or show while working is remembered in `state.json` in the same

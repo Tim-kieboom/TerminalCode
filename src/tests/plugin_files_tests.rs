@@ -354,7 +354,7 @@ fn the_wheel_over_a_plugins_pane_is_told_to_the_plugin_and_not_to_the_editor() {
     use crossterm::event::{MouseEvent, MouseEventKind};
     let mut rig = md_rig();
     rig.draw();
-    let mut wheel = |rig: &mut Rig, kind, column| {
+    let wheel = |rig: &mut Rig, kind, column| {
         rig.app.handle_input(InputEvent::Mouse(MouseEvent {
             kind,
             column,

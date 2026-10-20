@@ -92,6 +92,17 @@ pub(crate) fn load_user_config(
         }
     }
 
+    // The pane right of the editor: what the user did last time, else what a `RightBar`
+    // of the layout file says (`hidden: true`).
+    let side_shown = saved.side_shown().or_else(|| {
+        let layout = &loaded_layout.layout;
+        let anchor = layout.right_bar_anchor()?;
+        layout.starts_hidden(&anchor).map(|hidden| !hidden)
+    });
+    if let Some(shown) = side_shown {
+        state.set_side_pane_shown(shown);
+    }
+
     state.set_theme(loaded_theme.theme);
     state.set_layout(loaded_layout.layout);
     UserConfig {

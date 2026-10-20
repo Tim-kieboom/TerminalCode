@@ -101,6 +101,24 @@ impl App {
         }
     }
 
+    /// Shows the pane right of the editor, or hides it; the choice is remembered. The keyboard
+    /// leaves it when it is hidden.
+    pub(super) fn toggle_side_pane(&mut self) {
+        if !self.state.has_side_pane() {
+            self.state.notify(
+                "there is no pane right of the editor: put a plugin there in Plugins: Manage",
+            );
+            return;
+        }
+        let shown = !self.state.side_pane_shown();
+        if !shown && self.state.side_pane_has_keyboard() {
+            self.state.set_focus(super::state::Focus::Editor);
+        }
+        self.state.set_side_pane_shown(shown);
+        self.remember_side_shown(shown);
+        self.needs_redraw = true;
+    }
+
     /// Gives the side pane `step` percent more of the editor's row, or less.
     pub(super) fn resize_side_pane(&mut self, step: i16) {
         if self.side_geometry().is_none() {
