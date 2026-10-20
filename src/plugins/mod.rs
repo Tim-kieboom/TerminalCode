@@ -13,6 +13,8 @@
 //! and a plugin that traps three times within a minute is disabled.
 
 pub(crate) use crate::plugin_api::Thread;
+#[cfg(test)]
+pub(crate) use runtime::fuel_for;
 pub(crate) use runtime::{Notice, Runtime, WriteOp};
 
 #[cfg(test)]
@@ -35,13 +37,13 @@ mod view;
 pub(crate) const CALLBACK_FUEL: u64 = 5_000_000;
 /// Fuel for each byte of the text of a file a plugin on a thread of its own is sent
 /// (`ToPlugin::FileText`), on top of [`CALLBACK_FUEL`]: 3 times the worst the markdown
-/// plugin spends on a byte of a dense document (about 6 360 fuel; `real_markdown_tests`
+/// plugin spends on a byte of a dense document (about 5 480 fuel; `real_markdown_tests`
 /// measures it again and fails when this falls under 3 times).
-pub(crate) const FUEL_PER_BYTE: u64 = 19_100;
+pub(crate) const FUEL_PER_BYTE: u64 = 16_500;
 /// The most fuel one message may get, however big, on a thread of its own: 3 times what
 /// the markdown plugin spends on the largest document it renders (128 KB), a few
 /// seconds of one processor.
-pub(crate) const OWNED_FUEL_CEILING: u64 = 2_500_000_000;
+pub(crate) const OWNED_FUEL_CEILING: u64 = 2_200_000_000;
 /// Fuel for loading: compiling is not charged, but the plugin's start function runs.
 const LOAD_FUEL: u64 = 20_000_000;
 /// How much memory a plugin may have, in bytes.

@@ -964,26 +964,38 @@ fn file_text(bytes: usize) -> ToPlugin {
 #[test]
 fn the_budget_grows_with_the_text_only_on_a_thread_of_its_own_and_has_a_ceiling() {
     // The shared thread has the flat budget for everything.
-    assert_eq!(fuel_for(&file_text(1_000_000), false), CALLBACK_FUEL);
-    // A thread of its own: the flat one and so much for each byte.
-    assert_eq!(fuel_for(&file_text(0), true), CALLBACK_FUEL);
     assert_eq!(
-        fuel_for(&file_text(100_000), true),
+        fuel_for(&file_text(1_000_000), false, 1_000_000),
+        CALLBACK_FUEL
+    );
+    // A thread of its own: the flat one and so much for each byte.
+    assert_eq!(fuel_for(&file_text(0), true, 0), CALLBACK_FUEL);
+    assert_eq!(
+        fuel_for(&file_text(100_000), true, 0),
         CALLBACK_FUEL + 100_000 * FUEL_PER_BYTE
     );
     // Never more than the ceiling, however big.
-    assert_eq!(fuel_for(&file_text(2_000_000), true), OWNED_FUEL_CEILING);
-    // Only the text of a file grows it.
-    assert_eq!(fuel_for(&ToPlugin::Start, true), CALLBACK_FUEL);
-    assert_eq!(fuel_for(&ToPlugin::Refresh, true), CALLBACK_FUEL);
+    assert_eq!(fuel_for(&file_text(2_000_000), true, 0), OWNED_FUEL_CEILING);
+    // Only what it holds of a file grows it: a message after the text gets as much as
+    // the text did, and one before any text, the flat one.
+    assert_eq!(
+        fuel_for(&ToPlugin::Refresh, true, 100_000),
+        CALLBACK_FUEL + 100_000 * FUEL_PER_BYTE
+    );
+    assert_eq!(fuel_for(&ToPlugin::Refresh, false, 100_000), CALLBACK_FUEL);
+    assert_eq!(fuel_for(&ToPlugin::Start, true, 0), CALLBACK_FUEL);
+    assert_eq!(fuel_for(&ToPlugin::Refresh, true, 0), CALLBACK_FUEL);
 }
 
 #[test]
 fn a_big_text_gets_the_ceiling_and_a_text_of_the_size_of_a_readme_gets_much_less() {
     // 1 MB is far past where the rate meets the ceiling.
-    assert_eq!(fuel_for(&file_text(1024 * 1024), true), OWNED_FUEL_CEILING);
+    assert_eq!(
+        fuel_for(&file_text(1024 * 1024), true, 0),
+        OWNED_FUEL_CEILING
+    );
     // 20 KB: 3 times the measured cost of a dense document, well under it.
-    assert!(fuel_for(&file_text(20 * 1024), true) < OWNED_FUEL_CEILING / 5);
+    assert!(fuel_for(&file_text(20 * 1024), true, 0) < OWNED_FUEL_CEILING / 5);
 }
 
 #[test]

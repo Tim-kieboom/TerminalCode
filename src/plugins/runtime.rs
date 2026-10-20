@@ -260,6 +260,9 @@ struct Loaded {
     rejection_told: bool,
     /// Whether it runs on a thread of its own, which decides its budget.
     owned: bool,
+    /// How many bytes of text of a file it was last sent: what it holds, which what it
+    /// does with every message after depends on (a preview draws it again).
+    held: u64,
 }
 
 /// Everything the thread knows.
@@ -350,6 +353,7 @@ impl Host {
                     strikes: Strikes::default(),
                     rejection_told: false,
                     owned: self.owned,
+                    held: 0,
                 };
                 self.plugins.insert(plugin.clone(), loaded);
                 self.deliver(&plugin, ToPlugin::Start);
@@ -582,21 +586,27 @@ fn call(loaded: &mut Loaded, message: ToPlugin) -> Result<Delivered, Failure> {
         Some(instance) => instance,
         None => loaded.instance.insert(loaded.compiled.instantiate()?),
     };
-    let fuel = fuel_for(&message, loaded.owned);
+    if let ToPlugin::FileText { text, .. } = &message {
+        loaded.held = text.len() as u64;
+    }
+    let fuel = fuel_for(&message, loaded.owned, loaded.held);
     instance.deliver(message, fuel)
 }
 
-/// The budget of one message. A plugin on a thread of its own is given more for the
-/// text of a file, in proportion to its size, up to a ceiling; every other message,
-/// and every message to a plugin on the shared thread, has the flat one (more there
-/// would stall the other plugins).
-pub(super) fn fuel_for(message: &ToPlugin, owned: bool) -> u64 {
-    match message {
-        ToPlugin::FileText { text, .. } if owned => {
-            let wanted =
-                CALLBACK_FUEL.saturating_add(FUEL_PER_BYTE.saturating_mul(text.len() as u64));
-            wanted.min(OWNED_FUEL_CEILING)
-        }
-        _ => CALLBACK_FUEL,
+/// The budget of one message. On the shared thread it is the flat one, whatever the
+/// message (more would stall the other plugins). A plugin on a thread of its own is
+/// given more in proportion to the text of a file: for the text itself, and for every
+/// message after it, as long as it holds it (a preview draws its document again for a
+/// key or a new width), up to a ceiling.
+pub(crate) fn fuel_for(message: &ToPlugin, owned: bool, held: u64) -> u64 {
+    if !owned {
+        return CALLBACK_FUEL;
     }
+    let bytes = match message {
+        ToPlugin::FileText { text, .. } => text.len() as u64,
+        _ => held,
+    };
+    CALLBACK_FUEL
+        .saturating_add(FUEL_PER_BYTE.saturating_mul(bytes))
+        .min(OWNED_FUEL_CEILING)
 }

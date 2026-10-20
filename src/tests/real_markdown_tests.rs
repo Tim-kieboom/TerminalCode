@@ -15,7 +15,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::plugin_api::{MAX_FILE_TEXT, ToPlugin};
-use crate::plugins::{CALLBACK_FUEL, FUEL_PER_BYTE, OWNED_FUEL_CEILING, measure_fuel};
+use crate::plugins::{CALLBACK_FUEL, FUEL_PER_BYTE, fuel_for, measure_fuel};
 
 fn plugin_dir() -> PathBuf {
     std::env::var_os("TRCODE_PLUGIN_MARKDOWN_DIR")
@@ -57,14 +57,25 @@ fn file_text(text: String) -> ToPlugin {
     }
 }
 
-/// The fuel the module spends to render each document (after it was told the width).
-fn measure(documents: Vec<(&str, String)>) -> Vec<(String, usize, u64)> {
+/// What the module spends on each message after the document: a key, a new width (which
+/// draws the document again) and a redraw.
+struct Spent {
+    name: String,
+    size: usize,
+    text: u64,
+    key: u64,
+    resize: u64,
+    redraw: u64,
+}
+
+/// The fuel the module spends on each document and on what follows it, with a budget so big
+/// that nothing is cut short.
+fn measure(documents: Vec<(&str, String)>) -> Vec<Spent> {
     let wasm = module();
     documents
         .into_iter()
         .map(|(name, text)| {
             let size = text.len();
-            let started = std::time::Instant::now();
             let used = measure_fuel(
                 &wasm,
                 u64::MAX / 4,
@@ -74,17 +85,25 @@ fn measure(documents: Vec<(&str, String)>) -> Vec<(String, usize, u64)> {
                         height: 40,
                     },
                     file_text(text),
+                    ToPlugin::Action {
+                        action: "down".to_owned(),
+                    },
+                    ToPlugin::Size {
+                        width: 60,
+                        height: 40,
+                    },
                     ToPlugin::Refresh,
                 ],
             );
-            println!(
-                "   (a Refresh after it: {:?}; {:?} in all)",
-                used[2],
-                started.elapsed()
-            );
-            println!("{name}: {size} bytes: {:?}", used[1]);
-            let fuel = used[1].clone().expect("the module answers");
-            (name.to_owned(), size, fuel)
+            let fuel = |at: usize| used[at].clone().expect("the module answers");
+            Spent {
+                name: name.to_owned(),
+                size,
+                text: fuel(1),
+                key: fuel(2),
+                resize: fuel(3),
+                redraw: fuel(4),
+            }
         })
         .collect()
 }
@@ -106,24 +125,48 @@ fn real_markdown_fuel_per_document_is_measured_and_has_headroom() {
         ("128 KB, the most it renders", document(PLUGIN_LIMIT - 1)),
     ]);
     let mut worst_per_byte = 0.0f64;
-    for (name, size, fuel) in &measured {
-        let per_byte = *fuel as f64 / *size as f64;
+    for spent in &measured {
+        let per_byte = spent.text as f64 / spent.size as f64;
         // A document of a few bytes is mostly the cost of starting.
-        if *size > 1000 {
+        if spent.size > 1000 {
             worst_per_byte = worst_per_byte.max(per_byte);
         }
-        println!("{name}: {size} bytes, {fuel} fuel, {per_byte:.0} fuel per byte");
+        println!(
+            "{}: {} bytes; the text {} fuel ({per_byte:.0} per byte); a key {}, a new width {}, a redraw {}",
+            spent.name, spent.size, spent.text, spent.key, spent.resize, spent.redraw
+        );
     }
     println!(
         "worst: {worst_per_byte:.0} per byte; 3 times that is {:.0}; the rate in use is {FUEL_PER_BYTE}",
         3.0 * worst_per_byte
     );
-    for (name, size, fuel) in measured {
-        let budget = CALLBACK_FUEL + FUEL_PER_BYTE * size as u64;
-        let budget = budget.min(OWNED_FUEL_CEILING);
+    for spent in measured {
+        let held = spent.size as u64;
+        let budget = |message: &ToPlugin| fuel_for(message, true, held);
+        let text = file_text("x".repeat(spent.size));
+        let key = ToPlugin::Action {
+            action: "down".to_owned(),
+        };
+        for (what, used, message) in [
+            ("the text", spent.text, &text),
+            ("a key", spent.key, &key),
+            ("a new width", spent.resize, &key),
+            ("a redraw", spent.redraw, &key),
+        ] {
+            assert!(
+                3 * used <= budget(message),
+                "{}: 3 times {used} fuel for {what} is more than the budget of {}",
+                spent.name,
+                budget(message)
+            );
+        }
+        // The flat budget is for a message that does not depend on the document: a key must
+        // not cost what a re-parse costs.
         assert!(
-            3 * fuel <= budget,
-            "{name}: 3 times {fuel} is more than the budget of {budget}"
+            spent.key < CALLBACK_FUEL || spent.size < 1000,
+            "{}: a key costs {} fuel",
+            spent.name,
+            spent.key
         );
     }
 }
@@ -136,9 +179,9 @@ fn real_markdown_a_file_over_its_limit_costs_next_to_nothing() {
         "1 MB, the most the editor sends",
         document(MAX_FILE_TEXT - 1),
     )]);
-    let (_, size, fuel) = &measured[0];
-    println!("{size} bytes cost {fuel} fuel");
-    assert!(*fuel < CALLBACK_FUEL * 20, "{fuel}");
+    let spent = &measured[0];
+    println!("{} bytes cost {} fuel", spent.size, spent.text);
+    assert!(spent.text < CALLBACK_FUEL * 20, "{}", spent.text);
 }
 
 // --- the real module in the editor ---
