@@ -25,6 +25,7 @@ mod policy;
 mod runtime;
 #[cfg(test)]
 mod tests;
+pub(crate) mod trust;
 mod view;
 
 /// Fuel for one message the plugin is sent. About one unit for each WebAssembly

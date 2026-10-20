@@ -4,7 +4,8 @@
 //! A plugin is downloaded in full and checked against the index's SHA-256 before a
 //! byte of it is in the plugins folder; it is built in `.staging/` inside the
 //! plugins folder and moved into place by renames, so a failure at any point leaves
-//! what was there. Folders made here have an [`MARKER_FILE`]; only those are ever
+//! what was there. A version's hash is pinned the first time it is installed
+//! (`trust.rs`) and must not change after. Folders made here have an [`MARKER_FILE`]; only those are ever
 //! updated or removed: a folder without one is a plugin the user made.
 
 use std::fs;
@@ -19,6 +20,7 @@ use thiserror::Error;
 
 use super::index::{Availability, Entry, Index, IndexError};
 use super::manifest::{self, Host, Installed, MANIFEST_FILE, ManifestError};
+use super::trust::Pins;
 
 /// Where the index is fetched from.
 pub(crate) use super::index::INDEX_URL;
@@ -98,6 +100,8 @@ pub(crate) enum InstallError {
     TooLarge { url: String, limit: u64 },
     #[error("the module does not match what the index promised")]
     HashMismatch,
+    #[error("{0}")]
+    Untrusted(String),
     #[error("it needs more than this TerminalCode has: {0}")]
     Unavailable(String),
     #[error(
@@ -298,6 +302,10 @@ pub(crate) fn install(
         return Err(InstallError::HashMismatch);
     }
     stop_if(cancel)?;
+
+    // Trust on first use: this version's hash is pinned now, or must match its pin.
+    Pins::trust(plugins_dir, &entry.id, &entry.version, &hash)
+        .map_err(|error| InstallError::Untrusted(error.to_string()))?;
 
     progress(Stage::Installing);
     let workshop = plugins_dir.join(STAGING);

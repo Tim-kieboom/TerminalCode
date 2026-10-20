@@ -109,6 +109,7 @@ fn names(dir: &Path) -> Vec<String> {
             entries
                 .filter_map(Result::ok)
                 .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .filter(|name| name != super::super::trust::TRUST_FILE)
                 .collect()
         })
         .unwrap_or_default();
@@ -452,4 +453,46 @@ fn a_stop_is_heard_while_the_server_says_nothing() {
         "{:?}",
         started.elapsed()
     );
+}
+
+#[test]
+fn a_version_that_changes_after_it_was_installed_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = b"the module";
+    let address = serve(routes("1.0.0", first));
+    install_entry(&entry(&address, "1.0.0", first), dir.path()).unwrap();
+    remove(dir.path(), "echo").unwrap();
+
+    // The same version, now with another module and a matching index hash.
+    let second = b"a replaced module";
+    let address = serve(routes("1.0.0", second));
+    let error = install_entry(&entry(&address, "1.0.0", second), dir.path()).unwrap_err();
+
+    assert!(matches!(error, InstallError::Untrusted(_)));
+    assert!(error.to_string().contains("must not change"));
+    assert!(!dir.path().join("echo").exists());
+}
+
+#[test]
+fn a_reinstall_of_the_same_module_and_a_new_version_are_trusted() {
+    let dir = tempfile::tempdir().unwrap();
+    let module = b"the module";
+    let address = serve(routes("1.0.0", module));
+    install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+    remove(dir.path(), "echo").unwrap();
+    install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+
+    let newer = b"the newer module";
+    let address = serve(routes("1.1.0", newer));
+    install_entry(&entry(&address, "1.1.0", newer), dir.path()).unwrap();
+}
+
+#[test]
+fn the_pins_file_is_not_a_plugin() {
+    let dir = tempfile::tempdir().unwrap();
+    let module = b"m";
+    let address = serve(routes("1.0.0", module));
+    install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+    assert!(dir.path().join(super::super::trust::TRUST_FILE).exists());
+    assert_eq!(manifest::scan(dir.path(), HOST).len(), 1);
 }
