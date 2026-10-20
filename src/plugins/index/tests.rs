@@ -18,21 +18,6 @@ const HOST: Host<'static> = Host {
 };
 
 #[test]
-fn the_snapshot_of_the_release_reads() {
-    // The file in the repository is what ships; it must always be good.
-    let index = Index::parse(SNAPSHOT).unwrap();
-    // Every plugin it lists can be installed by the editor it ships with.
-    for entry in &index.entries {
-        assert_eq!(
-            entry.availability(HOST),
-            Availability::Ready,
-            "{}",
-            entry.id
-        );
-    }
-}
-
-#[test]
 fn an_entry_is_read_with_its_fields() {
     let index = Index::parse(&index_json(1, &[entry_json(r#","description":"d""#)])).unwrap();
     let entry = index.entry("git").unwrap();
@@ -110,24 +95,16 @@ fn an_entry_this_editor_can_run_is_ready() {
 }
 
 #[test]
-fn the_cache_wins_over_the_snapshot_and_a_broken_one_loses() {
+fn the_cache_is_read_and_a_broken_one_or_none_gives_an_empty_index() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(
-        Index::cached_or_snapshot(Some(dir.path()))
-            .entries
-            .is_empty()
-    );
+    assert!(Index::cached(Some(dir.path())).entries.is_empty());
 
     store_cache(dir.path(), &index_json(1, &[entry_json("")])).unwrap();
-    assert_eq!(Index::cached_or_snapshot(Some(dir.path())).entries.len(), 1);
+    assert_eq!(Index::cached(Some(dir.path())).entries.len(), 1);
 
     fs::write(dir.path().join(CACHE_FILE), "garbage").unwrap();
-    assert!(
-        Index::cached_or_snapshot(Some(dir.path()))
-            .entries
-            .is_empty()
-    );
-    assert_eq!(Index::cached_or_snapshot(None), Index::snapshot());
+    assert!(Index::cached(Some(dir.path())).entries.is_empty());
+    assert_eq!(Index::cached(None), Index::default());
 }
 
 // --- more than one version of a plugin ---

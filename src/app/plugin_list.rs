@@ -164,7 +164,7 @@ impl App {
             self.state.notify("there is no folder for plugins here");
             return;
         }
-        self.plugins.store.official = Index::cached_or_snapshot(self.config_dir.as_deref());
+        self.plugins.store.official = Index::cached(self.config_dir.as_deref());
         self.plugins.store.rebuild();
         self.show_plugin_list(None);
         self.fetch_index();
@@ -227,7 +227,14 @@ impl App {
         let config = self.config_dir.clone();
         self.plugins.store.note = Some("asking for the latest list of plugins".to_owned());
         self.plugins.store.problems.clear();
-        let sources = self.settings.plugin_sources.clone();
+        // The official index asked for as a source too (an old settings file) is one fetch.
+        let sources: Vec<String> = self
+            .settings
+            .plugin_sources
+            .iter()
+            .filter(|source| **source != url)
+            .cloned()
+            .collect();
         self.plugins.store.asked = sources.clone();
         for source in sources {
             let events = events.clone();

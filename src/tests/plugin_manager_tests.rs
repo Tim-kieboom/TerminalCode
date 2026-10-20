@@ -725,3 +725,25 @@ fn a_source_that_cannot_be_fetched_is_named_and_the_rest_is_listed() {
 
     assert!(rig.screen().contains("Echo 1.0.0"));
 }
+
+#[test]
+fn the_official_index_named_as_a_source_is_one_fetch_and_stays_official() {
+    let official = server("1.0.0", "", None, "");
+    let mut rig = rig(official.clone(), SavedState::default(), nothing);
+    rig.app.settings_mut().plugin_sources = vec![official];
+
+    rig.open_manager();
+    rig.wait_for_text("Echo 1.0.0");
+    rig.pump();
+
+    let screen = rig.screen();
+    assert!(!screen.contains("left out"), "{screen}");
+    assert!(!screen.contains("not official"), "{screen}");
+    rig.type_text("i");
+    // The first question is what it may do, after the download: none came before it.
+    rig.wait_until("the question about what it may do", |rig| rig.asking());
+    assert!(
+        !rig.screen().contains("not an official plugin"),
+        "an official plugin is not asked about as a source's"
+    );
+}

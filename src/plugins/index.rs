@@ -1,8 +1,8 @@
-//! The index of the official plugins: a file in the editor's repository
-//! (`plugins/index.json`) that says which plugins exist, where their manifest and
-//! module are, and the SHA-256 the module must have. A snapshot of it is part of each
-//! release and the last one fetched is kept in the config folder. See "Plugin
-//! manager" in `docs/design.md`.
+//! The index of the official plugins: a file in its own repository
+//! (<https://github.com/Tim-kieboom/trcode-plugins>, `index.json`) that says which
+//! plugins exist, where their manifest and module are, and the SHA-256 the module
+//! must have. The editor has no copy of it: the last one fetched is kept in the
+//! config folder. See "Plugin manager" in `docs/design.md`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,10 +18,7 @@ pub(crate) const FORMAT: u32 = 1;
 
 /// Where the index is fetched from.
 pub(crate) const INDEX_URL: &str =
-    "https://raw.githubusercontent.com/Tim-kieboom/TerminalCode/main/plugins/index.json";
-
-/// The index of the release, for when nothing was fetched and nothing is cached.
-const SNAPSHOT: &str = include_str!("../../plugins/index.json");
+    "https://raw.githubusercontent.com/Tim-kieboom/trcode-plugins/main/index.json";
 
 /// The cache's name in the config folder.
 const CACHE_FILE: &str = "plugin-index.json";
@@ -251,22 +248,13 @@ impl Index {
         (Self { entries }, left_out)
     }
 
-    /// The index of this release. Empty in tests, so that what ships does not change
-    /// what they see (`the_snapshot_of_the_release_reads` reads the real file).
-    pub(crate) fn snapshot() -> Self {
-        match cfg!(test) {
-            true => Self::default(),
-            false => Self::parse(SNAPSHOT).unwrap_or_default(),
-        }
-    }
-
-    /// The last index that was fetched, or the snapshot when there is none (or it
-    /// does not read).
-    pub(crate) fn cached_or_snapshot(config_dir: Option<&Path>) -> Self {
+    /// The last index that was fetched; empty when there is none (or it does not
+    /// read): the editor carries no list of its own.
+    pub(crate) fn cached(config_dir: Option<&Path>) -> Self {
         config_dir
             .and_then(|dir| fs::read_to_string(cache_path(dir)).ok())
             .and_then(|text| Self::parse(&text).ok())
-            .unwrap_or_else(Self::snapshot)
+            .unwrap_or_default()
     }
 }
 

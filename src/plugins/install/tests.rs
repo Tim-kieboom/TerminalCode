@@ -123,7 +123,7 @@ fn only_https_from_the_hosts_of_github_is_allowed() {
     let github = Policy::GITHUB;
     for url in [
         "https://github.com/a/b/releases/download/v1/x.wasm",
-        "https://raw.githubusercontent.com/a/b/main/plugins/index.json",
+        "https://raw.githubusercontent.com/a/b/main/index.json",
         "https://objects.githubusercontent.com/x?y=1",
         "https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sp=r",
     ] {
