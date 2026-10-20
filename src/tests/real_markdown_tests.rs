@@ -126,7 +126,8 @@ fn real_markdown_fuel_per_document_is_measured_and_has_headroom() {
     ]);
     let mut worst_per_byte = 0.0f64;
     for spent in &measured {
-        let per_byte = spent.text as f64 / spent.size as f64;
+        // Drawing the document again for a new width costs about what the text did.
+        let per_byte = spent.text.max(spent.resize) as f64 / spent.size as f64;
         // A document of a few bytes is mostly the cost of starting.
         if spent.size > 1000 {
             worst_per_byte = worst_per_byte.max(per_byte);

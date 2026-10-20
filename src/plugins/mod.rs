@@ -39,7 +39,7 @@ pub(crate) const CALLBACK_FUEL: u64 = 5_000_000;
 /// (`ToPlugin::FileText`), on top of [`CALLBACK_FUEL`]: 3 times the worst the markdown
 /// plugin spends on a byte of a dense document (about 5 480 fuel; `real_markdown_tests`
 /// measures it again and fails when this falls under 3 times).
-pub(crate) const FUEL_PER_BYTE: u64 = 16_500;
+pub(crate) const FUEL_PER_BYTE: u64 = 16_600;
 /// The most fuel one message may get, however big, on a thread of its own: 3 times what
 /// the markdown plugin spends on the largest document it renders (128 KB), a few
 /// seconds of one processor.
