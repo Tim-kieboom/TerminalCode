@@ -9,6 +9,7 @@
 //! requires = "0.7.0"           # the oldest TerminalCode it works with (optional)
 //! wasm = "git_viewer.wasm"     # the module, in the same folder
 //! capabilities = ["git.read", "git.write"]
+//! file_types = ["md"]          # with "files.text": the files whose text it gets
 //!
 //! [[action]]
 //! id = "stage"
@@ -43,6 +44,11 @@ pub struct Manifest {
     /// What it needs to be allowed to do, by name (see [`crate::Capability`]).
     #[serde(default)]
     pub capabilities: Vec<String>,
+    /// The kinds of file whose text it receives with [`crate::Capability::FilesText`],
+    /// as extensions without the dot (`["md", "markdown"]`). The most it can get: the
+    /// user may narrow it. Without any, it receives no file.
+    #[serde(default)]
+    pub file_types: Vec<String>,
     /// The actions it has, for the palette and for keys.
     #[serde(default, rename = "action")]
     pub actions: Vec<ActionDecl>,

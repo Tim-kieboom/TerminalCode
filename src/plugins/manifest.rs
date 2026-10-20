@@ -37,6 +37,8 @@ pub(crate) enum ManifestError {
     DuplicateAction(String),
     #[error("`{0}` is not an action id: no `:` and not empty")]
     BadActionId(String),
+    #[error("`{0}` is not a file type: an extension without the dot, such as `md`")]
+    BadFileType(String),
     #[error("its module cannot be read: {0}")]
     ModuleUnreadable(String),
     #[error("its module is not the one that was installed, so it is not run: {0}")]
@@ -189,6 +191,15 @@ fn judge(
             return Err(ManifestError::DuplicateAction(action.id.clone()));
         }
         seen.push(&action.id);
+    }
+    for kind in &manifest.file_types {
+        let good = !kind.is_empty()
+            && kind
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '+');
+        if !good {
+            return Err(ManifestError::BadFileType(kind.clone()));
+        }
     }
     Ok(asked)
 }

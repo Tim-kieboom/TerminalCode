@@ -108,6 +108,7 @@ fn rig() -> Rig {
                 .map(str::to_owned)
                 .to_vec(),
             place: None,
+            file_types: Vec::new(),
         },
     );
 

@@ -243,6 +243,17 @@ impl Workspace {
             .collect()
     }
 
+    /// The file of the active tab and how its document stands, when it has a file.
+    pub(crate) fn active_file(&self) -> Option<crate::app::ActiveFile> {
+        let doc = self.documents.get(&self.active_document_id()?)?;
+        Some(crate::app::ActiveFile {
+            path: doc.buffer.path()?.to_path_buf(),
+            modified: doc.buffer.is_dirty(),
+            saves: doc.saves,
+            reloads: doc.reloads,
+        })
+    }
+
     /// What the active tab is, for noticing that another one came to the front.
     pub(crate) fn active_view(&self) -> Option<super::ViewId> {
         self.active_tab().map(|tab| tab.id)

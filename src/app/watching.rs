@@ -131,6 +131,7 @@ impl App {
         self.report_disk_events(events);
         self.refresh_explorer_for(paths);
         self.git_changed();
+        self.push_file_text();
         self.needs_redraw = true;
     }
 

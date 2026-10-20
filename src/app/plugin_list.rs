@@ -920,7 +920,13 @@ impl App {
                 false => {
                     head.push("It asks to be allowed to:".to_owned());
                     head.extend(installed.capabilities.iter().map(|capability| {
-                        format!("  - {}", super::plugin_manager::describe(*capability))
+                        format!(
+                            "  - {}",
+                            super::plugin_manager::describe(
+                                *capability,
+                                &super::plugin_manager::shown_file_types(installed)
+                            )
+                        )
                     }));
                 }
             }

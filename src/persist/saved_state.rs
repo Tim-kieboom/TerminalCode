@@ -96,6 +96,10 @@ pub(crate) struct PluginRecord {
     /// plugin that comes to need more is asked about again.
     #[serde(default)]
     pub capabilities: Vec<String>,
+    /// The file types (`file_types` of its manifest) the user was shown when it asked
+    /// for `files.text`; a plugin that comes to want more is asked about again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub file_types: Vec<String>,
     /// Where its view goes; `None` until the user chose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<Place>,

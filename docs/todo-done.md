@@ -340,3 +340,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Plugin manager: `d` shows what a plugin says about itself and its README (the `readme` address of its index entry, Markdown shown plainly, scrollable, `esc` goes back), and `I` (shift+i) updates every plugin that has a newer version after one question, one after the other
 
 - [x] `description.md` is part of the plugin standard: published next to `manifest.toml`, installed with the plugin, and shown by `d` in the manager before the README the index may link (the Git plugin ships one from its next release)
+
+- [x] Markdown preview, step 1: plugin API 1.5 with `files.text` (`FileText`, `FileCleared`, `FileTooLarge`), `file_types` in the manifest, `plugin_file_types` in `settings.json`, the saved text of the file in front pushed to plugins that were allowed it (at most 1 MB, `MAX_MESSAGE` is now 4 MiB), and the question that names the kinds

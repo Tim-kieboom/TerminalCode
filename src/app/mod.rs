@@ -36,6 +36,7 @@ mod formatting;
 mod git;
 mod hover;
 mod open;
+mod plugin_files;
 mod plugin_list;
 mod plugin_manager;
 mod plugin_place;
@@ -46,6 +47,7 @@ mod rename;
 pub(crate) use formatting::whole_lines_for_tests;
 #[cfg(test)]
 pub(crate) use open::expand_path;
+pub(crate) use plugin_files::ActiveFile;
 mod jumps;
 mod keys;
 mod lsp;
@@ -433,6 +435,7 @@ impl App {
         }
         self.back_to_plugin_list();
         self.continue_updates();
+        self.push_file_text();
         self.track_jump(&input, before);
         self.notice_tab_switch();
         self.show_pending_keys();
@@ -501,6 +504,7 @@ impl App {
                 self.needs_redraw = true;
             }
         }
+        self.push_file_text();
         self.remember_panes();
         self.remember_recent();
     }

@@ -27,6 +27,8 @@ pub(super) struct Plugins {
     pub(super) store: super::plugin_list::Store,
     /// The fetch, pull or push that is running, if one is: only one runs at a time.
     pub(super) remote: Option<RemoteJob>,
+    /// What each plugin with `files.text` was last told about the file in front.
+    pub(super) pushed: HashMap<Box<str>, super::plugin_files::Pushed>,
 }
 
 /// A fetch, pull or push on its way.
@@ -57,9 +59,12 @@ impl App {
                 self.state.set_plugin_view(id.clone(), content);
                 self.state.plugin_view_changed(&id);
             }
-            Notice::Restarted { plugin, reason } => self
-                .state
-                .notify(format!("plugin {plugin} restarted: {reason}")),
+            Notice::Restarted { plugin, reason } => {
+                // A fresh instance knows nothing: it is told about the file again.
+                self.forget_pushed(&plugin);
+                self.state
+                    .notify(format!("plugin {plugin} restarted: {reason}"))
+            }
             Notice::Disabled { plugin, reason } => {
                 self.state.notify_error(format!(
                     "plugin {plugin} is off: it failed three times within a minute (last: {reason})"
@@ -278,7 +283,7 @@ impl App {
         in_its_pane && self.cancel_remote()
     }
 
-    fn send_to_plugin(&self, plugin: &str, message: ToPlugin) {
+    pub(super) fn send_to_plugin(&self, plugin: &str, message: ToPlugin) {
         if let Some(runtime) = &self.plugins.runtime {
             runtime.send(plugin, message);
         }

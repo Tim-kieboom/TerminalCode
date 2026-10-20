@@ -39,6 +39,7 @@ fn record(enabled: bool, place: Option<Place>) -> PluginRecord {
         enabled,
         capabilities: Vec::new(),
         place,
+        file_types: Vec::new(),
     }
 }
 

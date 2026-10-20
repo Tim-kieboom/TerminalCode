@@ -273,6 +273,16 @@ impl Host {
         let Some(loaded) = self.plugins.get_mut(plugin) else {
             return;
         };
+
+        // The text of a file goes only to a plugin that was allowed to have it.
+        if matches!(
+            message,
+            ToPlugin::FileText { .. } | ToPlugin::FileCleared | ToPlugin::FileTooLarge { .. }
+        ) && !loaded.grants.contains(&Capability::FilesText)
+        {
+            return;
+        }
+
         let mut message = message;
         let name: Box<str> = plugin.into();
         loop {

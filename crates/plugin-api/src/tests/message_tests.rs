@@ -847,3 +847,78 @@ fn the_capability_for_the_remote_has_its_name_and_is_listed() {
         ]
     );
 }
+
+// --- plugin API 1.5: the text of the file in front ---
+
+#[test]
+fn the_text_of_a_file_is_a_message_with_its_golden_json() {
+    let text = ToPlugin::FileText {
+        path: "docs/a.md".to_owned(),
+        text: "# Hi\n".to_owned(),
+        modified: true,
+    };
+    let json = r##"{"type":"file_text","path":"docs/a.md","text":"# Hi\n","modified":true}"##;
+    assert_eq!(text.to_bytes().unwrap(), json.as_bytes());
+    assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(text));
+
+    // `modified` may be left out: the file is as it was saved.
+    let plain = ToPlugin::from_bytes(br##"{"type":"file_text","path":"a.md","text":""}"##).unwrap();
+    assert_eq!(
+        plain,
+        ToPlugin::FileText {
+            path: "a.md".to_owned(),
+            text: String::new(),
+            modified: false
+        }
+    );
+}
+
+#[test]
+fn a_file_cleared_and_a_file_too_large_have_golden_json() {
+    assert_eq!(
+        ToPlugin::FileCleared.to_bytes().unwrap(),
+        br#"{"type":"file_cleared"}"#
+    );
+    let large = ToPlugin::FileTooLarge {
+        path: "big.md".to_owned(),
+        bytes: 2_000_000,
+    };
+    let json = r#"{"type":"file_too_large","path":"big.md","bytes":2000000}"#;
+    assert_eq!(large.to_bytes().unwrap(), json.as_bytes());
+    assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(large));
+}
+
+#[test]
+fn the_capability_of_file_text_and_the_manifest_field() {
+    assert_eq!(Capability::parse("files.text"), Some(Capability::FilesText));
+    assert_eq!(
+        serde_json::to_string(&Capability::FilesText).unwrap(),
+        r#""files.text""#
+    );
+    assert!(Capability::ALL.contains(&Capability::FilesText));
+
+    let manifest: crate::Manifest = toml_like(
+        r#"{"id":"markdown","version":"0.1.0","abi":"1.5","wasm":"m.wasm","capabilities":["files.text"],"file_types":["md","markdown"]}"#,
+    );
+    assert_eq!(manifest.file_types, ["md", "markdown"]);
+    let without: crate::Manifest =
+        toml_like(r#"{"id":"x","version":"0.1.0","abi":"1.5","wasm":"m.wasm"}"#);
+    assert!(without.file_types.is_empty());
+}
+
+fn toml_like<T: serde::de::DeserializeOwned>(json: &str) -> T {
+    serde_json::from_str(json).unwrap()
+}
+
+#[test]
+fn a_whole_file_of_text_fits_in_one_message() {
+    use crate::MAX_FILE_TEXT;
+    // The worst case of a line break written as two bytes.
+    let text = "\n".repeat(MAX_FILE_TEXT);
+    let message = ToPlugin::FileText {
+        path: "a.md".to_owned(),
+        text,
+        modified: false,
+    };
+    assert!(message.to_bytes().unwrap().len() <= MAX_MESSAGE);
+}

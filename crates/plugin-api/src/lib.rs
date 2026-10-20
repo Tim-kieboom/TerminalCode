@@ -29,7 +29,14 @@ mod plugin;
 mod tests;
 
 /// The largest message either way, in bytes. A larger one is refused.
-pub const MAX_MESSAGE: usize = 1024 * 1024;
+///
+/// A [`ToPlugin::FileText`] has up to [`MAX_FILE_TEXT`] bytes of text and JSON
+/// writes some of it longer (a line break is two bytes), so this is a few times that.
+pub const MAX_MESSAGE: usize = 4 * 1024 * 1024;
+
+/// The most text of a file the editor sends a plugin ([`ToPlugin::FileText`]); a larger
+/// file is told as [`ToPlugin::FileTooLarge`].
+pub const MAX_FILE_TEXT: usize = 1024 * 1024;
 
 /// The most entries one page of [`ToPlugin::GitEntries`] has.
 pub const MAX_PAGE: usize = 500;

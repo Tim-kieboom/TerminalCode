@@ -75,6 +75,25 @@ pub enum ToPlugin {
         total: usize,
         entries: Vec<GitEntry>,
     },
+    /// The saved text of the file in front in the editor, for a plugin with
+    /// [`Capability::FilesText`], when the file is one of the plugin's `file_types`:
+    /// sent when the tab in front changes, after the file is saved, and when the file
+    /// changes on disk. `path` is from the project's folder with `/` (the whole path
+    /// for a file outside it). `text` is what is on disk, not the buffer, and `modified`
+    /// says that the buffer has changes that are not saved. At most
+    /// [`crate::MAX_FILE_TEXT`] bytes; plugin API 1.5.
+    FileText {
+        path: String,
+        text: String,
+        #[serde(default)]
+        modified: bool,
+    },
+    /// The file in front is not one the plugin gets (another kind, no file, not UTF-8):
+    /// what it shows of the last [`ToPlugin::FileText`] is out of date. Plugin API 1.5.
+    FileCleared,
+    /// The file in front is one of the plugin's, but has more than
+    /// [`crate::MAX_FILE_TEXT`] bytes (`bytes`): its text is not sent. Plugin API 1.5.
+    FileTooLarge { path: String, bytes: u64 },
     /// The request `request` was done.
     Done { request: u64 },
     /// The request `request` was not done.
@@ -441,6 +460,10 @@ pub enum Capability {
     /// the network. Plugin API 1.4.
     #[serde(rename = "git.remote")]
     GitRemote,
+    /// Receive the saved text of the files in front in the editor that are of the
+    /// kinds the manifest names (`file_types`). Plugin API 1.5.
+    #[serde(rename = "files.text")]
+    FilesText,
     /// A capability a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -448,11 +471,12 @@ pub enum Capability {
 
 impl Capability {
     /// Every capability this version has.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::GitRead,
         Self::GitWrite,
         Self::EditorOpen,
         Self::GitRemote,
+        Self::FilesText,
     ];
 
     /// The name a manifest writes it by.
@@ -462,6 +486,7 @@ impl Capability {
             Self::GitWrite => "git.write",
             Self::EditorOpen => "editor.open",
             Self::GitRemote => "git.remote",
+            Self::FilesText => "files.text",
             Self::Unknown => "unknown",
         }
     }

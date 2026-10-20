@@ -59,6 +59,14 @@
     // from that source.
     "plugin_sources": [],
 
+    // What a plugin that gets the text of the files you open (the capability
+    // "files.text", for example a markdown preview) may get, by plugin id: the file
+    // extensions, without the dot. A plugin's manifest names the most it can get, and
+    // this only narrows that: { "markdown": ["md"] } leaves a plugin that wants "md"
+    // and "markdown" files with "md" only, [] with none. A plugin not named here gets
+    // everything its manifest names (and that you allowed when you turned it on).
+    "plugin_file_types": {},
+
     // Language servers, by name. These are the ones there are: Rust, Nix and JSON.
     // Your entry for one of them overrides only the fields you write, and keeps the
     // rest from here, so this is enough to change one thing:

@@ -58,6 +58,9 @@ pub(crate) struct Settings {
     /// plugins are listed in the plugin manager beside the official ones, marked with
     /// where they come from.
     pub(crate) plugin_sources: Vec<String>,
+    /// What a plugin that gets the text of files (`files.text`) is limited to, by
+    /// plugin id: extensions without the dot. Only narrows what its manifest names.
+    pub(crate) plugin_file_types: std::collections::BTreeMap<String, Vec<String>>,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -80,6 +83,7 @@ impl Default for Settings {
             notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
             hide_ignored: false,
             plugin_sources: Vec::new(),
+            plugin_file_types: std::collections::BTreeMap::new(),
             language_servers: default_language_servers().clone(),
         }
     }
@@ -175,6 +179,7 @@ impl Settings {
             }),
             hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
             plugin_sources: plugin_sources(take::<Vec<String>>(&mut map, "plugin_sources")?),
+            plugin_file_types: plugin_file_types(take(&mut map, "plugin_file_types")?),
             language_servers: match map.remove("language_servers") {
                 Some(setting) => LanguageServers::layered(default_servers_setting(), &setting)?,
                 None => defaults.language_servers,
@@ -200,6 +205,26 @@ fn plugin_sources(listed: Option<Vec<String>>) -> Vec<String> {
         }
     }
     urls
+}
+
+/// `plugin_file_types`: the extensions lower case and without a dot, each once.
+fn plugin_file_types(
+    listed: Option<std::collections::BTreeMap<String, Vec<String>>>,
+) -> std::collections::BTreeMap<String, Vec<String>> {
+    listed
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id, kinds)| {
+            let mut clean: Vec<String> = Vec::new();
+            for kind in kinds {
+                let kind = kind.trim().trim_start_matches('.').to_ascii_lowercase();
+                if !kind.is_empty() && !clean.contains(&kind) {
+                    clean.push(kind);
+                }
+            }
+            (id, clean)
+        })
+        .collect()
 }
 
 /// The `language_servers` of the default settings file: the base layer the user's

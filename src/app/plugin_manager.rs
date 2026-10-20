@@ -60,7 +60,17 @@ impl Manager {
 }
 
 /// What a capability lets a plugin do, for the question to the user.
-pub(super) fn describe(capability: Capability) -> String {
+pub(super) fn describe(capability: Capability, file_types: &[String]) -> String {
+    if capability == Capability::FilesText {
+        let kinds: Vec<String> = file_types.iter().map(|kind| format!(".{kind}")).collect();
+        return match kinds.is_empty() {
+            true => "receive the text of files (its manifest names no kind, so none)".to_owned(),
+            false => format!(
+                "see the text of the {} files you open, as saved on disk, and nothing else of them",
+                kinds.join(", ")
+            ),
+        };
+    }
     match capability {
         Capability::GitRead => {
             "read the state of the git repository: the branch and the changed files"
@@ -84,12 +94,33 @@ fn names(capabilities: &[Capability]) -> Vec<String> {
 
 /// Whether what the user decided about a plugin covers everything it asks for now.
 pub(super) fn covers(record: &PluginRecord, installed: &Installed) -> bool {
-    installed.capabilities.iter().all(|capability| {
+    let capabilities = installed.capabilities.iter().all(|capability| {
         record
             .capabilities
             .iter()
             .any(|name| name == capability.name())
-    })
+    });
+    // Seeing more kinds of file than the user was shown is a new thing to allow.
+    let file_types = !installed.capabilities.contains(&Capability::FilesText)
+        || installed
+            .manifest
+            .file_types
+            .iter()
+            .all(|kind| record.file_types.contains(&kind.to_ascii_lowercase()));
+    capabilities && file_types
+}
+
+/// The file types of the manifest of `installed` as the user is shown them: lower case.
+pub(super) fn shown_file_types(installed: &Installed) -> Vec<String> {
+    match installed.capabilities.contains(&Capability::FilesText) {
+        true => installed
+            .manifest
+            .file_types
+            .iter()
+            .map(|kind| kind.to_ascii_lowercase())
+            .collect(),
+        false => Vec::new(),
+    }
 }
 
 impl App {
@@ -158,6 +189,7 @@ impl App {
         }
         self.plugins.manager.running.insert(id.into());
         self.plugins.manager.stopped.remove(id);
+        self.forget_pushed(id);
         self.apply_plugin_places();
         self.apply_plugin_keys();
         self.needs_redraw = true;
@@ -207,11 +239,11 @@ impl App {
             let Some(installed) = self.plugins.manager.installed(&id) else {
                 continue;
             };
+            let kinds = shown_file_types(installed);
             let allowed: Vec<String> = installed
                 .capabilities
                 .iter()
-                .copied()
-                .map(describe)
+                .map(|capability| describe(*capability, &kinds))
                 .collect();
             let confirm = Confirm::enable_plugin(
                 &id,
@@ -235,6 +267,7 @@ impl App {
             PluginRecord {
                 enabled: true,
                 capabilities: names(&installed.capabilities),
+                file_types: shown_file_types(&installed),
                 place: self.saved_plugin(id).and_then(|record| record.place),
             },
         );

@@ -116,7 +116,7 @@ fn sends_too_much() -> Vec<u8> {
             (memory (export "memory") 1)
             (func (export "alloc") (param i32) (result i32) (i32.const 1024))
             (func (export "handle") (param i32 i32)
-              (call $send (i32.const 0) (i32.const 2000000))))"#
+              (call $send (i32.const 0) (i32.const 5000000))))"#
             .into(),
     )
 }

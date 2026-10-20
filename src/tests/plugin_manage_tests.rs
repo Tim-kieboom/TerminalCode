@@ -32,6 +32,7 @@ fn what_the_user_decided_about_a_plugin_is_remembered_and_a_reset_forgets_it() {
         enabled: true,
         capabilities: vec!["git.read".into()],
         place: None,
+        file_types: Vec::new(),
     };
 
     assert!(state.set_plugin("viewer", record.clone()), "news");
@@ -54,6 +55,7 @@ fn the_decisions_are_written_to_the_state_file_and_read_back() {
             enabled: true,
             capabilities: vec!["git.read".into(), "git.write".into()],
             place: None,
+            file_types: Vec::new(),
         },
     );
 
@@ -104,6 +106,7 @@ fn on(capabilities: &[&str]) -> PluginRecord {
         enabled: true,
         capabilities: capabilities.iter().map(|name| (*name).to_owned()).collect(),
         place: None,
+        file_types: Vec::new(),
     }
 }
 
