@@ -389,7 +389,7 @@ pub(crate) fn remove(plugins_dir: &Path, id: &str) -> Result<(), InstallError> {
     Ok(())
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 

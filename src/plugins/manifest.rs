@@ -39,6 +39,8 @@ pub(crate) enum ManifestError {
     BadActionId(String),
     #[error("its module cannot be read: {0}")]
     ModuleUnreadable(String),
+    #[error("its module is not the one that was installed, so it is not run: {0}")]
+    ModuleChanged(String),
 }
 
 /// A plugin that is in the plugins folder and whose manifest is good.
@@ -67,7 +69,10 @@ impl Installed {
                 "{size} bytes, more than the {MAX_MODULE} allowed"
             )));
         }
-        fs::read(&path).map_err(unreadable)
+        let module = fs::read(&path).map_err(unreadable)?;
+        super::trust::verify_module(&self.dir, &module)
+            .map_err(|error| ManifestError::ModuleChanged(error.to_string()))?;
+        Ok(module)
     }
 }
 

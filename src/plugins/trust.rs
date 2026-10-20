@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 /// The pins' file in the plugins folder.
 pub(crate) const TRUST_FILE: &str = ".trust.json";
@@ -37,7 +38,7 @@ impl std::fmt::Display for TrustError {
                 offered,
             } => write!(
                 f,
-                "{id} {version} was installed before with another module ({} then, {} now): a published version must not change; if it is meant to, delete its line in {TRUST_FILE}",
+                "{id} {version} has another module than before ({} then, {} now): a published version must not change; if it is meant to, delete its line in {TRUST_FILE}",
                 short(pinned),
                 short(offered)
             ),
@@ -117,6 +118,30 @@ impl Pins {
             .and_then(|()| fs::rename(&temp, &file))
             .map_err(|error| TrustError::File(error.to_string()))
     }
+}
+
+/// Checks `module`, read from the plugin folder `dir`, before it runs: when the
+/// installer made the folder, the module must be the one it installed (the marker's
+/// hash) and the one pinned for its version. A folder the user made is not checked.
+pub(crate) fn verify_module(dir: &Path, module: &[u8]) -> Result<(), TrustError> {
+    let Some(marker) = super::install::marker(dir) else {
+        return Ok(());
+    };
+    let hash = super::install::hex(&Sha256::digest(module));
+    let entry = &marker.entry;
+    let moved = |pinned: &str| TrustError::Changed {
+        id: entry.id.clone(),
+        version: entry.version.clone(),
+        pinned: pinned.to_owned(),
+        offered: hash.clone(),
+    };
+    if hash != marker.sha256 {
+        return Err(moved(&marker.sha256));
+    }
+    if let Some(plugins_dir) = dir.parent() {
+        Pins::load(plugins_dir)?.check(&entry.id, &entry.version, &hash)?;
+    }
+    Ok(())
 }
 
 fn path(plugins_dir: &Path) -> PathBuf {

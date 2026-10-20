@@ -496,3 +496,54 @@ fn the_pins_file_is_not_a_plugin() {
     assert!(dir.path().join(super::super::trust::TRUST_FILE).exists());
     assert_eq!(manifest::scan(dir.path(), HOST).len(), 1);
 }
+
+#[test]
+fn an_installed_module_is_read_only_while_it_is_the_one_installed() {
+    let dir = tempfile::tempdir().unwrap();
+    let module = b"the module";
+    let address = serve(routes("1.0.0", module));
+    let installed = install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+    assert_eq!(installed.module().unwrap(), module);
+
+    fs::write(installed.dir.join(&installed.manifest.wasm), b"swapped").unwrap();
+
+    let error = installed.module().unwrap_err();
+    assert!(matches!(error, ManifestError::ModuleChanged(_)), "{error}");
+    assert!(error.to_string().contains("must not change"), "{error}");
+}
+
+#[test]
+fn a_module_and_marker_swapped_together_still_meet_the_pin() {
+    let dir = tempfile::tempdir().unwrap();
+    let module = b"the module";
+    let address = serve(routes("1.0.0", module));
+    let installed = install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+
+    // Someone rewrites the module and the marker's hash, but not the pins.
+    let swapped = b"swapped";
+    fs::write(installed.dir.join(&installed.manifest.wasm), swapped).unwrap();
+    let mut marker = marker(&installed.dir).unwrap();
+    marker.sha256 = hex(&Sha256::digest(swapped));
+    fs::write(
+        installed.dir.join(MARKER_FILE),
+        serde_json::to_string(&marker).unwrap(),
+    )
+    .unwrap();
+
+    assert!(matches!(
+        installed.module(),
+        Err(ManifestError::ModuleChanged(_))
+    ));
+}
+
+#[test]
+fn a_plugin_of_the_users_own_is_not_checked() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().join("echo");
+    fs::create_dir_all(&folder).unwrap();
+    fs::write(folder.join(MANIFEST_FILE), manifest_text("1.0.0")).unwrap();
+    fs::write(folder.join("echo.wasm"), b"mine").unwrap();
+    let found = manifest::scan(dir.path(), HOST);
+    let own = found.into_iter().next().unwrap().unwrap();
+    assert_eq!(own.module().unwrap(), b"mine");
+}
