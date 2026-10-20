@@ -100,6 +100,11 @@ pub(crate) struct PluginRecord {
     /// for `files.text`; a plugin that comes to want more is asked about again.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub file_types: Vec<String>,
+    /// Whether the user was shown that the plugin runs on a thread of its own and may
+    /// use a lot of processor time (`thread = "own"`); a plugin that comes to ask for it
+    /// is asked about again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub own_thread: bool,
     /// Where its view goes; `None` until the user chose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<Place>,

@@ -913,21 +913,20 @@ impl App {
             _ => {}
         }
         if let Some(installed) = &installed {
-            match installed.capabilities.is_empty() {
+            let kinds = super::plugin_manager::shown_file_types(installed);
+            let mut asks: Vec<String> = installed
+                .capabilities
+                .iter()
+                .map(|capability| super::plugin_manager::describe(*capability, &kinds))
+                .collect();
+            asks.extend(super::plugin_manager::extra_asks(installed));
+            match asks.is_empty() {
                 true => head.push(
                     "It asks to be allowed to draw in its own pane and nothing else.".to_owned(),
                 ),
                 false => {
                     head.push("It asks to be allowed to:".to_owned());
-                    head.extend(installed.capabilities.iter().map(|capability| {
-                        format!(
-                            "  - {}",
-                            super::plugin_manager::describe(
-                                *capability,
-                                &super::plugin_manager::shown_file_types(installed)
-                            )
-                        )
-                    }));
+                    head.extend(asks.into_iter().map(|ask| format!("  - {ask}")));
                 }
             }
         }

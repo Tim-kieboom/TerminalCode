@@ -13,7 +13,7 @@
 //! refuses a plugin built for another major (see [`Abi::check`]).
 
 pub use abi::{Abi, AbiError};
-pub use manifest::Manifest;
+pub use manifest::{Manifest, Thread};
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
     Refusal, ToPlugin, WireButton, WireLine, WireSpan, WireView,

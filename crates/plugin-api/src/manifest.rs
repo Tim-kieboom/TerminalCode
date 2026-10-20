@@ -10,6 +10,7 @@
 //! wasm = "git_viewer.wasm"     # the module, in the same folder
 //! capabilities = ["git.read", "git.write"]
 //! file_types = ["md"]          # with "files.text": the files whose text it gets
+//! thread = "own"               # a thread of its own, for heavy work (optional)
 //!
 //! [[action]]
 //! id = "stage"
@@ -23,6 +24,20 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ActionDecl;
+
+/// Which thread the editor runs a plugin on.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Thread {
+    /// The thread all plugins share: a plugin that takes long stalls the others, so
+    /// each message it gets has a small budget.
+    #[default]
+    Shared,
+    /// A thread of its own: a plugin that takes long stalls only itself, so what it is
+    /// sent that is big gets a budget that grows with the size (a document to parse).
+    /// The user is told when they turn the plugin on. Plugin API 1.5.
+    Own,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
@@ -49,6 +64,10 @@ pub struct Manifest {
     /// user may narrow it. Without any, it receives no file.
     #[serde(default)]
     pub file_types: Vec<String>,
+    /// The thread it runs on; the shared one when left out. A plugin that does heavy work
+    /// on what it is sent (parsing a document) asks for `"own"`.
+    #[serde(default)]
+    pub thread: Thread,
     /// The actions it has, for the palette and for keys.
     #[serde(default, rename = "action")]
     pub actions: Vec<ActionDecl>,

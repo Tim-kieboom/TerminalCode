@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use super::App;
 use crate::components::popups::confirm::Confirm;
 use crate::persist::saved_state::PluginRecord;
-use crate::plugin_api::Capability;
+use crate::plugin_api::{Capability, Thread};
 use crate::plugins::manifest::{self, Found, Host, Installed};
 use crate::ui::PluginViewId;
 
@@ -107,7 +107,20 @@ pub(super) fn covers(record: &PluginRecord, installed: &Installed) -> bool {
             .file_types
             .iter()
             .all(|kind| record.file_types.contains(&kind.to_ascii_lowercase()));
-    capabilities && file_types
+    // A thread of its own is a share of a processor: also something to allow.
+    let thread = installed.manifest.thread != Thread::Own || record.own_thread;
+    capabilities && file_types && thread
+}
+
+/// What a plugin asks that is not a capability, for the question: a thread of its own.
+pub(super) fn extra_asks(installed: &Installed) -> Vec<String> {
+    match installed.manifest.thread {
+        Thread::Own => vec![
+            "run on a thread of its own, and use a lot of processor time when it has a lot to do"
+                .to_owned(),
+        ],
+        Thread::Shared => Vec::new(),
+    }
 }
 
 /// The file types of the manifest of `installed` as the user is shown them: lower case.
@@ -185,7 +198,12 @@ impl App {
             .actions
             .insert(id.into(), installed.manifest.actions.clone());
         if let Some(runtime) = &self.plugins.runtime {
-            runtime.load(id, wasm, installed.capabilities.iter().copied());
+            runtime.load_on(
+                id,
+                wasm,
+                installed.capabilities.iter().copied(),
+                installed.manifest.thread,
+            );
         }
         self.plugins.manager.running.insert(id.into());
         self.plugins.manager.stopped.remove(id);
@@ -240,11 +258,12 @@ impl App {
                 continue;
             };
             let kinds = shown_file_types(installed);
-            let allowed: Vec<String> = installed
+            let mut allowed: Vec<String> = installed
                 .capabilities
                 .iter()
                 .map(|capability| describe(*capability, &kinds))
                 .collect();
+            allowed.extend(extra_asks(installed));
             let confirm = Confirm::enable_plugin(
                 &id,
                 installed.manifest.display_name(),
@@ -268,6 +287,7 @@ impl App {
                 enabled: true,
                 capabilities: names(&installed.capabilities),
                 file_types: shown_file_types(&installed),
+                own_thread: installed.manifest.thread == Thread::Own,
                 place: self.saved_plugin(id).and_then(|record| record.place),
             },
         );

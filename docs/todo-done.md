@@ -342,3 +342,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] `description.md` is part of the plugin standard: published next to `manifest.toml`, installed with the plugin, and shown by `d` in the manager before the README the index may link (the Git plugin ships one from its next release)
 
 - [x] Markdown preview, step 1: plugin API 1.5 with `files.text` (`FileText`, `FileCleared`, `FileTooLarge`), `file_types` in the manifest, `plugin_file_types` in `settings.json`, the saved text of the file in front pushed to plugins that were allowed it (at most 1 MB, `MAX_MESSAGE` is now 4 MiB), and the question that names the kinds
+
+- [x] Markdown preview, step 2: `thread = "own"` in the manifest gives a plugin a thread of its own (`Runtime::load_on`), and only there the text of a file gets a budget that grows with its size (provisional 300 fuel per byte, ceiling 400 million); the consent question says it, and an update that adds it asks again

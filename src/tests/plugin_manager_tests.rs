@@ -227,6 +227,7 @@ fn record(enabled: bool, place: Option<Place>) -> PluginRecord {
         capabilities: Vec::new(),
         place,
         file_types: Vec::new(),
+        own_thread: false,
     }
 }
 

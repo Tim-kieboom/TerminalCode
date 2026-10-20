@@ -44,6 +44,7 @@ fn record(file_types: &[&str]) -> PluginRecord {
         capabilities: vec!["files.text".to_owned()],
         place: None,
         file_types: file_types.iter().map(|kind| (*kind).to_owned()).collect(),
+        own_thread: false,
     }
 }
 
@@ -236,6 +237,7 @@ fn a_plugin_without_the_capability_is_sent_nothing() {
             capabilities: Vec::new(),
             place: None,
             file_types: Vec::new(),
+            own_thread: false,
         }),
     );
     rig.wait_until("the plugin", |rig| rig.text().is_some());
@@ -283,4 +285,30 @@ fn the_question_names_the_kinds_and_a_wider_manifest_asks_again() {
         saved(record(&["md"])),
     );
     assert!(matches!(widened.app.state().popup(), Popup::Confirm(_)));
+}
+
+#[test]
+fn a_thread_of_its_own_is_asked_about_and_asked_again_when_it_comes_with_an_update() {
+    let manifest = "capabilities = [\"files.text\"]\nfile_types = [\"md\"]\nthread = \"own\"\n";
+    // Allowed before, but only what ran on the shared thread: asked again.
+    let rig_without = rig(manifest, saved(record(&["md"])));
+    assert!(matches!(rig_without.app.state().popup(), Popup::Confirm(_)));
+    let question = rig_without.app.state().confirm().unwrap().text();
+    assert!(
+        question.contains("run on a thread of its own"),
+        "{question}"
+    );
+    assert!(question.contains("processor time"), "{question}");
+
+    // Allowed with it: it just runs, on its own thread, and is sent the file.
+    let mut allowed = rig(
+        manifest,
+        saved(PluginRecord {
+            own_thread: true,
+            ..record(&["md"])
+        }),
+    );
+    allowed.wait_until("the plugin", |rig| rig.text().is_some());
+    allowed.open("a.md");
+    allowed.wait_for("file_text");
 }

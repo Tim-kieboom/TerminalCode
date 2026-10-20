@@ -12,6 +12,7 @@
 //! A trap cannot be resumed: the instance is thrown away, a fresh one is started,
 //! and a plugin that traps three times within a minute is disabled.
 
+pub(crate) use crate::plugin_api::Thread;
 pub(crate) use runtime::{Notice, Runtime, WriteOp};
 
 #[cfg(test)]
@@ -32,6 +33,13 @@ mod view;
 /// instruction. A placeholder until the Git viewer is measured: the plan is about
 /// 50 times its slowest callback on a 10 000-entry status (todo, plugin step 6).
 const CALLBACK_FUEL: u64 = 5_000_000;
+/// Fuel for each byte of the text of a file a plugin on a thread of its own is sent
+/// (`ToPlugin::FileText`), on top of [`CALLBACK_FUEL`]. A placeholder until the
+/// markdown plugin is measured: the plan is 3 times the worst measured (todo,
+/// "Markdown preview", step 4).
+const FUEL_PER_BYTE: u64 = 300;
+/// The most fuel one message may get, however big, on a thread of its own: a few seconds.
+const OWNED_FUEL_CEILING: u64 = 400_000_000;
 /// Fuel for loading: compiling is not charged, but the plugin's start function runs.
 const LOAD_FUEL: u64 = 20_000_000;
 /// How much memory a plugin may have, in bytes.

@@ -6,7 +6,7 @@ use wasmi::{
     TypedFunc,
 };
 
-use super::{CALLBACK_FUEL, LOAD_FUEL, MEMORY_LIMIT};
+use super::{LOAD_FUEL, MEMORY_LIMIT};
 use crate::plugin_api::{FromPlugin, MAX_MESSAGE, ToPlugin};
 
 /// Why a call into a plugin did not work out.
@@ -138,15 +138,15 @@ pub(super) struct Instance {
 
 impl Instance {
     /// Sends the plugin a message and collects what it said while handling it,
-    /// within the budget of one callback.
-    pub(super) fn deliver(&mut self, message: ToPlugin) -> Result<Delivered, Failure> {
+    /// within `fuel`.
+    pub(super) fn deliver(&mut self, message: ToPlugin, fuel: u64) -> Result<Delivered, Failure> {
         let bytes = message
             .to_bytes()
             .map_err(|error| Failure::Broken(error.to_string()))?;
         let len = i32::try_from(bytes.len())
             .map_err(|_| Failure::Broken("a message that is too long".into()))?;
         self.store
-            .set_fuel(CALLBACK_FUEL)
+            .set_fuel(fuel)
             .map_err(|error| Failure::Broken(error.to_string()))?;
 
         let ptr = self

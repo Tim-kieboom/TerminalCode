@@ -1,10 +1,14 @@
-//! The thread plugins run on: it owns every instance, so a slow or hung plugin
-//! never holds up the editor, and tells the app what happened through a callback.
-//! It also holds the latest state of the git repository, which the app hands it,
-//! so a plugin's questions about git are answered here with no trip to the UI.
+//! The threads plugins run on: they own every instance, so a slow or hung plugin
+//! never holds up the editor, and tell the app what happened through a callback.
+//! Most plugins share one thread; a plugin whose manifest says `thread = "own"` gets a
+//! thread of its own, so what it does that takes long stalls only itself (and it is
+//! the only kind of plugin that gets a budget that grows with what it is sent). Each
+//! thread also holds the latest state of the git repository, which the app hands it,
+//! so a plugin's questions about git are answered with no trip to the UI.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::mpsc::{self, TryRecvError};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Instant;
 
@@ -12,6 +16,7 @@ use super::git_view::Sections;
 use super::instance::{Compiled, Delivered, Failure, Instance};
 use super::policy::{Strikes, Verdict};
 use super::view::node_of;
+use super::{CALLBACK_FUEL, FUEL_PER_BYTE, OWNED_FUEL_CEILING, Thread};
 use crate::git::Status;
 use crate::plugin_api::{Capability, FromPlugin, Refusal, ToPlugin};
 use crate::ui::view::ViewNode;
@@ -74,36 +79,50 @@ enum Command {
         plugin: Box<str>,
     },
     /// The repository has a new state (`None`: there is none any more).
-    Git(Option<Box<Sections>>),
+    Git(Option<Arc<Sections>>),
 }
 
-/// A handle on the plugin thread. Dropping it ends the thread.
-#[derive(Debug)]
+type Notify = Arc<dyn Fn(Notice) + Send + Sync>;
+
+/// What the app last handed over about git: not yet (`None`), or the state (which may
+/// be that there is none).
+type GitNews = Option<Option<Arc<Sections>>>;
+
+/// A handle on the plugin threads. Dropping it ends the shared thread (and tells the
+/// others to end: one that is in a long call ends when the call does).
 pub(crate) struct Runtime {
     commands: Option<mpsc::Sender<Command>>,
     thread: Option<JoinHandle<()>>,
+    notify: Notify,
+    /// The plugins that have a thread of their own, by name.
+    owned: Mutex<HashMap<Box<str>, mpsc::Sender<Command>>>,
+    /// The last state of git handed over, for a thread that starts later.
+    git: Mutex<GitNews>,
+}
+
+impl std::fmt::Debug for Runtime {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_struct("Runtime").finish_non_exhaustive()
+    }
 }
 
 impl Runtime {
-    /// Starts the thread; `notify` is called on it, for everything that happens.
-    pub(crate) fn spawn(notify: impl Fn(Notice) + Send + 'static) -> Self {
+    /// Starts the shared thread; `notify` is called on it (and on the threads of
+    /// plugins that have their own), for everything that happens.
+    pub(crate) fn spawn(notify: impl Fn(Notice) + Send + Sync + 'static) -> Self {
+        let notify: Notify = Arc::new(notify);
         let (commands, received) = mpsc::channel();
+        let host = Host::new(Arc::clone(&notify), false, None);
         let thread = thread::Builder::new()
             .name("plugins".into())
-            .spawn(move || {
-                Host {
-                    plugins: HashMap::new(),
-                    git: None,
-                    git_known: false,
-                    queue: VecDeque::new(),
-                    notify: Box::new(notify),
-                }
-                .run(&received);
-            })
+            .spawn(move || host.run(&received))
             .expect("the operating system starts a thread");
         Self {
             commands: Some(commands),
             thread: Some(thread),
+            notify,
+            owned: Mutex::new(HashMap::new()),
+            git: Mutex::new(None),
         }
     }
 
@@ -115,32 +134,98 @@ impl Runtime {
         wasm: Vec<u8>,
         grants: impl IntoIterator<Item = Capability>,
     ) {
-        self.command(Command::Load {
+        self.load_on(plugin, wasm, grants, Thread::Shared);
+    }
+
+    /// Like [`Runtime::load`], on the thread the manifest asks for: the shared one, or
+    /// a thread of the plugin's own.
+    pub(crate) fn load_on(
+        &self,
+        plugin: &str,
+        wasm: Vec<u8>,
+        grants: impl IntoIterator<Item = Capability>,
+        thread: Thread,
+    ) {
+        let load = Command::Load {
             plugin: plugin.into(),
             wasm,
             grants: grants.into_iter().collect(),
-        });
+        };
+        // Wherever it was before (the manifest may have changed), it is not there now.
+        let mut owned = self.owned.lock().expect("the lock is not poisoned");
+        owned.remove(plugin);
+        match thread {
+            Thread::Shared => self.command(load),
+            Thread::Own => {
+                self.command(Command::Unload {
+                    plugin: plugin.into(),
+                });
+                let commands = self.spawn_owned(plugin);
+                let _ = commands.send(load);
+                owned.insert(plugin.into(), commands);
+            }
+        }
+    }
+
+    /// The thread of a plugin of its own, knowing the state of git as it is now.
+    fn spawn_owned(&self, plugin: &str) -> mpsc::Sender<Command> {
+        let (commands, received) = mpsc::channel();
+        let git = self.git.lock().expect("the lock is not poisoned").clone();
+        let host = Host::new(Arc::clone(&self.notify), true, git);
+        thread::Builder::new()
+            .name(format!("plugin {plugin}"))
+            .spawn(move || host.run(&received))
+            .expect("the operating system starts a thread");
+        commands
     }
 
     /// Stops `plugin` and forgets it.
     pub(crate) fn unload(&self, plugin: &str) {
-        self.command(Command::Unload {
-            plugin: plugin.into(),
-        });
+        let had_thread = self
+            .owned
+            .lock()
+            .expect("the lock is not poisoned")
+            .remove(plugin)
+            .is_some();
+        // The thread of its own ends when its sender is gone; the shared one is told.
+        if !had_thread {
+            self.command(Command::Unload {
+                plugin: plugin.into(),
+            });
+        }
     }
 
     /// Sends `message` to `plugin`.
     pub(crate) fn send(&self, plugin: &str, message: ToPlugin) {
-        self.command(Command::Send {
+        let command = Command::Send {
             plugin: plugin.into(),
             message,
-        });
+        };
+        let owned = self.owned.lock().expect("the lock is not poisoned");
+        match owned.get(plugin) {
+            Some(commands) => {
+                let _ = commands.send(command);
+            }
+            None => {
+                drop(owned);
+                self.command(command);
+            }
+        }
     }
 
     /// Hands over the state of the repository (generation `generation`), or
     /// says there is none. Plugins that may read it are told.
     pub(crate) fn publish_git(&self, state: Option<(u64, &Status)>) {
-        let sections = state.map(|(generation, status)| Box::new(Sections::of(generation, status)));
+        let sections = state.map(|(generation, status)| Arc::new(Sections::of(generation, status)));
+        *self.git.lock().expect("the lock is not poisoned") = Some(sections.clone());
+        for commands in self
+            .owned
+            .lock()
+            .expect("the lock is not poisoned")
+            .values()
+        {
+            let _ = commands.send(Command::Git(sections.clone()));
+        }
         self.command(Command::Git(sections));
     }
 
@@ -155,6 +240,9 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.commands = None;
+        // The threads of plugins of their own end when they are done with what they
+        // are doing; waiting for a long parse to quit would be the editor hanging.
+        self.owned.lock().expect("the lock is not poisoned").clear();
         if let Some(thread) = self.thread.take() {
             let _ = thread.join();
         }
@@ -170,13 +258,17 @@ struct Loaded {
     strikes: Strikes,
     /// Whether what it said that was not understood was told since it started.
     rejection_told: bool,
+    /// Whether it runs on a thread of its own, which decides its budget.
+    owned: bool,
 }
 
 /// Everything the thread knows.
 struct Host {
     plugins: HashMap<Box<str>, Loaded>,
     /// The latest state of the repository; `None` without one.
-    git: Option<Box<Sections>>,
+    git: Option<Arc<Sections>>,
+    /// Whether this thread is the one of a single plugin that asked for its own.
+    owned: bool,
     /// Whether the app has said anything about git yet; before that `git` being
     /// `None` means "not known yet", not "no repository".
     git_known: bool,
@@ -184,10 +276,21 @@ struct Host {
     /// gave rise to. They wait their turn behind what the app sends, so a plugin
     /// that answers every answer with a question cannot keep the others waiting.
     queue: VecDeque<Command>,
-    notify: Box<dyn Fn(Notice) + Send>,
+    notify: Notify,
 }
 
 impl Host {
+    fn new(notify: Notify, owned: bool, git: GitNews) -> Self {
+        Self {
+            plugins: HashMap::new(),
+            git: git.clone().flatten(),
+            owned,
+            git_known: git.is_some(),
+            queue: VecDeque::new(),
+            notify,
+        }
+    }
+
     fn run(mut self, commands: &mpsc::Receiver<Command>) {
         loop {
             let command = match commands.try_recv() {
@@ -246,6 +349,7 @@ impl Host {
                     grants,
                     strikes: Strikes::default(),
                     rejection_told: false,
+                    owned: self.owned,
                 };
                 self.plugins.insert(plugin.clone(), loaded);
                 self.deliver(&plugin, ToPlugin::Start);
@@ -478,5 +582,21 @@ fn call(loaded: &mut Loaded, message: ToPlugin) -> Result<Delivered, Failure> {
         Some(instance) => instance,
         None => loaded.instance.insert(loaded.compiled.instantiate()?),
     };
-    instance.deliver(message)
+    let fuel = fuel_for(&message, loaded.owned);
+    instance.deliver(message, fuel)
+}
+
+/// The budget of one message. A plugin on a thread of its own is given more for the
+/// text of a file, in proportion to its size, up to a ceiling; every other message,
+/// and every message to a plugin on the shared thread, has the flat one (more there
+/// would stall the other plugins).
+pub(super) fn fuel_for(message: &ToPlugin, owned: bool) -> u64 {
+    match message {
+        ToPlugin::FileText { text, .. } if owned => {
+            let wanted =
+                CALLBACK_FUEL.saturating_add(FUEL_PER_BYTE.saturating_mul(text.len() as u64));
+            wanted.min(OWNED_FUEL_CEILING)
+        }
+        _ => CALLBACK_FUEL,
+    }
 }

@@ -922,3 +922,21 @@ fn a_whole_file_of_text_fits_in_one_message() {
     };
     assert!(message.to_bytes().unwrap().len() <= MAX_MESSAGE);
 }
+
+#[test]
+fn a_manifest_may_ask_for_a_thread_of_its_own() {
+    use crate::Thread;
+    let own: crate::Manifest =
+        toml_like(r#"{"id":"m","version":"0.1.0","abi":"1.5","wasm":"m.wasm","thread":"own"}"#);
+    assert_eq!(own.thread, Thread::Own);
+    let shared: crate::Manifest =
+        toml_like(r#"{"id":"m","version":"0.1.0","abi":"1.5","wasm":"m.wasm"}"#);
+    assert_eq!(shared.thread, Thread::Shared);
+    // Something that is not a thread is not a manifest.
+    assert!(
+        serde_json::from_str::<crate::Manifest>(
+            r#"{"id":"m","version":"0.1.0","abi":"1.5","wasm":"m.wasm","thread":"many"}"#
+        )
+        .is_err()
+    );
+}

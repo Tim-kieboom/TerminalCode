@@ -2,9 +2,10 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use super::policy::{Strikes, Verdict};
+use super::runtime::fuel_for;
 use super::view::node_of;
-use super::{Notice, Runtime};
-use crate::plugin_api::{ToPlugin, WireLine, WireView};
+use super::{CALLBACK_FUEL, FUEL_PER_BYTE, Notice, OWNED_FUEL_CEILING, Runtime, Thread};
+use crate::plugin_api::{Capability, ToPlugin, WireLine, WireView};
 use crate::ui::view::{ViewLine, ViewNode};
 
 // --- the plugins the tests run, written as WebAssembly text ---
@@ -131,6 +132,28 @@ fn without_handle() -> Vec<u8> {
     )
 }
 
+/// A plugin that, when it is sent a lot of text (a message of more than 100 000 bytes),
+/// counts to `iterations` before it draws: slow work that a flat budget cannot cover.
+fn parses_slowly(iterations: u32) -> Vec<u8> {
+    let hello = escape(HELLO);
+    assemble(format!(
+        r#"(module
+            (import "host" "send" (func $send (param i32 i32)))
+            (memory (export "memory") 40)
+            (data (i32.const 0) "{hello}")
+            (func (export "alloc") (param i32) (result i32) (i32.const 65536))
+            (func (export "handle") (param i32 i32)
+              (local $n i32)
+              (if (i32.gt_u (local.get 1) (i32.const 100000))
+                (then
+                  (loop $count
+                    (local.set $n (i32.add (local.get $n) (i32.const 1)))
+                    (br_if $count (i32.lt_u (local.get $n) (i32.const {iterations}))))))
+              (call $send (i32.const 0) (i32.const {len}))))"#,
+        len = HELLO.len()
+    ))
+}
+
 // --- running them ---
 
 struct Rig {
@@ -152,6 +175,13 @@ impl Rig {
     /// Loads a plugin that may do nothing but draw.
     fn load(&self, plugin: &str, wasm: Vec<u8>) {
         self.runtime.load(plugin, wasm, []);
+    }
+
+    /// Loads a plugin that may draw and be sent the text of files, on the thread it
+    /// asks for.
+    fn load_on(&self, plugin: &str, wasm: Vec<u8>, thread: Thread) {
+        self.runtime
+            .load_on(plugin, wasm, [Capability::FilesText], thread);
     }
 
     fn next(&self) -> Notice {
@@ -434,7 +464,6 @@ fn a_view_this_version_cannot_draw_is_a_line_that_says_so() {
 
 use super::fixtures::{Echo, First};
 use crate::git::{Branch, Change, Entry, Kind, Status};
-use crate::plugin_api::Capability;
 
 fn status_with(paths: &[&str]) -> Status {
     Status {
@@ -920,4 +949,135 @@ fn rows_with_spans_become_rows_of_spans_and_plain_lines_one_span() {
     assert_eq!(&*rows[0].spans[0].slot, "explorer.dir");
     assert_eq!(rows[1].spans.len(), 2);
     assert_eq!(&*rows[1].spans[0].slot, "git.modified");
+}
+
+// --- a thread of its own ---
+
+fn file_text(bytes: usize) -> ToPlugin {
+    ToPlugin::FileText {
+        path: "a.md".into(),
+        text: "x".repeat(bytes),
+        modified: false,
+    }
+}
+
+#[test]
+fn the_budget_grows_with_the_text_only_on_a_thread_of_its_own_and_has_a_ceiling() {
+    // The shared thread has the flat budget for everything.
+    assert_eq!(fuel_for(&file_text(1_000_000), false), CALLBACK_FUEL);
+    // A thread of its own: the flat one and so much for each byte.
+    assert_eq!(fuel_for(&file_text(0), true), CALLBACK_FUEL);
+    assert_eq!(
+        fuel_for(&file_text(100_000), true),
+        CALLBACK_FUEL + 100_000 * FUEL_PER_BYTE
+    );
+    // Never more than the ceiling, however big.
+    assert_eq!(fuel_for(&file_text(2_000_000), true), OWNED_FUEL_CEILING);
+    // Only the text of a file grows it.
+    assert_eq!(fuel_for(&ToPlugin::Start, true), CALLBACK_FUEL);
+    assert_eq!(fuel_for(&ToPlugin::Refresh, true), CALLBACK_FUEL);
+}
+
+#[test]
+fn a_megabyte_of_text_fits_the_ceiling_with_the_provisional_rate() {
+    let wanted = CALLBACK_FUEL + FUEL_PER_BYTE * 1024 * 1024;
+    assert!(wanted <= OWNED_FUEL_CEILING, "{wanted}");
+}
+
+#[test]
+fn slow_work_on_a_big_text_traps_on_the_shared_thread_and_finishes_on_its_own() {
+    let rig = rig();
+    // About 70 million fuel: far over the flat budget, within what 500 KB gets.
+    rig.load_on("shared", parses_slowly(10_000_000), Thread::Shared);
+    rig.next();
+    rig.runtime.send("shared", file_text(500_000));
+    assert!(matches!(rig.next(), Notice::Restarted { .. }));
+    // It starts again, fresh, and draws.
+    rig.next();
+
+    rig.load_on("own", parses_slowly(10_000_000), Thread::Own);
+    rig.next();
+    rig.runtime.send("own", file_text(500_000));
+    assert_eq!(
+        rig.next(),
+        Notice::View {
+            plugin: "own".into(),
+            content: lines("hello from a plugin", "explorer.file"),
+        }
+    );
+}
+
+#[test]
+fn a_plugin_busy_on_its_own_thread_does_not_hold_up_the_shared_one() {
+    let rig = rig();
+    rig.load("quick", sending(&[HELLO]));
+    rig.next();
+    rig.load_on("slow", parses_slowly(10_000_000), Thread::Own);
+    rig.next();
+
+    // The slow one is sent a big text, then the quick one a message: the quick one
+    // answers while the slow one is still counting.
+    rig.runtime.send("slow", file_text(500_000));
+    let started = Instant::now();
+    rig.runtime.send("quick", ToPlugin::Refresh);
+    let first = rig.next();
+    assert!(
+        matches!(&first, Notice::View { plugin, .. } if &**plugin == "quick"),
+        "{first:?} after {:?}",
+        started.elapsed()
+    );
+    // And the slow one does answer, after.
+    let second = rig.next();
+    assert!(
+        matches!(&second, Notice::View { plugin, .. } if &**plugin == "slow"),
+        "{second:?}"
+    );
+}
+
+#[test]
+fn a_plugin_that_moves_between_threads_is_only_in_one() {
+    let rig = rig();
+    rig.load("move", sending(&[HELLO]));
+    rig.next();
+    // Loaded again on a thread of its own: it starts there, and the shared one lets go.
+    rig.load_on("move", sending(&[HELLO]), Thread::Own);
+    rig.next();
+    rig.runtime.send("move", ToPlugin::Refresh);
+    rig.next();
+    rig.nothing_more();
+
+    // And back.
+    rig.load("move", sending(&[HELLO]));
+    rig.next();
+    rig.runtime.send("move", ToPlugin::Refresh);
+    rig.next();
+    rig.nothing_more();
+
+    rig.runtime.unload("move");
+    rig.runtime.send("move", ToPlugin::Refresh);
+    rig.nothing_more();
+}
+
+#[test]
+fn a_plugin_on_its_own_thread_that_starts_later_is_told_how_git_is() {
+    let rig = rig();
+    rig.runtime.publish_git(None);
+    // A plugin that draws what it is told: the text of the message.
+    rig.runtime.load_on(
+        "reader",
+        crate::plugins::fixtures::Echo::new(crate::plugins::fixtures::First::Echo).build(),
+        [Capability::GitRead],
+        Thread::Own,
+    );
+    let mut seen = String::new();
+    for _ in 0..2 {
+        if let Notice::View {
+            content: ViewNode::Lines(lines),
+            ..
+        } = rig.next()
+        {
+            seen = lines[0].text.to_string();
+        }
+    }
+    assert!(seen.contains("git_unavailable"), "{seen}");
 }

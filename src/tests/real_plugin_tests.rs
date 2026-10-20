@@ -109,6 +109,7 @@ fn rig() -> Rig {
                 .to_vec(),
             place: None,
             file_types: Vec::new(),
+            own_thread: false,
         },
     );
 
