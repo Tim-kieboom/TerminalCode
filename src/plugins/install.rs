@@ -140,6 +140,11 @@ pub(crate) enum Stage {
 pub(crate) enum JobEvent {
     /// The index was fetched, or why not.
     Index(Result<Index, String>),
+    /// The README at `url` was fetched, or why not.
+    Readme {
+        url: String,
+        result: Result<String, String>,
+    },
     /// The index of an extra source (`plugin_sources`) was fetched, or why not.
     SourceIndex {
         source: String,
@@ -257,6 +262,16 @@ fn stop_if(cancel: &AtomicBool) -> Result<(), InstallError> {
         true => Err(InstallError::Cancelled),
         false => Ok(()),
     }
+}
+
+/// Fetches a README: text, at most [`MAX_TEXT`] bytes.
+pub(crate) fn fetch_readme(
+    url: &str,
+    policy: Policy,
+    cancel: &AtomicBool,
+) -> Result<String, InstallError> {
+    let body = fetch(url, policy, MAX_TEXT, cancel)?;
+    Ok(String::from_utf8_lossy(&body).into_owned())
 }
 
 /// Fetches the index, and keeps it in the config folder when it is good.

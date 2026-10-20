@@ -1,6 +1,6 @@
 //! The plugin manager: the plugins of the index and the ones the user made, in one
 //! list with their state. Up and down choose, Enter does the likeliest thing (install,
-//! update, turn on, place), and a letter does one thing: `i` installs or updates, `x`
+//! update, turn on, place), and a letter does one thing: `i` installs or updates, `I` updates all, `d` reads about it, `x`
 //! removes, `space` turns on or off, `p` places, `r` asks the index again, Esc closes
 //! (while something is downloading it stops that instead).
 
@@ -16,9 +16,11 @@ use crate::ui::backdrop;
 use crate::ui::theme::Theme;
 
 /// The keys under the list, most useful first; what does not fit is left out.
-const HELP: [(&str, &str); 7] = [
+const HELP: [(&str, &str); 9] = [
     ("enter", "do it"),
-    ("i", "install/update"),
+    ("i", "install"),
+    ("I", "update all"),
+    ("d", "about"),
     ("x", "remove"),
     ("space", "on/off"),
     ("p", "place"),
@@ -26,7 +28,7 @@ const HELP: [(&str, &str); 7] = [
     ("esc", "close"),
 ];
 const NARROWEST: u16 = 50;
-const WIDEST: u16 = 110;
+const WIDEST: u16 = 120;
 
 /// What a key press asks the list to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +38,10 @@ pub(crate) enum Command {
     /// The likeliest thing for the plugin chosen.
     Primary,
     Install,
+    /// Update every plugin that has a newer version.
+    UpdateAll,
+    /// Read what the plugin says about itself.
+    Describe,
     Remove,
     Toggle,
     Place,
@@ -52,11 +58,19 @@ impl Command {
         {
             return None;
         }
+        // Shift and `i`: the terminal says `I`, or `i` with shift when it can.
+        if key.modifiers.contains(KeyModifiers::SHIFT)
+            && matches!(key.code, KeyCode::Char('i' | 'I'))
+        {
+            return Some(Self::UpdateAll);
+        }
         Some(match key.code {
             KeyCode::Up | KeyCode::Char('k') => Self::Previous,
             KeyCode::Down | KeyCode::Char('j') => Self::Next,
             KeyCode::Enter => Self::Primary,
+            KeyCode::Char('I') => Self::UpdateAll,
             KeyCode::Char('i' | 'u') => Self::Install,
+            KeyCode::Char('d') => Self::Describe,
             KeyCode::Char('x') | KeyCode::Delete => Self::Remove,
             KeyCode::Char(' ') => Self::Toggle,
             KeyCode::Char('p') => Self::Place,

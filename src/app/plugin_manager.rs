@@ -60,7 +60,7 @@ impl Manager {
 }
 
 /// What a capability lets a plugin do, for the question to the user.
-fn describe(capability: Capability) -> String {
+pub(super) fn describe(capability: Capability) -> String {
     match capability {
         Capability::GitRead => {
             "read the state of the git repository: the branch and the changed files"

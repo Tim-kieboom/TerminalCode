@@ -11,6 +11,7 @@ use crate::components::popups::menu::Menu;
 use crate::components::popups::name_prompt::NamePrompt;
 use crate::components::popups::palette::Palette;
 use crate::components::popups::plugin_list::PluginList;
+use crate::components::popups::plugin_readme::Readme;
 use crate::components::popups::quit_prompt::QuitPrompt;
 use crate::components::popups::root_prompt::RootPrompt;
 use crate::components::popups::search::Search;
@@ -199,6 +200,17 @@ impl AppState {
     pub(crate) fn plugin_list_mut(&mut self) -> Option<&mut PluginList> {
         match &mut self.popup {
             Popup::PluginList(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn open_plugin_readme(&mut self, readme: Readme) {
+        self.popup = Popup::PluginReadme(readme);
+    }
+
+    pub(crate) fn plugin_readme_mut(&mut self) -> Option<&mut Readme> {
+        match &mut self.popup {
+            Popup::PluginReadme(readme) => Some(readme),
             _ => None,
         }
     }

@@ -17,6 +17,7 @@ use crate::components::popups::menu::Menu;
 use crate::components::popups::name_prompt::NamePrompt;
 use crate::components::popups::palette::Palette;
 use crate::components::popups::plugin_list::PluginList;
+use crate::components::popups::plugin_readme::Readme;
 use crate::components::popups::quit_prompt::QuitPrompt;
 use crate::components::popups::root_prompt::RootPrompt;
 use crate::components::popups::search::Search;
@@ -130,6 +131,8 @@ pub(crate) enum Popup {
     PluginView(PluginViewId),
     /// The plugin manager.
     PluginList(PluginList),
+    /// What a plugin says about itself, opened from the manager.
+    PluginReadme(Readme),
 }
 
 /// The parts of the screen the layout places. The explorer, the status bar and

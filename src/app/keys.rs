@@ -178,6 +178,7 @@ impl App {
         match self.state.popup() {
             Popup::None | Popup::PluginView(_) => {}
             Popup::PluginList(_) => return self.handle_plugin_list_key(key),
+            Popup::PluginReadme(_) => return self.handle_plugin_readme_key(key),
             Popup::QuitPrompt(_) => return self.handle_prompt_key(key),
             Popup::Confirm(_) => return self.handle_confirm_key(key),
             Popup::NewEntry(_) => return self.handle_name_key(key),

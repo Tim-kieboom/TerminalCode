@@ -53,6 +53,9 @@ pub(crate) struct Entry {
     /// The oldest TerminalCode it works with.
     #[serde(default)]
     pub requires: Option<String>,
+    /// Where its README is (plain text or Markdown), for "d" in the manager. Optional.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub readme: Option<String>,
     /// The URL of the index it was listed in; `None` for the official one. Never read
     /// from an index (a source cannot say it is the official one): it is put there by
     /// the editor, and kept in `installed.json`.

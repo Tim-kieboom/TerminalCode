@@ -76,6 +76,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         Popup::Find(_) => {}
         Popup::PluginView(id) => draw_plugin_popup(frame, state, id, screen),
         Popup::PluginList(list) => list.render(frame, theme),
+        Popup::PluginReadme(readme) => readme.render(frame, theme),
     }
 
     // The suggestions sit by the cursor, and only while no popup covers the editor.

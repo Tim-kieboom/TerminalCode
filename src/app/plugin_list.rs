@@ -3,6 +3,7 @@
 //! turn on or off, place. Downloading runs on a thread of its own and tells the app
 //! by events; nothing is written in the plugins folder until the module is checked.
 
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -13,6 +14,7 @@ use super::App;
 use crate::components::popups::confirm::Confirm;
 use crate::components::popups::menu::{Entry, Menu};
 use crate::components::popups::plugin_list::{Command, Mark, Note, PluginList, Row};
+use crate::components::popups::plugin_readme::{self, Body, Readme};
 use crate::event::Event;
 use crate::event::action::Action;
 use crate::persist::saved_state::Place;
@@ -46,6 +48,16 @@ impl Source {
             policy,
         }
     }
+}
+
+/// The entry that is a newer version of `installed`, from the source it came from,
+/// when it can be installed here: a plugin of your own has none.
+fn update_for<'a>(installed: &Installed, entry: Option<&'a IndexEntry>) -> Option<&'a IndexEntry> {
+    entry
+        .filter(|_| install::marker(&installed.dir).is_some())
+        .filter(|entry| is_newer(&entry.version, &installed.manifest.version))
+        .filter(|entry| entry.source == installed_source(installed))
+        .filter(|entry| entry.availability(Host::THIS) == Availability::Ready)
 }
 
 /// The source a plugin of the manager came from; `None` is the official index.
@@ -88,6 +100,10 @@ pub(super) struct Store {
     problems: Vec<String>,
     /// The plugin names a source lists that another index already has.
     left_out: Vec<String>,
+    /// The READMEs fetched, by address.
+    readmes: HashMap<String, String>,
+    /// The updates of "update all" that are still to come, in order.
+    queue: VecDeque<IndexEntry>,
 }
 
 impl Store {
@@ -352,10 +368,7 @@ impl App {
     fn row_of_installed(&self, installed: &Installed, entry: Option<&IndexEntry>) -> Row {
         let id = installed.id();
         let managed = install::marker(&installed.dir).is_some();
-        let update = entry
-            .filter(|entry| managed && is_newer(&entry.version, &installed.manifest.version))
-            .filter(|entry| entry.source == installed_source(installed))
-            .filter(|entry| entry.availability(Host::THIS) == Availability::Ready);
+        let update = update_for(installed, entry);
         let mut parts = Vec::new();
         if !managed {
             parts.push("local".to_owned());
@@ -457,6 +470,7 @@ impl App {
                 && let Some(job) = &self.plugins.store.job
             {
                 job.cancel.store(true, Ordering::Relaxed);
+                self.plugins.store.queue.clear();
                 if let Some(list) = self.state.plugin_list_mut() {
                     list.set_busy(Some("stopping".to_owned()));
                 }
@@ -501,6 +515,8 @@ impl App {
                 Next::Say(message) => self.state.notify(message),
                 _ => self.say_about_install(&chosen),
             },
+            Command::UpdateAll => self.ask_to_update_all(&chosen),
+            Command::Describe => self.describe_plugin(&chosen),
             Command::Remove => self.ask_to_remove(&chosen),
             Command::Toggle => self.toggle_in_list(&chosen),
             Command::Place => match self.plugins.manager.is_running(&chosen) {
@@ -664,6 +680,22 @@ impl App {
                     Some(format!("offline, showing the list known so far: {reason}"));
                 self.refresh_plugin_list();
             }
+            JobEvent::Readme { url, result } => {
+                let body = match result {
+                    Ok(text) => {
+                        self.plugins.store.readmes.insert(url.clone(), text.clone());
+                        Body::Text(text)
+                    }
+                    Err(reason) => {
+                        Body::Missing(format!("The README could not be fetched: {reason}"))
+                    }
+                };
+                if let Some(readme) = self.state.plugin_readme_mut()
+                    && readme.url() == Some(url.as_str())
+                {
+                    readme.set_body(body);
+                }
+            }
             JobEvent::SourceIndex { source, result } => {
                 match result {
                     Ok(index) => {
@@ -710,6 +742,7 @@ impl App {
                         self.show_plugin_list(Some(&id));
                     }
                 }
+                self.continue_updates();
             }
         }
     }
@@ -768,6 +801,177 @@ impl App {
                 self.plugins.manager.waiting.push_front(id.into());
                 self.ask_about_next_plugin();
             }
+        }
+    }
+
+    // --- update all ---
+
+    /// The plugins that have a newer version to install: what is installed, then what comes.
+    fn update_candidates(&self) -> Vec<(Installed, IndexEntry)> {
+        let index = &self.plugins.store.index;
+        self.plugins
+            .manager
+            .found
+            .iter()
+            .filter_map(|found| found.as_ref().ok())
+            .filter_map(|installed| {
+                let entry = update_for(installed, index.entry(installed.id()))?;
+                Some((installed.clone(), entry.clone()))
+            })
+            .collect()
+    }
+
+    fn ask_to_update_all(&mut self, chosen: &str) {
+        let updates: Vec<(String, String, String)> = self
+            .update_candidates()
+            .into_iter()
+            .map(|(installed, entry)| {
+                (
+                    installed.manifest.display_name().to_owned(),
+                    installed.manifest.version.clone(),
+                    entry.version,
+                )
+            })
+            .collect();
+        if updates.is_empty() {
+            self.state.notify("every plugin is up to date");
+            return;
+        }
+        self.leave_list_for_question(chosen);
+        self.state.open_confirm(Confirm::update_all(&updates));
+    }
+
+    /// The user said yes to updating everything: one after the other.
+    pub(super) fn update_all_plugins(&mut self) {
+        let entries: Vec<IndexEntry> = self
+            .update_candidates()
+            .into_iter()
+            .map(|(_, entry)| entry)
+            .collect();
+        self.plugins.store.queue = entries.into();
+        self.continue_updates();
+    }
+
+    /// Starts the next update of "update all" when nothing is being installed and no
+    /// question is open: the answers come first, the downloads go on after them.
+    pub(super) fn continue_updates(&mut self) {
+        if self.plugins.store.job.is_some()
+            || self.plugins.store.queue.is_empty()
+            || !self.plugins.manager.waiting.is_empty()
+            || !matches!(
+                self.state.popup(),
+                super::state::Popup::None | super::state::Popup::PluginList(_)
+            )
+        {
+            return;
+        }
+        if let Some(entry) = self.plugins.store.queue.pop_front() {
+            self.start_install(entry, true);
+        }
+    }
+
+    // --- about ---
+
+    /// Opens what the plugin says about itself: what the manager knows, and its README.
+    fn describe_plugin(&mut self, id: &str) {
+        let entry = self.plugins.store.index.entry(id).cloned();
+        let installed = self.plugins.manager.installed(id).cloned();
+        let name = match (&installed, &entry) {
+            (Some(installed), _) => installed.manifest.display_name().to_owned(),
+            (None, Some(entry)) => entry.name.clone(),
+            (None, None) => id.to_owned(),
+        };
+        let version = match (&installed, &entry) {
+            (Some(installed), _) => installed.manifest.version.clone(),
+            (None, Some(entry)) => entry.version.clone(),
+            (None, None) => String::new(),
+        };
+        let mut head = Vec::new();
+        if let Some(entry) = &entry
+            && !entry.description.is_empty()
+        {
+            head.push(entry.description.clone());
+        }
+        match entry.as_ref().and_then(IndexEntry::source_label) {
+            Some(label) => head.push(format!("From {label}: not an official plugin.")),
+            None if entry.is_some() => head.push("An official plugin.".to_owned()),
+            None => {}
+        }
+        if let (Some(installed), Some(entry)) = (&installed, &entry)
+            && installed.manifest.version != entry.version
+        {
+            head.push(format!(
+                "{} is installed, {} is in the list.",
+                installed.manifest.version, entry.version
+            ));
+        }
+        match &installed {
+            Some(installed) if install::marker(&installed.dir).is_none() => {
+                head.push("A plugin of your own: the manager leaves it alone.".to_owned());
+            }
+            _ => {}
+        }
+        if let Some(installed) = &installed {
+            match installed.capabilities.is_empty() {
+                true => head.push(
+                    "It asks to be allowed to draw in its own pane and nothing else.".to_owned(),
+                ),
+                false => {
+                    head.push("It asks to be allowed to:".to_owned());
+                    head.extend(installed.capabilities.iter().map(|capability| {
+                        format!("  - {}", super::plugin_manager::describe(*capability))
+                    }));
+                }
+            }
+        }
+        let url = entry.as_ref().and_then(|entry| entry.readme.clone());
+        let body = match &url {
+            None => Body::Missing("This plugin lists no README.".to_owned()),
+            Some(url) => match self.plugins.store.readmes.get(url) {
+                Some(text) => Body::Text(text.clone()),
+                None => {
+                    self.fetch_readme(url.clone());
+                    Body::Loading
+                }
+            },
+        };
+        let title = match version.is_empty() {
+            true => name,
+            false => format!("{name} {version}"),
+        };
+        self.state
+            .open_plugin_readme(Readme::new(id, url, title, head, body));
+        self.needs_redraw = true;
+    }
+
+    fn fetch_readme(&mut self, url: String) {
+        let Some(events) = self.background.sender() else {
+            return;
+        };
+        let policy = self.plugins.store.source.policy;
+        std::thread::spawn(move || {
+            let cancel = AtomicBool::new(false);
+            let result =
+                install::fetch_readme(&url, policy, &cancel).map_err(|error| error.to_string());
+            let _ = events.blocking_send(Event::PluginJob(JobEvent::Readme { url, result }));
+        });
+    }
+
+    pub(super) fn handle_plugin_readme_key(&mut self, key: KeyEvent) {
+        let Some(command) = plugin_readme::Command::from_key(key) else {
+            return;
+        };
+        self.needs_redraw = true;
+        if command == plugin_readme::Command::Close {
+            let id = self
+                .state
+                .plugin_readme_mut()
+                .map(|readme| readme.id().to_owned());
+            self.show_plugin_list(id.as_deref());
+            return;
+        }
+        if let Some(readme) = self.state.plugin_readme_mut() {
+            readme.apply(command);
         }
     }
 

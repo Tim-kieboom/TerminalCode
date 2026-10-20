@@ -33,6 +33,8 @@ pub(crate) enum Purpose {
     InstallPlugin(Box<str>, Box<str>),
     /// Replace the plugin with this id by the newer version of the index.
     UpdatePlugin(Box<str>),
+    /// Update every plugin that has a newer version.
+    UpdateAll,
     /// Delete the folder of the plugin with this id, which the manager installed.
     RemovePlugin(Box<str>),
 }
@@ -175,6 +177,31 @@ impl Confirm {
             title: " Update plugin ".to_owned(),
             lines,
             purpose: Purpose::UpdatePlugin(id.into()),
+        }
+    }
+
+    /// Asks whether to update every plugin in `updates`: name, version now, version then.
+    pub(crate) fn update_all(updates: &[(String, String, String)]) -> Self {
+        let mut lines = vec![format!(
+            "Update {} plugin{}?",
+            updates.len(),
+            if updates.len() == 1 { "" } else { "s" }
+        )];
+        lines.push(String::new());
+        lines.extend(
+            updates
+                .iter()
+                .map(|(name, from, to)| format!("  {name}  {from} -> {to}")),
+        );
+        lines.push(String::new());
+        lines.push(
+            "They are downloaded one after the other; a plugin that is running stops and starts again, and one that asks for more than you allowed asks you again."
+                .to_owned(),
+        );
+        Self {
+            title: " Update all plugins ".to_owned(),
+            lines,
+            purpose: Purpose::UpdateAll,
         }
     }
 

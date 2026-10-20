@@ -51,6 +51,19 @@ fn hash(bytes: &[u8]) -> String {
 /// A server with the index and the plugin `echo` at `version`; the index says the
 /// module has the hash `promised` (the real one when `None`).
 fn server(version: &str, extra: &str, promised: Option<String>, requires: &str) -> String {
+    server_of(version, extra, promised, requires, false)
+}
+
+/// The README the servers of the tests give for `echo`.
+const README: &str = "# Echo\n\nSays **what it is told**.\n\n```\nsome code\n```\n";
+
+fn server_of(
+    version: &str,
+    extra: &str,
+    promised: Option<String>,
+    requires: &str,
+    with_readme: bool,
+) -> String {
     let module = module();
     // The address is only known once the server runs, and the index names it.
     let routes: HashMap<&'static str, Reply> = HashMap::from([
@@ -59,11 +72,16 @@ fn server(version: &str, extra: &str, promised: Option<String>, requires: &str) 
             Reply::Body(manifest_text(version, extra).into_bytes()),
         ),
         ("/plugin.wasm", Reply::Body(module.clone())),
+        ("/README.md", Reply::Body(README.as_bytes().to_vec())),
     ]);
     let address = serve(routes);
+    let readme = match with_readme {
+        true => format!(r#","readme":"{address}/README.md""#),
+        false => String::new(),
+    };
     let promised = promised.unwrap_or_else(|| hash(&module));
     let index = format!(
-        r#"{{"format":1,"plugins":[{{"id":"echo","name":"Echo","description":"Says what it is told","version":"{version}","manifest":"{address}/manifest.toml","module":"{address}/plugin.wasm","sha256":"{promised}","abi":"1.2"{requires}}}]}}"#
+        r#"{{"format":1,"plugins":[{{"id":"echo","name":"Echo","description":"Says what it is told","version":"{version}","manifest":"{address}/manifest.toml","module":"{address}/plugin.wasm","sha256":"{promised}","abi":"1.2"{requires}{readme}}}]}}"#
     );
     // A second server for the index, since it names the first.
     serve(HashMap::from([(
@@ -835,4 +853,96 @@ fn opening_a_plugin_from_the_list_does_not_bring_the_list_back() {
     assert!(rig.popup_is(|popup| matches!(popup, Popup::PluginView(_))));
     rig.press(KeyCode::Esc);
     assert!(!list_is_open(&rig));
+}
+
+// --- about, update all ---
+
+#[test]
+fn d_opens_what_the_plugin_says_about_itself_with_its_readme_and_esc_goes_back() {
+    let mut rig = rig(
+        server_of("1.0.0", "", None, "", true),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+
+    rig.type_text("d");
+    assert!(rig.popup_is(|popup| matches!(popup, Popup::PluginReadme(_))));
+    rig.wait_for_text("Says what it is told.");
+    let screen = rig.screen();
+    assert!(screen.contains("An official plugin."), "{screen}");
+    assert!(screen.contains("some code"), "{screen}");
+    assert!(!screen.contains("**"), "{screen}");
+
+    rig.press(KeyCode::Esc);
+    assert!(list_is_open(&rig));
+    rig.wait_for_text("+ Echo 1.0.0");
+}
+
+#[test]
+fn a_plugin_that_lists_no_readme_says_so() {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+    rig.type_text("d");
+    rig.wait_for_text("lists no README");
+}
+
+#[test]
+fn a_readme_that_cannot_be_fetched_says_why() {
+    let nowhere = r#","readme":"http://127.0.0.1:1/README.md""#;
+    let mut rig = rig(
+        server("1.0.0", "", None, nowhere),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+    rig.type_text("d");
+    rig.wait_for_text("The README could not be fetched");
+}
+
+#[test]
+fn shift_i_updates_every_plugin_that_has_a_newer_version_after_asking() {
+    let mut rig = rig(
+        server("2.0.0", "", None, ""),
+        saved(record(true, Some(Place::Explorer))),
+        installed_by_the_manager("1.0.0"),
+    );
+    rig.open_manager();
+    rig.wait_for_text("update 2.0.0 available");
+
+    rig.app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('I'),
+        KeyModifiers::SHIFT,
+    )));
+    assert!(rig.asking());
+    let question = rig.screen();
+    assert!(question.contains("Update 1 plugin?"), "{question}");
+    assert!(question.contains("1.0.0 -> 2.0.0"), "{question}");
+    rig.press(KeyCode::Char('y'));
+
+    rig.wait_until("the new version", |rig| {
+        fs::read_to_string(rig.folder().join("manifest.toml"))
+            .is_ok_and(|text| text.contains("2.0.0"))
+    });
+    rig.wait_until("the plugin to run again", |rig| rig.running());
+}
+
+#[test]
+fn shift_i_with_everything_up_to_date_says_so_and_asks_nothing() {
+    let mut rig = rig_installed_and_on();
+    rig.open_manager();
+    rig.wait_for_text("● Echo 1.0.0");
+    rig.type_text("I");
+    assert!(!rig.asking());
+    assert_eq!(
+        rig.notification().as_deref(),
+        Some("every plugin is up to date")
+    );
 }

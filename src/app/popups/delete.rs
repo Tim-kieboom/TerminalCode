@@ -74,6 +74,7 @@ impl App {
                 | Purpose::RemovePlugin(id) => {
                     self.show_plugin_list(Some(id));
                 }
+                Purpose::UpdateAll => self.show_plugin_list(None),
                 _ => {}
             }
             self.ask_about_next_plugin();
@@ -87,6 +88,7 @@ impl App {
             Purpose::EnablePlugin(id) => self.allow_plugin(id),
             Purpose::InstallPlugin(id, source) => self.install_plugin_from(id, source),
             Purpose::UpdatePlugin(id) => self.update_plugin(id),
+            Purpose::UpdateAll => self.update_all_plugins(),
             Purpose::RemovePlugin(id) => self.remove_plugin(id),
         }
         self.ask_about_next_plugin();
