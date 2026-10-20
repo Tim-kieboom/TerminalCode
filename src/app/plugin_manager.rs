@@ -28,6 +28,9 @@ pub(super) struct Manager {
     pub(super) stopped: HashMap<Box<str>, String>,
     /// Plugins whose user has to be asked before they run.
     pub(super) waiting: VecDeque<Box<str>>,
+    /// The plugin that was chosen in the list when it closed to ask a question: the
+    /// list comes back, with it chosen, when the questions are answered.
+    pub(super) return_to: Option<Box<str>>,
 }
 
 impl Manager {

@@ -431,6 +431,7 @@ impl App {
             }
             _ => {}
         }
+        self.back_to_plugin_list();
         self.track_jump(&input, before);
         self.notice_tab_switch();
         self.show_pending_keys();

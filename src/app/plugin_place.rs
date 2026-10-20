@@ -99,6 +99,8 @@ impl App {
             }
             return;
         }
+        // Opening a plugin is where the user was going: the list does not come back.
+        self.plugins.manager.return_to = None;
         let view = PluginViewId::new(id);
         self.state.open_plugin_popup(view.clone());
         self.state.focus_plugin(view);

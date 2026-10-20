@@ -723,8 +723,7 @@ fn a_source_that_cannot_be_fetched_is_named_and_the_rest_is_listed() {
 
     rig.open_manager();
     rig.wait_for_text("source 127.0.0.1:1");
-
-    assert!(rig.screen().contains("Echo 1.0.0"));
+    rig.wait_for_text("Echo 1.0.0");
 }
 
 #[test]
@@ -773,4 +772,67 @@ fn rig_installed_and_on() -> Rig {
     );
     rig.wait_until("the plugin", |rig| rig.running());
     rig
+}
+
+fn list_is_open(rig: &Rig) -> bool {
+    rig.popup_is(|popup| matches!(popup, Popup::PluginList(_)))
+}
+
+/// A plugin installed by the manager and off, with the list open on it.
+fn off_in_the_list() -> Rig {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        SavedState::default(),
+        installed_by_the_manager("1.0.0"),
+    );
+    rig.open_manager();
+    rig.wait_for_text("○ Echo 1.0.0");
+    rig
+}
+
+#[test]
+fn the_list_comes_back_after_the_questions_of_turning_a_plugin_on() {
+    let mut rig = off_in_the_list();
+
+    rig.press(KeyCode::Enter);
+    assert!(rig.asking());
+    assert!(!list_is_open(&rig), "a question cannot open over the list");
+
+    rig.press(KeyCode::Char('y'));
+    rig.wait_until("the question about where", |rig| rig.menu_open());
+    assert!(!list_is_open(&rig));
+    rig.press(KeyCode::Enter);
+
+    assert!(list_is_open(&rig), "the list is where the user was");
+    rig.wait_for_text("● Echo 1.0.0");
+}
+
+#[test]
+fn the_list_comes_back_when_the_question_is_refused() {
+    let mut rig = off_in_the_list();
+    rig.press(KeyCode::Enter);
+    rig.press(KeyCode::Char('n'));
+    assert!(list_is_open(&rig));
+    rig.wait_for_text("○ Echo 1.0.0");
+}
+
+#[test]
+fn the_list_comes_back_when_the_placement_is_cancelled() {
+    let mut rig = off_in_the_list();
+    rig.press(KeyCode::Enter);
+    rig.press(KeyCode::Char('y'));
+    rig.wait_until("the question about where", |rig| rig.menu_open());
+    rig.press(KeyCode::Esc);
+    assert!(list_is_open(&rig));
+}
+
+#[test]
+fn opening_a_plugin_from_the_list_does_not_bring_the_list_back() {
+    let mut rig = rig_installed_and_on();
+    rig.open_manager();
+    rig.wait_for_text("● Echo 1.0.0");
+    rig.press(KeyCode::Enter);
+    assert!(rig.popup_is(|popup| matches!(popup, Popup::PluginView(_))));
+    rig.press(KeyCode::Esc);
+    assert!(!list_is_open(&rig));
 }

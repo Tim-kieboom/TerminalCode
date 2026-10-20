@@ -621,3 +621,15 @@ fn the_palette_opens_the_list() {
     assert!(matches!(rig.app.state().popup(), Popup::PluginList(_)));
     assert!(rig.screen().contains("Hello 0.1.0"));
 }
+
+fn list_is_open(rig: &Rig) -> bool {
+    matches!(rig.app.state().popup(), Popup::PluginList(_))
+}
+
+#[test]
+fn closing_the_list_does_not_bring_it_back() {
+    let mut rig = rig("", SavedState::default());
+    rig.open_list();
+    rig.press(KeyCode::Esc);
+    assert!(!list_is_open(&rig));
+}

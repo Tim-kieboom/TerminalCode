@@ -177,6 +177,7 @@ impl App {
         let Some(dir) = self.plugins_dir() else {
             return;
         };
+        self.plugins.manager.return_to = None;
         self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
         self.stop_plugins_that_are_gone();
         let mut list = PluginList::new(self.plugin_rows(), self.plugins.store.shown_note());
@@ -188,6 +189,27 @@ impl App {
         }
         self.state.open_plugin_list(list);
         self.needs_redraw = true;
+    }
+
+    /// A question cannot open over the list: the list closes, and comes back with
+    /// the plugin `id` chosen when the questions are answered (`back_to_plugin_list`).
+    fn leave_list_for_question(&mut self, id: &str) {
+        self.state.close_plugin_list();
+        self.plugins.manager.return_to = Some(id.into());
+    }
+
+    /// Opens the list again when what it closed for is over: no question or menu
+    /// is open and none waits.
+    pub(super) fn back_to_plugin_list(&mut self) {
+        if self.plugins.manager.return_to.is_none()
+            || !matches!(self.state.popup(), super::state::Popup::None)
+            || !self.plugins.manager.waiting.is_empty()
+        {
+            return;
+        }
+        if let Some(id) = self.plugins.manager.return_to.take() {
+            self.show_plugin_list(Some(&id));
+        }
     }
 
     /// A plugin that runs but whose folder was deleted by hand (or whose manifest no
@@ -514,7 +536,7 @@ impl App {
         // Turning on may ask what the plugin may do, and a question cannot open over
         // the list: the list closes first. Turning off keeps it and shows what changed.
         if !self.plugins.manager.is_running(id) {
-            self.state.close_plugin_list();
+            self.leave_list_for_question(id);
         }
         self.toggle_plugin(id);
         if self.state.plugin_list_mut().is_some() {
@@ -539,7 +561,7 @@ impl App {
                     url,
                     &entry.sha256,
                 );
-                self.state.close_plugin_list();
+                self.leave_list_for_question(id);
                 self.state.open_confirm(confirm);
             }
             _ => self.start_install(entry, false),
@@ -720,7 +742,7 @@ impl App {
                 }
                 // The new version wants more than the user allowed: ask again.
                 _ => {
-                    self.state.close_plugin_list();
+                    self.leave_list_for_question(id);
                     self.plugins.manager.waiting.push_front(id.into());
                     self.ask_about_next_plugin();
                 }
@@ -742,7 +764,7 @@ impl App {
                 self.show_plugin_list(Some(id));
             }
             _ => {
-                self.state.close_plugin_list();
+                self.leave_list_for_question(id);
                 self.plugins.manager.waiting.push_front(id.into());
                 self.ask_about_next_plugin();
             }
