@@ -1009,3 +1009,131 @@ fn a_plugin_without_a_description_falls_back_to_its_readme() {
     rig.type_text("d");
     rig.wait_for_text("Says what it is told.");
 }
+
+// --- a key that opens a plugin ---
+
+impl Rig {
+    fn press_with(&mut self, code: KeyCode, modifiers: KeyModifiers) {
+        self.app
+            .handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
+    }
+
+    fn capturing(&self) -> bool {
+        self.popup_is(|popup| matches!(popup, Popup::PluginKey(_)))
+    }
+
+    fn keymap_text(&self) -> String {
+        fs::read_to_string(self.config.path().join("keymap.toml")).unwrap_or_default()
+    }
+}
+
+fn running_in_the_list() -> Rig {
+    let mut rig = rig_installed_and_on();
+    rig.open_manager();
+    rig.wait_for_text("● Echo 1.0.0");
+    rig
+}
+
+#[test]
+fn k_asks_for_a_key_and_esc_goes_back_to_the_list() {
+    let mut rig = running_in_the_list();
+    rig.type_text("k");
+    assert!(rig.capturing());
+    assert!(rig.screen().contains("Press the key that opens Echo"));
+
+    rig.press(KeyCode::Esc);
+    assert!(list_is_open(&rig));
+    assert!(rig.keymap_text().is_empty(), "nothing was written");
+}
+
+#[test]
+fn the_key_pressed_opens_the_plugin_from_then_on_and_is_written_to_the_keymap() {
+    let mut rig = running_in_the_list();
+    rig.type_text("k");
+    rig.press_with(KeyCode::Char('y'), KeyModifiers::ALT);
+
+    assert!(list_is_open(&rig), "back in the list");
+    let text = rig.keymap_text();
+    assert!(text.contains("[[binding]]"), "{text}");
+    assert!(text.contains("keys = \"alt+y\""), "{text}");
+    assert!(
+        text.contains("action = { open_plugin = \"echo\" }"),
+        "{text}"
+    );
+    assert_eq!(
+        rig.notification().as_deref(),
+        Some("alt+y opens Echo (written to keymap.toml)")
+    );
+    rig.wait_for_text("opens with alt+y");
+
+    // The key does it, wherever the editor is.
+    rig.press(KeyCode::Esc);
+    rig.press_with(KeyCode::Char('y'), KeyModifiers::ALT);
+    assert!(rig.popup_is(|popup| matches!(popup, Popup::PluginView(_))));
+}
+
+#[test]
+fn a_letter_on_its_own_and_a_key_that_is_used_are_refused_and_the_question_goes_on() {
+    let mut rig = running_in_the_list();
+    rig.type_text("k");
+
+    rig.press(KeyCode::Char('y'));
+    assert!(rig.capturing());
+    assert!(rig.screen().contains("y on its own is for typing"));
+
+    // `ctrl+s` saves.
+    rig.press_with(KeyCode::Char('s'), KeyModifiers::CONTROL);
+    assert!(rig.capturing());
+    let screen = rig.screen();
+    assert!(screen.contains("ctrl+s is used by"), "{screen}");
+
+    // A modifier on its own is not a key, and nothing was written so far.
+    assert!(rig.keymap_text().is_empty());
+    rig.press_with(KeyCode::F(9), KeyModifiers::NONE);
+    assert!(list_is_open(&rig), "a function key will do");
+    assert!(rig.keymap_text().contains("keys = \"f9\""));
+}
+
+#[test]
+fn a_plugin_that_has_a_key_says_so_instead_of_getting_another() {
+    let mut rig = running_in_the_list();
+    rig.type_text("k");
+    rig.press_with(KeyCode::Char('y'), KeyModifiers::ALT);
+    rig.type_text("k");
+    assert!(!rig.capturing());
+    let note = rig.notification().unwrap();
+    assert!(note.contains("is opened by alt+y"), "{note}");
+    assert_eq!(rig.keymap_text().matches("[[binding]]").count(), 1);
+}
+
+#[test]
+fn the_binding_is_added_after_what_the_user_wrote() {
+    let mut rig = running_in_the_list();
+    fs::write(
+        rig.config.path().join("keymap.toml"),
+        "# mine\n[[binding]]\nkeys = \"alt+9\"\naction = \"quit\"",
+    )
+    .unwrap();
+    rig.type_text("k");
+    rig.press_with(KeyCode::Char('y'), KeyModifiers::ALT);
+    let text = rig.keymap_text();
+    assert!(
+        text.starts_with("# mine\n[[binding]]\nkeys = \"alt+9\"\naction = \"quit\"\n"),
+        "{text}"
+    );
+    assert!(text.contains("keys = \"alt+y\""), "{text}");
+}
+
+#[test]
+fn a_plugin_that_is_not_installed_cannot_get_a_key() {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+    rig.type_text("k");
+    assert!(!rig.capturing());
+    assert!(rig.notification().unwrap().contains("not installed"));
+}

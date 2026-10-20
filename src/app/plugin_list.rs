@@ -393,6 +393,10 @@ impl App {
             (false, false) if self.plugins.manager.stopped.contains_key(id) => Mark::Broken,
             (false, false) => Mark::Off,
         };
+        let detail = match self.open_key_of(id) {
+            Some(keys) => format!("{detail} · opens with {keys}"),
+            None => detail,
+        };
         Row {
             id: id.into(),
             name: installed.manifest.display_name().to_owned(),
@@ -522,6 +526,7 @@ impl App {
             },
             Command::UpdateAll => self.ask_to_update_all(&chosen),
             Command::Describe => self.describe_plugin(&chosen),
+            Command::BindKey => self.ask_for_key(&chosen),
             Command::Remove => self.ask_to_remove(&chosen),
             Command::Toggle => self.toggle_in_list(&chosen),
             Command::Place => match self.plugins.manager.is_running(&chosen) {

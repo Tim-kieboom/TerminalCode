@@ -13,6 +13,7 @@ use crate::components::popups::definition_list::DefinitionList;
 use crate::components::popups::diagnostic_popup::DiagnosticPopup;
 use crate::components::popups::find::Find;
 use crate::components::popups::finder::Finder;
+use crate::components::popups::key_capture::KeyCapture;
 use crate::components::popups::menu::Menu;
 use crate::components::popups::name_prompt::NamePrompt;
 use crate::components::popups::palette::Palette;
@@ -136,6 +137,8 @@ pub(crate) enum Popup {
     PluginList(PluginList),
     /// What a plugin says about itself, opened from the manager.
     PluginReadme(Readme),
+    /// Asks for the key that opens a plugin, opened from the manager.
+    PluginKey(KeyCapture),
 }
 
 /// The parts of the screen the layout places. The explorer, the status bar and

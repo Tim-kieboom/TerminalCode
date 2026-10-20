@@ -7,6 +7,7 @@ use crate::components::popups::definition_list::DefinitionList;
 use crate::components::popups::diagnostic_popup::DiagnosticPopup;
 use crate::components::popups::find::Find;
 use crate::components::popups::finder::Finder;
+use crate::components::popups::key_capture::KeyCapture;
 use crate::components::popups::menu::Menu;
 use crate::components::popups::name_prompt::NamePrompt;
 use crate::components::popups::palette::Palette;
@@ -200,6 +201,17 @@ impl AppState {
     pub(crate) fn plugin_list_mut(&mut self) -> Option<&mut PluginList> {
         match &mut self.popup {
             Popup::PluginList(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn open_plugin_key(&mut self, capture: KeyCapture) {
+        self.popup = Popup::PluginKey(capture);
+    }
+
+    pub(crate) fn plugin_key_mut(&mut self) -> Option<&mut KeyCapture> {
+        match &mut self.popup {
+            Popup::PluginKey(capture) => Some(capture),
             _ => None,
         }
     }

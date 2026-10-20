@@ -40,6 +40,7 @@ pub(crate) enum Action {
     ShowPlugins,
     /// Opens the view of the plugin with this id in a popup (the plugins the user
     /// placed in one), or gives the plugin the keyboard where it is placed.
+    #[serde(alias = "open_plugin")]
     OpenPluginPopup(Box<str>),
     /// Puts the plugin's view where the user chose; written `plugin-id:place` with the
     /// place `explorer`, `bottom` or `popup`.

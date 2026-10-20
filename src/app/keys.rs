@@ -129,6 +129,15 @@ impl Keyboard {
         self.keymap.set_plugin_defaults(bindings)
     }
 
+    /// What the keymap knows about `keys` in `contexts`.
+    pub(super) fn find(
+        &self,
+        contexts: &[Context],
+        keys: &[crate::keymap::KeyChord],
+    ) -> crate::keymap::Lookup<'_> {
+        self.keymap.find(contexts, keys)
+    }
+
     /// The shortest keys bound to `action` in `contexts`, for showing the user.
     pub(super) fn keys_for(&self, action: &Action, contexts: &[Context]) -> Option<String> {
         self.keymap.keys_for(action, contexts)
@@ -179,6 +188,7 @@ impl App {
             Popup::None | Popup::PluginView(_) => {}
             Popup::PluginList(_) => return self.handle_plugin_list_key(key),
             Popup::PluginReadme(_) => return self.handle_plugin_readme_key(key),
+            Popup::PluginKey(_) => return self.handle_plugin_key_capture(key),
             Popup::QuitPrompt(_) => return self.handle_prompt_key(key),
             Popup::Confirm(_) => return self.handle_confirm_key(key),
             Popup::NewEntry(_) => return self.handle_name_key(key),

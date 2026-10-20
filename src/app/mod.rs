@@ -38,6 +38,7 @@ mod git;
 mod hover;
 mod open;
 mod plugin_files;
+mod plugin_keys;
 mod plugin_list;
 mod plugin_manager;
 mod plugin_place;
