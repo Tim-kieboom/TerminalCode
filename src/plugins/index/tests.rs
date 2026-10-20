@@ -193,3 +193,101 @@ fn a_plugin_listed_twice_is_one_id() {
     assert_eq!(index.ids(), ["git"]);
     assert!(index.entry("nothing").is_none());
 }
+
+fn other_json(id: &str) -> String {
+    entry_json("").replace(r#""id":"git""#, &format!(r#""id":"{id}""#))
+}
+
+#[test]
+fn a_source_is_labelled_by_its_repository_or_its_host() {
+    assert_eq!(
+        source_label("https://raw.githubusercontent.com/you/plugins/main/index.json"),
+        "you/plugins"
+    );
+    assert_eq!(
+        source_label("https://github.com/you/plugins/raw/main/index.json"),
+        "you/plugins"
+    );
+    assert_eq!(source_label("https://github.com"), "github.com");
+    assert_eq!(source_label("https://example.org/a/b"), "example.org");
+}
+
+#[test]
+fn an_index_cannot_say_it_is_the_official_one_or_another_source() {
+    let json = entry_json(r#","source":"https://github.com/someone/else""#);
+    let index = Index::parse(&index_json(1, &[json])).unwrap();
+    assert_eq!(index.entry("git").unwrap().source, None);
+    assert_eq!(index.entry("git").unwrap().source_label(), None);
+}
+
+#[test]
+fn entries_of_a_source_say_where_they_come_from() {
+    let url = "https://raw.githubusercontent.com/you/plugins/main/index.json";
+    let index = Index::parse(&index_json(1, &[entry_json("")]))
+        .unwrap()
+        .listed_by(url);
+    let entry = index.entry("git").unwrap();
+    assert_eq!(entry.source.as_deref(), Some(url));
+    assert_eq!(entry.source_label().as_deref(), Some("you/plugins"));
+}
+
+#[test]
+fn the_source_is_kept_in_the_marker_text_and_the_official_leaves_it_out() {
+    let official = Index::parse(&index_json(1, &[entry_json("")])).unwrap();
+    let text = serde_json::to_string(official.entry("git").unwrap()).unwrap();
+    assert!(!text.contains("source"), "{text}");
+    let sourced = official.listed_by("https://github.com/a/b/raw/main/index.json");
+    let text = serde_json::to_string(sourced.entry("git").unwrap()).unwrap();
+    let back: Entry = serde_json::from_str(&text).unwrap();
+    assert_eq!(back.source, sourced.entry("git").unwrap().source);
+}
+
+#[test]
+fn a_source_cannot_take_the_name_of_an_official_plugin_or_an_earlier_source() {
+    let official = Index::parse(&index_json(1, &[entry_json("")])).unwrap();
+    let first = Index::parse(&index_json(1, &[other_json("git"), other_json("one")]))
+        .unwrap()
+        .listed_by("https://github.com/a/a/raw/main/index.json");
+    let second = Index::parse(&index_json(1, &[other_json("one"), other_json("two")]))
+        .unwrap()
+        .listed_by("https://github.com/b/b/raw/main/index.json");
+
+    let (merged, left_out) = Index::merged(
+        &official,
+        &[
+            (
+                "https://github.com/a/a/raw/main/index.json".to_owned(),
+                first,
+            ),
+            (
+                "https://github.com/b/b/raw/main/index.json".to_owned(),
+                second,
+            ),
+        ],
+    );
+
+    assert_eq!(merged.ids(), ["git", "one", "two"]);
+    assert_eq!(merged.entry("git").unwrap().source, None);
+    assert!(
+        merged
+            .entry("one")
+            .unwrap()
+            .source
+            .as_deref()
+            .unwrap()
+            .contains("/a/a/")
+    );
+    assert_eq!(left_out, ["git", "one"]);
+}
+
+#[test]
+fn a_source_may_list_several_versions_of_its_own_plugin() {
+    let url = "https://github.com/a/a/raw/main/index.json";
+    let newer = entry_json("").replace("0.1.0", "0.2.0");
+    let source = Index::parse(&index_json(1, &[entry_json(""), newer]))
+        .unwrap()
+        .listed_by(url);
+    let (merged, left_out) = Index::merged(&Index::default(), &[(url.to_owned(), source)]);
+    assert!(left_out.is_empty());
+    assert_eq!(merged.entries.len(), 2);
+}

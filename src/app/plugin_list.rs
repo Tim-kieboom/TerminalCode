@@ -48,6 +48,27 @@ impl Source {
     }
 }
 
+/// The source a plugin of the manager came from; `None` is the official index.
+fn installed_source(installed: &Installed) -> Option<String> {
+    install::marker(&installed.dir).and_then(|marker| marker.entry.source)
+}
+
+/// The state with where the plugin comes from, when that is a source.
+fn with_source(state: String, entry: &IndexEntry) -> String {
+    match entry.source_label() {
+        Some(label) => format!("{state} · {label}"),
+        None => state,
+    }
+}
+
+/// What the plugin is, under the list; a source's plugin says so first.
+fn described(entry: &IndexEntry) -> String {
+    match entry.source_label() {
+        Some(label) => format!("from {label}, not official: {}", entry.description),
+        None => entry.description.clone(),
+    }
+}
+
 /// An install that is running.
 #[derive(Debug)]
 pub(super) struct Job {
@@ -65,6 +86,46 @@ pub(super) struct Store {
     note: Option<String>,
     job: Option<Job>,
     source: Source,
+    /// The plugins of the official index.
+    official: Index,
+    /// The extra sources fetched so far, in the order of `plugin_sources`.
+    extra: Vec<(String, Index)>,
+    /// The `plugin_sources` the last fetch asked, for ordering what comes back.
+    asked: Vec<String>,
+    /// What went wrong with each source, by label.
+    problems: Vec<String>,
+    /// The plugin names a source lists that another index already has.
+    left_out: Vec<String>,
+}
+
+impl Store {
+    /// Makes `index` what is shown: the official plugins, then those of the sources.
+    fn rebuild(&mut self) {
+        let asked = self.asked.clone();
+        self.extra.sort_by_key(|(url, _)| {
+            asked
+                .iter()
+                .position(|asked| asked == url)
+                .unwrap_or(usize::MAX)
+        });
+        let (index, left_out) = Index::merged(&self.official, &self.extra);
+        self.index = index;
+        self.left_out = left_out;
+    }
+
+    /// What the list says about the index: what the official one is, and what is
+    /// wrong with the sources.
+    fn shown_note(&self) -> Option<String> {
+        let mut parts: Vec<String> = self.note.iter().cloned().collect();
+        parts.extend(self.problems.iter().cloned());
+        if !self.left_out.is_empty() {
+            parts.push(format!(
+                "left out, the name is taken: {}",
+                self.left_out.join(", ")
+            ));
+        }
+        (!parts.is_empty()).then(|| parts.join(" | "))
+    }
 }
 
 #[cfg(test)]
@@ -103,7 +164,8 @@ impl App {
             self.state.notify("there is no folder for plugins here");
             return;
         }
-        self.plugins.store.index = Index::cached_or_snapshot(self.config_dir.as_deref());
+        self.plugins.store.official = Index::cached_or_snapshot(self.config_dir.as_deref());
+        self.plugins.store.rebuild();
         self.show_plugin_list(None);
         self.fetch_index();
     }
@@ -115,7 +177,7 @@ impl App {
         };
         self.plugins.manager.found = manifest::scan(&dir, Host::THIS);
         self.stop_plugins_that_are_gone();
-        let mut list = PluginList::new(self.plugin_rows(), self.plugins.store.note.clone());
+        let mut list = PluginList::new(self.plugin_rows(), self.plugins.store.shown_note());
         if let Some(id) = chosen {
             list.select(id);
         }
@@ -146,7 +208,7 @@ impl App {
     /// Makes the open list say what is true now.
     fn refresh_plugin_list(&mut self) {
         let rows = self.plugin_rows();
-        let note = self.plugins.store.note.clone();
+        let note = self.plugins.store.shown_note();
         if let Some(list) = self.state.plugin_list_mut() {
             list.set_rows(rows);
             list.set_note(note);
@@ -164,6 +226,21 @@ impl App {
         let policy = self.plugins.store.source.policy;
         let config = self.config_dir.clone();
         self.plugins.store.note = Some("asking for the latest list of plugins".to_owned());
+        self.plugins.store.problems.clear();
+        let sources = self.settings.plugin_sources.clone();
+        self.plugins.store.asked = sources.clone();
+        for source in sources {
+            let events = events.clone();
+            std::thread::spawn(move || {
+                let cancel = AtomicBool::new(false);
+                // An extra index is not cached: offline, its plugins are not listed.
+                let result = install::fetch_index(&source, policy, None, &cancel)
+                    .map(|index| index.listed_by(&source))
+                    .map_err(|error| error.to_string());
+                let _ = events
+                    .blocking_send(Event::PluginJob(JobEvent::SourceIndex { source, result }));
+            });
+        }
         std::thread::spawn(move || {
             let cancel = AtomicBool::new(false);
             let result = install::fetch_index(&url, policy, config.as_deref(), &cancel)
@@ -215,13 +292,14 @@ impl App {
                     };
                 }
                 let missing = entry.availability(Host::THIS).missing();
+                let state = missing
+                    .clone()
+                    .unwrap_or_else(|| "not installed".to_owned());
                 Row {
                     id: entry.id.as_str().into(),
                     name: format!("{} {}", entry.name, entry.version),
-                    tag: missing
-                        .clone()
-                        .unwrap_or_else(|| "not installed".to_owned()),
-                    detail: entry.description.clone(),
+                    tag: with_source(state, entry),
+                    detail: described(entry),
                     grey: missing.is_some(),
                 }
             }
@@ -233,10 +311,14 @@ impl App {
         let managed = install::marker(&installed.dir).is_some();
         let update = entry
             .filter(|entry| managed && is_newer(&entry.version, &installed.manifest.version))
+            .filter(|entry| entry.source == installed_source(installed))
             .filter(|entry| entry.availability(Host::THIS) == Availability::Ready);
         let mut parts = Vec::new();
         if !managed {
             parts.push("local".to_owned());
+        }
+        if let Some(label) = install::marker(&installed.dir).and_then(|m| m.entry.source_label()) {
+            parts.push(label);
         }
         if let Some(entry) = update {
             parts.push(format!("update {} available", entry.version));
@@ -248,9 +330,7 @@ impl App {
                 "{} is installed, {} is in the index",
                 installed.manifest.version, entry.version
             ),
-            (true, None) => entry
-                .map(|entry| entry.description.clone())
-                .unwrap_or_default(),
+            (true, None) => entry.map(described).unwrap_or_default(),
         };
         Row {
             id: id.into(),
@@ -302,6 +382,7 @@ impl App {
         let update = entry.is_some_and(|entry| {
             managed
                 && is_newer(&entry.version, &installed.manifest.version)
+                && entry.source == installed_source(installed)
                 && entry.availability(Host::THIS) == Availability::Ready
         });
         match (manager.is_running(id), update) {
@@ -420,11 +501,42 @@ impl App {
 
     // --- install and update ---
 
+    /// Installs the plugin `id` of the list; one of an extra source is asked about first.
     fn install_plugin(&mut self, id: &str) {
         let Some(entry) = self.plugins.store.index.entry(id).cloned() else {
             return;
         };
-        self.start_install(entry, false);
+        match (&entry.source, entry.source_label()) {
+            (Some(url), Some(label)) => {
+                let confirm = Confirm::install_from_source(
+                    id,
+                    &entry.name,
+                    &entry.version,
+                    &label,
+                    url,
+                    &entry.sha256,
+                );
+                self.state.close_plugin_list();
+                self.state.open_confirm(confirm);
+            }
+            _ => self.start_install(entry, false),
+        }
+    }
+
+    /// The user said yes to installing from the source at `source`. It is the same
+    /// plugin from the same source or nothing: the index may have changed meanwhile.
+    pub(super) fn install_plugin_from(&mut self, id: &str, source: &str) {
+        match self.plugins.store.index.entry(id).cloned() {
+            Some(entry) if entry.source.as_deref() == Some(source) => {
+                self.start_install(entry, false)
+            }
+            _ => {
+                self.state.notify(format!(
+                    "plugin {id} is no longer listed by that source: nothing was installed"
+                ));
+                self.show_plugin_list(Some(id));
+            }
+        }
     }
 
     fn ask_to_update(&mut self, id: &str) {
@@ -439,6 +551,7 @@ impl App {
             &entry.name,
             &installed.manifest.version,
             &entry.version,
+            entry.source_label().as_deref(),
             self.plugins.manager.is_running(id),
         );
         self.state.open_confirm(confirm);
@@ -496,13 +609,31 @@ impl App {
         self.needs_redraw = true;
         match event {
             JobEvent::Index(Ok(index)) => {
-                self.plugins.store.index = index;
+                self.plugins.store.official = index;
+                self.plugins.store.rebuild();
                 self.plugins.store.note = None;
                 self.refresh_plugin_list();
             }
             JobEvent::Index(Err(reason)) => {
                 self.plugins.store.note =
                     Some(format!("offline, showing the list known so far: {reason}"));
+                self.refresh_plugin_list();
+            }
+            JobEvent::SourceIndex { source, result } => {
+                match result {
+                    Ok(index) => {
+                        self.plugins.store.extra.retain(|(url, _)| *url != source);
+                        self.plugins.store.extra.push((source, index));
+                        self.plugins.store.rebuild();
+                    }
+                    Err(reason) => {
+                        let label = crate::plugins::index::source_label(&source);
+                        self.plugins
+                            .store
+                            .problems
+                            .push(format!("source {label}: {reason}"));
+                    }
+                }
                 self.refresh_plugin_list();
             }
             JobEvent::Stage { id, stage } => {

@@ -74,6 +74,7 @@ const INTRODUCED: &[Introduced] = &[
     setting("sequence_timeout", BASELINE),
     setting("notification_seconds", BASELINE),
     setting("hide_ignored", BASELINE),
+    setting("plugin_sources", "0.8.0"),
     setting("language_servers", BASELINE),
 ];
 

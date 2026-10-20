@@ -82,6 +82,7 @@ fn entry(address: &str, version: &str, module: &[u8]) -> Entry {
         sha256: hex(&Sha256::digest(module)),
         abi: "1.3".into(),
         requires: None,
+        source: None,
     }
 }
 

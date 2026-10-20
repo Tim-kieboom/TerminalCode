@@ -54,6 +54,10 @@ pub(crate) struct Settings {
     /// Whether the explorer leaves out the entries the ignore rules leave out,
     /// instead of listing them dimmed.
     pub(crate) hide_ignored: bool,
+    /// Extra plugin indexes, by URL (an `index.json` like the official one). Their
+    /// plugins are listed in the plugin manager beside the official ones, marked with
+    /// where they come from.
+    pub(crate) plugin_sources: Vec<String>,
     /// The language servers: the built-in ones with the `language_servers` setting
     /// laid over them.
     #[allow(
@@ -75,6 +79,7 @@ impl Default for Settings {
             sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
             notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
             hide_ignored: false,
+            plugin_sources: Vec::new(),
             language_servers: default_language_servers().clone(),
         }
     }
@@ -169,6 +174,7 @@ impl Settings {
                 Duration::from_secs(seconds as u64)
             }),
             hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
+            plugin_sources: plugin_sources(take::<Vec<String>>(&mut map, "plugin_sources")?),
             language_servers: match map.remove("language_servers") {
                 Some(setting) => LanguageServers::layered(default_servers_setting(), &setting)?,
                 None => defaults.language_servers,
@@ -182,6 +188,18 @@ impl Settings {
             repeated,
         })
     }
+}
+
+/// The URLs of `plugin_sources`: trimmed, none empty, each once.
+fn plugin_sources(listed: Option<Vec<String>>) -> Vec<String> {
+    let mut urls: Vec<String> = Vec::new();
+    for url in listed.unwrap_or_default() {
+        let url = url.trim().to_owned();
+        if !url.is_empty() && !urls.contains(&url) {
+            urls.push(url);
+        }
+    }
+    urls
 }
 
 /// The `language_servers` of the default settings file: the base layer the user's

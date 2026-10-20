@@ -494,3 +494,16 @@ fn a_null_or_empty_theme_is_the_fallback() {
         assert_eq!(parse(source).settings.theme, None, "{source}");
     }
 }
+
+#[test]
+fn plugin_sources_default_to_none_and_are_cleaned() {
+    assert!(parse("{}").settings.plugin_sources.is_empty());
+    let settings =
+        parse(r#"{ "plugin_sources": [" https://github.com/a/b/raw/main/index.json ", "", "https://github.com/a/b/raw/main/index.json"] }"#)
+            .settings;
+    assert_eq!(
+        settings.plugin_sources,
+        ["https://github.com/a/b/raw/main/index.json"]
+    );
+    assert!(error_of(r#"{ "plugin_sources": "https://x" }"#).contains("plugin_sources"));
+}

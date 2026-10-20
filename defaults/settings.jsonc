@@ -49,6 +49,16 @@
     // them dimmed. The file finder and the project search never list them.
     "hide_ignored": false,
 
+    // More places to install plugins from: the URLs of plugin indexes (an index.json
+    // like the one of the official plugins), for example
+    //   ["https://raw.githubusercontent.com/you/trcode-plugins/main/index.json"]
+    // Their plugins are listed in "Plugins: Manage" beside the official ones, marked with
+    // where they come from, and installing one asks first. Only https addresses of
+    // github.com and githubusercontent.com work, and an official plugin's name
+    // cannot be taken by a source. A plugin that came from a source is updated only
+    // from that source.
+    "plugin_sources": [],
+
     // Language servers, by name. These are the ones there are: Rust, Nix and JSON.
     // Your entry for one of them overrides only the fields you write, and keeps the
     // rest from here, so this is enough to change one thing:

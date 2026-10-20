@@ -72,6 +72,14 @@ fn server(version: &str, extra: &str, promised: Option<String>, requires: &str) 
     )])) + "/index.json"
 }
 
+/// An official index with no plugins in it.
+fn empty_official() -> String {
+    serve(HashMap::from([(
+        "/index.json",
+        Reply::Body(br#"{"format":1,"plugins":[]}"#.to_vec()),
+    )])) + "/index.json"
+}
+
 struct Rig {
     app: App,
     events: mpsc::Receiver<Event>,
@@ -637,4 +645,83 @@ fn esc_stops_a_download_that_hangs_and_nothing_is_installed() {
     });
     assert!(!rig.folder().exists());
     assert!(!rig.screen().contains("esc stops"));
+}
+
+// --- extra sources ---
+
+#[test]
+fn a_plugin_of_a_source_is_listed_with_where_it_comes_from_and_installing_asks_first() {
+    let source = server("1.0.0", "", None, "");
+    let mut rig = rig(empty_official(), SavedState::default(), nothing);
+    rig.app.settings_mut().plugin_sources = vec![source.clone()];
+
+    rig.open_manager();
+    rig.wait_for_text("Echo 1.0.0");
+    let screen = rig.screen();
+    assert!(screen.contains("not installed · 127.0.0.1"), "{screen}");
+    assert!(screen.contains("not official"), "{screen}");
+
+    rig.type_text("i");
+    assert!(
+        rig.asking(),
+        "a source's plugin is asked about before it is downloaded"
+    );
+    assert!(!rig.folder().exists());
+    let screen = rig.screen();
+    assert!(screen.contains("not an official plugin"), "{screen}");
+    assert!(screen.contains("Module sha256"), "{screen}");
+
+    rig.press(KeyCode::Char('y'));
+    rig.wait_until("the plugin installed", |rig| {
+        rig.folder().join("installed.json").is_file()
+    });
+    let marker = install::marker(&rig.folder()).unwrap();
+    assert_eq!(marker.entry.source.as_deref(), Some(source.as_str()));
+}
+
+#[test]
+fn saying_no_to_a_source_downloads_nothing() {
+    let mut rig = rig(empty_official(), SavedState::default(), nothing);
+    rig.app.settings_mut().plugin_sources = vec![server("1.0.0", "", None, "")];
+    rig.open_manager();
+    rig.wait_for_text("Echo 1.0.0");
+
+    rig.type_text("i");
+    rig.press(KeyCode::Char('n'));
+
+    assert!(!rig.asking());
+    assert!(!rig.folder().exists());
+    assert!(rig.popup_is(|popup| matches!(popup, Popup::PluginList(_))));
+}
+
+#[test]
+fn a_source_cannot_replace_an_official_plugin_and_the_list_says_so() {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        SavedState::default(),
+        nothing,
+    );
+    rig.app.settings_mut().plugin_sources = vec![server("2.0.0", "", None, "")];
+
+    rig.open_manager();
+    rig.wait_for_text("left out, the name is taken: echo");
+
+    let screen = rig.screen();
+    assert!(screen.contains("Echo 1.0.0"), "{screen}");
+    assert!(!screen.contains("Echo 2.0.0"), "{screen}");
+}
+
+#[test]
+fn a_source_that_cannot_be_fetched_is_named_and_the_rest_is_listed() {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        SavedState::default(),
+        nothing,
+    );
+    rig.app.settings_mut().plugin_sources = vec!["http://127.0.0.1:1/index.json".to_owned()];
+
+    rig.open_manager();
+    rig.wait_for_text("source 127.0.0.1:1");
+
+    assert!(rig.screen().contains("Echo 1.0.0"));
 }

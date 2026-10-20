@@ -56,6 +56,11 @@ pub(crate) struct Entry {
     /// The oldest TerminalCode it works with.
     #[serde(default)]
     pub requires: Option<String>,
+    /// The URL of the index it was listed in; `None` for the official one. Never read
+    /// from an index (a source cannot say it is the official one): it is put there by
+    /// the editor, and kept in `installed.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Whether this editor can run an entry, and what it lacks when it cannot.
@@ -91,6 +96,12 @@ impl Entry {
         }
     }
 
+    /// Where it comes from, for the list: `owner/repo` of a GitHub index, else the
+    /// host. `None` for the official index.
+    pub(crate) fn source_label(&self) -> Option<String> {
+        self.source.as_deref().map(source_label)
+    }
+
     fn check(&self) -> Result<(), IndexError> {
         let bad = |reason: &str| IndexError::BadEntry {
             id: self.id.clone(),
@@ -116,6 +127,24 @@ impl Entry {
             return Err(bad("`requires` is not a version such as 0.7.0"));
         }
         Ok(())
+    }
+}
+
+/// A short name for the index at `url`: `owner/repo` for GitHub, else the host.
+pub(crate) fn source_label(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, rest)| rest);
+    let mut parts = rest.split('/');
+    let host = parts.next().unwrap_or_default();
+    match host {
+        "raw.githubusercontent.com" | "github.com" => {
+            let owner = parts.next().unwrap_or_default();
+            let repo = parts.next().unwrap_or_default();
+            match (owner.is_empty(), repo.is_empty()) {
+                (false, false) => format!("{owner}/{repo}"),
+                _ => host.to_owned(),
+            }
+        }
+        _ => host.to_owned(),
     }
 }
 
@@ -186,9 +215,40 @@ impl Index {
         for entry in &body.plugins {
             entry.check()?;
         }
-        Ok(Self {
-            entries: body.plugins,
-        })
+        let mut entries = body.plugins;
+        for entry in &mut entries {
+            entry.source = None;
+        }
+        Ok(Self { entries })
+    }
+
+    /// The same index, its entries marked as coming from the index at `url`.
+    pub(crate) fn listed_by(mut self, url: &str) -> Self {
+        for entry in &mut self.entries {
+            entry.source = Some(url.to_owned());
+        }
+        self
+    }
+
+    /// The official index and then the extra ones, in order: a plugin name is
+    /// taken by the first index that lists it, so a source cannot replace an official
+    /// plugin or an earlier source's. The names that were left out come back too.
+    pub(crate) fn merged(official: &Index, extra: &[(String, Index)]) -> (Self, Vec<String>) {
+        let mut entries = official.entries.clone();
+        let mut left_out: Vec<String> = Vec::new();
+        for (url, index) in extra {
+            for entry in &index.entries {
+                let taken_by_other = entries
+                    .iter()
+                    .any(|have| have.id == entry.id && have.source.as_ref() != Some(url));
+                match taken_by_other {
+                    true if !left_out.contains(&entry.id) => left_out.push(entry.id.clone()),
+                    true => {}
+                    false => entries.push(entry.clone()),
+                }
+            }
+        }
+        (Self { entries }, left_out)
     }
 
     /// The index of this release. Empty in tests, so that what ships does not change

@@ -29,6 +29,8 @@ pub(crate) enum Purpose {
     ResetSavedState,
     /// Let the plugin with this id run, with what it asked to be allowed to do.
     EnablePlugin(Box<str>),
+    /// Download the plugin with this id (first) from the extra source with this URL (second).
+    InstallPlugin(Box<str>, Box<str>),
     /// Replace the plugin with this id by the newer version of the index.
     UpdatePlugin(Box<str>),
     /// Delete the folder of the plugin with this id, which the manager installed.
@@ -126,10 +128,45 @@ impl Confirm {
         }
     }
 
+    /// Asks whether to install the plugin `id` from an index that is not the official
+    /// one: where it comes from, the address, and the hash it will be held to.
+    pub(crate) fn install_from_source(
+        id: &str,
+        name: &str,
+        version: &str,
+        label: &str,
+        url: &str,
+        sha256: &str,
+    ) -> Self {
+        Self {
+            title: " Install plugin from a source ".to_owned(),
+            lines: vec![
+                format!("Install the plugin {name} {version} from {label}?"),
+                String::new(),
+                "This is not an official plugin: you added the source yourself, and its owner decides what the plugin does.".to_owned(),
+                format!("Index: {url}"),
+                format!("Module sha256: {}", sha256.get(..16).unwrap_or(sha256)),
+                String::new(),
+                "That version is pinned the first time it is installed: if it ever changes, the editor refuses it. You are asked what it may do before it runs.".to_owned(),
+            ],
+            purpose: Purpose::InstallPlugin(id.into(), url.into()),
+        }
+    }
+
     /// Asks whether to replace the plugin `id` by a newer version; `running`: it is
     /// stopped and started again.
-    pub(crate) fn update_plugin(id: &str, name: &str, from: &str, to: &str, running: bool) -> Self {
+    pub(crate) fn update_plugin(
+        id: &str,
+        name: &str,
+        from: &str,
+        to: &str,
+        source: Option<&str>,
+        running: bool,
+    ) -> Self {
         let mut lines = vec![format!("Update the plugin {name} from {from} to {to}?")];
+        if let Some(source) = source {
+            lines.push(format!("It comes from {source}, which is not official."));
+        }
         if running {
             lines.push(String::new());
             lines.push("It is running: it stops, and the new version starts.".to_owned());

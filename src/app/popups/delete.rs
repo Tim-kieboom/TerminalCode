@@ -69,7 +69,9 @@ impl App {
             // more; the next plugin that waits for an answer is asked.
             match confirm.purpose() {
                 Purpose::EnablePlugin(id) => self.refuse_plugin(id),
-                Purpose::UpdatePlugin(id) | Purpose::RemovePlugin(id) => {
+                Purpose::InstallPlugin(id, _)
+                | Purpose::UpdatePlugin(id)
+                | Purpose::RemovePlugin(id) => {
                     self.show_plugin_list(Some(id));
                 }
                 _ => {}
@@ -83,6 +85,7 @@ impl App {
             Purpose::ResetConfig(file) => self.reset_config(*file),
             Purpose::ResetSavedState => self.reset_saved_state(),
             Purpose::EnablePlugin(id) => self.allow_plugin(id),
+            Purpose::InstallPlugin(id, source) => self.install_plugin_from(id, source),
             Purpose::UpdatePlugin(id) => self.update_plugin(id),
             Purpose::RemovePlugin(id) => self.remove_plugin(id),
         }

@@ -140,6 +140,11 @@ pub(crate) enum Stage {
 pub(crate) enum JobEvent {
     /// The index was fetched, or why not.
     Index(Result<Index, String>),
+    /// The index of an extra source (`plugin_sources`) was fetched, or why not.
+    SourceIndex {
+        source: String,
+        result: Result<Index, String>,
+    },
     /// An install got to a stage.
     Stage { id: Box<str>, stage: Stage },
     /// An install is over: it worked, or why not (`stopped` when the user stopped it).
