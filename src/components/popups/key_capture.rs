@@ -42,9 +42,6 @@ impl KeyCapture {
     }
 
     #[cfg(test)]
-    pub(crate) fn problem(&self) -> Option<&str> {
-        self.problem.as_deref()
-    }
 
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
         let screen = frame.area();
