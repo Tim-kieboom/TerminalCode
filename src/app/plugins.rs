@@ -29,6 +29,8 @@ pub(super) struct Plugins {
     pub(super) remote: Option<RemoteJob>,
     /// What each plugin with `files.text` was last told about the file in front.
     pub(super) pushed: HashMap<Box<str>, super::plugin_files::Pushed>,
+    /// The size of its pane each plugin was last told.
+    pub(super) sized: HashMap<Box<str>, (u16, u16)>,
 }
 
 /// A fetch, pull or push on its way.

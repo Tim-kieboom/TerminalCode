@@ -940,3 +940,14 @@ fn a_manifest_may_ask_for_a_thread_of_its_own() {
         .is_err()
     );
 }
+
+#[test]
+fn the_size_of_the_pane_is_a_message_with_its_golden_json() {
+    let size = ToPlugin::Size {
+        width: 48,
+        height: 20,
+    };
+    let json = r#"{"type":"size","width":48,"height":20}"#;
+    assert_eq!(size.to_bytes().unwrap(), json.as_bytes());
+    assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(size));
+}

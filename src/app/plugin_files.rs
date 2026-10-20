@@ -116,11 +116,55 @@ impl App {
     /// The plugin is told again about the file in front (it was started or came back).
     pub(super) fn forget_pushed(&mut self, plugin: &str) {
         self.plugins.pushed.remove(plugin);
+        self.plugins.sized.remove(plugin);
     }
 
-    /// `path` from the project's folder with `/`, or the whole path when it is outside.
+    /// Tells the plugins that are on screen how big their pane is, when that is not
+    /// what they were told. A popup is the size it is drawn at. Cheap: it is called
+    /// after every input and event.
+    pub(super) fn push_plugin_sizes(&mut self) {
+        if self.plugins.runtime.is_none() || self.plugins.manager.running_ids().next().is_none() {
+            return;
+        }
+        let screen = self.state.screen();
+        if screen.width == 0 || screen.height == 0 {
+            return;
+        }
+        let mut now: Vec<(Box<str>, (u16, u16))> = Vec::new();
+        for placement in self.state.placements(screen) {
+            if let crate::ui::ComponentKind::Plugin(id) = &placement.kind {
+                let inner = placement.frame.inner(placement.area);
+                now.push((id.as_str().into(), (inner.width, inner.height)));
+            }
+        }
+        if let super::state::Popup::PluginView(id) = self.state.popup() {
+            let inner = ratatui::widgets::Block::bordered()
+                .inner(crate::components::plugin_popup_area(screen));
+            now.push((id.as_str().into(), (inner.width, inner.height)));
+        }
+        self.plugins
+            .sized
+            .retain(|id, _| now.iter().any(|(shown, _)| shown == id));
+        for (id, size) in now {
+            if self.plugins.sized.get(&id) == Some(&size) || !self.plugins.manager.is_running(&id) {
+                continue;
+            }
+            self.plugins.sized.insert(id.clone(), size);
+            let message = ToPlugin::Size {
+                width: size.0,
+                height: size.1,
+            };
+            self.send_to_plugin(&id, message);
+        }
+    }
+
+    /// `path` from the root of the repository (the project's folder without one) with
+    /// `/`, as a plugin opens a file; the whole path when it is outside.
     fn shown_path(&self, path: &Path) -> String {
-        let root = self.project_root();
+        let root = match self.state.git_status() {
+            Some(status) => status.root.clone(),
+            None => self.project_root(),
+        };
         let relative = path
             .strip_prefix(&root)
             .map(Path::to_path_buf)

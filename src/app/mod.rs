@@ -436,6 +436,7 @@ impl App {
         self.back_to_plugin_list();
         self.continue_updates();
         self.push_file_text();
+        self.push_plugin_sizes();
         self.track_jump(&input, before);
         self.notice_tab_switch();
         self.show_pending_keys();
@@ -505,6 +506,7 @@ impl App {
             }
         }
         self.push_file_text();
+        self.push_plugin_sizes();
         self.remember_panes();
         self.remember_recent();
     }

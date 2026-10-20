@@ -48,6 +48,10 @@ pub enum ToPlugin {
     /// The user clicked row `row` of the plugin's [`WireView::Rows`]: the index of
     /// the line in `lines`, as the plugin sent them.
     Click { row: usize },
+    /// The size of the plugin's pane in cells, inside its frame: sent when the pane
+    /// is on screen (and when its size changes), so that a plugin can wrap its text.
+    /// A plugin that has not been told assumes 80 columns. Plugin API 1.5.
+    Size { width: u16, height: u16 },
     /// The user pressed the button with this `id` of a [`WireView::Buttons`] (a
     /// button that is not enabled is never reported). Plugin API 1.4.
     Press { button: String },
@@ -78,8 +82,9 @@ pub enum ToPlugin {
     /// The saved text of the file in front in the editor, for a plugin with
     /// [`Capability::FilesText`], when the file is one of the plugin's `file_types`:
     /// sent when the tab in front changes, after the file is saved, and when the file
-    /// changes on disk. `path` is from the project's folder with `/` (the whole path
-    /// for a file outside it). `text` is what is on disk, not the buffer, and `modified`
+    /// changes on disk. `path` is from the root of the repository (the project's folder
+    /// when there is none) with `/`, as [`FromPlugin::OpenFile`] takes it (the whole
+    /// path for a file outside it). `text` is what is on disk, not the buffer, and `modified`
     /// says that the buffer has changes that are not saved. At most
     /// [`crate::MAX_FILE_TEXT`] bytes; plugin API 1.5.
     FileText {

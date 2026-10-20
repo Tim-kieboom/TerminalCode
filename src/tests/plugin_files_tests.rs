@@ -15,6 +15,7 @@ use crate::app::App;
 use crate::app::state::{AppState, Popup};
 use crate::buffer::Buffer;
 use crate::components::editor::Editor;
+use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::persist::saved_state::{PluginRecord, SavedState};
 use crate::plugins::fixtures::{Echo, First};
@@ -29,7 +30,7 @@ struct Rig {
     events: mpsc::Receiver<Event>,
     root: PathBuf,
     _dirs: (tempfile::TempDir, tempfile::TempDir),
-    _terminal: Terminal<TestBackend>,
+    terminal: Terminal<TestBackend>,
 }
 
 fn manifest(extra: &str) -> String {
@@ -74,7 +75,7 @@ fn rig(manifest_extra: &str, saved: SavedState) -> Rig {
         events,
         root,
         _dirs: (project, config),
-        _terminal: Terminal::new(TestBackend::new(120, 24)).unwrap(),
+        terminal: Terminal::new(TestBackend::new(120, 24)).unwrap(),
     }
 }
 
@@ -130,6 +131,14 @@ impl Rig {
             .open_path(&path)
             .unwrap();
         self.tick();
+    }
+
+    /// Draws a frame, as the loop does: that is when the app learns how big the screen is.
+    fn draw(&mut self) {
+        let app = &mut self.app;
+        self.terminal
+            .draw(|frame| prepare_and_render(frame, app.state_mut()))
+            .unwrap();
     }
 
     /// An input that changes nothing: the app looks at the file in front after it.
@@ -311,4 +320,31 @@ fn a_thread_of_its_own_is_asked_about_and_asked_again_when_it_comes_with_an_upda
     allowed.wait_until("the plugin", |rig| rig.text().is_some());
     allowed.open("a.md");
     allowed.wait_for("file_text");
+}
+
+#[test]
+fn a_plugin_in_a_bar_is_told_how_big_its_pane_is_and_again_when_it_changes() {
+    let mut rig = md_rig();
+    rig.draw();
+    rig.tick();
+    rig.wait_for(r#""type":"size""#);
+    let text = rig.text().unwrap();
+    // The layout of this rig gives it 60 columns, 58 inside its frame.
+    assert!(text.contains(r#""width":58"#), "{text}");
+    assert!(text.contains(r#""height":22"#), "{text}");
+
+    // A bigger screen changes the pane's height, and the plugin is told.
+    rig.terminal = Terminal::new(TestBackend::new(120, 30)).unwrap();
+    rig.draw();
+    rig.tick();
+    rig.wait_for(r#""height":28"#);
+}
+
+#[test]
+fn a_path_is_from_the_root_of_the_repository_when_there_is_one() {
+    let mut rig = md_rig();
+    fs::create_dir_all(rig.root.join("docs")).unwrap();
+    fs::write(rig.root.join("docs/guide.md"), "# Guide\n").unwrap();
+    rig.open("docs/guide.md");
+    rig.wait_for(r#""path":"docs/guide.md""#);
 }

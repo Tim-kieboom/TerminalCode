@@ -11,4 +11,5 @@ pub mod scroll_text;
 pub mod status_view;
 pub mod terminal;
 pub mod workspace;
+pub(crate) use render::plugin_popup_area;
 pub use render::prepare_and_render;
