@@ -196,6 +196,12 @@ pub(crate) enum Action {
     PreviousTab,
     SplitRight,
     SplitDown,
+    /// Gives the pane right of the editor (a plugin's preview) more of the width.
+    SidePaneWider,
+    SidePaneNarrower,
+    /// Gives the focused editor pane more of its split, or less.
+    PaneGrow,
+    PaneShrink,
     FocusNextPane,
     FocusPane(FocusDirection),
     Move(Motion),
@@ -293,6 +299,10 @@ impl Action {
                 | Self::SplitRight
                 | Self::SplitDown
                 | Self::FocusNextPane
+                | Self::SidePaneWider
+                | Self::SidePaneNarrower
+                | Self::PaneGrow
+                | Self::PaneShrink
                 | Self::FocusPane(_)
                 | Self::Plugin(_)
         )
@@ -375,6 +385,10 @@ impl Action {
             Self::PreviousTab => "Tab: Previous",
             Self::SplitRight => "Pane: Split Right",
             Self::SplitDown => "Pane: Split Down",
+            Self::SidePaneWider => "View: Wider Side Pane",
+            Self::SidePaneNarrower => "View: Narrower Side Pane",
+            Self::PaneGrow => "Pane: Grow",
+            Self::PaneShrink => "Pane: Shrink",
             Self::FocusNextPane => "Pane: Focus Next",
             Self::FocusPane(Left) => "Pane: Focus Left",
             Self::FocusPane(Right) => "Pane: Focus Right",
@@ -498,6 +512,10 @@ impl Action {
             Self::PreviousTab,
             Self::SplitRight,
             Self::SplitDown,
+            Self::SidePaneWider,
+            Self::SidePaneNarrower,
+            Self::PaneGrow,
+            Self::PaneShrink,
             Self::FocusNextPane,
             Self::FocusPane(Left),
             Self::FocusPane(Right),

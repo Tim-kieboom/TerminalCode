@@ -348,3 +348,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Markdown preview, step 3: `RightBar` in the layout and `Place::Side` for plugins: a pane right of the editor (40% of the editor's row, the Explorer and the terminal's bar keep their places), a tab strip when several plugins share it, left out below 100 columns with the manager saying so
 
 - [x] Markdown preview, step 4: the plugin `Tim-kieboom/trcode-plugin-markdown` (in a pane beside the editor, follows the file in front, links open files), `ToPlugin::Size` so that a plugin can wrap to its pane, file paths from the repository's root, and the measured fuel: `FUEL_PER_BYTE` 19 100 and a ceiling of 2.5 billion (the plugin renders up to 128 KB and says so above that)
+
+- [x] Resizable lines: drag the border between the editor and the pane beside it (remembered as `side_percent` in `state.json`, 15 to 70 percent) and between editor panes (each pane at least a tenth), with the palette commands "View: Wider/Narrower Side Pane" and "Pane: Grow/Shrink"

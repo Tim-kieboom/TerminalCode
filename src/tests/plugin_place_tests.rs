@@ -501,3 +501,145 @@ fn a_menu_for_where_names_the_side_pane() {
         "{screen}"
     );
 }
+
+// --- moving the lines between panes ---
+
+use crossterm::event::{MouseButton as Button, MouseEventKind as Kind};
+
+impl Rig {
+    fn mouse(&mut self, kind: Kind, column: u16, row: u16) {
+        self.app.handle_input(InputEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+
+    /// Where the pane of `hello` starts, after drawing.
+    fn side_column(&mut self) -> u16 {
+        self.screen();
+        self.app
+            .state()
+            .placements(self.app.state().screen())
+            .into_iter()
+            .find(|p| p.kind == hello())
+            .unwrap()
+            .area
+            .x
+    }
+}
+
+#[test]
+fn dragging_the_line_beside_the_editor_resizes_the_side_pane_and_it_is_remembered() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    let before = rig.side_column();
+    assert_eq!(rig.app.state().side_percent(), 40);
+
+    // Take hold of the border between the editor and the pane, and move it left.
+    rig.mouse(Kind::Down(Button::Left), before, 5);
+    rig.mouse(Kind::Drag(Button::Left), before - 20, 5);
+    rig.mouse(Kind::Up(Button::Left), before - 20, 5);
+
+    let after = rig.side_column();
+    assert!(
+        after < before,
+        "the pane is wider: {after} against {before}"
+    );
+    assert!(rig.app.state().side_percent() > 40);
+    assert_eq!(
+        rig.remembered().side_percent(),
+        Some(rig.app.state().side_percent())
+    );
+    // The layout file is as it was.
+    assert_eq!(rig.app.state().base_layout().right_bar_anchor(), None);
+}
+
+#[test]
+fn the_side_pane_never_gets_less_than_15_percent_or_more_than_70() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    let at = rig.side_column();
+    rig.mouse(Kind::Down(Button::Left), at, 5);
+    rig.mouse(Kind::Drag(Button::Left), 119, 5);
+    assert_eq!(rig.app.state().side_percent(), 15);
+    rig.mouse(Kind::Drag(Button::Left), 0, 5);
+    assert_eq!(rig.app.state().side_percent(), 70);
+    rig.mouse(Kind::Up(Button::Left), 0, 5);
+}
+
+#[test]
+fn a_press_that_is_not_on_the_line_does_not_move_it() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    let at = rig.side_column();
+    rig.mouse(Kind::Down(Button::Left), at - 10, 5);
+    rig.mouse(Kind::Drag(Button::Left), at - 30, 5);
+    rig.mouse(Kind::Up(Button::Left), at - 30, 5);
+    assert_eq!(rig.app.state().side_percent(), 40);
+    assert_eq!(rig.remembered().side_percent(), None);
+}
+
+#[test]
+fn the_palette_commands_make_the_side_pane_wider_and_narrower_in_steps_of_five() {
+    let mut rig = rig(Some(record(true, Some(Place::Side))));
+    rig.wait_for_view();
+    rig.screen();
+    rig.app.run_action(Action::SidePaneWider);
+    assert_eq!(rig.app.state().side_percent(), 45);
+    rig.app.run_action(Action::SidePaneNarrower);
+    rig.app.run_action(Action::SidePaneNarrower);
+    assert_eq!(rig.app.state().side_percent(), 35);
+    assert_eq!(rig.remembered().side_percent(), Some(35));
+
+    // Without a pane there, it says so.
+    let mut none = rig_with(&default_layout(), First::Echo, None);
+    none.app.run_action(Action::SidePaneWider);
+    assert_eq!(
+        none.notification().as_deref(),
+        Some("there is no pane right of the editor")
+    );
+}
+
+#[test]
+fn a_remembered_width_is_applied_when_the_app_starts() {
+    let config = tempfile::tempdir().unwrap();
+    let mut state = SavedState::default();
+    state.set_plugin("hello", record(true, Some(Place::Side)));
+    state.set_side_percent(55);
+    saved_state::save(config.path(), &state).unwrap();
+    let (loaded, _) = saved_state::load(Some(config.path()));
+    let mut ui = AppState::new(Editor::new(Buffer::from_text("")));
+    ui.set_layout(LayoutTree::from_ron(&default_layout()).unwrap());
+    let app = App::new(ui).with_saved_state(loaded);
+    assert_eq!(app.state().side_percent(), 55);
+}
+
+#[test]
+fn the_line_between_two_editor_panes_is_dragged_with_the_mouse() {
+    let mut rig = rig(None);
+    rig.app.run_action(Action::SplitRight);
+    rig.screen();
+    let areas = rig.app.state().workspace().pane_areas();
+    let divider = areas[1].x;
+    rig.mouse(Kind::Down(Button::Left), divider, 5);
+    rig.mouse(Kind::Drag(Button::Left), divider + 20, 5);
+    rig.mouse(Kind::Up(Button::Left), divider + 20, 5);
+    rig.screen();
+    let after = rig.app.state().workspace().pane_areas();
+    assert!(
+        after[0].width > areas[0].width,
+        "{after:?} against {areas:?}"
+    );
+    assert_eq!(
+        after[0].width + after[1].width,
+        areas[0].width + areas[1].width
+    );
+
+    // The keyboard does it too.
+    rig.app.run_action(Action::PaneShrink);
+    rig.screen();
+    let again = rig.app.state().workspace().pane_areas();
+    assert!(again[1].width < after[1].width);
+}

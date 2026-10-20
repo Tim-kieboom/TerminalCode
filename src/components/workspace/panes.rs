@@ -1,5 +1,6 @@
 //! Panes: splitting, moving focus between them, and where each is on screen.
 
+use super::tree::Divider;
 use super::{FocusDirection, Pane, Tab, Workspace, contains};
 use crate::ids::PaneId;
 use crate::ui::layout::Axis;
@@ -43,6 +44,47 @@ impl Workspace {
         self.tree.split(self.focused, axis, id);
         self.panes.push(Pane::with_tab(id, tab));
         self.focused = id;
+    }
+
+    /// The line between two panes at (`x`, `y`) in the editor area `area`, if there is one.
+    pub(crate) fn divider_at(&self, area: Rect, x: u16, y: u16) -> Option<Divider> {
+        self.tree.divider_at(area, x, y)
+    }
+
+    /// Moves `divider` to where the pointer is: the first pane ends where it is.
+    pub(crate) fn drag_divider(&mut self, divider: &Divider, x: u16, y: u16) {
+        let area = divider.area;
+        let (inside, whole) = match divider.axis {
+            Axis::Horizontal => (x.saturating_sub(area.x), area.width),
+            Axis::Vertical => (y.saturating_sub(area.y), area.height),
+        };
+        if whole == 0 {
+            return;
+        }
+        let ratio = (u32::from(inside) * 1000 / u32::from(whole)).min(1000) as u16;
+        self.tree.set_ratio(&divider.path, ratio);
+    }
+
+    /// Makes the focused pane bigger (`step` thousandths of its split, or smaller when
+    /// negative) at the cost of the pane next to it. Returns whether there was a split.
+    pub(crate) fn resize_focused(&mut self, step: i16) -> bool {
+        let Some(path) = self.tree.path_of_parent(self.focused) else {
+            return false;
+        };
+        let (Some(ratio), Some(in_first)) = (
+            self.tree.ratio(&path),
+            self.tree.in_first_of(&path, self.focused),
+        ) else {
+            return false;
+        };
+        let wanted = i32::from(ratio)
+            + if in_first {
+                i32::from(step)
+            } else {
+                -i32::from(step)
+            };
+        self.tree.set_ratio(&path, wanted.clamp(0, 1000) as u16);
+        true
     }
 
     /// Moves focus to the next pane in reading order, wrapping around.

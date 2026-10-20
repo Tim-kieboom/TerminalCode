@@ -68,6 +68,9 @@ pub(crate) struct AppState {
     layout: LayoutTree,
     /// Where the user put the plugins that run, for `layout` and the popup.
     plugin_places: Vec<(PluginViewId, Place)>,
+    /// How much of the editor's row the pane right of the editor takes, in percent, when
+    /// the user moved the line; `SIDE_PANE_PERCENT` until then.
+    side_percent: Option<u16>,
     /// The view each bar shows, as an index into the bar's views; a bar is
     /// named by its first view, and one that is not here shows its first.
     bar_views: HashMap<ComponentKind, usize>,

@@ -138,6 +138,12 @@ impl App {
             self.needs_redraw = true;
             return;
         }
+        // The line between two panes is held until the button is let go, wherever the
+        // pointer goes meanwhile.
+        if self.handle_divider_mouse(event) {
+            self.needs_redraw = true;
+            return;
+        }
 
         if self.handle_definitions_mouse(event) {
             self.needs_redraw = true;

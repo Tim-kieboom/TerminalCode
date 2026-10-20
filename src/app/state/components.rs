@@ -14,6 +14,9 @@ use crate::ui::{ComponentKind, PluginViewId};
 
 /// How much of the editor's row a pane right of the editor takes.
 const SIDE_PANE_PERCENT: u16 = 40;
+/// The least and the most of it the user can give the pane.
+const SIDE_PANE_LEAST: u16 = 15;
+const SIDE_PANE_MOST: u16 = 70;
 
 impl AppState {
     /// Whether the component takes part in the layout. Hidden ones take no
@@ -274,7 +277,7 @@ impl AppState {
                 Place::Bottom => ComponentKind::Terminal,
                 Place::Side => {
                     let view = ComponentKind::Plugin(id.clone());
-                    if let Some(with) = layout.with_view_beside_editor(&view, SIDE_PANE_PERCENT) {
+                    if let Some(with) = layout.with_view_beside_editor(&view, self.side_percent()) {
                         layout = with;
                     }
                     continue;
@@ -287,6 +290,23 @@ impl AppState {
             }
         }
         self.layout = layout;
+    }
+
+    /// How much of the editor's row the side pane takes, in percent.
+    pub(crate) fn side_percent(&self) -> u16 {
+        self.side_percent.unwrap_or(SIDE_PANE_PERCENT)
+    }
+
+    /// Gives the side pane `percent` of the editor's row (at least 15 and at most 70, so that
+    /// both keep room). Returns whether that is news.
+    pub(crate) fn set_side_percent(&mut self, percent: u16) -> bool {
+        let percent = percent.clamp(SIDE_PANE_LEAST, SIDE_PANE_MOST);
+        if self.side_percent() == percent {
+            return false;
+        }
+        self.side_percent = Some(percent);
+        self.rebuild_layout();
+        true
     }
 
     pub(crate) fn layout(&self) -> &LayoutTree {

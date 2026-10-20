@@ -30,6 +30,7 @@ mod completion;
 mod config_files;
 mod definition;
 mod diagnostics;
+mod dividers;
 mod editing;
 mod errors_view;
 mod formatting;
@@ -116,6 +117,8 @@ pub(crate) struct App {
     /// The tab that was in front when the last input was handled, to notice a
     /// switch to another.
     front_view: Option<crate::ids::ViewId>,
+    /// A line between two panes that the mouse holds, to move it.
+    dragging: Option<dividers::Dragging>,
     /// The panes the user hid or showed, remembered for the next run.
     saved: Saved,
     recent: recent::Recents,
@@ -277,6 +280,7 @@ impl App {
             settings: Settings::default(),
             config_applied: None,
             front_view: None,
+            dragging: None,
             lsp: lsp::Lsp::default(),
             git: git::Tracking::default(),
             plugins: plugins::Plugins::default(),

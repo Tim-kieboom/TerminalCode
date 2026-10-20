@@ -128,6 +128,10 @@ pub(crate) struct SavedState {
     /// What the user decided about each plugin, by id.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     plugins: BTreeMap<String, PluginRecord>,
+    /// How much of the editor's row the pane right of the editor takes, in percent, when
+    /// the user moved the line between them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    side_percent: Option<u16>,
 }
 
 impl SavedState {
@@ -156,7 +160,20 @@ impl SavedState {
             shown: Shown::default(),
             settings_version: self.settings_version.clone(),
             plugins: BTreeMap::new(),
+            side_percent: None,
         }
+    }
+
+    /// How wide the user made the pane right of the editor, in percent, if they did.
+    pub(crate) fn side_percent(&self) -> Option<u16> {
+        self.side_percent
+    }
+
+    /// Remembers how wide the pane right of the editor is. Returns whether that is news.
+    pub(crate) fn set_side_percent(&mut self, percent: u16) -> bool {
+        let changed = self.side_percent != Some(percent);
+        self.side_percent = Some(percent);
+        changed
     }
 
     /// What the user decided about every plugin, by id.

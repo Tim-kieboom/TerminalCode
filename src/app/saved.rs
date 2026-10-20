@@ -36,6 +36,9 @@ impl Saved {
 impl App {
     /// Starts out knowing what was remembered; the panes are already as it says.
     pub(crate) fn with_saved_state(mut self, state: SavedState) -> Self {
+        if let Some(percent) = state.side_percent() {
+            self.state.set_side_percent(percent);
+        }
         self.saved = Saved {
             state,
             seen: self.panes_shown(),
@@ -57,6 +60,13 @@ impl App {
     /// Remembers what the user decided about the plugin `id`.
     pub(super) fn remember_plugin(&mut self, id: &str, record: PluginRecord) {
         if self.saved.state.set_plugin(id, record) {
+            self.write_saved_state();
+        }
+    }
+
+    /// Remembers how wide the pane right of the editor is.
+    pub(super) fn remember_side_percent(&mut self, percent: u16) {
+        if self.saved.state.set_side_percent(percent) {
             self.write_saved_state();
         }
     }

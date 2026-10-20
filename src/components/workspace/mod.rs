@@ -27,6 +27,7 @@ use bulk::ClosedTab;
 pub(crate) use bulk::{CloseMany, CloseScope};
 pub(crate) use disk::{DiskEvent, LspDocument, SaveOutcome};
 pub(crate) use panes::neighbor_score;
+pub(crate) use tree::Divider;
 use tree::Node;
 
 mod bulk;

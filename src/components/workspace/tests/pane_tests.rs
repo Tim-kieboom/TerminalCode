@@ -181,3 +181,100 @@ fn each_pane_has_its_own_tabs() {
     workspace.focus_next_pane();
     assert_eq!(workspace.tab_names().0.len(), 1);
 }
+
+// --- moving the line between two panes ---
+
+#[test]
+fn a_split_starts_in_half_and_the_line_can_be_dragged() {
+    let mut workspace = fresh("x");
+    workspace.split(Axis::Horizontal);
+    layout(&mut workspace, AREA);
+    let widths = |workspace: &Workspace| -> Vec<u16> {
+        workspace
+            .pane_areas()
+            .iter()
+            .map(|area| area.width)
+            .collect()
+    };
+    assert_eq!(widths(&workspace), [50, 50]);
+
+    // The line is the last column of the first pane and the first of the second.
+    let divider = workspace
+        .divider_at(AREA, 49, 10)
+        .expect("the border on the left");
+    assert_eq!(divider.axis, Axis::Horizontal);
+    assert!(
+        workspace.divider_at(AREA, 50, 10).is_some(),
+        "and the one on the right"
+    );
+    assert!(workspace.divider_at(AREA, 30, 10).is_none());
+    assert!(
+        workspace.divider_at(AREA, 49, 40).is_none(),
+        "below the editor area"
+    );
+
+    workspace.drag_divider(&divider, 70, 10);
+    layout(&mut workspace, AREA);
+    assert_eq!(widths(&workspace), [70, 30]);
+
+    // Never all the way: each keeps at least a tenth.
+    workspace.drag_divider(&divider, 99, 10);
+    layout(&mut workspace, AREA);
+    assert_eq!(widths(&workspace), [90, 10]);
+    workspace.drag_divider(&divider, 0, 10);
+    layout(&mut workspace, AREA);
+    assert_eq!(widths(&workspace), [10, 90]);
+}
+
+#[test]
+fn a_stacked_split_is_dragged_by_rows() {
+    let mut workspace = fresh("x");
+    workspace.split(Axis::Vertical);
+    layout(&mut workspace, AREA);
+    let divider = workspace
+        .divider_at(AREA, 10, 20)
+        .expect("the rows at the middle");
+    assert_eq!(divider.axis, Axis::Vertical);
+    workspace.drag_divider(&divider, 10, 10);
+    layout(&mut workspace, AREA);
+    let heights: Vec<u16> = workspace.pane_areas().iter().map(|a| a.height).collect();
+    assert_eq!(heights, [10, 30]);
+}
+
+#[test]
+fn the_deepest_line_wins_where_splits_meet() {
+    let mut workspace = fresh("x");
+    workspace.split(Axis::Horizontal);
+    workspace.split(Axis::Vertical);
+    layout(&mut workspace, AREA);
+    // The second pane (right half) is split in two rows: its line is only in its own half.
+    let inner = workspace
+        .divider_at(AREA, 70, 20)
+        .expect("the line inside the right half");
+    assert_eq!(inner.axis, Axis::Vertical);
+    assert!(
+        workspace.divider_at(AREA, 20, 20).is_none(),
+        "the left half is whole"
+    );
+    let outer = workspace
+        .divider_at(AREA, 50, 5)
+        .expect("the line between the halves");
+    assert_eq!(outer.axis, Axis::Horizontal);
+}
+
+#[test]
+fn a_pane_grows_and_shrinks_at_the_cost_of_the_one_next_to_it() {
+    let mut workspace = fresh("x");
+    assert!(!workspace.resize_focused(50), "one pane has no line");
+    workspace.split(Axis::Horizontal);
+    layout(&mut workspace, AREA);
+    // The new pane, on the right, has the focus.
+    assert!(workspace.resize_focused(100));
+    layout(&mut workspace, AREA);
+    let widths: Vec<u16> = workspace.pane_areas().iter().map(|a| a.width).collect();
+    assert_eq!(widths, [40, 60]);
+    assert!(workspace.resize_focused(-200));
+    layout(&mut workspace, AREA);
+    let widths: Vec<u16> = workspace.pane_areas().iter().map(|a| a.width).collect();
+    assert_eq!(widths, [60, 40]);
+}
