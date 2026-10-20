@@ -658,7 +658,8 @@ fn a_plugin_of_a_source_is_listed_with_where_it_comes_from_and_installing_asks_f
     rig.open_manager();
     rig.wait_for_text("Echo 1.0.0");
     let screen = rig.screen();
-    assert!(screen.contains("not installed · 127.0.0.1"), "{screen}");
+    assert!(screen.contains("not installed"), "{screen}");
+    assert!(screen.contains("127.0.0.1"), "{screen}");
     assert!(screen.contains("not official"), "{screen}");
 
     rig.type_text("i");
@@ -746,4 +747,30 @@ fn the_official_index_named_as_a_source_is_one_fetch_and_stays_official() {
         !rig.screen().contains("not an official plugin"),
         "an official plugin is not asked about as a source's"
     );
+}
+
+#[test]
+fn a_row_starts_with_a_symbol_for_what_the_plugin_is() {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+
+    let mut rig = rig_installed_and_on();
+    rig.open_manager();
+    rig.wait_for_text("● Echo 1.0.0");
+    assert!(rig.screen().contains("on · popup"));
+}
+
+fn rig_installed_and_on() -> Rig {
+    let mut rig = rig(
+        server("1.0.0", "", None, ""),
+        saved(record(true, Some(Place::Popup))),
+        installed_by_the_manager("1.0.0"),
+    );
+    rig.wait_until("the plugin", |rig| rig.running());
+    rig
 }

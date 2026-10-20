@@ -445,7 +445,7 @@ fn an_empty_list_says_there_are_no_plugins() {
     let screen = list_text(&mut rig);
 
     assert!(matches!(rig.app.state().popup(), Popup::PluginList(_)));
-    assert!(screen.contains("No plugins in the index"), "{screen}");
+    assert!(screen.contains("No plugins yet"), "{screen}");
 }
 
 #[test]

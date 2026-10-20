@@ -12,7 +12,7 @@ use ratatui::layout::Position;
 use super::App;
 use crate::components::popups::confirm::Confirm;
 use crate::components::popups::menu::{Entry, Menu};
-use crate::components::popups::plugin_list::{Command, PluginList, Row};
+use crate::components::popups::plugin_list::{Command, Mark, Note, PluginList, Row};
 use crate::event::Event;
 use crate::event::action::Action;
 use crate::persist::saved_state::Place;
@@ -51,14 +51,6 @@ impl Source {
 /// The source a plugin of the manager came from; `None` is the official index.
 fn installed_source(installed: &Installed) -> Option<String> {
     install::marker(&installed.dir).and_then(|marker| marker.entry.source)
-}
-
-/// The state with where the plugin comes from, when that is a source.
-fn with_source(state: String, entry: &IndexEntry) -> String {
-    match entry.source_label() {
-        Some(label) => format!("{state} · {label}"),
-        None => state,
-    }
 }
 
 /// What the plugin is, under the list; a source's plugin says so first.
@@ -115,7 +107,7 @@ impl Store {
 
     /// What the list says about the index: what the official one is, and what is
     /// wrong with the sources.
-    fn shown_note(&self) -> Option<String> {
+    fn shown_note(&self) -> Option<Note> {
         let mut parts: Vec<String> = self.note.iter().cloned().collect();
         parts.extend(self.problems.iter().cloned());
         if !self.left_out.is_empty() {
@@ -124,7 +116,17 @@ impl Store {
                 self.left_out.join(", ")
             ));
         }
-        (!parts.is_empty()).then(|| parts.join(" | "))
+        // Something is wrong when a source failed, a name was taken or the index is offline.
+        let warn = !self.problems.is_empty()
+            || !self.left_out.is_empty()
+            || self
+                .note
+                .as_deref()
+                .is_some_and(|note| note.starts_with("offline"));
+        (!parts.is_empty()).then(|| Note {
+            text: parts.join(" | "),
+            warn,
+        })
     }
 }
 
@@ -275,8 +277,11 @@ impl App {
                 Err((folder, error)) => rows.push(Row {
                     id: folder.as_str().into(),
                     name: folder.clone(),
-                    tag: "cannot run".to_owned(),
+                    version: String::new(),
+                    state: "cannot run".to_owned(),
+                    source: None,
                     detail: error.to_string(),
+                    mark: Mark::Broken,
                     grey: true,
                 }),
                 Ok(_) => {}
@@ -292,9 +297,12 @@ impl App {
                 if let Some(error) = self.plugins.manager.broken(&entry.id) {
                     return Row {
                         id: entry.id.as_str().into(),
-                        name: format!("{} {}", entry.name, entry.version),
-                        tag: "cannot run".to_owned(),
+                        name: entry.name.clone(),
+                        version: entry.version.clone(),
+                        state: "cannot run".to_owned(),
+                        source: entry.source_label(),
                         detail: error,
+                        mark: Mark::Broken,
                         grey: true,
                     };
                 }
@@ -304,9 +312,15 @@ impl App {
                     .unwrap_or_else(|| "not installed".to_owned());
                 Row {
                     id: entry.id.as_str().into(),
-                    name: format!("{} {}", entry.name, entry.version),
-                    tag: with_source(state, entry),
+                    name: entry.name.clone(),
+                    version: entry.version.clone(),
+                    state,
+                    source: entry.source_label(),
                     detail: described(entry),
+                    mark: match missing.is_some() {
+                        true => Mark::Unavailable,
+                        false => Mark::NotInstalled,
+                    },
                     grey: missing.is_some(),
                 }
             }
@@ -324,9 +338,6 @@ impl App {
         if !managed {
             parts.push("local".to_owned());
         }
-        if let Some(label) = install::marker(&installed.dir).and_then(|m| m.entry.source_label()) {
-            parts.push(label);
-        }
         if let Some(entry) = update {
             parts.push(format!("update {} available", entry.version));
         }
@@ -339,15 +350,20 @@ impl App {
             ),
             (true, None) => entry.map(described).unwrap_or_default(),
         };
+        let mark = match (update.is_some(), self.plugins.manager.is_running(id)) {
+            (true, _) => Mark::Update,
+            (false, true) => Mark::On,
+            (false, false) if self.plugins.manager.stopped.contains_key(id) => Mark::Broken,
+            (false, false) => Mark::Off,
+        };
         Row {
             id: id.into(),
-            name: format!(
-                "{} {}",
-                installed.manifest.display_name(),
-                installed.manifest.version
-            ),
-            tag: parts.join(" · "),
+            name: installed.manifest.display_name().to_owned(),
+            version: installed.manifest.version.clone(),
+            state: parts.join(" · "),
+            source: install::marker(&installed.dir).and_then(|marker| marker.entry.source_label()),
             detail,
+            mark,
             grey: false,
         }
     }
