@@ -28,6 +28,10 @@ pub(crate) use super::index::INDEX_URL;
 /// The file in a folder the installer made.
 pub(crate) const MARKER_FILE: &str = "installed.json";
 
+/// The file of a plugin that says what it is, shown by `d` in the manager. It is
+/// published next to `manifest.toml` and installed beside it; a plugin may leave it out.
+pub(crate) const DESCRIPTION_FILE: &str = "description.md";
+
 /// The workshop inside the plugins folder.
 const STAGING: &str = ".staging";
 
@@ -264,6 +268,14 @@ fn stop_if(cancel: &AtomicBool) -> Result<(), InstallError> {
     }
 }
 
+/// The address of `file` in the folder of the file at `url`.
+pub(crate) fn sibling(url: &str, file: &str) -> String {
+    match url.rsplit_once('/') {
+        Some((folder, _)) => format!("{folder}/{file}"),
+        None => file.to_owned(),
+    }
+}
+
 /// Fetches a README: text, at most [`MAX_TEXT`] bytes.
 pub(crate) fn fetch_readme(
     url: &str,
@@ -316,6 +328,18 @@ pub(crate) fn install(
     progress(Stage::Module);
     let module = fetch(&entry.module, policy, MAX_MODULE, cancel)?;
 
+    // The description is not what runs, so it is not checked and it is not needed:
+    // a plugin without one, or one that cannot be fetched, installs all the same.
+    let description = match fetch(
+        &sibling(&entry.manifest, DESCRIPTION_FILE),
+        policy,
+        MAX_TEXT,
+        cancel,
+    ) {
+        Err(InstallError::Cancelled) => return Err(InstallError::Cancelled),
+        other => other.ok(),
+    };
+
     progress(Stage::Checking);
     let hash = hex(&Sha256::digest(&module));
     if hash != entry.sha256 {
@@ -330,29 +354,40 @@ pub(crate) fn install(
     progress(Stage::Installing);
     let workshop = plugins_dir.join(STAGING);
     let staged = workshop.join(&entry.id);
-    let result = build_and_swap(
-        entry,
-        &manifest_text,
-        &module,
-        &hash,
-        &staged,
-        &target,
-        host,
-    );
+    let files = Files {
+        manifest: &manifest_text,
+        module: &module,
+        description: description.as_deref(),
+        hash: &hash,
+    };
+    let result = build_and_swap(entry, &files, &staged, &target, host);
     // Whatever is left in the workshop (a failed build, the old copy) goes.
     let _ = fs::remove_dir_all(&workshop);
     result
 }
 
+/// What an install puts in the plugin's folder.
+struct Files<'a> {
+    manifest: &'a [u8],
+    module: &'a [u8],
+    description: Option<&'a [u8]>,
+    /// The hash of the module.
+    hash: &'a str,
+}
+
 fn build_and_swap(
     entry: &Entry,
-    manifest_text: &[u8],
-    module: &[u8],
-    hash: &str,
+    files: &Files<'_>,
     staged: &Path,
     target: &Path,
     host: Host<'_>,
 ) -> Result<Installed, InstallError> {
+    let Files {
+        manifest: manifest_text,
+        module,
+        description,
+        hash,
+    } = *files;
     let _ = fs::remove_dir_all(staged);
     fs::create_dir_all(staged)?;
     fs::write(staged.join(MANIFEST_FILE), manifest_text)?;
@@ -367,6 +402,9 @@ fn build_and_swap(
         return Err(ManifestError::BadModulePath(described.wasm).into());
     }
     fs::write(staged.join(&described.wasm), module)?;
+    if let Some(description) = description {
+        fs::write(staged.join(DESCRIPTION_FILE), description)?;
+    }
     let marker = Marker {
         entry: entry.clone(),
         sha256: hash.to_owned(),

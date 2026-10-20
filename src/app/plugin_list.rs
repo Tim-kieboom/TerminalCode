@@ -4,6 +4,7 @@
 //! by events; nothing is written in the plugins folder until the module is checked.
 
 use std::collections::{HashMap, VecDeque};
+use std::fs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -687,7 +688,7 @@ impl App {
                         Body::Text(text)
                     }
                     Err(reason) => {
-                        Body::Missing(format!("The README could not be fetched: {reason}"))
+                        Body::Missing(format!("The description could not be fetched: {reason}"))
                     }
                 };
                 if let Some(readme) = self.state.plugin_readme_mut()
@@ -924,13 +925,31 @@ impl App {
                 }
             }
         }
-        let url = entry.as_ref().and_then(|entry| entry.readme.clone());
-        let body = match &url {
-            None => Body::Missing("This plugin lists no README.".to_owned()),
-            Some(url) => match self.plugins.store.readmes.get(url) {
+        // The description of the plugin itself, as it was installed; else the one its
+        // publisher keeps next to the manifest, else the README the list links.
+        let local = installed
+            .as_ref()
+            .and_then(|installed| fs::read(installed.dir.join(install::DESCRIPTION_FILE)).ok())
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
+        let candidates: Vec<String> = entry
+            .iter()
+            .flat_map(|entry| {
+                [
+                    Some(install::sibling(&entry.manifest, install::DESCRIPTION_FILE)),
+                    entry.readme.clone(),
+                ]
+            })
+            .flatten()
+            .collect();
+        // The first address names the page (to fill it in when the text arrives).
+        let url = candidates.first().cloned();
+        let body = match (local, &url) {
+            (Some(text), _) => Body::Text(text),
+            (None, None) => Body::Missing("This plugin has no description.md.".to_owned()),
+            (None, Some(url)) => match self.plugins.store.readmes.get(url) {
                 Some(text) => Body::Text(text.clone()),
                 None => {
-                    self.fetch_readme(url.clone());
+                    self.fetch_description(url.clone(), candidates);
                     Body::Loading
                 }
             },
@@ -944,16 +963,28 @@ impl App {
         self.needs_redraw = true;
     }
 
-    fn fetch_readme(&mut self, url: String) {
+    fn fetch_description(&mut self, key: String, candidates: Vec<String>) {
         let Some(events) = self.background.sender() else {
             return;
         };
         let policy = self.plugins.store.source.policy;
         std::thread::spawn(move || {
             let cancel = AtomicBool::new(false);
-            let result =
-                install::fetch_readme(&url, policy, &cancel).map_err(|error| error.to_string());
-            let _ = events.blocking_send(Event::PluginJob(JobEvent::Readme { url, result }));
+            let mut result = Err("nothing to fetch".to_owned());
+            for url in &candidates {
+                result = match install::fetch_readme(url, policy, &cancel) {
+                    Ok(text) => Ok(text),
+                    // No description.md and no README listed: say that, not "404".
+                    Err(InstallError::Status { status: 404, .. }) if candidates.len() == 1 => {
+                        Err("there is no description.md, and no README is listed".to_owned())
+                    }
+                    Err(error) => Err(error.to_string()),
+                };
+                if result.is_ok() {
+                    break;
+                }
+            }
+            let _ = events.blocking_send(Event::PluginJob(JobEvent::Readme { url: key, result }));
         });
     }
 

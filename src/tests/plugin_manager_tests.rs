@@ -51,7 +51,7 @@ fn hash(bytes: &[u8]) -> String {
 /// A server with the index and the plugin `echo` at `version`; the index says the
 /// module has the hash `promised` (the real one when `None`).
 fn server(version: &str, extra: &str, promised: Option<String>, requires: &str) -> String {
-    server_of(version, extra, promised, requires, false)
+    server_of(version, extra, promised, requires, false, None)
 }
 
 /// The README the servers of the tests give for `echo`.
@@ -63,6 +63,7 @@ fn server_of(
     promised: Option<String>,
     requires: &str,
     with_readme: bool,
+    description: Option<&str>,
 ) -> String {
     let module = module();
     // The address is only known once the server runs, and the index names it.
@@ -74,6 +75,14 @@ fn server_of(
         ("/plugin.wasm", Reply::Body(module.clone())),
         ("/README.md", Reply::Body(README.as_bytes().to_vec())),
     ]);
+    let routes = match description {
+        Some(text) => {
+            let mut routes = routes;
+            routes.insert("/description.md", Reply::Body(text.as_bytes().to_vec()));
+            routes
+        }
+        None => routes,
+    };
     let address = serve(routes);
     let readme = match with_readme {
         true => format!(r#","readme":"{address}/README.md""#),
@@ -860,7 +869,7 @@ fn opening_a_plugin_from_the_list_does_not_bring_the_list_back() {
 #[test]
 fn d_opens_what_the_plugin_says_about_itself_with_its_readme_and_esc_goes_back() {
     let mut rig = rig(
-        server_of("1.0.0", "", None, "", true),
+        server_of("1.0.0", "", None, "", true, None),
         SavedState::default(),
         nothing,
     );
@@ -890,7 +899,7 @@ fn a_plugin_that_lists_no_readme_says_so() {
     rig.open_manager();
     rig.wait_for_text("+ Echo 1.0.0");
     rig.type_text("d");
-    rig.wait_for_text("lists no README");
+    rig.wait_for_text("no README is listed");
 }
 
 #[test]
@@ -904,7 +913,7 @@ fn a_readme_that_cannot_be_fetched_says_why() {
     rig.open_manager();
     rig.wait_for_text("+ Echo 1.0.0");
     rig.type_text("d");
-    rig.wait_for_text("The README could not be fetched");
+    rig.wait_for_text("The description could not be fetched");
 }
 
 #[test]
@@ -945,4 +954,55 @@ fn shift_i_with_everything_up_to_date_says_so_and_asks_nothing() {
         rig.notification().as_deref(),
         Some("every plugin is up to date")
     );
+}
+
+const DESCRIPTION: &str = "# Echo, in short\n\nRepeats **everything** it hears.\n";
+
+#[test]
+fn d_shows_description_md_of_the_plugin_before_its_readme() {
+    let mut rig = rig(
+        server_of("1.0.0", "", None, "", true, Some(DESCRIPTION)),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+
+    rig.type_text("d");
+
+    rig.wait_for_text("Repeats everything it hears.");
+    assert!(!rig.screen().contains("Says what it is told."));
+}
+
+#[test]
+fn an_installed_plugin_shows_the_description_that_came_with_it_without_the_network() {
+    let mut rig = rig(
+        server_of("1.0.0", "", None, "", true, Some(DESCRIPTION)),
+        SavedState::default(),
+        nothing,
+    );
+    rig.install_echo();
+    rig.wait_until("the question about what it may do", |rig| rig.asking());
+    assert!(rig.folder().join("description.md").is_file());
+    rig.press(KeyCode::Char('n'));
+    rig.wait_for_text("○ Echo 1.0.0");
+
+    // Somebody replaced it on disk, so that only the file can be what is shown.
+    fs::write(rig.folder().join("description.md"), "From the folder.\n").unwrap();
+    rig.type_text("d");
+
+    assert!(rig.screen().contains("From the folder."));
+}
+
+#[test]
+fn a_plugin_without_a_description_falls_back_to_its_readme() {
+    let mut rig = rig(
+        server_of("1.0.0", "", None, "", true, None),
+        SavedState::default(),
+        nothing,
+    );
+    rig.open_manager();
+    rig.wait_for_text("+ Echo 1.0.0");
+    rig.type_text("d");
+    rig.wait_for_text("Says what it is told.");
 }

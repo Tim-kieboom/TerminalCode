@@ -334,3 +334,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] The plugin manager list no longer stays closed after turning a plugin on: it closes for the questions (what it may do, where it goes; a source's install), and comes back with the plugin chosen when they are answered, refused or cancelled (opening a plugin from the list, or closing the list, does not bring it back)
 
 - [x] Plugin manager: `d` shows what a plugin says about itself and its README (the `readme` address of its index entry, Markdown shown plainly, scrollable, `esc` goes back), and `I` (shift+i) updates every plugin that has a newer version after one question, one after the other
+
+- [x] `description.md` is part of the plugin standard: published next to `manifest.toml`, installed with the plugin, and shown by `d` in the manager before the README the index may link (the Git plugin ships one from its next release)

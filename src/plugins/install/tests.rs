@@ -549,3 +549,42 @@ fn a_plugin_of_the_users_own_is_not_checked() {
     let own = found.into_iter().next().unwrap().unwrap();
     assert_eq!(own.module().unwrap(), b"mine");
 }
+
+#[test]
+fn the_description_next_to_the_manifest_is_installed_with_the_plugin() {
+    let module = b"m";
+    let mut served = routes("1.0.0", module);
+    served.insert("/description.md", Reply::Body(b"# What it is\n".to_vec()));
+    let address = serve(served);
+    let dir = tempfile::tempdir().unwrap();
+
+    install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+
+    assert_eq!(
+        fs::read_to_string(dir.path().join("echo").join(DESCRIPTION_FILE)).unwrap(),
+        "# What it is\n"
+    );
+}
+
+#[test]
+fn a_plugin_without_a_description_installs_without_one() {
+    let module = b"m";
+    let address = serve(routes("1.0.0", module));
+    let dir = tempfile::tempdir().unwrap();
+
+    install_entry(&entry(&address, "1.0.0", module), dir.path()).unwrap();
+
+    assert!(!dir.path().join("echo").join(DESCRIPTION_FILE).exists());
+}
+
+#[test]
+fn the_description_is_found_next_to_the_manifest_whatever_its_address() {
+    assert_eq!(
+        sibling(
+            "https://github.com/a/b/releases/download/v1/manifest.toml",
+            "description.md"
+        ),
+        "https://github.com/a/b/releases/download/v1/description.md"
+    );
+    assert_eq!(sibling("manifest.toml", "description.md"), "description.md");
+}

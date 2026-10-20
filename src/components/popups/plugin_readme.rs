@@ -186,7 +186,7 @@ impl Readme {
             lines.push(Line::default());
         }
         match &self.body {
-            Body::Loading => push(&mut lines, "Fetching the README...", hint),
+            Body::Loading => push(&mut lines, "Fetching the description...", hint),
             Body::Missing(why) => push(&mut lines, why, hint),
             Body::Text(markdown) => {
                 let mut fenced = false;
