@@ -69,7 +69,8 @@ fn install(plugins: &Path, folder: &str, wasm_crate: &str) {
     fs::write(dir.join(module_name), module).unwrap();
 }
 
-/// What a view says, line by line.
+/// What a view says, line by line: of its rows or lines, or of the first of them in a column (the
+/// buttons are not lines).
 fn lines_of(node: &ViewNode) -> Vec<String> {
     match node {
         ViewNode::Lines(lines) => lines.iter().map(|line| line.text.to_string()).collect(),
@@ -77,8 +78,32 @@ fn lines_of(node: &ViewNode) -> Vec<String> {
             .iter()
             .map(|row| row.spans.iter().map(|span| span.text.as_ref()).collect())
             .collect(),
+        ViewNode::Column(parts) => parts
+            .iter()
+            .map(lines_of)
+            .find(|lines| !lines.is_empty())
+            .unwrap_or_default(),
         _ => Vec::new(),
     }
+}
+
+/// The labels of the buttons of a view, row by row.
+fn buttons_of(node: &ViewNode) -> Vec<Vec<String>> {
+    let ViewNode::Column(parts) = node else {
+        return Vec::new();
+    };
+    parts
+        .iter()
+        .filter_map(|part| match part {
+            ViewNode::Buttons(buttons) => Some(
+                buttons
+                    .iter()
+                    .map(|button| button.label.to_string())
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .collect()
 }
 
 // --- the runtime alone: the fake adapter and the pane ---
@@ -89,6 +114,8 @@ struct Real {
     notices: mpsc::Receiver<Notice>,
     /// What each plugin last drew.
     views: HashMap<String, Vec<String>>,
+    /// The buttons each plugin last drew, row by row.
+    buttons: HashMap<String, Vec<Vec<String>>>,
     /// The plugins that were started again after a trap, in order.
     restarts: Vec<String>,
     plugins: tempfile::TempDir,
@@ -103,6 +130,7 @@ fn real() -> Real {
         runtime,
         notices,
         views: HashMap::new(),
+        buttons: HashMap::new(),
         restarts: Vec::new(),
         plugins: tempfile::tempdir().unwrap(),
     }
@@ -138,6 +166,8 @@ impl Real {
     fn absorb(&mut self, notice: Notice) {
         match notice {
             Notice::View { plugin, content } => {
+                self.buttons
+                    .insert(plugin.to_string(), buttons_of(&content));
                 self.views.insert(plugin.to_string(), lines_of(&content));
             }
             Notice::Restarted { plugin, .. } => self.restarts.push(plugin.to_string()),
@@ -242,7 +272,7 @@ fn size_twenty_thousand_tests_are_pulled_through_the_real_calls_within_the_budge
     assert_eq!(real.lines("test-ui")[1..], ["> [  ] bin (0/20000)"]);
     real.press("right");
     real.until("the folder to open", Duration::from_secs(5), |real| {
-        real.lines("test-ui").len() == 20
+        real.lines("test-ui").len() == 19
     });
 }
 
@@ -278,6 +308,41 @@ fn ids_tests_with_the_same_name_are_rows_and_one_runs_alone() {
         lines[2], "  [  ] case_0",
         "the one of the other folder did not run"
     );
+}
+
+#[test]
+#[ignore = "needs the modules built"]
+fn the_find_tests_and_run_buttons_work_through_the_real_calls() {
+    let mut real = with_scenario(r#"{"tests":4}"#, 4);
+    assert_eq!(real.buttons["test-ui"], [["Find tests", "Run v"]]);
+
+    // The Run button opens its list; Run all in it runs the four tests and closes the list.
+    let press = |real: &Real, button: &str| {
+        real.runtime.send(
+            "test-ui",
+            ToPlugin::Press {
+                button: button.to_owned(),
+            },
+        );
+    };
+    press(&real, "run_menu");
+    real.until("the list to open", Duration::from_secs(5), |real| {
+        real.buttons["test-ui"].len() == 2
+    });
+    assert_eq!(
+        real.buttons["test-ui"][1],
+        ["Run all", "Run selected", "Cancel run"]
+    );
+    press(&real, "run_all");
+    real.wait_for_header("run 1");
+    real.settle();
+    real.call_adapter("advance", r#"{"n":10}"#);
+    real.wait_for_header("ok 3 FAIL 1");
+    assert_eq!(real.buttons["test-ui"].len(), 1, "the list closed");
+
+    // Find tests asks the adapter again: the same four tests, with no results.
+    press(&real, "find");
+    real.wait_for_header("tests 4/4 | ok 0 FAIL 0");
 }
 
 #[test]
@@ -382,7 +447,7 @@ fn stalls_an_adapter_that_is_busy_on_its_own_thread_does_not_freeze_the_pane() {
     );
     let asked = Instant::now();
     real.until("the pane to redraw", Duration::from_secs(5), |real| {
-        real.lines("test-ui").len() == 5
+        real.lines("test-ui").len() == 4
     });
     let answered = asked.elapsed();
     println!("the pane answered in {answered:?}");
