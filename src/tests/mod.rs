@@ -52,6 +52,7 @@ mod plugin_tests;
 mod quit_tests;
 mod real_markdown_tests;
 mod real_plugin_tests;
+mod real_test_plugin_tests;
 mod recent_tests;
 mod rename_symbol_tests;
 mod rename_tests;
