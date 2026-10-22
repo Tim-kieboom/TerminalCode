@@ -179,7 +179,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.9.1
 - [x] Version 0.9.1 (after 0.9.0: you can copy from the integrated terminal: drag over the text to select it (letting go copies; a double click takes a word, a triple click a line), `shift`+drag when the program in the pane has asked for the mouse, `ctrl+shift+c` or `ctrl+b y` to copy again, and "Terminal: Copy Selection" in the palette). Changes to know when upgrading: a plain drag in the terminal pane at a shell prompt now selects text instead of doing nothing; programs that use the mouse still get it
-- [ ] Tag `v0.9.1`
+- [x] Tag `v0.9.1` (tagged on 9621d28; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
