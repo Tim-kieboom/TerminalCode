@@ -37,6 +37,7 @@ mod errors_view;
 mod formatting;
 mod git;
 mod hover;
+mod lightbulb;
 mod open;
 mod plugin_files;
 mod plugin_keys;
@@ -208,6 +209,7 @@ impl App {
                 self.definition_forget_stale();
                 self.rename_forget_stale();
                 self.code_actions_forget_stale();
+                self.lightbulb_watch();
                 self.formatting_step();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
@@ -223,6 +225,7 @@ impl App {
             let hover_deadline = self.hover_deadline().map(Instant::from_std);
             let formatting_deadline = self.formatting_deadline().map(Instant::from_std);
             let git_deadline = self.git_deadline().map(Instant::from_std);
+            let lightbulb_deadline = self.lightbulb_deadline().map(Instant::from_std);
 
             tokio::select! {
                 biased;
@@ -242,6 +245,8 @@ impl App {
                 if hover_deadline.is_some() => self.hover_due(),
                 _ = sleep_until(formatting_deadline.unwrap_or_else(Instant::now)),
                 if formatting_deadline.is_some() => self.formatting_step(),
+                _ = sleep_until(lightbulb_deadline.unwrap_or_else(Instant::now)),
+                if lightbulb_deadline.is_some() => self.lightbulb_due(),
                 _ = sleep_until(git_deadline.unwrap_or_else(Instant::now)),
                 if git_deadline.is_some() => self.git_due(),
             }

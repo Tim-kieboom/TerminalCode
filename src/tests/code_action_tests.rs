@@ -760,3 +760,61 @@ fn an_edit_the_server_asks_for_may_move_a_file() {
     assert!(rig._dir.path().join("src/renamed.rs").exists());
     assert_eq!(rig.main_text(), format!("x{SOURCE}"));
 }
+
+impl Rig {
+    /// The cursor on `line`, resting there until the server was asked.
+    fn rest_cursor_on(&mut self, line: usize) {
+        self.app
+            .state_mut()
+            .edit(|editor| editor.go_to(Position::new(line, 0)));
+        self.app.lightbulb_watch();
+        std::thread::sleep(Duration::from_millis(450));
+        self.app.lightbulb_due();
+    }
+}
+
+#[test]
+fn a_line_with_actions_gets_a_mark_in_the_gutter_that_a_move_takes_away() {
+    let mut rig = rig(only(|uri| json!([import_action(uri)])));
+
+    rig.rest_cursor_on(1);
+    rig.pump_until(|app| app.state().action_mark().is_some());
+    assert_eq!(rig.app.state().action_mark().map(|(_, line)| line), Some(1));
+    let screen = rig.screen();
+    assert!(screen.contains('●'), "{screen}");
+
+    rig.app
+        .state_mut()
+        .edit(|editor| editor.go_to(Position::new(0, 0)));
+    rig.app.lightbulb_watch();
+    assert!(rig.app.state().action_mark().is_none());
+    assert!(!rig.screen().contains('●'));
+}
+
+#[test]
+fn only_disabled_actions_leave_the_line_unmarked() {
+    let mut rig = rig(only(
+        |uri| json!([{ "title": "Not now", "disabled": { "reason": "no" }, "edit": edit_of(uri, "x") }]),
+    ));
+
+    rig.rest_cursor_on(1);
+    // The question was asked and answered: the server saw it.
+    let sent = rig.everything();
+    assert_eq!(methods(&sent, "textDocument/codeAction"), 1);
+    rig.pump_until(|app| app.lightbulb_quiet());
+    assert!(rig.app.state().action_mark().is_none());
+}
+
+#[test]
+fn a_cursor_that_does_not_rest_asks_nothing() {
+    let mut rig = rig(only(|uri| json!([import_action(uri)])));
+
+    rig.app
+        .state_mut()
+        .edit(|editor| editor.go_to(Position::new(1, 0)));
+    rig.app.lightbulb_watch();
+    rig.app.lightbulb_due();
+
+    let sent = rig.everything();
+    assert_eq!(methods(&sent, "textDocument/codeAction"), 0);
+}

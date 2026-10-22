@@ -24,6 +24,8 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 /// Smallest line-number column, in digits.
+/// What stands in the gutter of a line the server has code actions for.
+const ACTION_MARK: &str = "●";
 const MIN_GUTTER_DIGITS: usize = 3;
 
 /// Records where the text will be drawn inside `area`, keeps the scroll inside
@@ -55,6 +57,8 @@ pub(crate) struct Content<'a> {
     pub(crate) diagnostics: &'a [Diagnostic],
     /// Which lines differ from git's index.
     pub(crate) git: &'a crate::git::Lines,
+    /// The line the server has code actions for, which gets a mark in the gutter.
+    pub(crate) action_line: Option<usize>,
 }
 
 /// Draws the editor into `area` inside `pane_frame`.
@@ -73,6 +77,7 @@ pub(crate) fn draw(
         find,
         diagnostics,
         git,
+        action_line,
     } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
@@ -86,6 +91,7 @@ pub(crate) fn draw(
         find,
         diagnostics,
         git,
+        action_line,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
     for selection in view.selections().iter() {
@@ -146,6 +152,7 @@ struct Overlays<'a> {
     find: Option<&'a Find>,
     diagnostics: &'a [Diagnostic],
     git: &'a crate::git::Lines,
+    action_line: Option<usize>,
 }
 
 fn draw_lines(
@@ -161,6 +168,7 @@ fn draw_lines(
         find,
         diagnostics,
         git,
+        action_line,
     } = *overlays;
     let scroll = view.scroll();
     let head_line = view.selections().primary().head().line;
@@ -187,6 +195,12 @@ fn draw_lines(
         let bar = match git.mark_at(line) {
             Some(kind) => Span::styled(change_bar(kind), theme.style(change_slot(kind))),
             None => Span::styled(" ", number_style),
+        };
+        // A line with actions has a mark where the bar of git is: the cursor's line shows it
+        // instead of the bar.
+        let bar = match action_line == Some(line) {
+            true => Span::styled(ACTION_MARK, theme.style("editor.diagnostic.warning")),
+            false => bar,
         };
         numbers.push(Line::from(vec![
             Span::styled(format!("{:>width$}", line + 1), number_style),

@@ -117,6 +117,8 @@ pub(crate) struct AppState {
     plugin_areas: HashMap<PluginViewId, (ratatui::layout::Rect, ratatui::layout::Rect)>,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
+    /// The line of a document that the server has code actions for, marked in the gutter.
+    action_mark: Option<(crate::ids::DocumentId, usize)>,
     /// The suggestions for the word being typed, while there are any.
     completion_box: Option<CompletionBox>,
     /// What a language server says about the thing under the pointer or the cursor.

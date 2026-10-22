@@ -86,6 +86,7 @@ impl Render<AppState> for Workspace {
                 find: state.find().filter(|_| focused),
                 diagnostics: state.diagnostics().of(tab.document),
                 git: &document.git,
+                action_line: state.action_mark_in(tab.document),
             };
             editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 

@@ -30,6 +30,20 @@ impl AppState {
         &mut self.lsp_diagnostics
     }
 
+    /// The line with a mark in the gutter for the actions there, in `document`.
+    pub(crate) fn action_mark_in(&self, document: crate::ids::DocumentId) -> Option<usize> {
+        self.action_mark
+            .and_then(|(marked, line)| (marked == document).then_some(line))
+    }
+
+    pub(crate) fn set_action_mark(&mut self, mark: Option<(crate::ids::DocumentId, usize)>) {
+        self.action_mark = mark;
+    }
+
+    pub(crate) fn action_mark(&self) -> Option<(crate::ids::DocumentId, usize)> {
+        self.action_mark
+    }
+
     pub(crate) fn hover_box(&self) -> Option<&HoverBox> {
         self.hover_box.as_ref()
     }

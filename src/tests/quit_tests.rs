@@ -120,6 +120,22 @@ fn save_all_writes_every_file_and_quits() {
 }
 
 #[test]
+fn save_all_replaces_each_file_whole_and_leaves_nothing_beside_it() {
+    let (mut app, dir, paths) = app_with_files(&["a.txt", "b.txt"], &[0, 1]);
+    app.handle_input(ctrl_q());
+
+    app.handle_input(typed('s'));
+
+    let mut names: Vec<String> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["a.txt", "b.txt"], "no staged copy is left");
+    assert_eq!(on_disk(&paths[0]), "xoriginal\n");
+}
+
+#[test]
 fn discard_all_quits_without_writing() {
     let (mut app, _dir, paths) = app_with_files(&["a.txt", "b.txt"], &[0, 1]);
     app.handle_input(ctrl_q());

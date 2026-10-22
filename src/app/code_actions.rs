@@ -42,6 +42,13 @@ pub(super) struct Acting {
     stage: Stage,
 }
 
+impl Acting {
+    /// Whether nothing about actions is being asked, shown or done.
+    pub(super) fn is_idle(&self) -> bool {
+        matches!(self.stage, Stage::Idle)
+    }
+}
+
 #[derive(Default)]
 enum Stage {
     #[default]
@@ -128,19 +135,7 @@ impl App {
             return;
         };
         let bytes = anchor.min(head)..anchor.max(head);
-        let diagnostics = self
-            .state
-            .diagnostics()
-            .overlapping(document, bytes.clone())
-            .map(|diagnostic| ContextDiagnostic {
-                start: to_lsp(&text, diagnostic.range.start),
-                end: to_lsp(&text, diagnostic.range.end),
-                severity: diagnostic.severity,
-                message: diagnostic.message.clone(),
-                source: diagnostic.source.clone(),
-                code: diagnostic.code.clone(),
-            })
-            .collect();
+        let diagnostics = self.context_diagnostics(document, bytes.clone(), &text);
         let context = Context {
             key,
             uri,
@@ -153,9 +148,30 @@ impl App {
         self.ask_actions(context, None);
     }
 
+    /// The problems that touch `bytes` of `document`, as the server is told them.
+    pub(super) fn context_diagnostics(
+        &self,
+        document: DocumentId,
+        bytes: std::ops::Range<usize>,
+        text: &ropey::Rope,
+    ) -> Vec<ContextDiagnostic> {
+        self.state
+            .diagnostics()
+            .overlapping(document, bytes)
+            .map(|diagnostic| ContextDiagnostic {
+                start: to_lsp(text, diagnostic.range.start),
+                end: to_lsp(text, diagnostic.range.end),
+                severity: diagnostic.severity,
+                message: diagnostic.message.clone(),
+                source: diagnostic.source.clone(),
+                code: diagnostic.code.clone(),
+            })
+            .collect()
+    }
+
     /// The server that serves `document` and how it names it, when it runs and
     /// lists code actions.
-    fn code_action_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
+    pub(super) fn code_action_target(&self, document: DocumentId) -> Option<(ServerKey, String)> {
         let (_, target) = self.lsp.targets.get(&document)?;
         let target = target.as_ref()?;
         let offered = self.lsp.manager.as_ref()?.offers_code_actions(&target.key);

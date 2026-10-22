@@ -47,6 +47,8 @@ pub(super) struct Lsp {
     pub(super) renaming: super::rename::Renaming,
     /// What the code actions wait for.
     pub(super) acting: super::code_actions::Acting,
+    /// The question about the cursor's line that puts a mark in the gutter.
+    pub(super) lightbulb: super::lightbulb::Lightbulb,
     /// Saves and formats waiting for a language server.
     pub(super) formatting: super::formatting::Formatting,
     /// Files outside the project that a server pointed at (the source of the
@@ -69,6 +71,7 @@ impl Default for Lsp {
             defining: super::definition::Defining::default(),
             renaming: super::rename::Renaming::default(),
             acting: super::code_actions::Acting::default(),
+            lightbulb: super::lightbulb::Lightbulb::default(),
             formatting: super::formatting::Formatting::default(),
             borrowed: HashMap::new(),
         }
@@ -146,6 +149,7 @@ impl App {
         self.definition_answer();
         self.rename_answer();
         self.code_actions_answer();
+        self.lightbulb_answer();
         self.answer_apply_edits();
         self.formatting_step();
         self.refresh_lsp_status();
