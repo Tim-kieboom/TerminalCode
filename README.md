@@ -8,7 +8,7 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**This is version 0.9.0.** The command is `trcode` (it was `terminal_code` before 0.2.1). Release builds for Linux and Windows (and macOS, best effort) are on the
+**This is version 0.9.1.** The command is `trcode` (it was `terminal_code` before 0.2.1). Release builds for Linux and Windows (and macOS, best effort) are on the
 [releases page](https://github.com/Tim-kieboom/TerminalCode/releases) with their checksums, or you can build from
 source (see below). What is planned next is tracked in [docs/todo.md](docs/todo.md); the design is in
 [docs/design.md](docs/design.md).
