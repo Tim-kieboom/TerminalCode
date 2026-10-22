@@ -1024,6 +1024,88 @@ fn slow_work_on_a_big_text_traps_on_the_shared_thread_and_finishes_on_its_own() 
     );
 }
 
+fn reply_of(bytes: usize) -> ToPlugin {
+    ToPlugin::Reply {
+        from: "adapter".into(),
+        request: 1,
+        payload: "x".repeat(bytes),
+        last: true,
+    }
+}
+
+fn call_of(bytes: usize) -> ToPlugin {
+    ToPlugin::Call {
+        from: "pane".into(),
+        request: 1,
+        method: "discover".into(),
+        payload: "x".repeat(bytes),
+    }
+}
+
+#[test]
+fn the_budget_grows_with_the_payload_of_a_call_or_a_reply_and_the_text_of_a_command_on_its_own_thread()
+ {
+    for message in [reply_of(100_000), call_of(100_000)] {
+        // The shared thread has the flat budget whatever it is sent.
+        assert_eq!(fuel_for(&message, false, 0), CALLBACK_FUEL);
+        assert_eq!(
+            fuel_for(&message, true, 0),
+            CALLBACK_FUEL + 100_000 * FUEL_PER_BYTE
+        );
+    }
+    let output = ToPlugin::RunOutput {
+        request: 1,
+        stream: crate::plugin_api::RunStream::Stdout,
+        text: "x".repeat(100_000),
+    };
+    assert_eq!(fuel_for(&output, false, 0), CALLBACK_FUEL);
+    assert_eq!(
+        fuel_for(&output, true, 0),
+        CALLBACK_FUEL + 100_000 * FUEL_PER_BYTE
+    );
+}
+
+#[test]
+fn a_small_payload_gets_the_flat_budget_and_a_huge_one_the_ceiling() {
+    assert_eq!(fuel_for(&reply_of(0), true, 0), CALLBACK_FUEL);
+    assert_eq!(fuel_for(&reply_of(3_000_000), true, 0), OWNED_FUEL_CEILING);
+}
+
+#[test]
+fn a_payload_is_charged_as_much_as_the_text_the_plugin_holds_when_that_is_more() {
+    // It holds 50 000 bytes of a file and is sent a payload of 10: not less than before.
+    assert_eq!(
+        fuel_for(&reply_of(10), true, 50_000),
+        CALLBACK_FUEL + 50_000 * FUEL_PER_BYTE
+    );
+    assert_eq!(
+        fuel_for(&reply_of(120_000), true, 50_000),
+        CALLBACK_FUEL + 120_000 * FUEL_PER_BYTE
+    );
+}
+
+#[test]
+fn slow_work_on_a_big_reply_traps_on_the_shared_thread_and_finishes_on_its_own() {
+    let rig = rig();
+    // About 70 million fuel: far over the flat budget, within what 500 KB gets.
+    rig.load_on("shared", parses_slowly(10_000_000), Thread::Shared);
+    rig.next();
+    rig.runtime.send("shared", reply_of(500_000));
+    assert!(matches!(rig.next(), Notice::Restarted { .. }));
+    rig.next();
+
+    rig.load_on("own", parses_slowly(10_000_000), Thread::Own);
+    rig.next();
+    rig.runtime.send("own", reply_of(500_000));
+    assert_eq!(
+        rig.next(),
+        Notice::View {
+            plugin: "own".into(),
+            content: lines("hello from a plugin", "explorer.file"),
+        }
+    );
+}
+
 #[test]
 fn a_plugin_busy_on_its_own_thread_does_not_hold_up_the_shared_one() {
     let rig = rig();

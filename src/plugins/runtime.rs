@@ -971,15 +971,21 @@ fn call(loaded: &mut Loaded, message: ToPlugin) -> Result<Delivered, Failure> {
 
 /// The budget of one message. On the shared thread it is the flat one, whatever the
 /// message (more would stall the other plugins). A plugin on a thread of its own is
-/// given more in proportion to the text of a file: for the text itself, and for every
-/// message after it, as long as it holds it (a preview draws its document again for a
-/// key or a new width), up to a ceiling.
+/// given more in proportion to what it is sent to work on, up to a ceiling: the text of
+/// a file (and, for every message after it, as long as it holds it: a preview draws its
+/// document again for a key or a new width), the payload of a call or of an answer to
+/// one, and the text a command it started wrote. A language adapter parsing the listing
+/// of a big project is the plugin this is for.
 pub(crate) fn fuel_for(message: &ToPlugin, owned: bool, held: u64) -> u64 {
     if !owned {
         return CALLBACK_FUEL;
     }
     let bytes = match message {
         ToPlugin::FileText { text, .. } => text.len() as u64,
+        ToPlugin::Call { payload, .. } | ToPlugin::Reply { payload, .. } => {
+            (payload.len() as u64).max(held)
+        }
+        ToPlugin::RunOutput { text, .. } => (text.len() as u64).max(held),
         _ => held,
     };
     CALLBACK_FUEL

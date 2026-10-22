@@ -41,6 +41,13 @@ impl Manager {
             .find(|installed| installed.id() == id)
     }
 
+    /// Whether the plugin has a pane: every plugin does unless its manifest says
+    /// `view = false` (one without a manifest here, such as a test's, has one).
+    pub(super) fn has_view(&self, id: &str) -> bool {
+        self.installed(id)
+            .is_none_or(|installed| installed.manifest.view)
+    }
+
     /// The ids of the plugins that are running.
     pub(super) fn running_ids(&self) -> impl Iterator<Item = Box<str>> + '_ {
         self.running.iter().cloned()
@@ -323,8 +330,11 @@ impl App {
             },
         );
         self.start_plugin(&installed);
-        // Where it goes is the next question, unless the layout file says or other
-        // plugins still wait for their answer (they are asked first).
+        // Where it goes is the next question, unless it has no pane, the layout file says
+        // or other plugins still wait for their answer (they are asked first).
+        if !installed.manifest.view {
+            return;
+        }
         let unplaced = self
             .saved_plugin(id)
             .and_then(|record| record.place)

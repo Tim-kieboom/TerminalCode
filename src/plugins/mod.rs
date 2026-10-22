@@ -38,8 +38,9 @@ mod view;
 /// instruction. A placeholder until the Git viewer is measured: the plan is about
 /// 50 times its slowest callback on a 10 000-entry status (todo, plugin step 6).
 pub(crate) const CALLBACK_FUEL: u64 = 5_000_000;
-/// Fuel for each byte of the text of a file a plugin on a thread of its own is sent
-/// (`ToPlugin::FileText`), on top of [`CALLBACK_FUEL`]: 3 times the worst the markdown
+/// Fuel for each byte of what a plugin on a thread of its own is sent to work on, on top
+/// of [`CALLBACK_FUEL`]: the text of a file (`ToPlugin::FileText`), the payload of a call
+/// or a reply (`Call`, `Reply`) and the text a command wrote (`RunOutput`). The rate is 3 times the worst the markdown
 /// plugin spends on a byte of a dense document (about 5 480 fuel; `real_markdown_tests`
 /// measures it again and fails when this falls under 3 times).
 pub(crate) const FUEL_PER_BYTE: u64 = 16_600;

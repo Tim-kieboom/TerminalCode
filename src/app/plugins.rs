@@ -59,6 +59,8 @@ impl App {
     /// What the plugin thread said: a new view, or what happened to a plugin.
     pub(super) fn plugin_notice(&mut self, notice: Notice) {
         match notice {
+            // A plugin without a pane has nothing to draw into.
+            Notice::View { plugin, .. } if !self.plugins.manager.has_view(&plugin) => {}
             Notice::View { plugin, content } => {
                 let id = PluginViewId::new(&*plugin);
                 self.state.set_plugin_view(id.clone(), content);

@@ -11,6 +11,7 @@
 //! capabilities = ["git.read", "git.write"]
 //! file_types = ["md"]          # with "files.text": the files whose text it gets
 //! run = ["cargo nextest *"]    # with "process.run": the commands it may run
+//! view = false                 # no pane (a plugin that works for other plugins)
 //! thread = "own"               # a thread of its own, for heavy work (optional)
 //!
 //! [[action]]
@@ -70,6 +71,12 @@ pub struct Manifest {
     /// nothing; the user is shown every one of them when asked to allow the plugin.
     #[serde(default)]
     pub run: Vec<String>,
+    /// Whether it has a pane. A plugin that only does work for other plugins (a language
+    /// adapter) has none: with `view = false` it is never asked where its pane goes, has no
+    /// place and no tab, and what it draws is dropped. Plugin API 1.8; before it, every plugin
+    /// has a pane.
+    #[serde(default = "has_view_by_default")]
+    pub view: bool,
     /// The thread it runs on; the shared one when left out. A plugin that does heavy work
     /// on what it is sent (parsing a document) asks for `"own"`.
     #[serde(default)]
@@ -77,6 +84,10 @@ pub struct Manifest {
     /// The actions it has, for the palette and for keys.
     #[serde(default, rename = "action")]
     pub actions: Vec<ActionDecl>,
+}
+
+fn has_view_by_default() -> bool {
+    true
 }
 
 impl Manifest {

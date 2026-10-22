@@ -414,6 +414,7 @@ impl App {
         let manager = &self.plugins.manager;
         if manager.is_running(id) {
             return match self.saved_plugin_record(id).and_then(|record| record.place) {
+                _ if !manager.has_view(id) => "on · no pane".to_owned(),
                 _ if self.layout_places(id) => "on".to_owned(),
                 Some(Place::Side) if self.state.screen().width < RIGHT_BAR_MIN_WIDTH => {
                     format!("on · side pane (hidden: needs {RIGHT_BAR_MIN_WIDTH} columns)")
@@ -455,6 +456,9 @@ impl App {
         match (manager.is_running(id), update) {
             (_, true) => Next::Update,
             (false, false) => Next::TurnOn,
+            (true, false) if !manager.has_view(id) => Next::Say(format!(
+                "plugin {id} has no pane to open: it works for other plugins"
+            )),
             (true, false)
                 if self.saved_plugin_record(id).and_then(|r| r.place).is_none()
                     && !self.layout_places(id) =>
@@ -1064,6 +1068,11 @@ impl App {
 
     /// Asks where the plugin's view goes: a menu of the places this layout has.
     pub(super) fn ask_where(&mut self, id: &str) {
+        if !self.plugins.manager.has_view(id) {
+            self.state
+                .notify(format!("plugin {id} has no pane to place"));
+            return;
+        }
         if self.layout_places(id) {
             self.state
                 .notify(format!("plugin {id} is placed by your layout file"));

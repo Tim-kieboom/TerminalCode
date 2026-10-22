@@ -117,8 +117,12 @@ fn on(capabilities: &[&str]) -> PluginRecord {
 }
 
 fn started(config: tempfile::TempDir, saved: SavedState) -> Rig {
+    started_in(config, saved, LAYOUT)
+}
+
+fn started_in(config: tempfile::TempDir, saved: SavedState, layout: &str) -> Rig {
     let mut state = AppState::new(Editor::new(Buffer::from_text("")));
-    state.set_layout(LayoutTree::from_ron(LAYOUT).unwrap());
+    state.set_layout(LayoutTree::from_ron(layout).unwrap());
     let (tx, events) = mpsc::channel(1024);
     let app = App::new(state)
         .with_config_dir(Some(config.path().to_path_buf()))
@@ -808,4 +812,95 @@ fn the_action_asks_about_the_folder_and_says_so_when_it_is_trusted_already() {
 
     assert!(!rig.asking());
     assert_eq!(rig.notification(), Some("this folder is trusted already"));
+}
+
+// --- a plugin without a pane ---
+
+/// A layout that does not put the plugin anywhere, so that the user is asked.
+const LAYOUT_WITHOUT_THE_PLUGIN: &str = r#"Row([Pane(view: Editor)])"#;
+
+/// The plugin `hello` with `extra` in its manifest, in a layout that leaves it unplaced.
+fn unplaced_rig(extra: &str, saved: SavedState) -> Rig {
+    let config = tempfile::tempdir().unwrap();
+    install(
+        config.path(),
+        "hello",
+        extra,
+        &Echo::new(First::Echo).build(),
+    );
+    started_in(config, saved, LAYOUT_WITHOUT_THE_PLUGIN)
+}
+
+fn menu_is_open(rig: &Rig) -> bool {
+    matches!(rig.app.state().popup(), Popup::Menu(_))
+}
+
+#[test]
+fn a_plugin_with_a_pane_is_asked_where_it_goes_after_it_is_turned_on() {
+    let mut rig = unplaced_rig("capabilities = [\"git.read\"]\n", saved_with(on(&[])));
+    assert!(rig.asking());
+
+    rig.press(KeyCode::Char('y'));
+
+    assert!(menu_is_open(&rig), "the places to put its pane in");
+}
+
+#[test]
+fn a_plugin_without_a_pane_is_never_asked_where_it_goes() {
+    let mut rig = unplaced_rig(
+        "view = false\ncapabilities = [\"git.read\"]\n",
+        saved_with(on(&[])),
+    );
+    assert!(rig.asking());
+
+    rig.press(KeyCode::Char('y'));
+
+    assert!(!menu_is_open(&rig));
+    assert!(!rig.asking());
+    assert_eq!(rig.remembered().plugin("hello").unwrap().place, None);
+}
+
+#[test]
+fn what_a_plugin_without_a_pane_draws_is_dropped_and_it_has_no_tab() {
+    let mut rig = unplaced_rig("view = false\n", saved_with(on(&[])));
+
+    // It started and said something, which has nowhere to go.
+    assert!(rig.stays_quiet());
+    assert!(!rig.screen().contains("hello"));
+}
+
+#[test]
+fn the_list_says_a_plugin_without_a_pane_has_none_and_enter_does_not_open_it() {
+    let mut rig = unplaced_rig("view = false\n", saved_with(on(&[])));
+    rig.open_list();
+
+    let screen = rig.screen();
+    assert!(screen.contains("on · no pane"), "{screen}");
+    rig.press(KeyCode::Enter);
+
+    assert!(list_is_open(&rig), "the list stays");
+    assert_eq!(
+        rig.notification(),
+        Some("plugin hello has no pane to open: it works for other plugins")
+    );
+}
+
+#[test]
+fn a_plugin_without_a_pane_cannot_be_placed_or_opened() {
+    let mut rig = unplaced_rig("view = false\n", saved_with(on(&[])));
+
+    rig.app
+        .place_plugin("hello", crate::persist::saved_state::Place::Popup);
+    assert_eq!(
+        rig.notification(),
+        Some("plugin hello has no pane to place")
+    );
+    rig.app.run_action(Action::OpenPluginPopup("hello".into()));
+
+    assert_eq!(rig.notification(), Some("plugin hello has no pane to open"));
+    assert_eq!(
+        rig.remembered().plugin("hello"),
+        None,
+        "nothing was remembered"
+    );
 }

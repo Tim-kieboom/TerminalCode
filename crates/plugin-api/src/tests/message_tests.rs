@@ -1180,3 +1180,15 @@ fn the_run_list_of_a_manifest_reads_and_is_empty_without_one() {
         toml_like(r#"{"id":"x","version":"0.1.0","abi":"1.7","wasm":"m.wasm"}"#);
     assert!(without.run.is_empty());
 }
+
+// --- plugin API 1.8: a plugin without a pane ---
+
+#[test]
+fn a_manifest_has_a_pane_unless_it_says_it_has_none() {
+    let with: Manifest = toml_like(r#"{"id":"x","version":"0.1.0","abi":"1.8","wasm":"m.wasm"}"#);
+    let without: Manifest =
+        toml_like(r#"{"id":"x","version":"0.1.0","abi":"1.8","wasm":"m.wasm","view":false}"#);
+
+    assert!(with.view, "every plugin before 1.8 has one");
+    assert!(!without.view);
+}

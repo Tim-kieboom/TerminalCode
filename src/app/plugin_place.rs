@@ -44,7 +44,10 @@ impl App {
             .saved_state()
             .plugins()
             .filter(|(id, record)| {
-                record.enabled && self.plugins.manager.is_running(id) && !self.layout_places(id)
+                record.enabled
+                    && self.plugins.manager.is_running(id)
+                    && self.plugins.manager.has_view(id)
+                    && !self.layout_places(id)
             })
             .filter_map(|(id, record)| Some((PluginViewId::new(id), record.place?)))
             .collect();
@@ -53,6 +56,11 @@ impl App {
 
     /// Puts the plugin's view in `place` and remembers it. Says why when it cannot.
     pub(crate) fn place_plugin(&mut self, id: &str, place: Place) {
+        if !self.plugins.manager.has_view(id) {
+            self.state
+                .notify(format!("plugin {id} has no pane to place"));
+            return;
+        }
         if self.layout_places(id) {
             self.state
                 .notify(format!("plugin {id} is placed by your layout file"));
@@ -90,6 +98,11 @@ impl App {
     pub(crate) fn open_plugin_popup(&mut self, id: &str) {
         if !self.plugins.manager.is_running(id) {
             self.state.notify(format!("plugin {id} is not running"));
+            return;
+        }
+        if !self.plugins.manager.has_view(id) {
+            self.state
+                .notify(format!("plugin {id} has no pane to open"));
             return;
         }
         let place = self.saved_plugin_record(id).and_then(|record| record.place);
