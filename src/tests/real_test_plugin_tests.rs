@@ -230,7 +230,7 @@ fn with_scenario(scenario: &str, tests: usize) -> Real {
 #[ignore = "needs the modules built"]
 fn size_twenty_thousand_tests_are_pulled_through_the_real_calls_within_the_budget() {
     let began = Instant::now();
-    let real = with_scenario(r#"{"tests":20000}"#, 20_000);
+    let mut real = with_scenario(r#"{"tests":20000}"#, 20_000);
 
     println!("20000 tests discovered in {:?}", began.elapsed());
     assert!(
@@ -238,33 +238,46 @@ fn size_twenty_thousand_tests_are_pulled_through_the_real_calls_within_the_budge
         "a plugin trapped: {:?}",
         real.restarts
     );
-    assert_eq!(
-        real.lines("test-ui").len(),
-        20,
-        "a window, not twenty thousand rows"
-    );
+    // A project this big starts with its folders closed; opened, it is a window.
+    assert_eq!(real.lines("test-ui")[1..], ["> [  ] bin (0/20000)"]);
+    real.press("right");
+    real.until("the folder to open", Duration::from_secs(5), |real| {
+        real.lines("test-ui").len() == 20
+    });
 }
 
 #[test]
 #[ignore = "needs the modules built"]
 fn ids_tests_with_the_same_name_are_rows_and_one_runs_alone() {
     let mut real = with_scenario(r#"{"tests":4,"same_names":true}"#, 4);
-    assert!(real.lines("test-ui")[1].ends_with("bin0 case_0"));
-    assert!(real.lines("test-ui")[2].ends_with("bin1 case_0"));
+    assert_eq!(
+        real.lines("test-ui")[1..],
+        [
+            "v [  ] bin0 (0/2)",
+            "  [  ] case_0",
+            "  [  ] case_1",
+            "v [  ] bin1 (0/2)",
+            "  [  ] case_0",
+            "  [  ] case_1",
+        ]
+    );
 
-    real.press("down");
+    // The case_0 of bin1: the folder, two tests, the next folder, then it.
+    for _ in 0..4 {
+        real.press("down");
+    }
     real.press("run_selected");
     real.wait_for_header("run 1");
     real.settle();
     real.call_adapter("advance", r#"{"n":10}"#);
 
     real.wait_for_header("ok 1 FAIL 0");
-    assert!(
-        real.lines("test-ui")[2].starts_with("[ok]"),
-        "{:?}",
-        real.lines("test-ui")
+    let lines = real.lines("test-ui");
+    assert_eq!(lines[5], "  [ok] case_0", "{lines:?}");
+    assert_eq!(
+        lines[2], "  [  ] case_0",
+        "the one of the other folder did not run"
     );
-    assert!(real.lines("test-ui")[1].starts_with("[  ]"));
 }
 
 #[test]
@@ -565,12 +578,8 @@ fn the_rust_adapter_lists_and_runs_a_real_project_in_the_editor_once_the_folder_
         return;
     }
     let mut rig = rust_rig();
-    // The pane starts with the fake adapter, which is not turned on.
-    rig.wait_for_header("no adapter called fake-adapter");
-
-    // Switching to the Rust adapter lists the project, which is not allowed in a folder that
-    // is not trusted: the user is asked, and the pane says why there are no tests.
-    rig.press("adapter");
+    // The pane starts with the Rust adapter, which lists the project: not allowed in a folder
+    // that is not trusted, so the user is asked, and the pane says why there are no tests.
     rig.wait_until("the question", Duration::from_secs(60), |rig| rig.asking());
     let question = rig.question();
     assert!(question.contains("Trust the folder"), "{question}");
@@ -583,31 +592,33 @@ fn the_rust_adapter_lists_and_runs_a_real_project_in_the_editor_once_the_folder_
     rig.key(KeyCode::Char('y'));
     rig.press("discover");
     rig.wait_for_header("tests 5/5");
-    let rows = rig.pane();
-    assert!(
-        rows.iter()
-            .any(|row| row.ends_with("fx::bin/fx tests::parses_empty")),
-        "{rows:?}"
-    );
-    assert!(
-        rows.iter().any(|row| row.ends_with("fx::it parses_empty")),
-        "{rows:?}"
-    );
-    assert!(
-        !rows.iter().any(|row| row.contains("ignored_one")),
-        "ignored tests are not listed"
+    // The tests are folders, a binary and its modules, with the tests in them.
+    assert_eq!(
+        rig.pane()[1..],
+        [
+            "v [  ] fx (0/3)",
+            "  v [  ] tests (0/3)",
+            "    [  ] fails_here",
+            "    [  ] panics_ok",
+            "    [  ] parses_empty",
+            "v [  ] fx::it (0/1)",
+            "  [  ] parses_empty",
+            "v [  ] fx::bin/fx (0/1)",
+            "  v [  ] tests (0/1)",
+            "    [  ] parses_empty",
+        ],
+        "the ignored test is not listed"
     );
 
     // Run everything: four pass, one fails.
     rig.press("run_all");
     rig.wait_for_header("ok 4 FAIL 1");
     let rows = rig.pane();
-    let failed: Vec<&String> = rows
-        .iter()
-        .filter(|row| row.starts_with("[FAIL]"))
-        .collect();
-    assert_eq!(failed.len(), 1, "{rows:?}");
-    assert!(failed[0].ends_with("fx tests::fails_here"), "{rows:?}");
+    // The failure is marked on its test and on the folders above it.
+    assert_eq!(rows[1], "v [FAIL] fx (3/3)", "{rows:?}");
+    assert_eq!(rows[2], "  v [FAIL] tests (3/3)", "{rows:?}");
+    assert_eq!(rows[3], "    [FAIL] fails_here", "{rows:?}");
+    assert_eq!(rows[6], "v [ok] fx::it (1/1)", "{rows:?}");
     rig.wait_until("the run to end", Duration::from_secs(30), |rig| {
         !rig.header().contains("| run ")
     });
@@ -620,21 +631,20 @@ fn the_rust_adapter_lists_and_runs_a_real_project_in_the_editor_once_the_folder_
         rig.pane() != before
     });
     rig.wait_for_header("tests 5/5");
-    let at = rig
-        .pane()
-        .iter()
-        .position(|row| row.ends_with("fx::bin/fx tests::parses_empty"))
-        .expect("the test is listed");
-    for _ in 1..at {
+    // The last test is the one of the binary `fx::bin/fx`: every node before it is a step down.
+    let last = rig.pane().len() - 1;
+    for _ in 1..last {
         rig.press("down");
     }
     rig.press("run_selected");
     rig.wait_for_header("ok 1 FAIL 0");
     let rows = rig.pane();
     assert_eq!(
-        rows.iter().filter(|row| row.starts_with("[ok]")).count(),
+        rows.iter()
+            .filter(|row| row.trim_start().starts_with("[ok]"))
+            .count(),
         1,
         "only that test ran: {rows:?}"
     );
-    assert!(rows[at].starts_with("[ok]"), "{rows:?}");
+    assert_eq!(rows[last], "    [ok] parses_empty", "{rows:?}");
 }
