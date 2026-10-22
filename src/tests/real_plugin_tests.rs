@@ -152,7 +152,10 @@ impl Rig {
         let ViewNode::Column(parts) = view.content() else {
             return Vec::new();
         };
-        let Some(ViewNode::Rows { rows, .. }) = parts.get(1) else {
+        let Some(ViewNode::Rows { rows, .. }) = parts
+            .iter()
+            .find(|part| matches!(part, ViewNode::Rows { .. }))
+        else {
             return Vec::new();
         };
         rows.iter()
@@ -168,12 +171,13 @@ impl Rig {
         let ViewNode::Column(parts) = view.content() else {
             return false;
         };
-        match parts.first() {
-            Some(ViewNode::Buttons(buttons)) => {
+        // The row of buttons, and the list More opens when it is open.
+        parts.iter().any(|part| match part {
+            ViewNode::Buttons(buttons) => {
                 buttons.iter().any(|button| button.label.as_ref() == text)
             }
             _ => false,
-        }
+        })
     }
 
     /// The text of the commit message line.
@@ -184,7 +188,7 @@ impl Rig {
         let ViewNode::Column(parts) = view.content() else {
             return String::new();
         };
-        match parts.get(2) {
+        match parts.last() {
             Some(ViewNode::Input { value, .. }) => value.to_string(),
             _ => String::new(),
         }
@@ -321,22 +325,23 @@ fn a_change_made_outside_shows_in_the_pane() {
 
 #[test]
 #[ignore = "needs the module built for wasm32"]
-fn the_buttons_are_on_the_screen_and_wrap_in_a_narrow_pane() {
+fn the_buttons_are_on_the_screen_and_more_opens_the_rest() {
     let mut rig = started();
 
     let screen = rig.screen();
 
-    for label in [
-        "Commit",
-        "Stage All",
-        "Unstage All",
-        "Fetch",
-        "Pull",
-        "Push",
-    ] {
+    for label in ["Commit", "Push", "More v"] {
         assert!(screen.contains(label), "{label}\n{screen}");
     }
+    assert!(!screen.contains("Unstage All"), "closed: {screen}");
     assert!(screen.contains("Message:"), "{screen}");
+    // `m` opens the list, as the button does.
+    rig.press(KeyCode::Char('m'));
+    rig.wait_until("the list to open", |rig| rig.screen_has("Unstage All"));
+    let screen = rig.screen();
+    for label in ["More ^", "Fetch", "Pull", "Stage All", "Unstage All"] {
+        assert!(screen.contains(label), "{label}\n{screen}");
+    }
 }
 
 #[test]
