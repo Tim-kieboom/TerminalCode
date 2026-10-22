@@ -181,6 +181,10 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Version 0.9.1 (after 0.9.0: you can copy from the integrated terminal: drag over the text to select it (letting go copies; a double click takes a word, a triple click a line), `shift`+drag when the program in the pane has asked for the mouse, `ctrl+shift+c` or `ctrl+b y` to copy again, and "Terminal: Copy Selection" in the palette). Changes to know when upgrading: a plain drag in the terminal pane at a shell prompt now selects text instead of doing nothing; programs that use the mouse still get it
 - [x] Tag `v0.9.1` (tagged on 9621d28; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
+## Release 0.9.2
+- [x] Version 0.9.2 (after 0.9.1: the find bar of `ctrl+f` stays open while you edit, with the matches highlighted and `f3` for the next; drag the explorer's right edge and the terminal's top edge to resize them (held in memory, the layout file wins on reload); language server: a rename or code action can move files (`renameFile`, so a Rust module's file moves and tabs follow), disabled code actions are listed with their reason, a server's `workspace/applyEdit` request is applied, and a `●` in the gutter marks the cursor's line when the server has actions there)
+- [ ] Tag `v0.9.2`
+
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
   - Cut decided for 0.1.0: `shell`, `mouse`, `tab_size`, `indent` (style, width, detection on or off). After 0.1.0: sequence timeout, remember what is hidden, notification lifetime, hidden-at-start layouts.
