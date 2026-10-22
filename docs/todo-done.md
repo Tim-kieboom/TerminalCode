@@ -183,7 +183,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.9.2
 - [x] Version 0.9.2 (after 0.9.1: the find bar of `ctrl+f` stays open while you edit, with the matches highlighted and `f3` for the next; drag the explorer's right edge and the terminal's top edge to resize them (held in memory, the layout file wins on reload); language server: a rename or code action can move files (`renameFile`, so a Rust module's file moves and tabs follow), disabled code actions are listed with their reason, a server's `workspace/applyEdit` request is applied, and a `●` in the gutter marks the cursor's line when the server has actions there)
-- [ ] Tag `v0.9.2`
+- [x] Tag `v0.9.2` (tagged on ac302d3; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
