@@ -108,9 +108,23 @@ fn a_plugin_runs_a_command_it_may_and_hears_its_output_and_its_end() {
 
     act(&rig, "tests", "r");
 
-    heard(&rig, "tests", GOT_HI);
-    heard(&rig, "tests", GOT_OOPS);
-    heard(&rig, "tests", GOT_ENDED);
+    // The two streams are read by threads of their own: in either order, but both before the end.
+    let until = Instant::now() + Duration::from_secs(10);
+    let mut told = Vec::new();
+    while !told.iter().any(|text: &String| text == GOT_ENDED) {
+        let left = until
+            .checked_duration_since(Instant::now())
+            .expect("the command never ended");
+        let notice = rig
+            .notices
+            .recv_timeout(left)
+            .expect("the command never ended");
+        if let Some(("tests", text)) = text_of(&notice) {
+            told.push(text.to_owned());
+        }
+    }
+    assert!(told.iter().any(|text| text == GOT_HI), "{told:?}");
+    assert!(told.iter().any(|text| text == GOT_OOPS), "{told:?}");
 }
 
 #[test]
