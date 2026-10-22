@@ -260,5 +260,6 @@ impl Rig {
 }
 
 mod basics;
+mod selection;
 mod shell_cannot_start;
 mod toggle_chord;

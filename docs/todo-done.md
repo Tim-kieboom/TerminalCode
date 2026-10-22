@@ -360,3 +360,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Scroll control for plugin panes: the mouse wheel over a plugin's pane is `ToPlugin::Scroll` (3 lines a notch), and the markdown preview scrolls with it, with `j`/`k`, `ctrl+d`/`ctrl+u` and a percent in its header
 
 - [x] Show and hide the side pane: "View: Toggle Side Pane" (`ctrl+k p`, also in the View menu), remembered in `state.json`, `hidden: true` on a `RightBar` of the layout file, and `RightBar` documented in the default layout
+
+- [x] Copy from the integrated terminal: drag to select (letting go copies; a double click takes a word, a triple click a line), `shift`+drag when the program in the pane has the mouse, `ctrl+shift+c` or `ctrl+b y` to copy again, the selection drawn and dropped by a press, typing, another tab, the history moving or the text changing

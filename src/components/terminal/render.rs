@@ -55,6 +55,14 @@ pub(super) fn draw(
         let cursor = session.with_screen(|screen| {
             draw_screen(frame.buffer_mut(), inner, screen);
             draw_scroll_indicator(frame.buffer_mut(), inner, screen.scrollback());
+            if let Some(range) = pane.selection_range() {
+                draw_selection(
+                    frame.buffer_mut(),
+                    inner,
+                    range,
+                    theme.style("editor.selection"),
+                );
+            }
             // The cursor belongs to the present; it is not where the history is.
             (!screen.hide_cursor() && screen.scrollback() == 0).then(|| screen.cursor_position())
         });
@@ -175,6 +183,29 @@ pub(super) fn draw_scroll_indicator(buffer: &mut Buffer, area: Rect, offset: usi
         if let Some(cell) = buffer.cell_mut((start + index as u16, y)) {
             cell.set_char(c);
             cell.set_style(Style::default().add_modifier(Modifier::REVERSED));
+        }
+    }
+}
+
+/// Gives the cells from `first` to `last` (row, column; both included, reading order) the
+/// style of a selection.
+pub(super) fn draw_selection(
+    buffer: &mut Buffer,
+    area: Rect,
+    (first, last): ((u16, u16), (u16, u16)),
+    style: Style,
+) {
+    for row in first.0..=last.0.min(area.height.saturating_sub(1)) {
+        let from = if row == first.0 { first.1 } else { 0 };
+        let to = if row == last.0 {
+            last.1
+        } else {
+            area.width.saturating_sub(1)
+        };
+        for column in from..=to.min(area.width.saturating_sub(1)) {
+            if let Some(cell) = buffer.cell_mut((area.x + column, area.y + row)) {
+                cell.set_style(style);
+            }
         }
     }
 }

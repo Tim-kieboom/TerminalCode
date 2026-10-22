@@ -27,6 +27,8 @@ pub(crate) enum Action {
     ToggleTerminal,
     /// Opens another shell in a new tab of the terminal pane.
     TerminalNewTab,
+    /// Copies the text selected in the terminal pane.
+    TerminalCopy,
     TerminalNextTab,
     TerminalPreviousTab,
     /// Closes the active terminal tab and stops its shell.
@@ -251,6 +253,7 @@ impl Action {
             self,
             Self::Quit
                 | Self::CommandPalette
+                | Self::TerminalCopy
                 | Self::FocusExplorer
                 | Self::FocusEditor
                 | Self::FocusPluginView(_)
@@ -330,6 +333,7 @@ impl Action {
             Self::ToggleStatusBar => "View: Toggle Status Bar",
             Self::ToggleTerminal => "View: Toggle Terminal",
             Self::TerminalNewTab => "Terminal: New Tab",
+            Self::TerminalCopy => "Terminal: Copy Selection",
             Self::TerminalNextTab => "Terminal: Next Tab",
             Self::TerminalPreviousTab => "Terminal: Previous Tab",
             Self::TerminalCloseTab => "Terminal: Close Tab",
@@ -478,6 +482,7 @@ impl Action {
             Self::ToggleStatusBar,
             Self::ToggleTerminal,
             Self::TerminalNewTab,
+            Self::TerminalCopy,
             Self::TerminalNextTab,
             Self::TerminalPreviousTab,
             Self::TerminalCloseTab,

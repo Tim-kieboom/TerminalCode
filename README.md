@@ -114,6 +114,8 @@ returns to the editor, `ctrl+b x` to the explorer, `ctrl+b t` hides the pane, `c
 `ctrl+b n` and `ctrl+b p` step through the tabs, `ctrl+b 1` to `9` pick one, `ctrl+b w` closes it, and
 `ctrl+b ctrl+b` sends a real `ctrl+b` to the shell. `shift+page up` and `shift+page down` scroll its history.
 
+To copy from the terminal, drag over the text with the mouse: letting go copies it (a double click takes a word, a triple click a line), and `ctrl+shift+c` (or `ctrl+b y`, for a terminal that sends `ctrl+shift+c` as `ctrl+c`) copies it again; "Terminal: Copy Selection" in the palette does too. A press, typing, another tab or the history moving drops the selection. When a program in the pane has asked for the mouse (vim, htop, `less`), a plain drag belongs to it and `shift`+drag selects.
+
 ## Configuration
 
 The files live in the `terminalcode` folder of your config directory (`~/.config/terminalcode` on Linux,

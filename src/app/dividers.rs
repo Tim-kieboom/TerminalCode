@@ -17,6 +17,8 @@ pub(super) enum Dragging {
     Side,
     /// The line between two editor panes.
     Panes(Divider),
+    /// A selection of text in the terminal pane, which the pointer is extending.
+    Terminal,
 }
 
 impl App {
@@ -85,6 +87,7 @@ impl App {
                             .workspace_mut()
                             .drag_divider(&divider, event.column, event.row);
                     }
+                    Dragging::Terminal => self.extend_terminal_selection(event.column, event.row),
                 }
                 true
             }
@@ -92,8 +95,14 @@ impl App {
                 let Some(held) = self.dragging.take() else {
                     return false;
                 };
-                if held == Dragging::Side {
-                    self.remember_side_percent(self.state.side_percent());
+                match held {
+                    Dragging::Side => self.remember_side_percent(self.state.side_percent()),
+                    // Letting go copies what was selected.
+                    Dragging::Terminal => {
+                        self.extend_terminal_selection(event.column, event.row);
+                        self.copy_terminal_selection(false);
+                    }
+                    Dragging::Panes(_) => {}
                 }
                 true
             }

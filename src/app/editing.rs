@@ -22,7 +22,7 @@ impl App {
 
     /// Fills the clipboard, and says once when the system's could not be
     /// written, so copies are known to stay in the editor.
-    fn set_register(&mut self, register: Register) {
+    pub(super) fn set_register(&mut self, register: Register) {
         if let Some(Notice::SystemUnwritable(error)) = self.clipboard.set(register) {
             self.state.notify(format!(
                 "could not write the system clipboard ({error}); only the editor's own copy is used, so paste works here and nowhere else"

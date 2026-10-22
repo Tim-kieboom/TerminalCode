@@ -53,7 +53,7 @@ impl MouseInput {
     }
 
     /// Counts a press at a cell as a single, double or triple click.
-    fn register_click(&mut self, now: Instant, column: u16, row: u16) -> Clicks {
+    pub(super) fn register_click(&mut self, now: Instant, column: u16, row: u16) -> Clicks {
         self.clicks.register(now, column, row)
     }
 }

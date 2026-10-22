@@ -34,6 +34,31 @@ pub(crate) struct TerminalPane {
     /// The "+" that opens a tab, right after the last tab in the bar. Empty
     /// when there is no room.
     add_button: Rect,
+    /// What the user selected with the mouse, to copy.
+    selection: Option<Selection>,
+}
+
+/// Text selected on a tab's screen: from the cell the press was on to the cell the pointer
+/// is on, as the screen is drawn (so with the history offset it had). It is dropped when the
+/// text under it changes, the view moves or another tab is shown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Selection {
+    tab: usize,
+    /// (row, column) of the screen, where the press was and where the pointer is.
+    anchor: (u16, u16),
+    head: (u16, u16),
+    offset: usize,
+    /// Whether anything is selected: the pointer left the cell it pressed on, or a word or a
+    /// line was taken. A press alone selects nothing.
+    armed: bool,
+    /// The text as of the last change, which is also what is compared with.
+    text: String,
+}
+
+/// The characters that make a word for a double click: letters, digits and what a path or
+/// an option has in it.
+fn is_word_char(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '_' | '-' | '.' | '/' | '~' | ':' | '@' | '%' | '+' | '=')
 }
 
 #[derive(Debug)]
@@ -171,6 +196,163 @@ impl TerminalPane {
             .then(|| (column - self.text_area.x, row - self.text_area.y))
     }
 
+    /// The cell of the shell's screen nearest to a screen cell, for a drag that went outside
+    /// the text: the edge it left by.
+    pub(crate) fn clamped_cell(&self, column: u16, row: u16) -> Option<(u16, u16)> {
+        let area = self.text_area;
+        if area.width == 0 || area.height == 0 {
+            return None;
+        }
+        let column = column.clamp(area.x, area.right() - 1) - area.x;
+        let row = row.clamp(area.y, area.bottom() - 1) - area.y;
+        Some((row, column))
+    }
+
+    /// The selected text as of now, if any characters are selected.
+    pub(crate) fn selected_text(&self) -> Option<&str> {
+        self.selection
+            .as_ref()
+            .map(|selection| selection.text.as_str())
+            .filter(|text| !text.is_empty())
+    }
+
+    /// Drops the selection. Returns whether there was one.
+    pub(crate) fn clear_selection(&mut self) -> bool {
+        self.selection.take().is_some()
+    }
+
+    /// Starts a selection at `cell` (row, column): nothing is selected until it is extended.
+    pub(crate) fn begin_selection(&mut self, cell: (u16, u16)) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        let offset = session.scrollback_offset();
+        self.selection = Some(Selection {
+            tab: self.active,
+            anchor: cell,
+            head: cell,
+            offset,
+            armed: false,
+            text: String::new(),
+        });
+    }
+
+    /// Moves the end of the selection to `cell`.
+    pub(crate) fn extend_selection(&mut self, cell: (u16, u16)) {
+        let Some(selection) = self.selection.as_mut() else {
+            return;
+        };
+        selection.head = cell;
+        selection.armed |= cell != selection.anchor;
+        self.refresh_selection_text();
+    }
+
+    /// Selects the word at `cell` (a double click).
+    pub(crate) fn select_word(&mut self, cell: (u16, u16)) {
+        let Some(session) = self.session() else {
+            return;
+        };
+        let (row, column) = cell;
+        let range = session.with_screen(|screen| {
+            let at = |c: u16| {
+                screen
+                    .cell(row, c)
+                    .and_then(|cell| cell.contents().chars().next())
+                    .is_some_and(is_word_char)
+            };
+            if !at(column) {
+                return (column, column);
+            }
+            let columns = screen.size().1;
+            let mut start = column;
+            while start > 0 && at(start - 1) {
+                start -= 1;
+            }
+            let mut end = column;
+            while end + 1 < columns && at(end + 1) {
+                end += 1;
+            }
+            (start, end)
+        });
+        self.begin_selection((row, range.0));
+        self.extend_selection((row, range.1));
+        self.arm_selection();
+    }
+
+    /// Makes the selection count even when it is one cell, as a word of one letter is.
+    fn arm_selection(&mut self) {
+        if let Some(selection) = self.selection.as_mut() {
+            selection.armed = true;
+        }
+        self.refresh_selection_text();
+    }
+
+    /// Selects the whole row at `cell` (a triple click).
+    pub(crate) fn select_line(&mut self, cell: (u16, u16)) {
+        let Some(columns) = self
+            .session()
+            .map(|s| s.with_screen(|screen| screen.size().1))
+        else {
+            return;
+        };
+        self.begin_selection((cell.0, 0));
+        self.extend_selection((cell.0, columns.saturating_sub(1)));
+        self.arm_selection();
+    }
+
+    /// The selection as (first, last) cells in reading order, both included.
+    fn selection_range(&self) -> Option<((u16, u16), (u16, u16))> {
+        let selection = self.selection.as_ref()?;
+        let (a, b) = (selection.anchor, selection.head);
+        Some(if a <= b { (a, b) } else { (b, a) })
+    }
+
+    fn refresh_selection_text(&mut self) {
+        let Some(((first_row, first_col), (last_row, last_col))) = self.selection_range() else {
+            return;
+        };
+        if !self
+            .selection
+            .as_ref()
+            .is_some_and(|selection| selection.armed)
+        {
+            return;
+        }
+        let text = self.session().map(|session| {
+            session.with_screen(|screen| {
+                let columns = screen.size().1;
+                screen.contents_between(
+                    first_row,
+                    first_col,
+                    last_row,
+                    last_col.saturating_add(1).min(columns),
+                )
+            })
+        });
+        if let (Some(selection), Some(text)) = (self.selection.as_mut(), text) {
+            selection.text = text;
+        }
+    }
+
+    /// Drops the selection when what it was made of is not there any more: another tab,
+    /// the view moved into the history, or the text under it changed.
+    fn check_selection(&mut self) {
+        let Some(selection) = &self.selection else {
+            return;
+        };
+        let same_place = selection.tab == self.active
+            && self.session().map(Session::scrollback_offset) == Some(selection.offset);
+        let before = selection.text.clone();
+        if !same_place {
+            self.selection = None;
+            return;
+        }
+        self.refresh_selection_text();
+        if self.selection.as_ref().map(|s| s.text.as_str()) != Some(before.as_str()) {
+            self.selection = None;
+        }
+    }
+
     /// The size the shells have, or will have once the pane is drawn.
     pub(crate) fn size(&self) -> Option<(u16, u16)> {
         self.size
@@ -216,6 +398,7 @@ impl Render<AppState> for TerminalPane {
         self.tab_rects = render::tab_rects(&self.labels(), labels_room);
         self.add_button = add_button_after(&self.tab_rects, self.tab_bar);
 
+        self.check_selection();
         let size = (self.text_area.height, self.text_area.width);
         let resize = self.size != Some(size) && size.0 > 0 && size.1 > 0;
         for tab in &self.tabs {

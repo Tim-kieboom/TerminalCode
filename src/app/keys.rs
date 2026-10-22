@@ -332,6 +332,7 @@ impl App {
             Action::TerminalNextTab => self.step_terminal_tab(1),
             Action::TerminalPreviousTab => self.step_terminal_tab(-1),
             Action::TerminalCloseTab => self.close_terminal_tab(),
+            Action::TerminalCopy => self.copy_terminal_selection(true),
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::FocusPluginView(id) => self.focus_plugin_view(&id),
             Action::ShowPlugins => self.show_plugins(),

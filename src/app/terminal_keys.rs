@@ -3,7 +3,8 @@
 //! that toggles the pane (`ctrl+`` by default), which hides it again.
 //!
 //! After `ctrl+b`: `ctrl+b` again sends a literal `ctrl+b`; `e`, `x` and `t`
-//! move the keyboard (editor, explorer) or hide the pane; `esc` cancels;
+//! move the keyboard (editor, explorer) or hide the pane; `y` copies what is selected with
+//! the mouse (as `ctrl+shift+c` does); `esc` cancels;
 //! anything else is looked up in the normal keymap, so a binding such as
 //! `ctrl+p` works behind the prefix. A key that is bound to nothing cancels it
 //! and says so; waiting too long cancels it silently.
@@ -55,6 +56,19 @@ impl App {
             return;
         }
 
+        // `ctrl+shift+c` copies what is selected (a terminal that does not tell it from
+        // `ctrl+c` sends the interrupt, as it always did; `ctrl+b y` is for those).
+        if chord
+            == KeyChord::new(
+                KeyCode::Char('c'),
+                KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+            )
+        {
+            self.copy_terminal_selection(true);
+            self.needs_redraw = true;
+            return;
+        }
+
         let Some(session) = self.state.terminal().session() else {
             return;
         };
@@ -69,6 +83,10 @@ impl App {
         }
 
         if let Some(bytes) = encode_key(key, application_cursor) {
+            // Typing is done with what was selected.
+            if self.state.terminal_mut().clear_selection() {
+                self.needs_redraw = true;
+            }
             self.send_to_shell(&bytes);
         }
     }
@@ -127,6 +145,10 @@ impl App {
             Some('x') => self.focus_explorer_shown(),
             Some('t') => self.toggle_terminal(),
             Some('c') => self.new_terminal_tab(),
+            Some('y') => {
+                self.copy_terminal_selection(true);
+                self.needs_redraw = true;
+            }
             Some('n') => self.step_terminal_tab(1),
             Some('p') => self.step_terminal_tab(-1),
             Some('w') => self.close_terminal_tab(),

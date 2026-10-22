@@ -2,6 +2,7 @@
 //! hearing from the shells.
 
 use std::path::Path;
+use std::time::Instant;
 
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
@@ -9,6 +10,7 @@ use crate::app::App;
 use crate::app::state::Focus;
 use crate::components::terminal::MAX_TABS;
 use crate::event::Event;
+use crate::event::mouse::Clicks;
 use crate::pty::{Session, Shell, SpawnConfig, encode_mouse};
 use crate::ui::ComponentKind;
 
@@ -262,6 +264,12 @@ impl App {
         if self.report_mouse_to_shell(event) {
             return true;
         }
+        // A program that has not asked for the mouse (or `shift` held, which is how a program
+        // that has is told it does not) leaves the left button to selecting text.
+        if let MouseEventKind::Down(MouseButton::Left) = event.kind {
+            self.begin_terminal_selection(event);
+            return true;
+        }
         match event.kind {
             MouseEventKind::ScrollUp => self.scroll_terminal(WHEEL_LINES),
             MouseEventKind::ScrollDown => self.scroll_terminal(-WHEEL_LINES),
@@ -269,6 +277,57 @@ impl App {
             _ => {}
         }
         true
+    }
+
+    /// A press on the text: drops the selection there was and starts a new one, a word for a
+    /// double click and a line for a triple click (those are copied at once).
+    fn begin_terminal_selection(&mut self, event: MouseEvent) {
+        let Some(cell) = self.state.terminal().screen_cell(event.column, event.row) else {
+            return;
+        };
+        let (row, column) = (cell.1, cell.0);
+        let clicks = self
+            .mouse
+            .register_click(Instant::now(), event.column, event.row);
+        let terminal = self.state.terminal_mut();
+        terminal.clear_selection();
+        match clicks {
+            Clicks::Single => {
+                terminal.begin_selection((row, column));
+                self.dragging = Some(super::dividers::Dragging::Terminal);
+            }
+            Clicks::Double => terminal.select_word((row, column)),
+            Clicks::Triple => terminal.select_line((row, column)),
+        }
+        if clicks != Clicks::Single {
+            self.copy_terminal_selection(false);
+        }
+        self.needs_redraw = true;
+    }
+
+    /// The pointer moved with the button down: the selection goes as far as the cell under it,
+    /// or the edge it left by.
+    pub(super) fn extend_terminal_selection(&mut self, column: u16, row: u16) {
+        if let Some(cell) = self.state.terminal().clamped_cell(column, row) {
+            self.state.terminal_mut().extend_selection(cell);
+            self.needs_redraw = true;
+        }
+    }
+
+    /// Puts the selected text on the clipboard. `say`: tell the user, which is for when they
+    /// asked (a copy on letting go is quiet).
+    pub(super) fn copy_terminal_selection(&mut self, say: bool) {
+        let Some(text) = self.state.terminal().selected_text().map(str::to_owned) else {
+            if say {
+                self.state.notify("nothing is selected in the terminal");
+            }
+            return;
+        };
+        let characters = text.chars().count();
+        self.set_register(crate::clipboard::Register::charwise(text));
+        if say {
+            self.state.notify(format!("copied {characters} characters"));
+        }
     }
 
     /// Sends the event to the shell as the mouse report it asked for. Returns
