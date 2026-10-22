@@ -48,7 +48,23 @@ pub(super) fn completing(sent: Sender<Message>, answer: Answer) -> Option<Script
                         || method == "textDocument/formatting"
                         || method == "textDocument/rangeFormatting" =>
                 {
-                    let value = answer(&params);
+                    let mut value = answer(&params);
+                    // An answer that says `__apply_edit` first asks the client to make that
+                    // edit (`workspace/applyEdit`, request 9001), and passes on how it answered.
+                    if let Some(apply) = value.get("__apply_edit").cloned() {
+                        session.request(9001, "workspace/applyEdit", apply);
+                        while let Some(next) = session.next() {
+                            let done = matches!(
+                                &next,
+                                Message::Response { id, .. } if *id == crate::lsp::Id::Number(9001)
+                            );
+                            let _ = sent.send(next);
+                            if done {
+                                break;
+                            }
+                        }
+                        value = Value::Null;
+                    }
                     // An answer that says `__silent` is none: the server never replies.
                     if value.get("__silent").is_some() {
                         continue;

@@ -481,6 +481,7 @@ impl App {
                 uri,
                 edits: changing,
             }],
+            renames: Vec::new(),
             operations: Vec::new(),
         };
         let root = self.project_root();

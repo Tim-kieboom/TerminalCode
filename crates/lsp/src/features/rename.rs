@@ -31,9 +31,21 @@ pub struct FileEdits {
 pub struct WorkspaceEdit {
     /// The text edits, one entry for each file (a file named twice is one).
     pub files: Vec<FileEdits>,
-    /// Operations on files themselves (`create`, `rename`, `delete`), each as
-    /// text for a message, such as `rename src/a.rs`.
+    /// Files that are renamed (or moved), in the order the server gave them.
+    pub renames: Vec<FileRename>,
+    /// Operations on files that are not taken (`create`, `delete`), each as text
+    /// for a message, such as `delete src/a.rs`.
     pub operations: Vec<String>,
+}
+
+/// A file or a folder the edit renames.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileRename {
+    pub old_uri: String,
+    pub new_uri: String,
+    /// What the server said about something already at the new name.
+    pub overwrite: bool,
+    pub ignore_if_exists: bool,
 }
 
 /// The name the server found at the position of a `prepareRename`.
@@ -162,6 +174,29 @@ pub fn parse_workspace_edit(result: &Value) -> Result<WorkspaceEdit, LspError> {
     if let Some(Value::Array(changes)) = fields.get("documentChanges") {
         for change in changes {
             match change.get("kind").and_then(Value::as_str) {
+                Some("rename") => {
+                    let uri = |key: &str| {
+                        change
+                            .get(key)
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                            .ok_or_else(|| {
+                                unexpected(RENAME, "a rename of a file without its names")
+                            })
+                    };
+                    let option = |key: &str| {
+                        change
+                            .pointer(&format!("/options/{key}"))
+                            .and_then(Value::as_bool)
+                            .unwrap_or(false)
+                    };
+                    edit.renames.push(FileRename {
+                        old_uri: uri("oldUri")?,
+                        new_uri: uri("newUri")?,
+                        overwrite: option("overwrite"),
+                        ignore_if_exists: option("ignoreIfExists"),
+                    });
+                }
                 Some(kind) => edit.operations.push(operation(kind, change)),
                 None => {
                     let uri = change

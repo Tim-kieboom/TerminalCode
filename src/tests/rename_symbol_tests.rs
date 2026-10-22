@@ -252,11 +252,11 @@ fn typing_while_the_server_works_aborts_and_says_why() {
 }
 
 #[test]
-fn an_edit_that_asks_to_move_a_file_is_refused_and_nothing_changes() {
+fn an_edit_that_asks_to_delete_a_file_is_refused_and_nothing_changes() {
     let answer = renaming(|uri, new| {
         json!({ "documentChanges": [
             { "textDocument": { "uri": uri, "version": 1 }, "edits": main_edits(new) },
-            { "kind": "rename", "oldUri": "file:///p/value.rs", "newUri": "file:///p/total.rs" },
+            { "kind": "delete", "uri": "file:///p/value.rs" },
         ]})
     });
     let mut rig = rig(true, answer);
@@ -268,7 +268,7 @@ fn an_edit_that_asks_to_move_a_file_is_refused_and_nothing_changes() {
 
     assert_eq!(rig.text(), SOURCE);
     assert!(
-        rig.said().contains("rename file:///p/value.rs"),
+        rig.said().contains("delete file:///p/value.rs"),
         "{}",
         rig.said()
     );
@@ -440,4 +440,184 @@ fn real_rust_analyzer_renames_a_function_in_a_file_that_is_not_open() {
     let util = fs::read_to_string(rig.lib_path().with_file_name("util.rs")).unwrap();
     assert_eq!(util, "pub fn assist() {}\n");
     eprintln!("{}", rig.said());
+}
+
+// --- renames of files ---
+
+fn dir_of(uri: &str) -> String {
+    uri.replace("main.rs", "")
+}
+
+#[test]
+fn a_file_the_edit_renames_is_moved_with_its_edits_made_where_it_was_and_the_open_one_is_edited() {
+    let answer = renaming(|uri, new| {
+        let lib = uri.replace("main.rs", "lib.rs");
+        let moved = uri.replace("main.rs", "total.rs");
+        json!({ "documentChanges": [
+            { "textDocument": { "uri": uri, "version": 1 }, "edits": main_edits(new) },
+            { "textDocument": { "uri": lib, "version": null }, "edits": [edit(0, 4, new)] },
+            { "kind": "rename", "oldUri": lib, "newUri": moved },
+        ]})
+    });
+    let mut rig = rig(true, answer);
+    fs::write(rig.lib_path(), "use value;\n").unwrap();
+
+    rig.f2_on_value();
+    rig.wait_for_prompt();
+    rig.answer_prompt("total");
+    rig.wait_for_notice("renamed");
+
+    let src = rig._dir.path().join("src");
+    assert!(!rig.lib_path().exists(), "the file left its old name");
+    assert_eq!(
+        fs::read_to_string(src.join("total.rs")).unwrap(),
+        "use total;\n"
+    );
+    assert!(rig.text().contains("let total"));
+    assert!(rig.said().contains("and moved 1 file"), "{}", rig.said());
+}
+
+#[test]
+fn an_open_file_that_is_renamed_stays_the_same_tab_at_its_new_path_with_the_edit_in_it() {
+    let answer = renaming(|uri, new| {
+        let moved = uri.replace("main.rs", "moved.rs");
+        // The edits name the file by where it goes, as a server may.
+        json!({ "documentChanges": [
+            { "kind": "rename", "oldUri": uri, "newUri": moved },
+            { "textDocument": { "uri": moved, "version": 1 }, "edits": main_edits(new) },
+        ]})
+    });
+    let mut rig = rig(true, answer);
+    let before = rig.app.state().workspace().active_document_id();
+
+    rig.f2_on_value();
+    rig.wait_for_prompt();
+    rig.answer_prompt("total");
+    rig.wait_for_notice("renamed");
+
+    let src = rig._dir.path().join("src");
+    assert!(!src.join("main.rs").exists());
+    assert!(src.join("moved.rs").exists());
+    assert_eq!(
+        rig.app.state().workspace().active_document_id(),
+        before,
+        "the same tab"
+    );
+    let path = rig
+        .app
+        .state()
+        .editor()
+        .buffer()
+        .path()
+        .map(ToOwned::to_owned);
+    assert_eq!(path.as_deref(), Some(src.join("moved.rs").as_path()));
+    assert!(rig.text().contains("let total"));
+    assert!(
+        rig.app.state().editor().buffer().is_dirty(),
+        "the edit waits unsaved"
+    );
+}
+
+#[test]
+fn a_folder_the_edit_renames_moves_with_what_is_in_it() {
+    let answer = renaming(|uri, new| {
+        let dir = dir_of(uri);
+        json!({ "documentChanges": [
+            { "textDocument": { "uri": uri, "version": 1 }, "edits": main_edits(new) },
+            { "kind": "rename", "oldUri": format!("{dir}inner"), "newUri": format!("{dir}outer") },
+            { "textDocument": { "uri": format!("{dir}outer/a.rs"), "version": null }, "edits": [edit(0, 0, new)] },
+        ]})
+    });
+    let mut rig = rig(true, answer);
+    let inner = rig._dir.path().join("src/inner");
+    fs::create_dir_all(&inner).unwrap();
+    fs::write(inner.join("a.rs"), "value\n").unwrap();
+    fs::write(inner.join("b.rs"), "other\n").unwrap();
+
+    rig.f2_on_value();
+    rig.wait_for_prompt();
+    rig.answer_prompt("total");
+    rig.wait_for_notice("renamed");
+
+    let outer = rig._dir.path().join("src/outer");
+    assert!(!inner.exists());
+    assert_eq!(fs::read_to_string(outer.join("a.rs")).unwrap(), "total\n");
+    assert_eq!(fs::read_to_string(outer.join("b.rs")).unwrap(), "other\n");
+}
+
+#[test]
+fn a_rename_onto_something_that_is_there_or_out_of_the_project_or_of_nothing_refuses_it_all() {
+    let outside = tempfile::tempdir().unwrap();
+    let target = outside.path().join("away.rs");
+    let away = file_uri(&target).unwrap();
+    let cases: Vec<(Value, &str)> = vec![
+        (
+            json!({ "kind": "rename", "oldUri": "LIB", "newUri": "MAIN" }),
+            "is there already",
+        ),
+        (
+            json!({ "kind": "rename", "oldUri": "LIB", "newUri": away }),
+            "is outside the project",
+        ),
+        (
+            json!({ "kind": "rename", "oldUri": "NONE", "newUri": "NEW" }),
+            "is not there",
+        ),
+        (
+            json!({ "kind": "rename", "oldUri": "SRC", "newUri": "INSIDE" }),
+            "into itself",
+        ),
+    ];
+    for (operation, said) in cases {
+        let operation = operation.clone();
+        let answer = renaming(move |uri, new| {
+            let fill = |text: &str| {
+                text.replace("LIB", &uri.replace("main.rs", "lib.rs"))
+                    .replace("MAIN", uri)
+                    .replace("NONE", &uri.replace("main.rs", "none.rs"))
+                    .replace("NEW", &uri.replace("main.rs", "new.rs"))
+                    .replace("SRC", &uri.replace("/main.rs", ""))
+                    .replace("INSIDE", &uri.replace("main.rs", "inside/deeper"))
+            };
+            let operation: Value = serde_json::from_str(&fill(&operation.to_string())).unwrap();
+            json!({ "documentChanges": [
+                { "textDocument": { "uri": uri, "version": 1 }, "edits": main_edits(new) },
+                operation,
+            ]})
+        });
+        let mut rig = rig(true, answer);
+        fs::write(rig.lib_path(), "use value;\n").unwrap();
+
+        rig.f2_on_value();
+        rig.wait_for_prompt();
+        rig.answer_prompt("total");
+        rig.wait_for_notice("nothing was changed");
+
+        assert!(rig.said().contains(said), "{said}: {}", rig.said());
+        assert_eq!(rig.text(), SOURCE, "{said}");
+        assert_eq!(fs::read_to_string(rig.lib_path()).unwrap(), "use value;\n");
+        assert!(!target.exists());
+    }
+}
+
+#[test]
+fn a_rename_the_server_says_to_skip_when_something_is_there_is_left_out() {
+    let answer = renaming(|uri, new| {
+        json!({ "documentChanges": [
+            { "textDocument": { "uri": uri, "version": 1 }, "edits": main_edits(new) },
+            { "kind": "rename", "oldUri": uri.replace("main.rs", "lib.rs"),
+              "newUri": uri, "options": { "ignoreIfExists": true } },
+        ]})
+    });
+    let mut rig = rig(true, answer);
+    fs::write(rig.lib_path(), "use value;\n").unwrap();
+
+    rig.f2_on_value();
+    rig.wait_for_prompt();
+    rig.answer_prompt("total");
+    rig.wait_for_notice("renamed");
+
+    assert!(rig.lib_path().exists(), "nothing moved");
+    assert!(rig.text().contains("let total"));
+    assert!(!rig.said().contains("moved"), "{}", rig.said());
 }

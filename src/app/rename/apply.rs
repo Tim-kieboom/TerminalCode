@@ -26,9 +26,27 @@ use crate::lsp::{RenameEdit, WorkspaceEdit, from_lsp};
 #[derive(Debug, Error)]
 pub(in crate::app) enum EditError {
     #[error(
-        "the language server wants to {0}, which this version cannot do (only text edits are applied); nothing was changed"
+        "the language server wants to {0}, which this version cannot do (only text edits and renames of files are applied); nothing was changed"
     )]
     Operation(String),
+    #[error(
+        "the language server wants to move {0}, which is outside the project; nothing was changed"
+    )]
+    MoveOutside(String),
+    #[error("{0} is not there (any more) to be moved; nothing was changed")]
+    MoveMissing(String),
+    #[error("{0} is there already, and an edit does not replace a file; nothing was changed")]
+    MoveExists(String),
+    #[error("the language server wants to move {0} into itself; nothing was changed")]
+    MoveIntoItself(String),
+    #[error(
+        "the edit was cut short: moved {done}; could not move {failed}: {source}; the text of the files was changed already"
+    )]
+    MoveFailed {
+        done: String,
+        failed: String,
+        source: std::io::Error,
+    },
     #[error("the language server named {0}, which is not a file; nothing was changed")]
     NotAFile(String),
     #[error(
@@ -98,7 +116,39 @@ pub(in crate::app) struct Plan {
     closed: Vec<Closed>,
     /// Open documents, with the replacements for each, in text order.
     open: Vec<Open>,
+    /// Files and folders that move, in the order the server gave them, after the files are
+    /// written and before the open documents are edited.
+    moves: Vec<Move>,
     places: usize,
+}
+
+/// Where a move is: about to be made, or made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in crate::app) enum MoveStage {
+    Before,
+    After,
+}
+
+/// The files an edit changes, where they are now (the edit may name a file by where it will
+/// be once the edit's moves are made).
+pub(in crate::app) fn files_now(edit: &WorkspaceEdit, root: &Path) -> Vec<PathBuf> {
+    let root = canonical(root);
+    let moves = moves_of(edit, &root).unwrap_or_default();
+    edit.files
+        .iter()
+        .filter_map(|file| uri_to_path(&file.uri))
+        .map(|path| source_of(&path, &moves))
+        .collect()
+}
+
+/// A file or folder that moves.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::app) struct Move {
+    pub(in crate::app) from: PathBuf,
+    pub(in crate::app) to: PathBuf,
+    /// How they are named in a message.
+    from_name: String,
+    to_name: String,
 }
 
 #[derive(Debug)]
@@ -125,6 +175,11 @@ impl Plan {
         self.closed.len() + self.open.len()
     }
 
+    /// The files and folders that move.
+    pub(in crate::app) fn moves(&self) -> &[Move] {
+        &self.moves
+    }
+
     /// The open documents that get edits.
     pub(in crate::app) fn open(&self) -> &[Open] {
         &self.open
@@ -144,13 +199,25 @@ pub(in crate::app) fn plan(
         return Err(EditError::Operation(operation.clone()));
     }
     let root = canonical(root);
+    let moves = match (check, edit.renames.first()) {
+        (Check::Format, Some(rename)) => {
+            return Err(EditError::Operation(format!(
+                "rename {} to {}",
+                rename.old_uri, rename.new_uri
+            )));
+        }
+        _ => moves_of(edit, &root)?,
+    };
     let mut plan = Plan {
         closed: Vec::new(),
         open: Vec::new(),
+        moves,
         places: 0,
     };
     for file in &edit.files {
-        let path = uri_to_path(&file.uri).ok_or_else(|| EditError::NotAFile(file.uri.clone()))?;
+        let named = uri_to_path(&file.uri).ok_or_else(|| EditError::NotAFile(file.uri.clone()))?;
+        // An edit may name a file by where it will be after the moves: its text is where it is now.
+        let path = source_of(&named, &plan.moves);
         let name = shown(&root, &path);
         if !matches!(check, Check::Format) && !canonical(&path).starts_with(&root) {
             return Err(EditError::Outside(name));
@@ -186,6 +253,88 @@ pub(in crate::app) fn plan(
         }
     }
     Ok(plan)
+}
+
+/// The moves an edit asks for, checked: both ends inside the project, the thing there to
+/// be moved, nothing at the new name (a rename the server says to skip when there is
+/// something is left out), and not into itself.
+fn moves_of(edit: &WorkspaceEdit, root: &Path) -> Result<Vec<Move>, EditError> {
+    let mut moves: Vec<Move> = Vec::new();
+    for rename in &edit.renames {
+        let from = uri_to_path(&rename.old_uri)
+            .ok_or_else(|| EditError::NotAFile(rename.old_uri.clone()))?;
+        let to = uri_to_path(&rename.new_uri)
+            .ok_or_else(|| EditError::NotAFile(rename.new_uri.clone()))?;
+        let (from_name, to_name) = (shown(root, &from), shown(root, &to));
+        for end in [&from, &to] {
+            if !lenient(end).starts_with(root) {
+                return Err(EditError::MoveOutside(shown(root, end)));
+            }
+        }
+        // What an earlier move puts there is not on disk yet, and is a place to move from.
+        let made_by_a_move = moves.iter().any(|done| from.starts_with(&done.to));
+        if !made_by_a_move && !from.exists() {
+            return Err(EditError::MoveMissing(from_name));
+        }
+        if canonical(&to).starts_with(canonical(&from)) && canonical(&to) != canonical(&from) {
+            return Err(EditError::MoveIntoItself(from_name));
+        }
+        if to.exists() {
+            if rename.ignore_if_exists {
+                continue;
+            }
+            return Err(EditError::MoveExists(to_name));
+        }
+        moves.push(Move {
+            from,
+            to,
+            from_name,
+            to_name,
+        });
+    }
+    Ok(moves)
+}
+
+/// `path` as it would be if `from` had been moved to `to`; `None` when it is not `from` or inside it.
+fn rebase(path: &Path, from: &Path, to: &Path) -> Option<PathBuf> {
+    let rest = path.strip_prefix(from).ok()?;
+    Some(match rest.as_os_str().is_empty() {
+        true => to.to_path_buf(),
+        false => to.join(rest),
+    })
+}
+
+/// Where the file an edit names is now: a path inside a place the edit moves to is where
+/// it was before, the last move first.
+fn source_of(path: &Path, moves: &[Move]) -> PathBuf {
+    let mut path = path.to_path_buf();
+    for done in moves.iter().rev() {
+        if let Some(before) = rebase(&path, &done.to, &done.from) {
+            path = before;
+        }
+    }
+    path
+}
+
+/// `path` with the part that exists made canonical, so that a place that is not there yet can
+/// be told to be inside the project or not.
+fn lenient(path: &Path) -> PathBuf {
+    let mut rest = Vec::new();
+    let mut here = path.to_path_buf();
+    while !here.exists() {
+        match (here.file_name().map(ToOwned::to_owned), here.parent()) {
+            (Some(name), Some(parent)) => {
+                rest.push(name);
+                here = parent.to_path_buf();
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
+    let mut resolved = canonical(&here);
+    for name in rest.into_iter().rev() {
+        resolved.push(name);
+    }
+    resolved
 }
 
 /// The text of a file that is not open.
@@ -269,6 +418,37 @@ pub(in crate::app) fn remap(byte: usize, replacements: &[(Range<usize>, String)]
 }
 
 impl Plan {
+    /// Moves what the edit moves, in order, making the folders the new places are in. `step` is
+    /// told what is about to move (the open tabs inside it are noted then) and what moved (the
+    /// tabs follow it, as when a file is dragged in the explorer).
+    pub(in crate::app) fn move_all(
+        &self,
+        mut step: impl FnMut(MoveStage, &Move),
+    ) -> Result<(), EditError> {
+        let mut done: Vec<&str> = Vec::new();
+        for item in &self.moves {
+            step(MoveStage::Before, item);
+            let made = item
+                .to
+                .parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| fs::rename(&item.from, &item.to));
+            if let Err(source) = made {
+                return Err(EditError::MoveFailed {
+                    done: match done.is_empty() {
+                        true => "nothing".to_owned(),
+                        false => done.join(", "),
+                    },
+                    failed: item.from_name.clone(),
+                    source,
+                });
+            }
+            step(MoveStage::After, item);
+            done.push(&item.to_name);
+        }
+        Ok(())
+    }
+
     /// Writes the files that are not open: all of them to temporary files first,
     /// then each into its place.
     pub(in crate::app) fn write_closed(&mut self) -> Result<(), EditError> {

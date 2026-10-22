@@ -104,9 +104,8 @@ fn document_changes_are_read_and_a_file_named_twice_is_one() {
 }
 
 #[test]
-fn operations_on_files_are_listed_for_the_client_to_refuse() {
+fn operations_on_files_other_than_a_rename_are_listed_for_the_client_to_refuse() {
     let answer = json!({ "documentChanges": [
-        { "kind": "rename", "oldUri": "file:///p/foo.rs", "newUri": "file:///p/bar.rs" },
         { "kind": "create", "uri": "file:///p/new.rs" },
         { "kind": "delete", "uri": "file:///p/old.rs" },
     ]});
@@ -115,12 +114,29 @@ fn operations_on_files_are_listed_for_the_client_to_refuse() {
 
     assert_eq!(
         found.operations,
-        [
-            "rename file:///p/foo.rs to file:///p/bar.rs",
-            "create file:///p/new.rs",
-            "delete file:///p/old.rs",
-        ]
+        ["create file:///p/new.rs", "delete file:///p/old.rs"]
     );
+    assert!(found.renames.is_empty());
+}
+
+#[test]
+fn a_rename_of_a_file_is_read_in_order_with_its_options() {
+    let answer = json!({ "documentChanges": [
+        { "kind": "rename", "oldUri": "file:///p/foo.rs", "newUri": "file:///p/bar.rs" },
+        { "kind": "rename", "oldUri": "file:///p/a", "newUri": "file:///p/b",
+          "options": { "overwrite": true, "ignoreIfExists": true } },
+    ]});
+
+    let found = parse_workspace_edit(&answer).unwrap();
+
+    assert!(found.operations.is_empty());
+    assert_eq!(found.renames.len(), 2);
+    assert_eq!(found.renames[0].old_uri, "file:///p/foo.rs");
+    assert_eq!(found.renames[0].new_uri, "file:///p/bar.rs");
+    assert!(!found.renames[0].overwrite && !found.renames[0].ignore_if_exists);
+    assert!(found.renames[1].overwrite && found.renames[1].ignore_if_exists);
+    // One without its names is a broken answer.
+    assert!(parse_workspace_edit(&json!({ "documentChanges": [{ "kind": "rename" }] })).is_err());
 }
 
 #[test]
@@ -215,5 +231,16 @@ fn the_client_declares_rename_with_prepare_and_documents() {
     assert_eq!(
         capabilities["workspace"]["workspaceEdit"]["documentChanges"],
         json!(true)
+    );
+}
+
+#[test]
+fn the_client_says_it_makes_edits_a_server_asks_for_and_renames_files() {
+    let capabilities = crate::handshake::client_capabilities();
+
+    assert_eq!(capabilities["workspace"]["applyEdit"], json!(true));
+    assert_eq!(
+        capabilities["workspace"]["workspaceEdit"]["resourceOperations"],
+        json!(["rename"])
     );
 }

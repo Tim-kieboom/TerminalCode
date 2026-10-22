@@ -146,6 +146,7 @@ impl App {
         self.definition_answer();
         self.rename_answer();
         self.code_actions_answer();
+        self.answer_apply_edits();
         self.formatting_step();
         self.refresh_lsp_status();
         self.needs_redraw = true;

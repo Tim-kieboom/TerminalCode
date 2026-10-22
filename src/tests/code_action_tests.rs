@@ -226,10 +226,10 @@ fn no_actions_is_a_message_and_no_box() {
 }
 
 #[test]
-fn a_disabled_action_is_not_offered() {
+fn a_disabled_action_is_listed_dim_with_its_reason_and_picking_it_says_why() {
     let mut rig = rig(only(|uri| {
         json!([
-            { "title": "Not now", "disabled": { "reason": "no" }, "edit": edit_of(uri, "x") },
+            { "title": "Not now", "disabled": { "reason": "no uses" }, "edit": edit_of(uri, "x") },
             import_action(uri),
         ])
     }));
@@ -237,7 +237,24 @@ fn a_disabled_action_is_not_offered() {
     rig.ctrl_dot();
     rig.wait_for_list();
 
-    assert_eq!(rig.titles(), ["Import `HashMap`"]);
+    assert_eq!(rig.titles(), ["Not now", "Import `HashMap`"]);
+    let screen = rig.screen();
+    assert!(screen.contains("(disabled: no uses)"), "{screen}");
+
+    // The first is the selected one: `enter` says why and the box stays.
+    rig.press(KeyCode::Enter);
+    assert!(
+        rig.said().contains("cannot do that now: no uses"),
+        "{}",
+        rig.said()
+    );
+    assert!(rig.app.state().action_list().is_some());
+    assert_eq!(rig.main_text(), SOURCE, "nothing was changed");
+
+    // The next one can be done.
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Enter);
+    assert_eq!(rig.main_text(), format!("{IMPORT}{SOURCE}"));
 }
 
 #[test]
@@ -330,7 +347,7 @@ fn an_operation_on_a_file_is_refused_and_nothing_changes() {
     let mut rig = rig(only(|uri| {
         json!([{ "title": "Move it", "edit": { "documentChanges": [
             { "textDocument": { "uri": uri, "version": 1 }, "edits": [insert_at_top("x")] },
-            { "kind": "rename", "oldUri": "file:///p/a.rs", "newUri": "file:///p/b.rs" },
+            { "kind": "delete", "uri": "file:///p/a.rs" },
         ] } }])
     }));
 
@@ -649,4 +666,97 @@ fn real_rust_analyzer_imports_a_missing_name() {
     });
 
     eprintln!("{}", rig.main_text());
+}
+
+// --- an edit the server asks for (`workspace/applyEdit`) ---
+
+impl Rig {
+    /// What the client answered to the server's request for an edit.
+    fn apply_edit_answer(&self) -> Value {
+        while let Ok(message) = self.received.recv_timeout(Duration::from_secs(5)) {
+            if let Message::Response { id, outcome } = message
+                && id == crate::lsp::Id::Number(9001)
+            {
+                return outcome.expect("the client answered with a result");
+            }
+        }
+        panic!("the client never answered the request for an edit");
+    }
+}
+
+/// An action that is only a command, which makes the server ask for `edit_for(arguments[0])`.
+fn command_that_asks_for_an_edit(edit_for: fn(&str) -> Value) -> Answer {
+    offering(
+        |uri| {
+            json!([{
+                "title": "Fix it",
+                "command": { "title": "Fix", "command": "fix.all", "arguments": [uri] },
+            }])
+        },
+        move |params| {
+            let uri = params["arguments"][0].as_str().unwrap();
+            json!({ "__apply_edit": { "label": "Fix all", "edit": edit_for(uri) } })
+        },
+    )
+}
+
+#[test]
+fn an_edit_the_server_asks_for_is_made_as_one_undo_step_and_answered() {
+    let mut rig = rig(command_that_asks_for_an_edit(|uri| edit_of(uri, "x")));
+
+    rig.ctrl_dot();
+    rig.wait_for_list();
+    rig.press(KeyCode::Enter);
+    rig.wait_for_notice("Fix all: 1 place in 1 file");
+
+    assert_eq!(rig.main_text(), format!("x{SOURCE}"));
+    assert_eq!(rig.apply_edit_answer()["applied"], json!(true));
+    rig.app.state_mut().edit(|editor| editor.undo().unwrap());
+    assert_eq!(rig.main_text(), SOURCE, "one undo brings it back");
+}
+
+#[test]
+fn an_edit_the_server_asks_for_that_cannot_be_made_is_refused_with_the_reason() {
+    let mut rig = rig(command_that_asks_for_an_edit(|uri| {
+        // A file that is not open: such an edit is only made in open documents.
+        edit_of(&sibling(uri, "closed.rs"), "x")
+    }));
+    std::fs::write(rig._dir.path().join("src/closed.rs"), "y\n").unwrap();
+
+    rig.ctrl_dot();
+    rig.wait_for_list();
+    rig.press(KeyCode::Enter);
+    rig.wait_for_notice("is not open");
+
+    let answer = rig.apply_edit_answer();
+    assert_eq!(answer["applied"], json!(false));
+    assert!(
+        answer["failureReason"]
+            .as_str()
+            .unwrap()
+            .contains("is not open"),
+        "{answer}"
+    );
+    assert_eq!(rig.main_text(), SOURCE);
+}
+
+#[test]
+fn an_edit_the_server_asks_for_may_move_a_file() {
+    let mut rig = rig(command_that_asks_for_an_edit(|uri| {
+        json!({ "documentChanges": [
+            { "kind": "rename", "oldUri": uri, "newUri": sibling(uri, "renamed.rs") },
+            { "textDocument": { "uri": sibling(uri, "renamed.rs"), "version": 1 },
+              "edits": [insert_at_top("x")] },
+        ]})
+    }));
+
+    rig.ctrl_dot();
+    rig.wait_for_list();
+    rig.press(KeyCode::Enter);
+    rig.wait_for_notice("and moved 1 file");
+
+    assert_eq!(rig.apply_edit_answer()["applied"], json!(true));
+    assert!(!rig._dir.path().join("src/main.rs").exists());
+    assert!(rig._dir.path().join("src/renamed.rs").exists());
+    assert_eq!(rig.main_text(), format!("x{SOURCE}"));
 }

@@ -61,6 +61,8 @@ pub(crate) struct Entry {
     pub(crate) title: String,
     /// `quickfix`, `refactor.extract`, and so on; empty when the server says none.
     pub(crate) kind: String,
+    /// Why the server says the action cannot be done now: it is listed, dim, with this.
+    pub(crate) disabled: Option<String>,
 }
 
 #[derive(Debug)]
@@ -90,6 +92,11 @@ impl ActionList {
 
     pub(crate) fn selected(&self) -> usize {
         self.selected
+    }
+
+    /// Why the selected action cannot be done, if it cannot.
+    pub(crate) fn selected_disabled(&self) -> Option<&str> {
+        self.entries.get(self.selected)?.disabled.as_deref()
     }
 
     /// Moves the selection by `rows`, round the ends for a step of one.
@@ -200,14 +207,29 @@ impl ActionList {
                 };
                 let title = fit(&entry.title, columns);
                 let room = columns.saturating_sub(title.width() + 2);
-                let kind = fit(&entry.kind, room);
+                // A disabled action says why instead of what kind it is.
+                let note = match &entry.disabled {
+                    Some(reason) => format!("(disabled: {reason})"),
+                    None => entry.kind.clone(),
+                };
+                let note = fit(&note, room);
+                let faint = theme.style("tab.inactive");
                 let mut spans = vec![
                     Span::styled(number, theme.style("completion.kind")),
-                    Span::raw(title),
+                    match entry.disabled {
+                        Some(_) => Span::styled(title, faint),
+                        None => Span::raw(title),
+                    },
                 ];
-                if !kind.is_empty() {
+                if !note.is_empty() {
                     spans.push(Span::raw("  "));
-                    spans.push(Span::styled(kind, theme.style("completion.kind")));
+                    spans.push(Span::styled(
+                        note,
+                        match entry.disabled {
+                            Some(_) => faint,
+                            None => theme.style("completion.kind"),
+                        },
+                    ));
                 }
                 let line = Line::from(spans);
                 match index == self.selected {

@@ -97,9 +97,14 @@ pub fn client_capabilities() -> Value {
         },
         "workspace": {
             "workspaceFolders": true,
-            // Edits come as a list of documents, and no operation on files is
-            // taken (a rename that needs one is refused by the client).
-            "workspaceEdit": { "documentChanges": true },
+            // Edits come as a list of documents, with renames of files (the others, a file
+            // made or deleted, are refused by the client); a server may ask for an edit
+            // to be made (`workspace/applyEdit`).
+            "applyEdit": true,
+            "workspaceEdit": {
+                "documentChanges": true,
+                "resourceOperations": ["rename"],
+            },
             "executeCommand": { "dynamicRegistration": false },
         },
     })

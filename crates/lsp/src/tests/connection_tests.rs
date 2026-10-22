@@ -315,3 +315,39 @@ fn a_broken_header_ends_the_session_with_the_reason() {
     assert!(reason.contains("lots"), "{reason}");
     rig.server.finish();
 }
+
+#[test]
+fn an_edit_the_server_asks_for_waits_for_the_app_and_is_answered_when_the_app_says() {
+    let rig = connect(|server| {
+        server.request(
+            7,
+            "workspace/applyEdit",
+            json!({ "edit": {}, "label": "Fix" }),
+        );
+        let (id, answer) = server.expect_response();
+        assert_eq!(id, Id::Number(7));
+        assert_eq!(answer.unwrap(), json!({ "applied": true }));
+    });
+
+    // It reaches the app, and nothing was said to the server meanwhile.
+    let Incoming::ApplyEdit { id, params } = rig.next_incoming() else {
+        panic!("an edit to make");
+    };
+    assert_eq!(params["label"], json!("Fix"));
+    rig.connection
+        .respond(id, Ok(json!({ "applied": true })))
+        .unwrap();
+
+    rig.server.finish();
+}
+
+#[test]
+fn other_requests_of_the_server_are_still_answered_by_the_client_itself() {
+    let rig = connect(|server| {
+        server.request(3, "workspace/workspaceFolders", Value::Null);
+        let (id, answer) = server.expect_response();
+        assert_eq!(id, Id::Number(3));
+        assert_eq!(answer.unwrap(), Value::Null);
+    });
+    rig.server.finish();
+}

@@ -20,12 +20,11 @@ use std::time::{Duration, Instant};
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
-use super::rename::apply::{Check, EditError, plan, shown};
-use super::rename::{count, open_document_of};
+use super::rename::apply::{self, Check, EditError, plan, shown};
+use super::rename::{count, moved_note, open_document_of};
 use crate::components::popups::action_list::{ActionList, Command, Entry};
 use crate::files::paths::canonical;
 use crate::ids::DocumentId;
-use crate::lsp::uri::uri_to_path;
 use crate::lsp::{
     CodeAction, ContextDiagnostic, LspPosition, PendingActionResolve, PendingActions,
     PendingCommand, ServerKey, WorkspaceEdit, to_lsp,
@@ -234,11 +233,8 @@ impl App {
         result: Result<Vec<CodeAction>, crate::lsp::LspError>,
     ) {
         let actions: Vec<CodeAction> = match result {
-            // An action the server lists but says cannot be done now is not offered.
-            Ok(actions) => actions
-                .into_iter()
-                .filter(|action| action.disabled.is_none())
-                .collect(),
+            // An action the server says cannot be done now is listed too, dim, with the reason.
+            Ok(actions) => actions,
             Err(error) => {
                 self.state.notify_error(error.to_string());
                 return;
@@ -258,6 +254,7 @@ impl App {
             .map(|action| Entry {
                 title: action.title.clone(),
                 kind: action.kind.clone().unwrap_or_default(),
+                disabled: action.disabled.clone(),
             })
             .collect();
         self.state.open_action_list(ActionList::new(entries));
@@ -358,6 +355,15 @@ impl App {
 
     /// Closes the box and does the action that was selected.
     fn pick_selected_action(&mut self) {
+        // One that cannot be done says why, and the box stays for another pick.
+        if let Some(reason) = self
+            .state
+            .action_list_mut()
+            .and_then(|list| list.selected_disabled().map(str::to_owned))
+        {
+            self.state.notify(format!("cannot do that now: {reason}"));
+            return;
+        }
         let Some(list) = self.state.take_action_list() else {
             return;
         };
@@ -440,9 +446,9 @@ impl App {
     /// The files of the project the edit names that are not open.
     fn closed_files_of(&self, edit: &WorkspaceEdit) -> Vec<PathBuf> {
         let root = canonical(&self.project_root());
-        edit.files
-            .iter()
-            .filter_map(|file| uri_to_path(&file.uri))
+        // Where the files are now: an edit may name one by where it moves to.
+        apply::files_now(edit, &root)
+            .into_iter()
             .filter(|path| {
                 canonical(path).starts_with(&root)
                     && path.is_file()
@@ -516,13 +522,14 @@ impl App {
         let plan = plan(edit, Check::Action, &root, &context.versions, |path| {
             open_document_of(workspace, path)
         })?;
-        self.edit_open_documents(&plan);
+        self.move_and_edit(&plan)?;
         self.needs_redraw = true;
         Ok(format!(
-            "{}: {} in {}",
+            "{}: {} in {}{}",
             action.title,
             count(plan.places(), "place"),
             count(plan.files(), "file"),
+            moved_note(&plan),
         ))
     }
 

@@ -157,7 +157,12 @@ impl App {
     ///
     /// The tabs follow before any event about the old path is handled, so such
     /// a late event names no open file and is harmless.
-    fn renamed(&mut self, from: &Path, to: &Path, open: Vec<(DocumentId, PathBuf)>) {
+    pub(in crate::app) fn renamed(
+        &mut self,
+        from: &Path,
+        to: &Path,
+        open: Vec<(DocumentId, PathBuf)>,
+    ) {
         let moves = open
             .into_iter()
             .map(|(id, suffix)| match suffix.as_os_str().is_empty() {

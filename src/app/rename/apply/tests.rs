@@ -27,6 +27,7 @@ fn edits_of(path: &Path, edits: Vec<RenameEdit>) -> WorkspaceEdit {
             uri: file_uri(path).unwrap(),
             edits,
         }],
+        renames: Vec::new(),
         operations: Vec::new(),
     }
 }
@@ -255,6 +256,7 @@ fn an_edit_that_names_no_file_is_refused() {
             uri: "https://example.com/a.rs".to_owned(),
             edits: Vec::new(),
         }],
+        renames: Vec::new(),
         operations: Vec::new(),
     };
 
@@ -383,6 +385,7 @@ fn a_swap_that_fails_halfway_names_the_files_already_changed() {
             })
             .collect(),
         open: Vec::new(),
+        moves: Vec::new(),
         places: 3,
     };
 

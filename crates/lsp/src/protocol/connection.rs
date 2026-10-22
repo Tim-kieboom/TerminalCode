@@ -22,6 +22,12 @@ pub enum Incoming {
         method: String,
         params: Value,
     },
+    /// The server asks the client to make an edit (`workspace/applyEdit`): the app answers
+    /// it with [`Connection::respond`] once it knows, and the server waits until then.
+    ApplyEdit {
+        id: Id,
+        params: Value,
+    },
     /// The connection is over, and why. Always the last thing sent.
     Closed(String),
 }
@@ -115,6 +121,11 @@ impl Connection {
             answer,
             pending: Arc::clone(&self.pending),
         })
+    }
+
+    /// Answers a request the server made, which [`Incoming::ApplyEdit`] handed over.
+    pub fn respond(&self, id: Id, outcome: Result<Value, RpcError>) -> Result<(), LspError> {
+        self.send(&Message::Response { id, outcome })
     }
 
     /// Sends a notification, which gets no answer.
@@ -239,6 +250,10 @@ impl Reading {
                     let _ = self
                         .incoming
                         .send(Incoming::Notification { method, params });
+                    wake();
+                }
+                Message::Request { id, method, params } if method == "workspace/applyEdit" => {
+                    let _ = self.incoming.send(Incoming::ApplyEdit { id, params });
                     wake();
                 }
                 Message::Request { id, method, params } => {

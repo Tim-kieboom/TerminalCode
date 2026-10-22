@@ -29,6 +29,19 @@ pub struct Manager {
     /// What running servers said that is for the app to handle, taken by
     /// [`Manager::take_notifications`].
     notifications: Vec<ServerNotification>,
+    /// Edits servers asked to be made, taken by [`Manager::take_apply_edits`].
+    apply_edits: Vec<ApplyEditRequest>,
+}
+
+/// A server asking for an edit to be made (`workspace/applyEdit`). It waits for
+/// [`Manager::respond_apply_edit`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct ApplyEditRequest {
+    pub key: ServerKey,
+    pub id: crate::Id,
+    /// What the server calls the edit, for the user.
+    pub label: Option<String>,
+    pub edit: crate::WorkspaceEdit,
 }
 
 /// A notification from a server that the app is to look at.
@@ -51,6 +64,7 @@ impl Manager {
             starter,
             wake: Arc::new(wake),
             notifications: Vec::new(),
+            apply_edits: Vec::new(),
         }
     }
 
@@ -105,6 +119,24 @@ impl Manager {
                             method,
                             params,
                         });
+                    }
+                }
+                Incoming::ApplyEdit { id, params } => {
+                    let label = params
+                        .get("label")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_owned);
+                    match crate::parse_workspace_edit(&params["edit"]) {
+                        Ok(edit) => self.apply_edits.push(ApplyEditRequest {
+                            key: key.clone(),
+                            id,
+                            label,
+                            edit,
+                        }),
+                        // An edit that cannot be read is refused at once: the server waits.
+                        Err(error) => {
+                            self.answer_apply_edit(key, id, false, Some(error.to_string()))
+                        }
                     }
                 }
                 Incoming::Closed(reason) => {
@@ -170,6 +202,42 @@ impl Manager {
     pub fn notify(&self, key: &ServerKey, method: &str, params: serde_json::Value) {
         if let Some(session) = self.sessions.get(key) {
             let _ = session.connection.notify(method, params);
+        }
+    }
+}
+
+impl Manager {
+    /// The edits servers asked for since the last time. Each is to be answered with
+    /// [`Manager::respond_apply_edit`].
+    pub fn take_apply_edits(&mut self) -> Vec<ApplyEditRequest> {
+        std::mem::take(&mut self.apply_edits)
+    }
+
+    /// Tells the server `key` whether the edit it asked for (request `id`) was made, and
+    /// why not when it was not.
+    pub fn respond_apply_edit(
+        &self,
+        key: &ServerKey,
+        id: crate::Id,
+        applied: bool,
+        reason: Option<String>,
+    ) {
+        self.answer_apply_edit(key, id, applied, reason);
+    }
+
+    fn answer_apply_edit(
+        &self,
+        key: &ServerKey,
+        id: crate::Id,
+        applied: bool,
+        reason: Option<String>,
+    ) {
+        let mut result = serde_json::json!({ "applied": applied });
+        if let Some(reason) = reason {
+            result["failureReason"] = serde_json::Value::String(reason);
+        }
+        if let Some(session) = self.sessions.get(key) {
+            let _ = session.connection.respond(id, Ok(result));
         }
     }
 }

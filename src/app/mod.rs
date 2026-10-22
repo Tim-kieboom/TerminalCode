@@ -23,6 +23,7 @@ use crate::settings::Settings;
 use crate::syntax::SyntaxWorker;
 use crate::terminal::{self, KeyboardSupport};
 
+mod apply_edit;
 mod background;
 mod bars;
 mod code_actions;

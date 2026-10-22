@@ -21,7 +21,7 @@ use crate::lsp::{
     LspPosition, PendingPrepare, PendingRename, Prepared, ServerKey, WorkspaceEdit, from_lsp,
     to_lsp,
 };
-use apply::{Check, EditError, OpenDocument, plan, remap};
+use apply::{Check, EditError, MoveStage, OpenDocument, plan, remap};
 
 pub(super) mod apply;
 
@@ -304,8 +304,7 @@ impl App {
             |path| open_document_of(workspace, path),
         )?;
         plan.write_closed()?;
-
-        self.edit_open_documents(&plan);
+        self.move_and_edit(&plan)?;
         self.needs_redraw = true;
 
         let open = plan.open().len();
@@ -314,8 +313,9 @@ impl App {
             1 => "; 1 open file is not saved".to_owned(),
             many => format!("; {many} open files are not saved"),
         };
+        let moved = moved_note(&plan);
         Ok(format!(
-            "renamed {} to {}: {} in {}{unsaved}",
+            "renamed {} to {}: {} in {}{moved}{unsaved}",
             flight.old,
             flight.new,
             count(plan.places(), "place"),
@@ -325,6 +325,19 @@ impl App {
 }
 
 impl App {
+    /// Makes the moves of a checked edit (the tabs and the explorer follow each, so an open
+    /// file goes on being the same tab) and then the text edits of the open documents, which
+    /// are found by their documents and not by where the files were.
+    pub(super) fn move_and_edit(&mut self, plan: &apply::Plan) -> Result<(), EditError> {
+        let mut noted = Vec::new();
+        plan.move_all(|stage, item| match stage {
+            MoveStage::Before => noted = self.state.workspace().documents_with_suffix(&item.from),
+            MoveStage::After => self.renamed(&item.from, &item.to, std::mem::take(&mut noted)),
+        })?;
+        self.edit_open_documents(plan);
+        Ok(())
+    }
+
     /// Edits the open documents a checked edit names, each as one undo step, the
     /// cursor kept on its text. They are left unsaved.
     pub(super) fn edit_open_documents(&mut self, plan: &apply::Plan) {
@@ -366,6 +379,15 @@ pub(super) fn open_document_of(workspace: &Workspace, path: &Path) -> Option<Ope
         text: buffer.snapshot(),
         read_only: buffer.is_read_only(),
     })
+}
+
+/// What the message says of the moves of an edit: nothing, or that things moved.
+pub(super) fn moved_note(plan: &apply::Plan) -> String {
+    match plan.moves().len() {
+        0 => String::new(),
+        1 => ", and moved 1 file".to_owned(),
+        many => format!(", and moved {many} files"),
+    }
 }
 
 pub(super) fn count(number: usize, noun: &str) -> String {

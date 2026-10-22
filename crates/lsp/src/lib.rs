@@ -26,12 +26,12 @@ pub use handshake::{Server, initialize, shutdown};
 pub use hover::{PendingHover, parse_hover};
 pub use language::language_id_of;
 pub use launch::{LaunchSpec, Launcher, ProcessLauncher, Session, StartError};
-pub use manager::{Manager, ServerNotification};
+pub use manager::{ApplyEditRequest, Manager, ServerNotification};
 pub use message::{Id, Message, RpcError};
 pub use position::{LspPosition, from_lsp, to_lsp};
 pub use rename::{
-    FileEdits, PendingPrepare, PendingRename, Prepared, RenameEdit, WorkspaceEdit, parse_prepare,
-    parse_workspace_edit,
+    FileEdits, FileRename, PendingPrepare, PendingRename, Prepared, RenameEdit, WorkspaceEdit,
+    parse_prepare, parse_workspace_edit,
 };
 pub use supervisor::{Effect, Notice, Supervisor};
 pub use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
