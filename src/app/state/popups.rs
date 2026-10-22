@@ -306,24 +306,47 @@ impl AppState {
 
     /// Find in the open file, while its bar is open.
     pub(crate) fn find(&self) -> Option<&Find> {
-        match &self.popup {
-            Popup::Find(find) => Some(find),
-            _ => None,
-        }
+        self.find.as_ref()
     }
 
+    /// Opens the find bar and gives it the keys.
     pub(crate) fn open_find(&mut self, find: Find) {
-        self.popup = Popup::Find(find);
+        self.find = Some(find);
+        self.find_focused = true;
     }
 
-    /// Closes the find and hands it back; any other popup stays open.
+    /// Puts the find back after it was taken to be changed, keys as they were.
+    pub(crate) fn put_find(&mut self, find: Find) {
+        self.find = Some(find);
+    }
+
+    /// Takes the find out (closing it unless it is put back).
     pub(crate) fn take_find(&mut self) -> Option<Find> {
-        if !matches!(self.popup, Popup::Find(_)) {
-            return None;
+        self.find.take()
+    }
+
+    /// Whether the keys go to the find bar: it is open and was not left by a click.
+    pub(crate) fn find_focused(&self) -> bool {
+        self.find.is_some() && self.find_focused
+    }
+
+    pub(crate) fn set_find_focused(&mut self, focused: bool) {
+        self.find_focused = focused;
+    }
+
+    /// Looks for the matches again when the text changed since they were found.
+    pub(crate) fn refresh_find(&mut self) {
+        if let Some(find) = self.find.as_mut() {
+            find.refresh(self.components.workspace.active_editor().buffer());
         }
-        match std::mem::take(&mut self.popup) {
-            Popup::Find(find) => Some(find),
-            _ => None,
+    }
+
+    /// The find goes on in the file that is in front now, from where the cursor is.
+    pub(crate) fn retarget_find(&mut self) {
+        let editor = self.components.workspace.active_editor();
+        let origin = editor.selections().primary().start();
+        if let Some(find) = self.find.as_mut() {
+            find.retarget(editor.buffer(), origin);
         }
     }
 

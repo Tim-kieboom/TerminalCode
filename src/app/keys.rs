@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::App;
 use crate::app::state::{Focus, Popup};
@@ -200,7 +200,24 @@ impl App {
             Popup::Palette(_) => return self.handle_palette_key(key),
             Popup::Finder(_) => return self.handle_finder_key(key),
             Popup::Search(_) => return self.handle_search_key(key),
-            Popup::Find(_) => return self.handle_find_key(key),
+        }
+
+        // The find bar is not a popup: it has the keys while the user is typing in it, and the
+        // editor is used as usual while it only stays open. `esc` closes it from there too.
+        if self.state.find().is_some() {
+            if self.find_has_keys() {
+                return self.handle_find_key(key);
+            }
+            if key.code == KeyCode::Esc
+                && key.modifiers == KeyModifiers::NONE
+                && self.state.focus() == Focus::Editor
+                && !self.keyboard.is_pending()
+            {
+                if key.kind == KeyEventKind::Press {
+                    self.close_find();
+                }
+                return;
+            }
         }
 
         // Escape gives up a row being dragged, and does nothing else then.
@@ -310,6 +327,8 @@ impl App {
             Action::FindFile => self.open_finder(),
             Action::FindInProject => self.open_search(),
             Action::NextSearchResult => self.step_search_result(1),
+            Action::FindNext => self.find_step(true),
+            Action::FindPrevious => self.find_step(false),
             Action::NextDiagnostic => self.step_diagnostic(true),
             Action::PreviousDiagnostic => self.step_diagnostic(false),
             Action::ShowDiagnostics => self.show_diagnostics(),

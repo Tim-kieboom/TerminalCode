@@ -79,6 +79,10 @@ pub(crate) enum Action {
     FormatSelection,
     /// Opens the find bar for the open file.
     FindInFile,
+    /// Goes to the next match of the find in the open file, from the cursor, with the bar open
+    /// or not (it opens on the last query when it is not).
+    FindNext,
+    FindPrevious,
     /// Opens the find bar with the row for replacing.
     ReplaceInFile,
     /// Deletes the explorer's selected file or folder, to the trash.
@@ -353,6 +357,8 @@ impl Action {
             Self::FormatDocument => "Language: Format Document",
             Self::FormatSelection => "Language: Format Selection",
             Self::FindInFile => "Search: Find in File",
+            Self::FindNext => "Search: Find Next",
+            Self::FindPrevious => "Search: Find Previous",
             Self::ReplaceInFile => "Search: Replace in File",
             Self::Explorer(ExplorerCommand::Refresh) => "Explorer: Refresh",
             Self::DeleteSelected => "Explorer: Delete Selected",
@@ -474,6 +480,8 @@ impl Action {
             Self::FormatDocument,
             Self::FormatSelection,
             Self::FindInFile,
+            Self::FindNext,
+            Self::FindPrevious,
             Self::ReplaceInFile,
             Self::FocusExplorer,
             Self::FocusEditor,

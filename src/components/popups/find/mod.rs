@@ -379,6 +379,48 @@ impl Find {
         self.recompute(buffer);
     }
 
+    /// Goes on in another file (or from another place): the matches are looked for again from
+    /// `origin`.
+    pub(crate) fn retarget(&mut self, buffer: &Buffer, origin: Position) {
+        self.origin = origin;
+        self.recompute(buffer);
+    }
+
+    /// Steps to the match after (or before) where the cursor is, `start` and `end` being the
+    /// selection: the ordinary step when it is on the current match, else the first match that
+    /// starts at or after the end of the selection (the last that starts before it), wrapping.
+    pub(crate) fn step_from(&mut self, start: Position, end: Position, forward: bool) {
+        if self.matches.is_empty() {
+            return;
+        }
+        if let Some(current) = self.current()
+            && current.start_position() == start
+            && current.end_position() == end
+        {
+            match forward {
+                true => self.next(),
+                false => self.previous(),
+            }
+            return;
+        }
+        let len = self.matches.len();
+        let index = match forward {
+            true => {
+                self.matches
+                    .partition_point(|found| found.start_position() < end)
+                    % len
+            }
+            false => {
+                let before = self
+                    .matches
+                    .partition_point(|found| found.start_position() < start);
+                (before + len - 1) % len
+            }
+        };
+        self.current = Some(index);
+        self.settle();
+    }
+
     /// Looks for the matches again if the text changed since they were found.
     pub(crate) fn refresh(&mut self, buffer: &Buffer) {
         if self.version != buffer.version() {
@@ -443,7 +485,7 @@ impl Find {
 
     /// Draws the bar into `area` (one row, or two with the replacement), with
     /// the terminal cursor after the text being typed.
-    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme, area: Rect) {
+    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme, area: Rect, focused: bool) {
         if area.height == 0 || area.width == 0 {
             return;
         }
@@ -492,8 +534,11 @@ impl Find {
             }
         }
 
-        let cursor_x = area.x + cursor.1.min(usize::from(area.width) - 1) as u16;
-        frame.set_cursor_position(ScreenPosition::new(cursor_x, cursor.0));
+        // The terminal's cursor is the editor's while the keys are there.
+        if focused {
+            let cursor_x = area.x + cursor.1.min(usize::from(area.width) - 1) as u16;
+            frame.set_cursor_position(ScreenPosition::new(cursor_x, cursor.0));
+        }
     }
 
     /// The three switches, in the longest form that fits in `room` cells: with

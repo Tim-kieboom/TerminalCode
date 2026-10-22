@@ -366,3 +366,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Show and hide the side pane: "View: Toggle Side Pane" (`ctrl+k p`, also in the View menu), remembered in `state.json`, `hidden: true` on a `RightBar` of the layout file, and `RightBar` documented in the default layout
 
 - [x] Copy from the integrated terminal: drag to select (letting go copies; a double click takes a word, a triple click a line), `shift`+drag when the program in the pane has the mouse, `ctrl+shift+c` or `ctrl+b y` to copy again, the selection drawn and dropped by a press, typing, another tab, the history moving or the text changing
+
+- [x] Find like VS Code: the find bar stays open while the editor is used (a click or `ctrl+f` moves the keys between the editor and the bar), the matches stay highlighted and follow the text, `f3` and `shift+f3` go to the next and previous match from wherever the cursor is, `esc` closes the bar

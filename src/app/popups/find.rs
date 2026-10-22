@@ -4,6 +4,7 @@ use crossterm::event::KeyEvent;
 
 use super::SavedQuery;
 use crate::app::App;
+use crate::app::state::Focus;
 use crate::buffer::Position;
 use crate::components::editor::Replacement;
 use crate::components::popups::find::{self, Find};
@@ -51,6 +52,22 @@ impl App {
         self.state.open_find(find);
     }
 
+    /// Whether the keys go to the find bar: it is open, was not left by a click, and the
+    /// editor is where the keyboard is.
+    pub(in crate::app) fn find_has_keys(&self) -> bool {
+        self.state.find_focused() && self.state.focus() == Focus::Editor
+    }
+
+    /// Closes the find bar; the match that was found stays selected.
+    pub(in crate::app) fn close_find(&mut self) {
+        if let Some(find) = self.state.take_find() {
+            self.remember_find(&find);
+        }
+        self.state.set_find_focused(false);
+        self.state.workspace_mut().set_find_bar_rows(0);
+        self.needs_redraw = true;
+    }
+
     pub(in crate::app) fn handle_find_key(&mut self, key: KeyEvent) {
         let Some(command) = find::Command::from_key(key) else {
             return;
@@ -75,6 +92,7 @@ impl App {
             find::Command::SwitchField => find.switch_field(),
             find::Command::Close => {
                 self.remember_find(&find);
+                self.state.set_find_focused(false);
                 self.state.workspace_mut().set_find_bar_rows(0);
                 self.needs_redraw = true;
                 return;
@@ -85,7 +103,27 @@ impl App {
             .set_find_bar_rows(find.bar_rows());
         self.select_found(&find);
         self.remember_find(&find);
+        // The keys stay where they were: in the bar.
         self.state.open_find(find);
+        self.needs_redraw = true;
+    }
+
+    /// F3 and shift+F3, from the editor: the next or previous match from the cursor, wherever
+    /// the user moved it. With no find open the bar opens, on the last query.
+    pub(in crate::app) fn find_step(&mut self, forward: bool) {
+        if self.state.find().is_none() {
+            self.open_find();
+            return;
+        }
+        self.state.refresh_find();
+        let selection = *self.state.editor().selections().primary();
+        let Some(mut find) = self.state.take_find() else {
+            return;
+        };
+        find.step_from(selection.start(), selection.end(), forward);
+        self.select_found(&find);
+        self.remember_find(&find);
+        self.state.put_find(find);
         self.needs_redraw = true;
     }
 

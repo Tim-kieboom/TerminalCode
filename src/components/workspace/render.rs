@@ -82,7 +82,7 @@ impl Render<AppState> for Workspace {
                 editor,
                 syntax: document.syntax.spans(),
                 focused,
-                live: focused && state.has_keyboard(Focus::Editor),
+                live: focused && state.has_keyboard(Focus::Editor) && !state.find_focused(),
                 find: state.find().filter(|_| focused),
                 diagnostics: state.diagnostics().of(tab.document),
                 git: &document.git,
@@ -90,7 +90,7 @@ impl Render<AppState> for Workspace {
             editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 
             if let Some(find) = state.find().filter(|_| focused) {
-                find.render(frame, theme, pane.find_bar);
+                find.render(frame, theme, pane.find_bar, state.find_focused());
             }
         }
     }

@@ -140,9 +140,6 @@ mod popups {
         if state.search().is_some() {
             open.push("search");
         }
-        if state.find().is_some() {
-            open.push("find");
-        }
         open
     }
 
@@ -164,10 +161,22 @@ mod popups {
         assert_eq!(open_names(&state), ["finder"]);
         state.open_search(search());
         assert_eq!(open_names(&state), ["search"]);
-        state.open_find(find());
-        assert_eq!(open_names(&state), ["find"]);
         state.open_quit_prompt(quit_prompt());
         assert_eq!(open_names(&state), ["quit_prompt"]);
+    }
+
+    #[test]
+    fn the_find_bar_is_not_a_popup_and_leaves_the_open_one_alone() {
+        let mut state = AppState::default();
+        state.open_find(find());
+        assert!(matches!(state.popup(), Popup::None));
+        assert!(state.find().is_some() && state.find_focused());
+
+        state.open_palette(palette());
+        assert_eq!(open_names(&state), ["palette"]);
+        assert!(state.find().is_some(), "the bar stays open under it");
+        assert!(state.take_find().is_some());
+        assert!(state.take_find().is_none());
     }
 
     #[test]
@@ -188,7 +197,6 @@ mod popups {
 
         assert!(state.take_palette().is_none());
         assert!(state.take_search().is_none());
-        assert!(state.take_find().is_none());
         assert!(state.take_quit_prompt().is_none());
 
         assert_eq!(open_names(&state), ["finder"]);

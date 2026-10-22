@@ -75,6 +75,12 @@ pub(crate) struct AppState {
     /// Whether the user hid the pane right of the editor (it keeps its place and its
     /// width; only the space is given back).
     side_hidden: bool,
+    /// Find in the open file, while its bar is open (the bar is not a popup: the editor
+    /// is used as usual, and the matches stay highlighted).
+    find: Option<Find>,
+    /// Whether the keys go to the find bar (`ctrl+f` brings them there, a click in the
+    /// editor takes them back).
+    find_focused: bool,
     /// The view each bar shows, as an index into the bar's views; a bar is
     /// named by its first view, and one that is not here shows its first.
     bar_views: HashMap<ComponentKind, usize>,
@@ -133,7 +139,6 @@ pub(crate) enum Popup {
     Palette(Palette),
     Finder(Finder),
     Search(Search),
-    Find(Find),
     /// The view of a plugin the user put in a popup.
     PluginView(PluginViewId),
     /// The plugin manager.
@@ -233,7 +238,10 @@ impl AppState {
     /// has taken the keys. The completion box is not a popup, the editor keeps
     /// the keyboard while it is open.
     pub(crate) fn has_keyboard(&self, focus: Focus) -> bool {
-        self.focus == focus && matches!(self.popup, Popup::None)
+        self.focus == focus
+            && matches!(self.popup, Popup::None)
+            // The find bar has the keys of the editor while the user types in it.
+            && !(focus == Focus::Editor && self.find_focused())
     }
 
     pub(crate) fn set_focus(&mut self, focus: Focus) {

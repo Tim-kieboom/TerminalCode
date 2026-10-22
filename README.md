@@ -86,7 +86,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `alt+up`, `alt+down` | Move the line (or the selected lines) up or down |
 | `ctrl+up`, `ctrl+down` | Move to the previous or next blank line (a line of only spaces counts as blank); add `shift` to select up to it |
 | `ctrl+alt+up`, `ctrl+alt+down` | Add a cursor on the line above or below (typing, deleting, moving and selecting then act on every cursor; `alt+click` adds one at the pointer, `alt+drag` a selection; `esc` or a plain click goes back to one cursor; copy, paste and indent use the main cursor only) |
-| `ctrl+f`, `ctrl+r` | Find in the file, replace |
+| `ctrl+f`, `ctrl+r` | Find in the file, replace: every match is highlighted and the current one selected. The bar stays open while you use the editor (a click in the text, or moving on with the keys, takes the keys back from it): the matches stay highlighted and follow what you type, `f3` and `shift+f3` go to the next and previous match from the cursor wherever you moved it, `ctrl+f` brings the keys back to the bar, `esc` closes it. In the bar: `enter`/`down` next, `shift+enter`/`up` previous, `alt+c`, `alt+w`, `alt+r` case, whole word and regex |
 | `ctrl+g` | Go to line (`line` or `line:column`) |
 | `ctrl+p` | Find a file by name (`name:42` opens it at line 42; `alt+enter` opens it beside this pane) |
 | `alt+f` | Search the project; `f4` and `shift+f4` step through the results |

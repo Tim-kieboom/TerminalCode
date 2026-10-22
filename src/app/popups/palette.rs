@@ -164,14 +164,13 @@ impl App {
     /// characters. Returns whether a popup took it.
     pub(in crate::app) fn paste_into_popup(&mut self, text: &str) -> bool {
         use crate::app::state::Popup;
-        if !matches!(
-            self.state.popup(),
-            Popup::Palette(_)
-                | Popup::Finder(_)
-                | Popup::Search(_)
-                | Popup::NewEntry(_)
-                | Popup::Find(_)
-        ) {
+        let find_has_the_keys = matches!(self.state.popup(), Popup::None) && self.find_has_keys();
+        if !find_has_the_keys
+            && !matches!(
+                self.state.popup(),
+                Popup::Palette(_) | Popup::Finder(_) | Popup::Search(_) | Popup::NewEntry(_)
+            )
+        {
             return false;
         }
         let first_line = text.lines().next().unwrap_or_default();

@@ -106,6 +106,8 @@ impl App {
         // A click puts the cursor elsewhere: the word is over.
         if matches!(event.kind, MouseEventKind::Down(_)) {
             self.close_completion();
+            // A click anywhere takes the keys back from the find bar; it stays open.
+            self.state.set_find_focused(false);
         }
 
         // The wheel over a box of text that is longer than it shows scrolls it.

@@ -643,3 +643,182 @@ fn replacing_with_an_emoji_counts_by_graphemes_so_the_next_match_is_found() {
 
     assert_eq!(text(&app), "🙂 🙂 a\n");
 }
+
+// --- the bar stays open while the editor is used ---
+
+/// A click in the text, which takes the keys back from the bar.
+fn click_in_the_text(app: &mut App) {
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 6,
+        row: 1,
+        modifiers: KeyModifiers::NONE,
+    }));
+}
+
+fn f3(app: &mut App, shift: bool) {
+    let modifiers = match shift {
+        true => KeyModifiers::SHIFT,
+        false => KeyModifiers::NONE,
+    };
+    app.handle_input(key(KeyCode::F(3), modifiers));
+}
+
+fn highlighted_count(screen: &str) -> usize {
+    // The bar says how many there are; the lines of the editor are above it.
+    screen
+        .lines()
+        .find_map(|line| {
+            line.split(" of ")
+                .nth(1)?
+                .split_whitespace()
+                .next()?
+                .parse()
+                .ok()
+        })
+        .unwrap_or(0)
+}
+
+#[test]
+fn a_click_in_the_text_leaves_the_bar_open_with_its_matches_and_the_keys_go_to_the_editor() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    assert!(app.state().find_focused());
+
+    click_in_the_text(&mut app);
+
+    assert!(app.state().find().is_some(), "the bar is still there");
+    assert!(!app.state().find_focused());
+    assert_eq!(app.state().find().unwrap().matches().len(), 3);
+    // The keys are the editor's now: typing edits the document and not the query.
+    type_str(&mut app, "x");
+    assert!(text(&app).contains('x'), "{}", text(&app));
+    assert_eq!(app.state().find().unwrap().query(), "beta");
+}
+
+#[test]
+fn the_arrows_move_the_cursor_not_the_match_while_the_bar_only_stays_open() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    click_in_the_text(&mut app);
+    let before = app.state().find().unwrap().current_index();
+    let cursor = selection(&app).0;
+
+    press(&mut app, KeyCode::Down);
+
+    assert_eq!(app.state().find().unwrap().current_index(), before);
+    assert_eq!(selection(&app).0.line, cursor.line + 1, "the cursor moved");
+    assert!(app.state().find().is_some());
+}
+
+#[test]
+fn f3_goes_to_the_next_match_after_the_cursor_wherever_it_was_moved_and_shift_f3_back() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    click_in_the_text(&mut app);
+    // Put the cursor at the start of the last line, past the matches on the lines before.
+    app.handle_input(key(KeyCode::End, KeyModifiers::CONTROL));
+    app.handle_input(key(KeyCode::Home, KeyModifiers::NONE));
+    press(&mut app, KeyCode::Up);
+    app.handle_input(key(KeyCode::Home, KeyModifiers::NONE));
+    assert_eq!(selection(&app).0, Position::new(2, 0));
+
+    f3(&mut app, false);
+    assert_eq!(
+        selection(&app).0,
+        Position::new(2, 6),
+        "the match on this line"
+    );
+    f3(&mut app, false);
+    assert_eq!(selection(&app).0, Position::new(0, 6), "wrapped around");
+    f3(&mut app, true);
+    assert_eq!(selection(&app).0, Position::new(2, 6), "and back");
+    assert!(!app.state().find_focused(), "the keys stayed in the editor");
+}
+
+#[test]
+fn f3_with_no_bar_opens_it_on_the_last_query() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    press(&mut app, KeyCode::Esc);
+    assert!(app.state().find().is_none());
+
+    f3(&mut app, false);
+
+    assert!(app.state().find().is_some());
+    assert_eq!(app.state().find().unwrap().query(), "beta");
+}
+
+#[test]
+fn escape_in_the_editor_closes_the_bar_and_ctrl_f_brings_the_keys_back_to_it() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    click_in_the_text(&mut app);
+
+    ctrl(&mut app, 'f');
+    assert!(app.state().find_focused(), "ctrl+f goes back to the bar");
+    assert_eq!(app.state().find().unwrap().query(), "beta");
+
+    click_in_the_text(&mut app);
+    press(&mut app, KeyCode::Esc);
+    assert!(app.state().find().is_none());
+    assert!(!app.state().find_focused());
+}
+
+#[test]
+fn the_matches_follow_what_is_typed_in_the_editor() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    click_in_the_text(&mut app);
+    assert_eq!(app.state().find().unwrap().matches().len(), 3);
+
+    // Type a fourth `beta` at the start of the document.
+    app.handle_input(key(KeyCode::Home, KeyModifiers::CONTROL));
+    type_str(&mut app, "beta ");
+
+    assert_eq!(app.state().find().unwrap().matches().len(), 4);
+    let shown = screen(&mut app, 60, 12);
+    assert_eq!(highlighted_count(&shown), 4, "{shown}");
+}
+
+#[test]
+fn the_editor_cursor_is_live_when_the_bar_does_not_have_the_keys() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    assert!(!app.state().has_keyboard(crate::app::state::Focus::Editor));
+    click_in_the_text(&mut app);
+    assert!(app.state().has_keyboard(crate::app::state::Focus::Editor));
+}
+
+#[test]
+fn another_tab_gets_the_find_too() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    type_str(&mut app, "beta");
+    click_in_the_text(&mut app);
+
+    app.handle_input(key(KeyCode::Char('n'), KeyModifiers::CONTROL));
+    type_str(&mut app, "one beta");
+    let found = app.state().find().unwrap().matches().len();
+    assert_eq!(found, 1, "the new file's own match, not the old file's");
+}
+
+#[test]
+fn paste_goes_to_the_bar_while_it_has_the_keys_and_to_the_text_after_a_click() {
+    let mut app = app_with(TEXT);
+    ctrl(&mut app, 'f');
+    app.handle_input(InputEvent::Paste("delta".to_owned()));
+    assert_eq!(app.state().find().unwrap().query(), "delta");
+    assert_eq!(text(&app), TEXT);
+
+    click_in_the_text(&mut app);
+    app.handle_input(InputEvent::Paste("Z".to_owned()));
+    assert!(text(&app).contains('Z'));
+    assert_eq!(app.state().find().unwrap().query(), "delta");
+}
