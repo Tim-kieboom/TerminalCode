@@ -9,6 +9,7 @@ use ratatui::layout::Rect;
 use super::App;
 use crate::components::workspace::Divider;
 use crate::ui::ComponentKind;
+use crate::ui::layout::ResizeEdge;
 
 /// A line the mouse holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,6 +20,15 @@ pub(super) enum Dragging {
     Panes(Divider),
     /// A selection of text in the terminal pane, which the pointer is extending.
     Terminal,
+    /// The edge of the explorer's or the terminal's bar: `key` is the bar (its first view),
+    /// `anchor` the far side that stays (the left edge, or the bottom) and `grab` how far the
+    /// pointer was from the edge it took hold of, which the drag keeps.
+    Bar {
+        key: ComponentKind,
+        edge: ResizeEdge,
+        anchor: u16,
+        grab: i32,
+    },
 }
 
 impl App {
@@ -49,6 +59,47 @@ impl App {
             return Some(Dragging::Side);
         }
         let placements = self.state.placements(self.state.screen());
+        for placement in &placements {
+            let (area, Some(edge)) = (placement.area, placement.resize_edge) else {
+                continue;
+            };
+            let key = self
+                .state
+                .layout()
+                .bar_views(&placement.kind)
+                .and_then(|views| views.first().cloned())
+                .unwrap_or_else(|| placement.kind.clone());
+            // The bar's own last column or first row, which its border is on in the default
+            // layout: not the editor's side, whose first cell can be text. A tab of the bar,
+            // in its top row, is a tab and not a line.
+            let on_tab = crate::ui::bar::tab_rects(placement)
+                .iter()
+                .any(|(rect, _)| rect.contains(ratatui::layout::Position::new(column, row)));
+            let held = match edge {
+                ResizeEdge::Right => {
+                    column + 1 == area.right() && row >= area.y && row < area.bottom()
+                }
+                ResizeEdge::Top => {
+                    row == area.y && column >= area.x && column < area.right() && !on_tab
+                }
+            };
+            if held {
+                return Some(match edge {
+                    ResizeEdge::Right => Dragging::Bar {
+                        key,
+                        edge,
+                        anchor: area.x,
+                        grab: i32::from(area.right()) - i32::from(column),
+                    },
+                    ResizeEdge::Top => Dragging::Bar {
+                        key,
+                        edge,
+                        anchor: area.bottom(),
+                        grab: i32::from(area.y) - i32::from(row),
+                    },
+                });
+            }
+        }
         let editor = placements
             .iter()
             .find(|p| p.kind == ComponentKind::Editor)?;
@@ -88,6 +139,19 @@ impl App {
                             .drag_divider(&divider, event.column, event.row);
                     }
                     Dragging::Terminal => self.extend_terminal_selection(event.column, event.row),
+                    Dragging::Bar {
+                        key,
+                        edge,
+                        anchor,
+                        grab,
+                    } => {
+                        let cells = match edge {
+                            ResizeEdge::Right => i32::from(event.column) + grab - i32::from(anchor),
+                            ResizeEdge::Top => i32::from(anchor) - (i32::from(event.row) + grab),
+                        };
+                        let cells = cells.clamp(0, i32::from(u16::MAX)) as u16;
+                        self.state.resize_bar(&key, cells);
+                    }
                 }
                 true
             }
@@ -102,12 +166,18 @@ impl App {
                         self.extend_terminal_selection(event.column, event.row);
                         self.copy_terminal_selection(false);
                     }
-                    Dragging::Panes(_) => {}
+                    Dragging::Panes(_) | Dragging::Bar { .. } => {}
                 }
                 true
             }
             _ => false,
         }
+    }
+
+    /// Gives the explorer's and the terminal's bars the sizes the layout file says again.
+    pub(super) fn reset_pane_sizes(&mut self) {
+        self.state.reset_sizes();
+        self.needs_redraw = true;
     }
 
     /// Shows the pane right of the editor, or hides it; the choice is remembered. The keyboard

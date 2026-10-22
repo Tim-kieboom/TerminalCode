@@ -315,6 +315,111 @@ impl LayoutNode {
         }
     }
 
+    /// A pane or a bar: what holds a component, as against a `Row` or `Col` that holds others.
+    fn is_leaf(&self) -> bool {
+        matches!(
+            self.content(),
+            Self::Pane(_) | Self::SideBar(_) | Self::BottomBar(_) | Self::RightBar(_)
+        )
+    }
+
+    /// The size a node of `kind` would have if it were `cells` cells of its row or column
+    /// (given what `scene` shows and the `area` the node's parent fills), in the unit it has
+    /// now: cells for `Fixed`, percent for `Percent`. `None` when `kind` is not in a leaf that
+    /// has a size of its own.
+    fn size_for(
+        &self,
+        kind: &ComponentKind,
+        cells: u16,
+        area: Rect,
+        scene: &Scene<'_>,
+        wide: bool,
+    ) -> Option<Size> {
+        match self {
+            Self::Row(children) | Self::Col(children) => {
+                let direction = match self {
+                    Self::Row(_) => Direction::Horizontal,
+                    _ => Direction::Vertical,
+                };
+                let shown: Vec<&LayoutNode> = children
+                    .iter()
+                    .filter(|child| child.has_visible(scene))
+                    .filter(|child| wide || !matches!(child.content(), Self::RightBar(_)))
+                    .collect();
+                let areas = Layout::default()
+                    .direction(direction)
+                    .constraints(shown.iter().map(|child| child.constraint()))
+                    .split(area);
+                let extent = match direction {
+                    Direction::Horizontal => area.width,
+                    Direction::Vertical => area.height,
+                };
+                for (child, child_area) in shown.iter().zip(areas.iter()) {
+                    if !child.contains(kind) {
+                        continue;
+                    }
+                    if child.is_sized() && child.is_leaf() {
+                        let most = extent.saturating_sub(LEAST_REST).max(LEAST_BAR);
+                        let cells = cells.clamp(LEAST_BAR, most);
+                        return Some(match child {
+                            Self::Percent(..) => {
+                                let percent = (u32::from(cells) * 100 + u32::from(extent) / 2)
+                                    / u32::from(extent.max(1));
+                                Size::Percent((percent as u16).clamp(1, 100))
+                            }
+                            _ => Size::Fixed(cells),
+                        });
+                    }
+                    return child
+                        .content()
+                        .size_for(kind, cells, *child_area, scene, wide);
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Gives the leaf that holds `kind` the size `size`. Returns whether there was one with a
+    /// size of its own.
+    fn set_size_of(&mut self, kind: &ComponentKind, size: Size) -> bool {
+        match self {
+            Self::Fixed(_, node) | Self::Percent(_, node) if node.is_leaf() => {
+                if !node.contains(kind) {
+                    return false;
+                }
+                let inner = node.clone();
+                *self = match size {
+                    Size::Fixed(cells) => Self::Fixed(cells, inner),
+                    Size::Percent(percent) => Self::Percent(percent, inner),
+                };
+                true
+            }
+            Self::Fixed(_, node) | Self::Percent(_, node) => node.set_size_of(kind, size),
+            Self::Row(children) | Self::Col(children) => children
+                .iter_mut()
+                .any(|child| child.set_size_of(kind, size)),
+            _ => false,
+        }
+    }
+
+    /// The size of the leaf that holds `kind`, when it has one of its own.
+    fn size_of(&self, kind: &ComponentKind) -> Option<Size> {
+        match self {
+            Self::Fixed(cells, node) if node.is_leaf() && node.contains(kind) => {
+                Some(Size::Fixed(*cells))
+            }
+            Self::Percent(percent, node) if node.is_leaf() && node.contains(kind) => {
+                Some(Size::Percent(*percent))
+            }
+            Self::Fixed(_, node) | Self::Percent(_, node) => node.size_of(kind),
+            Self::Row(children) | Self::Col(children) => {
+                children.iter().find_map(|child| child.size_of(kind))
+            }
+            _ => None,
+        }
+    }
+
     /// The first view of the first bar to the right of the editor.
     fn right_bar_anchor(&self) -> Option<ComponentKind> {
         match self.content() {
@@ -363,6 +468,28 @@ impl LayoutNode {
 /// narrower one the editor keeps the room.
 pub const RIGHT_BAR_MIN_WIDTH: u16 = 100;
 
+/// A size a node of the layout is given in its `Row` or `Col`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Size {
+    /// This many cells.
+    Fixed(u16),
+    /// This much of the `Row` or `Col`, in percent.
+    Percent(u16),
+}
+
+/// Which edge of a component with a size of its own can be dragged to change it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResizeEdge {
+    /// The right edge (a bar on the left of the editor, such as the explorer's).
+    Right,
+    /// The top edge (a bar under the editor, such as the terminal's).
+    Top,
+}
+
+/// The least a dragged bar keeps, and the least the rest of its row or column keeps.
+const LEAST_BAR: u16 = 3;
+const LEAST_REST: u16 = 10;
+
 /// Where a component ended up on screen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Placement {
@@ -372,6 +499,9 @@ pub struct Placement {
     /// The views of the bar this component is the shown one of, when it has
     /// more than one (the tab strip is drawn for them).
     pub bar: Option<BarTabs>,
+    /// The edge that can be dragged to change the size the layout gave it: the explorer's right
+    /// edge, the terminal's top edge. `None` for what has no size of its own.
+    pub resize_edge: Option<ResizeEdge>,
 }
 
 impl Placement {
@@ -383,6 +513,7 @@ impl Placement {
             area,
             frame,
             bar: None,
+            resize_edge: None,
         }
     }
 }
@@ -487,6 +618,33 @@ impl LayoutTree {
         });
         root.put_beside_editor(bar, percent)
             .then_some(Self { root })
+    }
+
+    /// The size the layout gives the pane or bar that holds `kind`, if it has one of its own.
+    pub fn size_of(&self, kind: &ComponentKind) -> Option<Size> {
+        self.root.size_of(kind)
+    }
+
+    /// Gives the pane or bar that holds `kind` a size. Returns whether there was one to give
+    /// it to.
+    pub fn set_size(&mut self, kind: &ComponentKind, size: Size) -> bool {
+        self.root.set_size_of(kind, size)
+    }
+
+    /// Makes the pane or bar that holds `kind` `cells` cells of its row or column (at least a
+    /// few, and leaving the rest some room), in the unit it has (cells or percent), on a screen
+    /// of `area` as `scene` shows it. Returns the size it was given, `None` when `kind` has no
+    /// size of its own.
+    pub fn resize_scene(
+        &mut self,
+        kind: &ComponentKind,
+        cells: u16,
+        area: Rect,
+        scene: &Scene<'_>,
+    ) -> Option<Size> {
+        let wide = area.width >= RIGHT_BAR_MIN_WIDTH;
+        let size = self.root.size_for(kind, cells, area, scene, wide)?;
+        self.root.set_size_of(kind, size).then_some(size)
     }
 
     /// What the layout says about the component of this kind starting hidden,
@@ -663,6 +821,11 @@ fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, wide: bool, out: &mut
             area,
             frame: PaneFrame::resolve(&pane.frame, &pane.view),
             bar: None,
+            resize_edge: match (node.is_sized(), &pane.view) {
+                (true, ComponentKind::Explorer) => Some(ResizeEdge::Right),
+                (true, ComponentKind::Terminal) => Some(ResizeEdge::Top),
+                _ => None,
+            },
         }),
         LayoutNode::SideBar(bar) | LayoutNode::BottomBar(bar) | LayoutNode::RightBar(bar) => {
             let active = bar.shown_view(scene);
@@ -675,10 +838,16 @@ fn place(node: &LayoutNode, area: Rect, scene: &Scene<'_>, wide: bool, out: &mut
             if tabbed {
                 frame = frame.with_tab_row();
             }
+            let resize_edge = match (node.is_sized(), node.content()) {
+                (true, LayoutNode::SideBar(_)) => Some(ResizeEdge::Right),
+                (true, LayoutNode::BottomBar(_)) => Some(ResizeEdge::Top),
+                _ => None,
+            };
             out.push(Placement {
                 kind: kind.clone(),
                 area,
                 frame,
+                resize_edge,
                 bar: tabbed.then(|| BarTabs {
                     views: bar.views.clone(),
                     labels: bar

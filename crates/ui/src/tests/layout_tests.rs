@@ -831,3 +831,94 @@ fn a_right_bar_can_start_hidden() {
     assert_eq!(layout.starts_hidden(&plugin("preview")), Some(true));
     assert_eq!(layout.right_bar_anchor(), Some(plugin("preview")));
 }
+
+// --- sizes that are dragged ---
+
+fn scene_all() -> Scene<'static> {
+    Scene {
+        visible: &|_| true,
+        active: &|_| 0,
+    }
+}
+
+const SIZED: &str = "Col([Row([Fixed(30, SideBar(views: [Explorer])), Col([Pane(view: Editor), \
+                     Percent(20, BottomBar(views: [Terminal]))])])])";
+
+#[test]
+fn the_size_of_a_bar_is_read_and_given() {
+    let mut layout = LayoutTree::from_ron(SIZED).unwrap();
+    assert_eq!(
+        layout.size_of(&ComponentKind::Explorer),
+        Some(Size::Fixed(30))
+    );
+    assert_eq!(
+        layout.size_of(&ComponentKind::Terminal),
+        Some(Size::Percent(20))
+    );
+    assert_eq!(
+        layout.size_of(&ComponentKind::Editor),
+        None,
+        "it has none of its own"
+    );
+
+    assert!(layout.set_size(&ComponentKind::Explorer, Size::Fixed(12)));
+    assert_eq!(
+        layout.size_of(&ComponentKind::Explorer),
+        Some(Size::Fixed(12))
+    );
+    assert!(!layout.set_size(&ComponentKind::Editor, Size::Fixed(5)));
+    // The size can change its unit; the bar keeps its views.
+    assert!(layout.set_size(&ComponentKind::Terminal, Size::Fixed(9)));
+    assert_eq!(layout.bar_views(&ComponentKind::Terminal).unwrap().len(), 1);
+}
+
+#[test]
+fn a_resize_gives_the_size_in_the_unit_the_bar_has_and_leaves_the_rest_some_room() {
+    let mut layout = LayoutTree::from_ron(SIZED).unwrap();
+    let area = Rect::new(0, 0, 100, 40);
+    let scene = scene_all();
+
+    assert_eq!(
+        layout.resize_scene(&ComponentKind::Explorer, 45, area, &scene),
+        Some(Size::Fixed(45))
+    );
+    // A percent of the column the bar is in: 10 of the 40 rows are a quarter.
+    assert_eq!(
+        layout.resize_scene(&ComponentKind::Terminal, 10, area, &scene),
+        Some(Size::Percent(25))
+    );
+    let placements = layout.resolve(area);
+    let of = |kind: ComponentKind| placements.iter().find(|p| p.kind == kind).unwrap().area;
+    assert_eq!(of(ComponentKind::Explorer).width, 45);
+    assert_eq!(of(ComponentKind::Terminal).height, 10);
+
+    // Never less than a few cells, never all the room.
+    assert_eq!(
+        layout.resize_scene(&ComponentKind::Explorer, 0, area, &scene),
+        Some(Size::Fixed(3))
+    );
+    assert_eq!(
+        layout.resize_scene(&ComponentKind::Explorer, 500, area, &scene),
+        Some(Size::Fixed(90))
+    );
+    assert_eq!(
+        layout.resize_scene(&ComponentKind::Editor, 20, area, &scene),
+        None
+    );
+}
+
+#[test]
+fn only_what_has_a_size_of_its_own_has_an_edge_to_drag() {
+    let layout = LayoutTree::from_ron(SIZED).unwrap();
+    let placements = layout.resolve(Rect::new(0, 0, 100, 40));
+    let edge = |kind: ComponentKind| {
+        placements
+            .iter()
+            .find(|p| p.kind == kind)
+            .unwrap()
+            .resize_edge
+    };
+    assert_eq!(edge(ComponentKind::Explorer), Some(ResizeEdge::Right));
+    assert_eq!(edge(ComponentKind::Terminal), Some(ResizeEdge::Top));
+    assert_eq!(edge(ComponentKind::Editor), None);
+}

@@ -31,7 +31,7 @@ use crate::syntax::SyntaxWorker;
 use crate::ui::ComponentKind;
 use crate::ui::Hideable;
 use crate::ui::PluginViewId;
-use crate::ui::layout::LayoutTree;
+use crate::ui::layout::{LayoutTree, Size};
 use crate::ui::theme::{Rgb, Theme};
 use crate::ui::view::ViewNode;
 
@@ -75,6 +75,10 @@ pub(crate) struct AppState {
     /// Whether the user hid the pane right of the editor (it keeps its place and its
     /// width; only the space is given back).
     side_hidden: bool,
+    /// Sizes the user dragged the explorer's and the terminal's bars to, which hold for this run
+    /// and until the layout file changes (the file is never written, nothing is saved): by the
+    /// first view of the bar.
+    size_overrides: Vec<(ComponentKind, Size)>,
     /// Find in the open file, while its bar is open (the bar is not a popup: the editor
     /// is used as usual, and the matches stay highlighted).
     find: Option<Find>,

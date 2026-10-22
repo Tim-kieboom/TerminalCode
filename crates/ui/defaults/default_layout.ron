@@ -5,6 +5,10 @@
 // Percent(0..=100), written Fixed(30, child). Only one child of a Row or Col
 // may be left without a size.
 //
+// The explorer's right edge and the terminal's top edge (a bar or a pane with a Fixed or Percent size)
+// can be dragged with the mouse. The size holds for the run only: it is not saved, the file is not
+// written, and it gives way to the file when the file changes (View: Reset Pane Sizes does too).
+//
 // A RightBar is a bar to the right of the editor, for a plugin's preview (a plugin placed
 // in the "side pane" in Plugins: Manage gets one made for it, 40% of the editor's row, which
 // can be dragged wider or narrower). Write one yourself to choose its place and size, for example

@@ -436,6 +436,7 @@ impl App {
             Action::NextTab => self.state.workspace_mut().next_tab(),
             Action::PreviousTab => self.state.workspace_mut().previous_tab(),
             Action::ToggleSidePane => self.toggle_side_pane(),
+            Action::ResetPaneSizes => self.reset_pane_sizes(),
             Action::SidePaneWider => self.resize_side_pane(5),
             Action::SidePaneNarrower => self.resize_side_pane(-5),
             Action::PaneGrow => self.resize_focused_pane(50),

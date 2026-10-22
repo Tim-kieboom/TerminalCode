@@ -159,6 +159,7 @@ does the same for `state.json`.
   switch, or use `Bar: Next View` from the palette. A `RightBar` sits to the right of the editor (`hidden: true` starts it hidden; `ctrl+k p` shows and hides it, and what you did last time is remembered; for example
   `Row([Pane(view: Editor), Percent(40, RightBar(views: [Plugin("markdown")]))])`) and is left out on a screen narrower
   than 100 columns.
+  Drag the right edge of the explorer, or the top edge of the terminal's bar, to make them bigger or smaller: the size holds while the editor runs and is not saved (the layout file stays what you wrote, and wins again when you change it; `View: Reset Pane Sizes` puts the file's sizes back).
   A pane can say `hidden: true` to start hidden. What you hide or show while working is remembered in `state.json` in the same
   folder, written at every change, and wins over the layout at the next start; delete that file to go back to the layout.
 - **`recent.json`** is the list behind File > Open Recent, written by the editor (the last 10 files and 10 folders); delete it to forget them, or use Clear Recent.

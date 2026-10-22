@@ -252,7 +252,43 @@ impl AppState {
     /// Takes the layout the file describes; the views of plugins placed in a bar
     /// are added to it again.
     pub(crate) fn set_layout(&mut self, layout: LayoutTree) {
+        // What the file says wins again when the file changed; sizes dragged since then are
+        // not worth keeping against a layout that is not the one they were made for.
+        if self.base_layout != layout {
+            self.size_overrides.clear();
+        }
         self.base_layout = layout;
+        self.rebuild_layout();
+    }
+
+    /// Makes the bar that holds `kind` `cells` cells of its row or column, for this run.
+    /// Returns whether it has a size of its own to change.
+    pub(crate) fn resize_bar(&mut self, kind: &ComponentKind, cells: u16) -> bool {
+        let mut layout = self.layout.clone();
+        let size = {
+            let scene = Scene {
+                visible: &|kind| self.is_visible(kind),
+                active: &|first| self.bar_views.get(first).copied().unwrap_or(0),
+            };
+            layout.resize_scene(kind, cells, self.screen, &scene)
+        };
+        let Some(size) = size else {
+            return false;
+        };
+        let key = self
+            .layout
+            .bar_views(kind)
+            .and_then(|views| views.first().cloned())
+            .unwrap_or_else(|| kind.clone());
+        self.size_overrides.retain(|(known, _)| *known != key);
+        self.size_overrides.push((key, size));
+        self.layout = layout;
+        true
+    }
+
+    /// Gives the bars the sizes the layout file says again.
+    pub(crate) fn reset_sizes(&mut self) {
+        self.size_overrides.clear();
         self.rebuild_layout();
     }
 
@@ -290,6 +326,9 @@ impl AppState {
             if let Some(with) = layout.with_view_in_bar_of(&anchor, &view) {
                 layout = with;
             }
+        }
+        for (kind, size) in &self.size_overrides {
+            layout.set_size(kind, *size);
         }
         self.layout = layout;
     }

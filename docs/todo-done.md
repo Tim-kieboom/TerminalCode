@@ -368,3 +368,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Copy from the integrated terminal: drag to select (letting go copies; a double click takes a word, a triple click a line), `shift`+drag when the program in the pane has the mouse, `ctrl+shift+c` or `ctrl+b y` to copy again, the selection drawn and dropped by a press, typing, another tab, the history moving or the text changing
 
 - [x] Find like VS Code: the find bar stays open while the editor is used (a click or `ctrl+f` moves the keys between the editor and the bar), the matches stay highlighted and follow the text, `f3` and `shift+f3` go to the next and previous match from wherever the cursor is, `esc` closes the bar
+
+- [x] Drag the explorer's right edge and the terminal's top edge to resize them: the size holds in memory for the run (it wins over `layout.ron`), is not saved, goes back to the file's when the layout file changes, and "View: Reset Pane Sizes" puts it back
