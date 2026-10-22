@@ -276,7 +276,8 @@ fn moves_of(edit: &WorkspaceEdit, root: &Path) -> Result<Vec<Move>, EditError> {
         if !made_by_a_move && !from.exists() {
             return Err(EditError::MoveMissing(from_name));
         }
-        if canonical(&to).starts_with(canonical(&from)) && canonical(&to) != canonical(&from) {
+        let (from_real, to_real) = (lenient(&from), lenient(&to));
+        if to_real.starts_with(&from_real) && to_real != from_real {
             return Err(EditError::MoveIntoItself(from_name));
         }
         if to.exists() {

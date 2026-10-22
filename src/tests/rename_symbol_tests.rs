@@ -510,7 +510,12 @@ fn an_open_file_that_is_renamed_stays_the_same_tab_at_its_new_path_with_the_edit
         .buffer()
         .path()
         .map(ToOwned::to_owned);
-    assert_eq!(path.as_deref(), Some(src.join("moved.rs").as_path()));
+    // The temporary folder may be named through a link (macOS) or a short name (Windows).
+    let moved = crate::files::paths::canonical(&src.join("moved.rs"));
+    assert_eq!(
+        path.as_deref().map(crate::files::paths::canonical),
+        Some(moved)
+    );
     assert!(rig.text().contains("let total"));
     assert!(
         rig.app.state().editor().buffer().is_dirty(),
