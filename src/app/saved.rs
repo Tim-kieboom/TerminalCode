@@ -67,6 +67,18 @@ impl App {
         }
     }
 
+    /// Whether the user trusts the folder (a whole path).
+    pub(super) fn is_folder_trusted(&self, folder: &str) -> bool {
+        self.saved.state.is_trusted(folder)
+    }
+
+    /// Remembers that the user trusts the folder.
+    pub(super) fn remember_trusted(&mut self, folder: &str) {
+        if self.saved.state.trust(folder) {
+            self.write_saved_state();
+        }
+    }
+
     /// Remembers whether the pane right of the editor is shown.
     pub(super) fn remember_side_shown(&mut self, shown: bool) {
         if self.saved.state.set_side_shown(shown) {

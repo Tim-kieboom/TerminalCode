@@ -31,6 +31,9 @@ pub(super) struct Plugins {
     pub(super) pushed: HashMap<Box<str>, super::plugin_files::Pushed>,
     /// The size of its pane each plugin was last told.
     pub(super) sized: HashMap<Box<str>, (u16, u16)>,
+    /// Plugins that asked to run commands in a folder that is not trusted, and whether the
+    /// user was asked.
+    pub(super) trust: super::plugin_trust::Ask,
 }
 
 /// A fetch, pull or push on its way.
@@ -79,6 +82,7 @@ impl App {
             Notice::Rejected { plugin, reason } => self
                 .state
                 .notify_error(format!("plugin {plugin} said something wrong: {reason}")),
+            Notice::NeedsTrust { plugin } => self.plugin_needs_trust(&plugin),
             Notice::GitWrite {
                 plugin,
                 request,

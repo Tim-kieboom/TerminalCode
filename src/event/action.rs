@@ -40,6 +40,9 @@ pub(crate) enum Action {
     FocusPluginView(Box<str>),
     /// Opens the list of the plugins the user has, to turn each on or off.
     ShowPlugins,
+    /// Asks whether to trust the project folder: plugins may run commands in a folder the
+    /// user trusts (the tests of the project, for one).
+    TrustFolder,
     /// Opens the view of the plugin with this id in a popup (the plugins the user
     /// placed in one), or gives the plugin the keyboard where it is placed.
     #[serde(alias = "open_plugin")]
@@ -264,6 +267,7 @@ impl Action {
                 | Self::FocusEditor
                 | Self::FocusPluginView(_)
                 | Self::ShowPlugins
+                | Self::TrustFolder
                 | Self::OpenPluginPopup(_)
                 | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
@@ -336,6 +340,7 @@ impl Action {
             Self::FocusExplorer => "Explorer: Focus",
             Self::FocusEditor => "Editor: Focus",
             Self::ShowPlugins => "Plugins: Manage",
+            Self::TrustFolder => "Plugins: Trust This Folder",
             Self::ToggleExplorer => "View: Toggle Explorer",
             Self::ToggleStatusBar => "View: Toggle Status Bar",
             Self::ToggleTerminal => "View: Toggle Terminal",
@@ -490,6 +495,7 @@ impl Action {
             Self::FocusExplorer,
             Self::FocusEditor,
             Self::ShowPlugins,
+            Self::TrustFolder,
             Self::ToggleExplorer,
             Self::ToggleStatusBar,
             Self::ToggleTerminal,

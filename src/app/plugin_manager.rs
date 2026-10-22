@@ -60,7 +60,7 @@ impl Manager {
 }
 
 /// What a capability lets a plugin do, for the question to the user.
-pub(super) fn describe(capability: Capability, file_types: &[String]) -> String {
+pub(super) fn describe(capability: Capability, file_types: &[String], run: &[String]) -> String {
     if capability == Capability::FilesText {
         let kinds: Vec<String> = file_types.iter().map(|kind| format!(".{kind}")).collect();
         return match kinds.is_empty() {
@@ -71,6 +71,13 @@ pub(super) fn describe(capability: Capability, file_types: &[String]) -> String 
             ),
         };
     }
+    if capability == Capability::ProcessRun {
+        let commands: Vec<String> = run.iter().map(|pattern| format!("`{pattern}`")).collect();
+        return format!(
+            "run commands, with no shell, in a project folder you trust: {} (this runs code of the project: its build scripts and tests)",
+            commands.join(", ")
+        );
+    }
     match capability {
         Capability::GitRead => {
             "read the state of the git repository: the branch and the changed files"
@@ -79,6 +86,10 @@ pub(super) fn describe(capability: Capability, file_types: &[String]) -> String 
         Capability::EditorOpen => "open files of the project in the editor",
         Capability::GitRemote => {
             "fetch from, pull from and push to the remotes of the git repository (uses the network)"
+        }
+        Capability::PluginCall => "ask other plugins to do things, and hear their answers",
+        Capability::PluginServe => {
+            "be asked by other plugins to do things, with everything this plugin is allowed to do"
         }
         _ => capability.name(),
     }
@@ -109,7 +120,12 @@ pub(super) fn covers(record: &PluginRecord, installed: &Installed) -> bool {
             .all(|kind| record.file_types.contains(&kind.to_ascii_lowercase()));
     // A thread of its own is a share of a processor: also something to allow.
     let thread = installed.manifest.thread != Thread::Own || record.own_thread;
-    capabilities && file_types && thread
+    // Running a command the user was not shown is a new thing to allow.
+    let run = installed
+        .run
+        .iter()
+        .all(|pattern| record.run.iter().any(|shown| shown == pattern.as_str()));
+    capabilities && file_types && thread && run
 }
 
 /// What a plugin asks that is not a capability, for the question: a thread of its own.
@@ -121,6 +137,15 @@ pub(super) fn extra_asks(installed: &Installed) -> Vec<String> {
         ],
         Thread::Shared => Vec::new(),
     }
+}
+
+/// The commands of `installed` as the user is shown them, as the manifest writes them.
+pub(super) fn shown_run(installed: &Installed) -> Vec<String> {
+    installed
+        .run
+        .iter()
+        .map(|pattern| pattern.as_str().to_owned())
+        .collect()
 }
 
 /// The file types of the manifest of `installed` as the user is shown them: lower case.
@@ -197,12 +222,14 @@ impl App {
         self.plugins
             .actions
             .insert(id.into(), installed.manifest.actions.clone());
+        self.publish_workspace_to_plugins();
         if let Some(runtime) = &self.plugins.runtime {
-            runtime.load_on(
+            runtime.load_with(
                 id,
                 wasm,
                 installed.capabilities.iter().copied(),
                 installed.manifest.thread,
+                installed.run.clone(),
             );
         }
         self.plugins.manager.running.insert(id.into());
@@ -258,10 +285,11 @@ impl App {
                 continue;
             };
             let kinds = shown_file_types(installed);
+            let run = shown_run(installed);
             let mut allowed: Vec<String> = installed
                 .capabilities
                 .iter()
-                .map(|capability| describe(*capability, &kinds))
+                .map(|capability| describe(*capability, &kinds, &run))
                 .collect();
             allowed.extend(extra_asks(installed));
             let confirm = Confirm::enable_plugin(
@@ -274,6 +302,8 @@ impl App {
             self.needs_redraw = true;
             return;
         }
+        // What the plugins waiting for an answer were asked comes first.
+        self.ask_about_trust();
     }
 
     /// The user said yes: what they were shown is remembered and the plugin runs.
@@ -288,6 +318,7 @@ impl App {
                 capabilities: names(&installed.capabilities),
                 file_types: shown_file_types(&installed),
                 own_thread: installed.manifest.thread == Thread::Own,
+                run: shown_run(&installed),
                 place: self.saved_plugin(id).and_then(|record| record.place),
             },
         );
@@ -338,6 +369,7 @@ impl App {
                 self.remember_plugin(
                     id,
                     PluginRecord {
+                        run: Vec::new(),
                         enabled: true,
                         ..record
                     },

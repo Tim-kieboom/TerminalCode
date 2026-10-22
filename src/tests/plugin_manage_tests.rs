@@ -29,6 +29,7 @@ use crate::ui::view::ViewNode;
 fn what_the_user_decided_about_a_plugin_is_remembered_and_a_reset_forgets_it() {
     let mut state = SavedState::default();
     let record = PluginRecord {
+        run: Vec::new(),
         enabled: true,
         capabilities: vec!["git.read".into()],
         place: None,
@@ -53,6 +54,7 @@ fn the_decisions_are_written_to_the_state_file_and_read_back() {
     state.set_plugin(
         "viewer",
         PluginRecord {
+            run: Vec::new(),
             enabled: true,
             capabilities: vec!["git.read".into(), "git.write".into()],
             place: None,
@@ -105,6 +107,7 @@ fn install(config: &Path, id: &str, extra: &str, module: &[u8]) {
 
 fn on(capabilities: &[&str]) -> PluginRecord {
     PluginRecord {
+        run: Vec::new(),
         enabled: true,
         capabilities: capabilities.iter().map(|name| (*name).to_owned()).collect(),
         place: None,
@@ -638,4 +641,171 @@ fn closing_the_list_does_not_bring_it_back() {
     rig.open_list();
     rig.press(KeyCode::Esc);
     assert!(!list_is_open(&rig));
+}
+
+// --- commands: what the user is shown, and trust in the folder ---
+
+const RUN_ECHO: &str = r#"{"type":"run","request":5,"program":"sh","args":["-c","echo hi"]}"#;
+const GOT_ENDED: &str =
+    r#"{"type":"run_done","request":5,"code":0,"cancelled":false,"truncated":false}"#;
+
+const RUNNER_MANIFEST: &str = "capabilities = [\"process.run\"]\nrun = [\"sh -c *\"]\n[[action]]\nid = \"r\"\ntitle = \"Run\"\n";
+
+fn runner_record() -> PluginRecord {
+    let mut record = on(&["process.run"]);
+    record.run = vec!["sh -c *".to_owned()];
+    record
+}
+
+/// A plugin that the user turned on, which runs a command when it is sent the action `r`.
+fn runner_rig() -> Rig {
+    let config = tempfile::tempdir().unwrap();
+    let module = Echo::new(First::Echo)
+        .asks_on_action_named(b'r', RUN_ECHO)
+        .build();
+    install(config.path(), "hello", RUNNER_MANIFEST, &module);
+    started(config, saved_with(runner_record()))
+}
+
+impl Rig {
+    fn run_the_command(&mut self) {
+        self.app.run_action(Action::Plugin("hello:r".into()));
+    }
+
+    fn view_is(&mut self, text: &'static str) {
+        self.wait_until(text, |rig| rig.view_text().as_deref() == Some(text));
+    }
+}
+
+#[test]
+fn a_plugin_that_runs_commands_is_asked_with_the_commands_listed() {
+    let mut rig = rig(
+        "capabilities = [\"process.run\"]\nrun = [\"cargo nextest *\", \"git status\"]\n",
+        saved_with(on(&[])),
+    );
+
+    assert!(rig.asking());
+    let question = rig.question();
+    assert!(
+        question.contains("run commands, with no shell"),
+        "{question}"
+    );
+    assert!(
+        question.contains("`cargo nextest *`, `git status`"),
+        "{question}"
+    );
+    assert!(question.contains("code of the project"), "{question}");
+    assert!(rig.stays_quiet(), "not running while the question is open");
+}
+
+#[test]
+fn yes_remembers_the_commands_the_user_was_shown() {
+    let mut rig = rig(
+        "capabilities = [\"process.run\"]\nrun = [\"cargo nextest *\"]\n",
+        saved_with(on(&[])),
+    );
+
+    rig.press(KeyCode::Char('y'));
+    rig.wait_until("the plugin's view", |rig| rig.has_view());
+
+    let remembered = rig.remembered();
+    let record = remembered.plugin("hello").unwrap();
+    assert_eq!(record.run, vec!["cargo nextest *".to_owned()]);
+    assert_eq!(record.capabilities, vec!["process.run".to_owned()]);
+}
+
+#[test]
+fn a_plugin_that_comes_to_run_one_more_command_is_asked_again_and_one_that_does_not_is_not() {
+    let manifest =
+        "capabilities = [\"process.run\"]\nrun = [\"cargo nextest *\", \"git status\"]\n";
+    let mut shown = on(&["process.run"]);
+    shown.run = vec!["cargo nextest *".to_owned()];
+
+    let asked = rig(manifest, saved_with(shown));
+    assert!(asked.asking());
+
+    let mut all = on(&["process.run"]);
+    all.run = vec!["git status".to_owned(), "cargo nextest *".to_owned()];
+    let mut quiet = rig(manifest, saved_with(all));
+    assert!(!quiet.asking());
+    quiet.wait_until("the plugin's view", |rig| rig.has_view());
+}
+
+#[test]
+fn a_command_in_a_folder_that_is_not_trusted_asks_the_user_once_and_yes_lets_it_run() {
+    let mut rig = runner_rig();
+    rig.view_is(r#"{"type":"trust","trusted":false}"#);
+    assert!(!rig.asking());
+
+    rig.run_the_command();
+    rig.wait_until("the question", |rig| rig.asking());
+
+    let question = rig.question();
+    assert!(question.contains("Trust the folder"), "{question}");
+    assert!(question.contains("hello"), "{question}");
+    assert!(question.contains("code of this project"), "{question}");
+    rig.press(KeyCode::Char('y'));
+    rig.view_is(r#"{"type":"trust","trusted":true}"#);
+    assert!(
+        rig.remembered().is_trusted(
+            &std::env::current_dir()
+                .unwrap()
+                .canonicalize()
+                .unwrap()
+                .to_string_lossy()
+        ),
+        "remembered for the folder"
+    );
+    rig.run_the_command();
+    rig.view_is(GOT_ENDED);
+}
+
+#[test]
+fn no_leaves_the_folder_untrusted_and_the_user_is_not_asked_again_by_the_same_plugin() {
+    let mut rig = runner_rig();
+    rig.view_is(r#"{"type":"trust","trusted":false}"#);
+    rig.run_the_command();
+    rig.wait_until("the question", |rig| rig.asking());
+
+    rig.press(KeyCode::Char('n'));
+    rig.run_the_command();
+    rig.wait_until("the refusal", |rig| {
+        rig.view_text().as_deref()
+            == Some(r#"{"type":"refused","request":5,"reason":{"type":"untrusted"}}"#)
+    });
+
+    assert!(!rig.asking());
+    assert!(rig.remembered().reset() == SavedState::default().reset());
+    let folder = std::env::current_dir().unwrap().canonicalize().unwrap();
+    assert!(!rig.remembered().is_trusted(&folder.to_string_lossy()));
+}
+
+#[test]
+fn a_folder_that_was_trusted_before_is_trusted_at_the_next_start() {
+    let mut rig = runner_rig();
+    rig.view_is(r#"{"type":"trust","trusted":false}"#);
+    rig.run_the_command();
+    rig.wait_until("the question", |rig| rig.asking());
+    rig.press(KeyCode::Char('y'));
+    rig.view_is(r#"{"type":"trust","trusted":true}"#);
+
+    let remembered = rig.remembered();
+    let mut next = started(rig.config, remembered);
+
+    assert!(!next.asking());
+    next.view_is(r#"{"type":"trust","trusted":true}"#);
+}
+
+#[test]
+fn the_action_asks_about_the_folder_and_says_so_when_it_is_trusted_already() {
+    let mut rig = runner_rig();
+    rig.view_is(r#"{"type":"trust","trusted":false}"#);
+
+    rig.app.run_action(Action::TrustFolder);
+    assert!(rig.asking());
+    rig.press(KeyCode::Char('y'));
+    rig.app.run_action(Action::TrustFolder);
+
+    assert!(!rig.asking());
+    assert_eq!(rig.notification(), Some("this folder is trusted already"));
 }

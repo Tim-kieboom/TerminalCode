@@ -16,15 +16,17 @@ pub use abi::{Abi, AbiError};
 pub use manifest::{Manifest, Thread};
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
-    Refusal, ToPlugin, WireButton, WireLine, WireSpan, WireView,
+    Refusal, RunStream, ToPlugin, WireButton, WireLine, WireSpan, WireView,
 };
 pub use plugin::Plugin;
+pub use run::{PatternError, RunPattern, allows, parse_all};
 
 mod abi;
 pub mod guest;
 mod manifest;
 mod message;
 mod plugin;
+mod run;
 #[cfg(test)]
 mod tests;
 
@@ -40,3 +42,20 @@ pub const MAX_FILE_TEXT: usize = 1024 * 1024;
 
 /// The most entries one page of [`ToPlugin::GitEntries`] has.
 pub const MAX_PAGE: usize = 500;
+
+/// The most calls one plugin may have open at once ([`FromPlugin::Call`] that is not
+/// answered to the last part, cancelled or failed); a call over it is refused as
+/// [`Refusal::Busy`].
+pub const MAX_OPEN_CALLS: usize = 64;
+
+/// The most commands one plugin may have running at once; a command over it is
+/// refused as [`Refusal::Busy`].
+pub const MAX_OPEN_RUNS: usize = 4;
+
+/// The most bytes of text one [`ToPlugin::RunOutput`] has. Longer output comes in
+/// more than one.
+pub const MAX_RUN_CHUNK: usize = 64 * 1024;
+
+/// The most output (both streams together) the editor passes on for one command; the
+/// rest is read and dropped, and [`ToPlugin::RunDone`] says `truncated`.
+pub const MAX_RUN_OUTPUT: usize = 32 * 1024 * 1024;

@@ -355,6 +355,7 @@ impl App {
             Action::TogglePluginView(id) => self.toggle_plugin_view(&id),
             Action::FocusPluginView(id) => self.focus_plugin_view(&id),
             Action::ShowPlugins => self.show_plugins(),
+            Action::TrustFolder => self.ask_to_trust_folder(),
             Action::OpenPluginPopup(id) => self.open_plugin_popup(&id),
             Action::PluginPlaced(chosen) => self.plugin_placed(&chosen),
             Action::TogglePlugin(id) => self.toggle_plugin(&id),

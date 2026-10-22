@@ -7,7 +7,7 @@
 //! the way the layout file says (`hidden: true`), and otherwise the way it always
 //! did, so editing the layout still moves a pane the user never touched.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -109,6 +109,10 @@ pub(crate) struct PluginRecord {
     /// is asked about again.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub own_thread: bool,
+    /// The commands (`run` of its manifest, with `process.run`) the user was shown when
+    /// they decided; a plugin that comes to want to run more is asked about again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub run: Vec<String>,
     /// Where its view goes; `None` until the user chose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub place: Option<Place>,
@@ -128,6 +132,10 @@ pub(crate) struct SavedState {
     /// What the user decided about each plugin, by id.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     plugins: BTreeMap<String, PluginRecord>,
+    /// The project folders the user trusts: plugins may run commands in them. Whole
+    /// paths, as `canonicalize` gives them.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    trusted_folders: BTreeSet<String>,
     /// How much of the editor's row the pane right of the editor takes, in percent, when
     /// the user moved the line between them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -163,6 +171,7 @@ impl SavedState {
             shown: Shown::default(),
             settings_version: self.settings_version.clone(),
             plugins: BTreeMap::new(),
+            trusted_folders: BTreeSet::new(),
             side_percent: None,
             side_shown: None,
         }
@@ -208,6 +217,16 @@ impl SavedState {
     /// is news.
     pub(crate) fn set_plugin(&mut self, id: &str, record: PluginRecord) -> bool {
         self.plugins.insert(id.to_owned(), record.clone()) != Some(record)
+    }
+
+    /// Whether the user trusts the folder (a whole path).
+    pub(crate) fn is_trusted(&self, folder: &str) -> bool {
+        self.trusted_folders.contains(folder)
+    }
+
+    /// Remembers that the user trusts the folder. Returns whether that is news.
+    pub(crate) fn trust(&mut self, folder: &str) -> bool {
+        self.trusted_folders.insert(folder.to_owned())
     }
 
     /// Remembers that the pane is `shown` now. Returns whether that is news.

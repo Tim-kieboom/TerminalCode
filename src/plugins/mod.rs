@@ -17,6 +17,8 @@ pub(crate) use crate::plugin_api::Thread;
 pub(crate) use runtime::fuel_for;
 pub(crate) use runtime::{Notice, Runtime, WriteOp};
 
+mod calls;
+mod exec;
 #[cfg(test)]
 pub(crate) mod fixtures;
 mod git_view;
@@ -25,6 +27,7 @@ pub(crate) mod install;
 mod instance;
 pub(crate) mod manifest;
 mod policy;
+mod runs;
 mod runtime;
 #[cfg(test)]
 mod tests;

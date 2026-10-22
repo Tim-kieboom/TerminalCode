@@ -37,6 +37,8 @@ pub(crate) enum Purpose {
     UpdateAll,
     /// Delete the folder of the plugin with this id, which the manager installed.
     RemovePlugin(Box<str>),
+    /// Let plugins run commands in this project folder.
+    TrustFolder,
 }
 
 /// What a key press answers.
@@ -127,6 +129,36 @@ impl Confirm {
             title: " Plugin ".to_owned(),
             lines,
             purpose: Purpose::EnablePlugin(id.into()),
+        }
+    }
+
+    /// Asks whether to trust the project folder `folder`, so that plugins may run
+    /// commands in it; `plugins` are the ones that asked (none when the user did).
+    pub(crate) fn trust_folder(folder: &Path, plugins: &[Box<str>]) -> Self {
+        let mut lines = vec![
+            format!("Trust the folder {}?", display(folder)),
+            String::new(),
+        ];
+        match plugins.is_empty() {
+            true => lines.push(
+                "Plugins can run commands here, such as the tests of the project.".to_owned(),
+            ),
+            false => lines.push(format!(
+                "The plugin {} asks to run commands here, such as the tests of the project.",
+                plugins.join(", ")
+            )),
+        }
+        lines.push(
+            "Running them runs code of this project: build scripts, test code, anything it can start."
+                .to_owned(),
+        );
+        lines.push("Only trust a folder whose code you would run yourself.".to_owned());
+        lines.push(String::new());
+        lines.push("The answer is remembered for this folder.".to_owned());
+        Self {
+            title: " Trust this folder ".to_owned(),
+            lines,
+            purpose: Purpose::TrustFolder,
         }
     }
 

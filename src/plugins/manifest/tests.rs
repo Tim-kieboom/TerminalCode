@@ -303,3 +303,52 @@ fn this_editor_is_what_it_says_it_is() {
     assert_eq!(Host::THIS.abi, Abi::CURRENT);
     assert_eq!(Host::THIS.version, env!("CARGO_PKG_VERSION"));
 }
+
+// --- process.run: the commands a plugin lists ---
+
+#[test]
+fn the_commands_of_a_plugin_that_runs_commands_are_read_as_patterns() {
+    let installed = read_text(&manifest_text(
+        "capabilities = [\"process.run\"]\nrun = [\"cargo nextest *\", \"git status\"]\n",
+    ))
+    .unwrap();
+
+    assert_eq!(installed.capabilities, vec![Capability::ProcessRun]);
+    let shown: Vec<&str> = installed.run.iter().map(RunPattern::as_str).collect();
+    assert_eq!(shown, vec!["cargo nextest *", "git status"]);
+}
+
+#[test]
+fn a_plugin_that_asks_to_run_commands_must_list_them() {
+    let error = read_text(&manifest_text("capabilities = [\"process.run\"]\n")).unwrap_err();
+
+    assert_eq!(error, ManifestError::RunWithoutCommands);
+}
+
+#[test]
+fn a_plugin_that_lists_commands_must_ask_for_the_capability() {
+    let error = read_text(&manifest_text("run = [\"cargo nextest *\"]\n")).unwrap_err();
+
+    assert_eq!(error, ManifestError::CommandsWithoutCapability);
+}
+
+#[test]
+fn a_command_that_is_not_a_pattern_names_itself_and_says_why() {
+    let error = read_text(&manifest_text(
+        "capabilities = [\"process.run\"]\nrun = [\"cargo nextest *\", \"/bin/sh -c *\"]\n",
+    ))
+    .unwrap_err();
+
+    match error {
+        ManifestError::BadRunPattern { pattern, reason } => {
+            assert_eq!(pattern, "/bin/sh -c *");
+            assert!(reason.contains("not a program name"), "{reason}");
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn a_plugin_without_commands_has_none() {
+    assert!(read_text(&manifest_text("")).unwrap().run.is_empty());
+}

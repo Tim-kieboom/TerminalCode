@@ -54,11 +54,31 @@ enum Asks {
     Always,
 }
 
+/// What a plugin does when the byte of the message it was sent at some place is some value.
+enum Then {
+    Send(String),
+    Trap,
+}
+
+struct Trigger {
+    /// Each place in the message and the byte that must be there, all of them.
+    when: Vec<(u32, u8)>,
+    then: Then,
+}
+
+/// The place in a message where the type starts: `{"type":"` is nine bytes.
+pub(crate) const TYPE_AT: u32 = 9;
+/// The place of the first letter of the action in `{"type":"action","action":"x"}`.
+pub(crate) const ACTION_AT: u32 = 27;
+/// The most things one plugin does on a byte; each has a kilobyte of memory.
+const MOST_TRIGGERS: usize = 5;
+
 pub(crate) struct Echo {
     first: First,
     request: Option<String>,
     asks: Asks,
     traps_on_refresh: bool,
+    triggers: Vec<Trigger>,
 }
 
 pub(crate) fn echo(first: First) -> Vec<u8> {
@@ -72,7 +92,35 @@ impl Echo {
             request: None,
             asks: Asks::Never,
             traps_on_refresh: false,
+            triggers: Vec::new(),
         }
+    }
+
+    /// Sends `request` when it is sent an `action` whose id starts with `letter`.
+    pub(crate) fn asks_on_action_named(mut self, letter: u8, request: &str) -> Self {
+        // Only an `action` has the name of one at that place (the bytes after a short
+        // message are what an earlier one left).
+        let when = vec![(TYPE_AT, b'a'), (ACTION_AT, letter)];
+        self.push(when, Then::Send(request.to_owned()));
+        self
+    }
+
+    /// Sends `request` when the byte of the message it is sent at `at` is `byte`
+    /// (the type of the message starts at 9).
+    pub(crate) fn asks_on_byte(mut self, at: u32, byte: u8, request: &str) -> Self {
+        self.push(vec![(at, byte)], Then::Send(request.to_owned()));
+        self
+    }
+
+    /// Loops for ever when the byte of the message it is sent at `at` is `byte`.
+    pub(crate) fn traps_on_byte(mut self, at: u32, byte: u8) -> Self {
+        self.push(vec![(at, byte)], Then::Trap);
+        self
+    }
+
+    fn push(&mut self, when: Vec<(u32, u8)>, then: Then) {
+        assert!(self.triggers.len() < MOST_TRIGGERS, "too many triggers");
+        self.triggers.push(Trigger { when, then });
     }
 
     /// Sends `request` (a message of the plugin API) whenever it is sent an
@@ -134,6 +182,35 @@ impl Echo {
                    (then (loop $forever (br $forever))))"
                 .to_owned(),
         };
+        let (mut trigger_data, mut trigger_code) = (String::new(), String::new());
+        for (n, trigger) in self.triggers.iter().enumerate() {
+            let at = REQUEST_AT + 1024 * (n as u32 + 1);
+            let tests: Vec<String> = trigger
+                .when
+                .iter()
+                .map(|(at, byte)| {
+                    format!(
+                        "(i32.eq (i32.load8_u (i32.add (local.get $ptr) (i32.const {at}))) (i32.const {byte}))"
+                    )
+                })
+                .collect();
+            let is = tests
+                .into_iter()
+                .reduce(|all, test| format!("(i32.and {all} {test})"))
+                .unwrap_or_default();
+            match &trigger.then {
+                Then::Send(request) => {
+                    trigger_data += &data(at, request);
+                    trigger_code += &format!(
+                        "(if {is} (then (call $send (i32.const {at}) (i32.const {}))))",
+                        request.len()
+                    );
+                }
+                Then::Trap => {
+                    trigger_code += &format!("(if {is} (then (loop $forever (br $forever))))");
+                }
+            }
+        }
         let (prefix_data, suffix_data, start_data, request_data) = (
             data(PREFIX_AT, &prefix),
             data(SUFFIX_AT, suffix),
@@ -148,12 +225,14 @@ impl Echo {
                 {suffix_data}
                 {start_data}
                 {request_data}
+                {trigger_data}
                 (func (export "alloc") (param i32) (result i32) (i32.const 65536))
                 (func (export "handle") (param $ptr i32) (param $len i32)
                   (local $out i32) (local $i i32) (local $b i32)
                   {on_start}
                   {trap}
                   {ask}
+                  {trigger_code}
                   (local.set $out (i32.const {OUT_AT}))
                   (memory.copy (local.get $out) (i32.const {PREFIX_AT}) (i32.const {prefix_len}))
                   (local.set $out (i32.add (local.get $out) (i32.const {prefix_len})))

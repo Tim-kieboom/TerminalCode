@@ -41,6 +41,7 @@ fn manifest(extra: &str) -> String {
 
 fn record(file_types: &[&str]) -> PluginRecord {
     PluginRecord {
+        run: Vec::new(),
         enabled: true,
         capabilities: vec!["files.text".to_owned()],
         place: None,
@@ -242,6 +243,7 @@ fn a_plugin_without_the_capability_is_sent_nothing() {
     let mut rig = rig(
         "file_types = [\"md\"]\n",
         saved(PluginRecord {
+            run: Vec::new(),
             enabled: true,
             capabilities: Vec::new(),
             place: None,
@@ -313,6 +315,7 @@ fn a_thread_of_its_own_is_asked_about_and_asked_again_when_it_comes_with_an_upda
     let mut allowed = rig(
         manifest,
         saved(PluginRecord {
+            run: Vec::new(),
             own_thread: true,
             ..record(&["md"])
         }),

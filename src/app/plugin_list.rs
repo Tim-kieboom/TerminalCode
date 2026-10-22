@@ -923,10 +923,11 @@ impl App {
         }
         if let Some(installed) = &installed {
             let kinds = super::plugin_manager::shown_file_types(installed);
+            let run = super::plugin_manager::shown_run(installed);
             let mut asks: Vec<String> = installed
                 .capabilities
                 .iter()
-                .map(|capability| super::plugin_manager::describe(*capability, &kinds))
+                .map(|capability| super::plugin_manager::describe(*capability, &kinds, &run))
                 .collect();
             asks.extend(super::plugin_manager::extra_asks(installed));
             match asks.is_empty() {

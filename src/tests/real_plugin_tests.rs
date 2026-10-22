@@ -103,6 +103,7 @@ fn rig() -> Rig {
     saved.set_plugin(
         "git",
         PluginRecord {
+            run: Vec::new(),
             enabled: true,
             capabilities: ["git.read", "git.write", "git.remote", "editor.open"]
                 .map(str::to_owned)

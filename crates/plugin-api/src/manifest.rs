@@ -10,6 +10,7 @@
 //! wasm = "git_viewer.wasm"     # the module, in the same folder
 //! capabilities = ["git.read", "git.write"]
 //! file_types = ["md"]          # with "files.text": the files whose text it gets
+//! run = ["cargo nextest *"]    # with "process.run": the commands it may run
 //! thread = "own"               # a thread of its own, for heavy work (optional)
 //!
 //! [[action]]
@@ -64,6 +65,11 @@ pub struct Manifest {
     /// user may narrow it. Without any, it receives no file.
     #[serde(default)]
     pub file_types: Vec<String>,
+    /// With [`crate::Capability::ProcessRun`]: the commands it may run, as patterns
+    /// (see [`crate::RunPattern`]), such as `cargo nextest *`. Without any, it can run
+    /// nothing; the user is shown every one of them when asked to allow the plugin.
+    #[serde(default)]
+    pub run: Vec<String>,
     /// The thread it runs on; the shared one when left out. A plugin that does heavy work
     /// on what it is sent (parsing a document) asks for `"own"`.
     #[serde(default)]

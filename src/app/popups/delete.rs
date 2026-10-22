@@ -90,6 +90,7 @@ impl App {
             Purpose::UpdatePlugin(id) => self.update_plugin(id),
             Purpose::UpdateAll => self.update_all_plugins(),
             Purpose::RemovePlugin(id) => self.remove_plugin(id),
+            Purpose::TrustFolder => self.trust_folder(),
         }
         self.ask_about_next_plugin();
     }

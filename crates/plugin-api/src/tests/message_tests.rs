@@ -5,7 +5,7 @@
 
 use crate::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MAX_MESSAGE,
-    MessageError, Refusal, ToPlugin, WireButton, WireLine, WireSpan, WireView,
+    Manifest, MessageError, Refusal, RunStream, ToPlugin, WireButton, WireLine, WireSpan, WireView,
 };
 
 // --- ABI 1.0, as written ---
@@ -506,8 +506,6 @@ fn capabilities_are_written_as_their_names() {
 
 // --- the manifest ---
 
-use crate::Manifest;
-
 #[test]
 fn a_manifest_reads_from_toml_with_its_actions() {
     let manifest: Manifest = toml::from_str(
@@ -960,4 +958,225 @@ fn the_wheel_over_a_pane_is_a_message_with_its_golden_json() {
     assert_eq!(ToPlugin::from_bytes(json.as_bytes()), Ok(down));
     let up = ToPlugin::from_bytes(br#"{"type":"scroll","lines":-3}"#).unwrap();
     assert_eq!(up, ToPlugin::Scroll { lines: -3 });
+}
+
+// --- plugin API 1.6: plugins calling plugins ---
+
+const CALL: &str =
+    r#"{"type":"call","request":3,"to":"rust","method":"discover","payload":"{\"page\":0}"}"#;
+const FROM_REPLY: &str = r#"{"type":"reply","to":"tests","request":3,"payload":"[]","last":true}"#;
+const CALL_CANCEL: &str = r#"{"type":"call_cancel","request":3}"#;
+const TO_CALL: &str =
+    r#"{"type":"call","from":"tests","request":3,"method":"discover","payload":"{\"page\":0}"}"#;
+const TO_REPLY: &str = r#"{"type":"reply","from":"rust","request":3,"payload":"[]","last":false}"#;
+const CALL_CANCELLED: &str = r#"{"type":"call_cancelled","from":"tests","request":3}"#;
+
+#[test]
+fn the_messages_of_1_6_are_written_as_they_always_will_be() {
+    let call = FromPlugin::Call {
+        request: 3,
+        to: "rust".into(),
+        method: "discover".into(),
+        payload: r#"{"page":0}"#.into(),
+    };
+    assert_eq!(call.to_bytes().unwrap(), CALL.as_bytes());
+    let reply = FromPlugin::Reply {
+        to: "tests".into(),
+        request: 3,
+        payload: "[]".into(),
+        last: true,
+    };
+    assert_eq!(reply.to_bytes().unwrap(), FROM_REPLY.as_bytes());
+    let cancel = FromPlugin::CallCancel { request: 3 };
+    assert_eq!(cancel.to_bytes().unwrap(), CALL_CANCEL.as_bytes());
+
+    let to_call = ToPlugin::Call {
+        from: "tests".into(),
+        request: 3,
+        method: "discover".into(),
+        payload: r#"{"page":0}"#.into(),
+    };
+    assert_eq!(to_call.to_bytes().unwrap(), TO_CALL.as_bytes());
+    let to_reply = ToPlugin::Reply {
+        from: "rust".into(),
+        request: 3,
+        payload: "[]".into(),
+        last: false,
+    };
+    assert_eq!(to_reply.to_bytes().unwrap(), TO_REPLY.as_bytes());
+    let cancelled = ToPlugin::CallCancelled {
+        from: "tests".into(),
+        request: 3,
+    };
+    assert_eq!(cancelled.to_bytes().unwrap(), CALL_CANCELLED.as_bytes());
+}
+
+#[test]
+fn the_messages_of_1_6_read_back_and_a_missing_payload_or_last_reads_as_its_default() {
+    assert_eq!(
+        FromPlugin::from_bytes(CALL.as_bytes()).unwrap(),
+        FromPlugin::Call {
+            request: 3,
+            to: "rust".into(),
+            method: "discover".into(),
+            payload: r#"{"page":0}"#.into(),
+        }
+    );
+    assert_eq!(
+        FromPlugin::from_bytes(br#"{"type":"call","request":1,"to":"a","method":"m"}"#).unwrap(),
+        FromPlugin::Call {
+            request: 1,
+            to: "a".into(),
+            method: "m".into(),
+            payload: String::new(),
+        }
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(br#"{"type":"reply","from":"a","request":1,"payload":"x"}"#).unwrap(),
+        ToPlugin::Reply {
+            from: "a".into(),
+            request: 1,
+            payload: "x".into(),
+            last: false,
+        }
+    );
+}
+
+#[test]
+fn the_capabilities_and_refusals_of_1_6_have_their_names_and_the_old_ones_keep_their_place() {
+    assert_eq!(
+        Capability::parse("plugin.call"),
+        Some(Capability::PluginCall)
+    );
+    assert_eq!(
+        Capability::parse("plugin.serve"),
+        Some(Capability::PluginServe)
+    );
+    assert_eq!(
+        serde_json::to_string(&Capability::PluginServe).unwrap(),
+        r#""plugin.serve""#
+    );
+    assert_eq!(
+        &Capability::ALL[..5],
+        &[
+            Capability::GitRead,
+            Capability::GitWrite,
+            Capability::EditorOpen,
+            Capability::GitRemote,
+            Capability::FilesText,
+        ]
+    );
+    for (refusal, text) in [
+        (Refusal::NoSuchPlugin, r#"{"type":"no_such_plugin"}"#),
+        (Refusal::Gone, r#"{"type":"gone"}"#),
+    ] {
+        assert_eq!(serde_json::to_string(&refusal).unwrap(), text);
+    }
+}
+
+#[test]
+fn a_call_with_a_payload_over_the_limit_is_too_big_to_send() {
+    let call = FromPlugin::Call {
+        request: 1,
+        to: "a".into(),
+        method: "m".into(),
+        payload: "x".repeat(MAX_MESSAGE),
+    };
+    assert!(matches!(call.to_bytes(), Err(MessageError::TooBig(_))));
+}
+
+// --- plugin API 1.7: running commands ---
+
+const RUN: &str =
+    r#"{"type":"run","request":4,"program":"cargo","args":["nextest","list"],"cwd":"crates/a"}"#;
+const RUN_CANCEL: &str = r#"{"type":"run_cancel","request":4}"#;
+const RUN_OUTPUT: &str = r#"{"type":"run_output","request":4,"stream":"stderr","text":"ok\n"}"#;
+const RUN_DONE: &str =
+    r#"{"type":"run_done","request":4,"code":101,"cancelled":false,"truncated":true}"#;
+const TRUST: &str = r#"{"type":"trust","trusted":true}"#;
+
+#[test]
+fn the_messages_of_1_7_are_written_as_they_always_will_be() {
+    let run = FromPlugin::Run {
+        request: 4,
+        program: "cargo".into(),
+        args: vec!["nextest".into(), "list".into()],
+        cwd: "crates/a".into(),
+    };
+    assert_eq!(run.to_bytes().unwrap(), RUN.as_bytes());
+    let cancel = FromPlugin::RunCancel { request: 4 };
+    assert_eq!(cancel.to_bytes().unwrap(), RUN_CANCEL.as_bytes());
+    let output = ToPlugin::RunOutput {
+        request: 4,
+        stream: RunStream::Stderr,
+        text: "ok\n".into(),
+    };
+    assert_eq!(output.to_bytes().unwrap(), RUN_OUTPUT.as_bytes());
+    let done = ToPlugin::RunDone {
+        request: 4,
+        code: Some(101),
+        cancelled: false,
+        truncated: true,
+    };
+    assert_eq!(done.to_bytes().unwrap(), RUN_DONE.as_bytes());
+    assert_eq!(
+        ToPlugin::Trust { trusted: true }.to_bytes().unwrap(),
+        TRUST.as_bytes()
+    );
+}
+
+#[test]
+fn a_run_without_arguments_or_a_folder_and_a_done_without_flags_read_with_defaults() {
+    assert_eq!(
+        FromPlugin::from_bytes(br#"{"type":"run","request":1,"program":"make"}"#).unwrap(),
+        FromPlugin::Run {
+            request: 1,
+            program: "make".into(),
+            args: Vec::new(),
+            cwd: String::new(),
+        }
+    );
+    assert_eq!(
+        ToPlugin::from_bytes(br#"{"type":"run_done","request":1,"code":null}"#).unwrap(),
+        ToPlugin::RunDone {
+            request: 1,
+            code: None,
+            cancelled: false,
+            truncated: false,
+        }
+    );
+}
+
+#[test]
+fn the_capability_and_refusals_of_1_7_have_their_names_and_the_old_ones_keep_their_place() {
+    assert_eq!(
+        Capability::parse("process.run"),
+        Some(Capability::ProcessRun)
+    );
+    assert_eq!(
+        serde_json::to_string(&Capability::ProcessRun).unwrap(),
+        r#""process.run""#
+    );
+    assert_eq!(Capability::ALL[6], Capability::PluginServe);
+    assert_eq!(Capability::ALL[7], Capability::ProcessRun);
+    for (refusal, text) in [
+        (Refusal::Untrusted, r#"{"type":"untrusted"}"#),
+        (
+            Refusal::NotAllowed { detail: "x".into() },
+            r#"{"type":"not_allowed","detail":"x"}"#,
+        ),
+    ] {
+        assert_eq!(serde_json::to_string(&refusal).unwrap(), text);
+    }
+}
+
+#[test]
+fn the_run_list_of_a_manifest_reads_and_is_empty_without_one() {
+    let with: Manifest = toml_like(
+        r#"{"id":"rust","version":"0.1.0","abi":"1.7","wasm":"r.wasm","capabilities":["process.run"],"run":["cargo nextest *"]}"#,
+    );
+    assert_eq!(with.run, vec!["cargo nextest *".to_owned()]);
+    let without: Manifest =
+        toml_like(r#"{"id":"x","version":"0.1.0","abi":"1.7","wasm":"m.wasm"}"#);
+    assert!(without.run.is_empty());
 }

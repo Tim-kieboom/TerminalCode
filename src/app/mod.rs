@@ -44,6 +44,7 @@ mod plugin_keys;
 mod plugin_list;
 mod plugin_manager;
 mod plugin_place;
+mod plugin_trust;
 mod plugins;
 mod recent;
 mod rename;

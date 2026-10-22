@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::plugin_api::{Abi, AbiError, Capability, Manifest};
+use crate::plugin_api::{Abi, AbiError, Capability, Manifest, RunPattern, parse_all};
 
 /// The manifest's name in a plugin's folder.
 pub(crate) const MANIFEST_FILE: &str = "manifest.toml";
@@ -39,6 +39,12 @@ pub(crate) enum ManifestError {
     BadActionId(String),
     #[error("`{0}` is not a file type: an extension without the dot, such as `md`")]
     BadFileType(String),
+    #[error("it asks for `process.run` and lists no command in `run`")]
+    RunWithoutCommands,
+    #[error("it lists commands in `run` without asking for `process.run`")]
+    CommandsWithoutCapability,
+    #[error("`{pattern}` in `run` is not a command pattern: {reason}")]
+    BadRunPattern { pattern: String, reason: String },
     #[error("its module cannot be read: {0}")]
     ModuleUnreadable(String),
     #[error("its module is not the one that was installed, so it is not run: {0}")]
@@ -53,6 +59,8 @@ pub(crate) struct Installed {
     /// What it needs to be allowed to do, each once, in the order of
     /// [`Capability::ALL`].
     pub capabilities: Vec<Capability>,
+    /// The commands it may run (`process.run`), as the manifest lists them.
+    pub run: Vec<RunPattern>,
 }
 
 impl Installed {
@@ -133,10 +141,12 @@ pub(crate) fn read(dir: &Path, host: Host<'_>) -> Result<Installed, ManifestErro
     let manifest: Manifest =
         toml::from_str(&text).map_err(|error| ManifestError::Invalid(error.to_string()))?;
     let capabilities = judge(&manifest, dir, host)?;
+    let run = judge_run(&manifest, &capabilities)?;
     Ok(Installed {
         dir: dir.to_path_buf(),
         manifest,
         capabilities,
+        run,
     })
 }
 
@@ -202,6 +212,30 @@ fn judge(
         }
     }
     Ok(asked)
+}
+
+/// The commands a manifest lists, which only a plugin that asks for `process.run` may
+/// (and it must list some: a capability that allows nothing would only mislead the user).
+fn judge_run(
+    manifest: &Manifest,
+    capabilities: &[Capability],
+) -> Result<Vec<RunPattern>, ManifestError> {
+    let asks = capabilities.contains(&Capability::ProcessRun);
+    match (asks, manifest.run.is_empty()) {
+        (true, true) => return Err(ManifestError::RunWithoutCommands),
+        (false, false) => return Err(ManifestError::CommandsWithoutCapability),
+        (false, true) => return Ok(Vec::new()),
+        (true, false) => {}
+    }
+    for text in &manifest.run {
+        if let Err(error) = RunPattern::parse(text) {
+            return Err(ManifestError::BadRunPattern {
+                pattern: text.clone(),
+                reason: error.to_string(),
+            });
+        }
+    }
+    parse_all(&manifest.run).map_err(|error| ManifestError::Invalid(error.to_string()))
 }
 
 /// Lower case letters, digits, `-` and `_`, starting with a letter or digit.

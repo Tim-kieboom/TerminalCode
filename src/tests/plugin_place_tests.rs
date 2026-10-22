@@ -41,6 +41,7 @@ fn record(enabled: bool, place: Option<Place>) -> PluginRecord {
         place,
         file_types: Vec::new(),
         own_thread: false,
+        run: Vec::new(),
     }
 }
 

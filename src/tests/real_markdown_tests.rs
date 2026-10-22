@@ -283,6 +283,7 @@ fn start() -> Rig {
     saved.set_plugin(
         "markdown",
         PluginRecord {
+            run: Vec::new(),
             enabled: true,
             capabilities: vec!["files.text".to_owned(), "editor.open".to_owned()],
             file_types: vec!["md".to_owned(), "markdown".to_owned()],
