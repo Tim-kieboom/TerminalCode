@@ -9,9 +9,17 @@ use super::support::{Rig, start};
 
 /// How much the full flood prints. It takes about 12 s in a debug build, so it
 /// is ignored there: run it with `cargo test --release -- --ignored`. The
-/// ordinary tests print a tenth as much, which exercises the same paths.
+/// ordinary tests print a tenth as much (a fifth of that on Windows), which exercises the same paths.
 const FULL_FLOOD: u64 = 100 * 1000 * 1000;
+/// ConPTY carries about a third of a megabyte a second, so on Windows the short flood
+/// is a fifth of that (a few seconds instead of half a minute); it is still thousands
+/// of reads, which is what the paths are exercised by.
+#[cfg(not(windows))]
 const SHORT_FLOOD: u64 = 10 * 1000 * 1000;
+#[cfg(windows)]
+const SHORT_FLOOD: u64 = 2 * 1000 * 1000;
+/// The size of one read of the pty.
+const CHUNK: u64 = 8192;
 
 /// What the probe saw while it ran.
 #[derive(Debug, Default)]
@@ -78,7 +86,7 @@ fn assert_responsive(bytes: u64) {
 }
 
 #[test]
-fn ten_megabytes_of_output_do_not_hold_up_keys_or_drawing() {
+fn a_short_flood_of_output_does_not_hold_up_keys_or_drawing() {
     assert_responsive(SHORT_FLOOD);
 }
 
@@ -93,13 +101,17 @@ fn the_flood_wakes_the_app_once_per_drawn_frame_not_once_per_chunk() {
     let (rig, seen) = flood(SHORT_FLOOD);
 
     let wakes = rig.wakes.load(Ordering::SeqCst);
-    let chunks = rig.session.bytes_received() / 8192;
+    let chunks = rig.session.bytes_received() / CHUNK;
     assert!(
         wakes <= seen.frames + 2,
         "{wakes} wake-ups for {} drawn frames ({chunks} chunks were read)",
         seen.frames
     );
-    assert!(chunks > 1000, "the flood was not a flood");
+    // Most of the flood must have come in reads of the usual size.
+    assert!(
+        chunks > SHORT_FLOOD / CHUNK * 4 / 5,
+        "the flood was not a flood"
+    );
 }
 
 #[test]
