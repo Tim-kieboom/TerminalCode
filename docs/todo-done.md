@@ -191,7 +191,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.9.4
 - [x] Version 0.9.4 (after 0.9.3: plugin API 1.9: a plugin can open a file at a line and a column (`open_file` with `line` and `column`; the cursor goes there, the place before is on the jump list and the keyboard goes to the editor), which the test pane (`trcode-plugin-test` 0.0.9) uses to open the code of a test that is clicked; CI: the Windows tests run in two halves and macOS only on pull requests and release tags)
-- [ ] Tag `v0.9.4`
+- [x] Tag `v0.9.4` (tagged on 8c98550; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
