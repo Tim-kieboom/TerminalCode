@@ -376,3 +376,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Drag the explorer's right edge and the terminal's top edge to resize them: the size holds in memory for the run (it wins over `layout.ron`), is not saved, goes back to the file's when the layout file changes, and "View: Reset Pane Sizes" puts it back
 
 - [x] Language server follow-ups: `renameFile` in a rename's or an action's edit (a module's file or folder moves through the drag and drop move, so tabs and the explorer follow, and the edits of that file are made at its new place), disabled code actions listed with their reason, a server's `workspace/applyEdit` request answered through the applier, a `●` in the gutter for the cursor's line when the server has actions there, and a test that the quit prompt's save leaves no staged copy (it already used `StagedWrite`; the root save cannot, see design.md)
+
+- [x] `trcode --recent`: with no path named, opens the newest recent project folder that is still there (walks down the list past folders that are gone, with a note; the current folder when none is); a path named wins

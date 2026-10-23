@@ -48,6 +48,14 @@ impl Recent {
         push(&mut self.folders, path)
     }
 
+    /// The newest folder that is still there, and how many newer ones were gone.
+    pub(crate) fn newest_folder(&self) -> (Option<PathBuf>, usize) {
+        match self.folders.iter().position(|folder| folder.is_dir()) {
+            Some(at) => (Some(self.folders[at].clone()), at),
+            None => (None, self.folders.len()),
+        }
+    }
+
     /// Drops what is not there any more. Returns whether anything was dropped.
     pub(crate) fn prune(&mut self) -> bool {
         let before = self.files.len() + self.folders.len();

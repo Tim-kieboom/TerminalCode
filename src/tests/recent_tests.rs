@@ -410,3 +410,28 @@ fn without_a_config_folder_nothing_is_written_and_nothing_fails() {
     assert_eq!(app.recent_list().files().len(), 1);
     assert!(app.state().notifications().texts().is_empty());
 }
+
+#[test]
+fn the_newest_folder_that_is_there_is_found_and_the_gone_ones_are_counted() {
+    let dir = tempfile::tempdir().unwrap();
+    let (old, newer) = (dir.path().join("old"), dir.path().join("newer"));
+    std::fs::create_dir(&old).unwrap();
+    let mut list = Recent::default();
+    list.push_folder(&old);
+    list.push_folder(&newer);
+    list.push_folder(&dir.path().join("newest"));
+
+    assert_eq!(list.newest_folder(), (Some(old.clone()), 2));
+
+    std::fs::create_dir(&newer).unwrap();
+    assert_eq!(list.newest_folder(), (Some(newer), 1));
+}
+
+#[test]
+fn with_no_folder_there_none_is_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut list = Recent::default();
+    assert_eq!(list.newest_folder(), (None, 0));
+    list.push_folder(&dir.path().join("gone"));
+    assert_eq!(list.newest_folder(), (None, 1));
+}

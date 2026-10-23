@@ -16,15 +16,20 @@ fn main() -> ExitCode {
 
 fn start() -> IdeResult {
     // Help and version are answered before the terminal is touched.
-    let paths = match Invocation::from_args(std::env::args_os()) {
+    let (paths, note) = match Invocation::from_args(std::env::args_os()) {
         Invocation::Help => return print(help_text()),
         Invocation::Version => return print(version_text()),
-        Invocation::Open(paths) => paths,
+        // A path named wins over `--recent`.
+        Invocation::Open { paths, recent } if recent && paths.is_empty() => {
+            let (folder, note) = terminal_code::recent_project();
+            (folder.into_iter().collect(), note)
+        }
+        Invocation::Open { paths, .. } => (paths, None),
     };
 
     set_restore_on_panic();
     let (terminal, capabilities) = terminal::init();
-    let result = terminal_code::run(terminal, &paths, capabilities);
+    let result = terminal_code::run(terminal, &paths, capabilities, note);
     terminal::restore();
     match result? {
         Some(folder) => relaunch_in(&folder),

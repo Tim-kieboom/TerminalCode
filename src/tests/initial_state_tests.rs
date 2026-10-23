@@ -1,4 +1,7 @@
 use std::fs;
+use std::path::PathBuf;
+
+use crate::Invocation;
 
 use crate::initial_state;
 
@@ -94,8 +97,6 @@ fn args(list: &[&str]) -> impl Iterator<Item = std::ffi::OsString> {
 
 #[test]
 fn every_argument_after_the_program_name_is_a_path() {
-    use std::path::PathBuf;
-
     assert_eq!(crate::paths_from_args(args(&["tc"])), Vec::<PathBuf>::new());
     assert_eq!(
         crate::paths_from_args(args(&["tc", "a.rs", "b.rs"])),
@@ -105,8 +106,6 @@ fn every_argument_after_the_program_name_is_a_path() {
 
 #[test]
 fn a_leading_double_dash_is_skipped_but_later_ones_are_files() {
-    use std::path::PathBuf;
-
     assert_eq!(
         crate::paths_from_args(args(&["tc", "--", "notes.md"])),
         [PathBuf::from("notes.md")]
@@ -144,8 +143,6 @@ fn without_a_directory_argument_there_is_no_named_project() {
 
 #[test]
 fn a_first_argument_that_is_a_help_or_version_flag_asks_for_that() {
-    use crate::Invocation;
-
     for flag in ["-h", "--help"] {
         assert_eq!(Invocation::from_args(args(&["tc", flag])), Invocation::Help);
     }
@@ -159,24 +156,18 @@ fn a_first_argument_that_is_a_help_or_version_flag_asks_for_that() {
 
 #[test]
 fn flags_only_count_first_and_a_double_dash_makes_them_files() {
-    use crate::Invocation;
-    use std::path::PathBuf;
-
     assert_eq!(
         Invocation::from_args(args(&["tc", "a.rs", "-v"])),
-        Invocation::Open(vec![PathBuf::from("a.rs"), PathBuf::from("-v")])
+        opening(&["a.rs", "-v"])
     );
     assert_eq!(
         Invocation::from_args(args(&["tc", "--", "-h"])),
-        Invocation::Open(vec![PathBuf::from("-h")])
+        opening(&["-h"])
     );
-    assert_eq!(
-        Invocation::from_args(args(&["tc"])),
-        Invocation::Open(Vec::new())
-    );
+    assert_eq!(Invocation::from_args(args(&["tc"])), opening(&[]));
     assert_eq!(
         Invocation::from_args(args(&["tc", "src", "main.rs"])),
-        Invocation::Open(vec![PathBuf::from("src"), PathBuf::from("main.rs")])
+        opening(&["src", "main.rs"])
     );
 }
 
@@ -189,4 +180,38 @@ fn the_version_and_help_texts_name_the_command_and_its_flags() {
     for needle in ["Usage: trcode", "-h, --help", "-v, --version", "--"] {
         assert!(help.contains(needle), "{needle}: {help}");
     }
+}
+
+fn opening(paths: &[&str]) -> Invocation {
+    Invocation::Open {
+        paths: paths.iter().map(PathBuf::from).collect(),
+        recent: false,
+    }
+}
+
+#[test]
+fn recent_is_read_before_the_paths_and_before_help() {
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "--recent"])),
+        Invocation::Open {
+            paths: Vec::new(),
+            recent: true
+        }
+    );
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "--recent", "src"])),
+        Invocation::Open {
+            paths: vec![PathBuf::from("src")],
+            recent: true
+        }
+    );
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "--recent", "--help"])),
+        Invocation::Help
+    );
+    // After `--` or after a path it is a file name.
+    assert_eq!(
+        Invocation::from_args(args(&["tc", "a.rs", "--recent"])),
+        opening(&["a.rs", "--recent"])
+    );
 }

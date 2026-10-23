@@ -9,24 +9,34 @@ const COMMAND: &str = "trcode";
 /// What to do for the arguments the program was started with.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Invocation {
-    /// Start the editor with these files and folder.
-    Open(Vec<PathBuf>),
+    /// Start the editor with these files and folder; `recent` is `--recent`: with no
+    /// path named, the project is the newest recent folder that is still there.
+    Open {
+        paths: Vec<PathBuf>,
+        recent: bool,
+    },
     Help,
     Version,
 }
 
 impl Invocation {
-    /// The first argument after the program name decides: `-h` or `--help`,
-    /// `-v` or `--version`, otherwise every argument is a path. A file that is
-    /// named like a flag is opened by putting `--` before it.
+    /// `--recent` first, if there; then the first argument decides: `-h` or
+    /// `--help`, `-v` or `--version`, otherwise every argument is a path. A file
+    /// that is named like a flag is opened by putting `--` before it.
     pub fn from_args(args: impl Iterator<Item = OsString>) -> Self {
         let mut args = args.skip(1).peekable();
+        let mut recent = false;
+        while args.peek().is_some_and(|first| first == "--recent") {
+            recent = true;
+            args.next();
+        }
         match args.peek().and_then(|first| first.to_str()) {
             Some("-h" | "--help") => Self::Help,
             Some("-v" | "--version") => Self::Version,
-            _ => Self::Open(crate::paths_from_args(
-                std::iter::once(OsString::new()).chain(args),
-            )),
+            _ => Self::Open {
+                paths: crate::paths_from_args(std::iter::once(OsString::new()).chain(args)),
+                recent,
+            },
         }
     }
 }
@@ -51,6 +61,8 @@ pub fn help_text() -> String {
          Options:\n\
          \x20 -h, --help     Print this help\n\
          \x20 -v, --version  Print the version\n\
+         \x20     --recent   Open the newest recent project folder that is still there\n\
+         \x20                (the current folder when none is); a path named wins\n\
          \n\
          Press f1 in the editor for the command palette.",
         version = env!("CARGO_PKG_VERSION"),

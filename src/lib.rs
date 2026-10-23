@@ -48,6 +48,7 @@ pub fn run<B>(
     mut terminal: Terminal<B>,
     paths: &[PathBuf],
     capabilities: Capabilities,
+    note: Option<String>,
 ) -> IdeResult<Option<PathBuf>>
 where
     B: Backend,
@@ -58,6 +59,10 @@ where
     let root = project.or_else(|| std::env::current_dir().ok());
     if let Some(error) = root.and_then(|root| state.open_project(&root).err()) {
         state.notify_error(error.to_string());
+    }
+
+    if let Some(note) = note {
+        state.notify(note);
     }
 
     let config_dir = config::user_config_dir();
@@ -95,6 +100,28 @@ where
 }
 
 pub use cli::{Invocation, help_text, version_text};
+
+/// The folder `--recent` opens: the newest of the recent project folders that is still
+/// there, and what to tell the user when it was not the newest or there is none (then
+/// the current folder is the project).
+pub fn recent_project() -> (Option<PathBuf>, Option<String>) {
+    let dir = config::user_config_dir();
+    let (recent, _) = persist::recent::load(dir.as_deref());
+    match recent.newest_folder() {
+        (Some(folder), 0) => (Some(folder), None),
+        (Some(folder), gone) => {
+            let note = format!(
+                "--recent: {gone} newer project folder(s) are gone; opened {}",
+                folder.display()
+            );
+            (Some(folder), Some(note))
+        }
+        (None, _) => (
+            None,
+            Some("--recent: no recent project folder is there; opened the current folder".into()),
+        ),
+    }
+}
 
 /// The files to open: every argument after the program name. A leading `--`
 /// marks the end of options and is skipped.
