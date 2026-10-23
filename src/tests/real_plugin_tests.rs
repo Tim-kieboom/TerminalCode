@@ -13,13 +13,15 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    Event as InputEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use tokio::sync::mpsc;
 
 use crate::app::App;
-use crate::app::state::{AppState, Focus};
+use crate::app::state::{AppState, Focus, Popup};
 use crate::buffer::Buffer;
 use crate::components::editor::Editor;
 use crate::components::prepare_and_render;
@@ -228,6 +230,39 @@ impl Rig {
             .handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));
     }
 
+    /// Right-clicks the first row of the screen that is `text`: the cell of its first letter.
+    fn right_click_on(&mut self, text: &str) {
+        let screen = self.screen();
+        let (column, row) = screen
+            .lines()
+            .enumerate()
+            .find_map(|(row, line)| {
+                let at = line.find(text)?;
+                Some((line[..at].chars().count() as u16, row as u16))
+            })
+            .unwrap_or_else(|| panic!("the screen does not show {text:?}:\n{screen}"));
+        self.app.handle_input(InputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: column + 1,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+
+    /// The items of the menu that is open.
+    fn menu(&self) -> Vec<String> {
+        self.app
+            .state()
+            .menu()
+            .map(|menu| {
+                menu.labels_for_test()
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn cached(&self) -> String {
         git(&self.root, &["diff", "--cached", "--name-only"])
             .trim()
@@ -398,4 +433,54 @@ fn shift_p_pushes_and_the_count_on_the_button_goes_away() {
         git(&bare, &["log", "--format=%s", "-1"]).trim() == "local change"
     });
     rig.wait_until("the count to go", |rig| !rig.screen_has("Push (1)"));
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn a_right_click_on_a_file_opens_its_menu_and_stage_file_stages_that_file() {
+    let mut rig = started();
+    rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
+
+    rig.right_click_on("U b.txt");
+    rig.wait_until("the menu", |rig| {
+        matches!(rig.app.state().popup(), Popup::Menu(_))
+    });
+
+    // The editor's menu, with the titles and the keys of the plugin's actions.
+    assert_eq!(rig.menu(), ["Open File", "Stage File"]);
+    let screen = rig.screen();
+    assert!(
+        screen.contains("Open File") && screen.contains("Stage File"),
+        "{screen}"
+    );
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Enter);
+    rig.wait_until("b.txt to be staged", |rig| rig.cached() == "b.txt");
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn a_right_click_on_a_staged_file_offers_to_unstage_it_and_on_a_heading_the_whole_group() {
+    let mut rig = started();
+    rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
+    rig.press(KeyCode::Char('a'));
+    rig.wait_until("everything staged", |rig| rig.cached() == "a.txt\nb.txt");
+    rig.wait_until("the staged files", |rig| rig.has_row("A b.txt"));
+
+    rig.right_click_on("A b.txt");
+    rig.wait_until("the menu", |rig| {
+        matches!(rig.app.state().popup(), Popup::Menu(_))
+    });
+    assert_eq!(rig.menu(), ["Open File", "Unstage File"]);
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Enter);
+    rig.wait_until("b.txt to be unstaged", |rig| rig.cached() == "a.txt");
+
+    rig.right_click_on("Staged Changes");
+    rig.wait_until("the menu of the heading", |rig| {
+        matches!(rig.app.state().popup(), Popup::Menu(_))
+    });
+    assert_eq!(rig.menu(), ["Unstage All"]);
+    rig.press(KeyCode::Enter);
+    rig.wait_until("everything unstaged", |rig| rig.cached().is_empty());
 }

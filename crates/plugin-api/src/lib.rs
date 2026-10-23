@@ -16,7 +16,7 @@ pub use abi::{Abi, AbiError};
 pub use manifest::{Manifest, Thread};
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
-    Refusal, RunStream, ToPlugin, WireButton, WireLine, WireSpan, WireView,
+    Refusal, RunStream, ToPlugin, WireButton, WireLine, WireMenuItem, WireSpan, WireView,
 };
 pub use plugin::Plugin;
 pub use run::{PatternError, RunPattern, allows, parse_all};
@@ -59,3 +59,6 @@ pub const MAX_RUN_CHUNK: usize = 64 * 1024;
 /// The most output (both streams together) the editor passes on for one command; the
 /// rest is read and dropped, and [`ToPlugin::RunDone`] says `truncated`.
 pub const MAX_RUN_OUTPUT: usize = 32 * 1024 * 1024;
+
+/// The most items a menu a plugin shows may have ([`FromPlugin::Menu`]); the rest are left out.
+pub const MAX_MENU_ITEMS: usize = 24;
