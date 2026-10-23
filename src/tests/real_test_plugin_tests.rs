@@ -252,6 +252,9 @@ fn with_scenario(scenario: &str, tests: usize) -> Real {
     real.start("fake-adapter", "trcode_test_fake_adapter");
     real.call_adapter("configure", scenario);
     real.start("test-ui", "trcode_test_ui");
+    // The pane starts with the Rust adapter, which is not here, and never falls back to the
+    // fake one: it is chosen.
+    real.runtime.send("test-ui", ToPlugin::action("use_fake"));
     real.wait_for_header(&format!("tests {tests}/{tests}"));
     real
 }

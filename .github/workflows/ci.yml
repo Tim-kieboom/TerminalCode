@@ -15,7 +15,7 @@ env:
 
 jobs:
   check:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }} (${{ matrix.part }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     # macOS is best-effort: a failure there does not fail the workflow.
@@ -26,6 +26,12 @@ jobs:
         # macOS is the slowest runner and best-effort, so a push to a branch skips it; a
         # pull request and a release tag run it.
         os: ${{ fromJSON(github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') && '["ubuntu-latest","windows-latest"]' || '["ubuntu-latest","windows-latest","macos-latest"]') }}
+        # Windows is the slowest and runs its tests in two halves (see the Test step); the
+        # other systems run them all in part 1.
+        part: [1, 2]
+        exclude:
+          - { os: ubuntu-latest, part: 2 }
+          - { os: macos-latest, part: 2 }
     steps:
       - uses: actions/checkout@v4
       # The runners come with the stable toolchain, clippy and rustfmt.
@@ -42,9 +48,11 @@ jobs:
         run: cargo clippy --workspace --all-targets
       # nextest kills a test that hangs (see .config/nextest.toml) and lists every
       # failure at the end, so one stuck terminal test cannot hold up the run.
+      # Windows runs half of them in each of two jobs, each of which builds all of them:
+      # the build is the same and the running is halved.
       - name: Test
         timeout-minutes: 10
-        run: cargo nextest run --workspace --no-fail-fast
+        run: cargo nextest run --workspace --no-fail-fast --partition count:${{ matrix.os == 'windows-latest' && 2 || 1 }}/${{ matrix.part }}
       # The Git pane is a plugin in a repository of its own: build its module and run
       # the tests that load it into the editor (they are ignored unless asked for).
       - name: Git plugin (WebAssembly)
