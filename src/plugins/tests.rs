@@ -907,6 +907,8 @@ fn a_file_to_open_is_handed_to_the_app_when_the_plugin_may() {
             plugin: "opener".into(),
             request: 3,
             path: "src/a.rs".into(),
+            line: None,
+            column: None,
         }
     );
 }

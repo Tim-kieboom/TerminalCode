@@ -184,8 +184,18 @@ pub enum FromPlugin {
     },
     /// Opens a file in the editor (needs [`Capability::EditorOpen`]): `path` is
     /// from the root of the repository, as in [`GitEntry::path`]. The answer is
-    /// [`ToPlugin::Done`] or [`ToPlugin::Refused`].
-    OpenFile { request: u64, path: String },
+    /// [`ToPlugin::Done`] or [`ToPlugin::Refused`]. With a `line` (counted from 1; and a
+    /// `column`, also from 1) the cursor is put there, held to what the file has, and the
+    /// keyboard goes to the editor; without one the file is only opened. `line` and
+    /// `column` are plugin API 1.9.
+    OpenFile {
+        request: u64,
+        path: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        line: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        column: Option<u32>,
+    },
     /// Stages the file (needs [`Capability::GitWrite`]): `path` is from the root
     /// of the repository, as in [`GitEntry::path`]. The answer is
     /// [`ToPlugin::Done`] or [`ToPlugin::Refused`].

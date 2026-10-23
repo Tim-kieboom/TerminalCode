@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::App;
+use crate::buffer::Position;
 use crate::event::Event;
 use crate::event::action::Action;
 use crate::git::ActionError;
@@ -94,7 +95,9 @@ impl App {
                 plugin,
                 request,
                 path,
-            } => self.plugin_open_file(&plugin, request, &path),
+                line,
+                column,
+            } => self.plugin_open_file(&plugin, request, &path, line.zip(column.or(Some(1)))),
         }
         self.needs_redraw = true;
     }
@@ -111,8 +114,9 @@ impl App {
     /// A plugin with the capability asked to open a file of the repository (or of
     /// the project, when there is no repository): the path is checked like the
     /// path of any action, the file opens and the keyboard stays where it was, and
-    /// the plugin is told how it went.
-    fn plugin_open_file(&mut self, plugin: &str, request: u64, path: &str) {
+    /// the plugin is told how it went. With a place (line and column, from 1) the cursor
+    /// goes there, held to what the file has, and the keyboard goes to the editor.
+    fn plugin_open_file(&mut self, plugin: &str, request: u64, path: &str, at: Option<(u32, u32)>) {
         let relative = match crate::git::repository_path(path) {
             Ok(relative) => relative,
             Err(ActionError::BadArgument(detail)) => {
@@ -130,6 +134,13 @@ impl App {
             None => self.project_root(),
         };
         let full = root.join(&relative);
+        // `alt+,` comes back from where the click on a test took the user.
+        if at.is_some()
+            && full.is_file()
+            && let Some(here) = self.here()
+        {
+            self.record_place(here);
+        }
         let reply = match full.is_file() {
             false => refused(
                 request,
@@ -138,7 +149,12 @@ impl App {
                 },
             ),
             true => match self.state.workspace_mut().open_path(&full) {
-                Ok(_) => ToPlugin::Done { request },
+                Ok(_) => {
+                    if let Some((line, column)) = at {
+                        self.show_place(line, column);
+                    }
+                    ToPlugin::Done { request }
+                }
                 Err(error) => refused(
                     request,
                     Refusal::Failed {
@@ -149,6 +165,20 @@ impl App {
         };
         self.send_to_plugin(plugin, reply);
         self.needs_redraw = true;
+    }
+
+    /// Puts the cursor of the file in front on `line` and `column` (from 1, held to what
+    /// the file has) and gives the editor the keyboard.
+    fn show_place(&mut self, line: u32, column: u32) {
+        let at = Position::new(
+            (line as usize).saturating_sub(1),
+            (column as usize).saturating_sub(1),
+        );
+        self.state.set_focus(super::state::Focus::Editor);
+        self.state.edit(|editor| {
+            let at = editor.buffer().clamp_position(at);
+            editor.go_to(at);
+        });
     }
 
     /// A plugin with the capability asked to change the repository: it is done

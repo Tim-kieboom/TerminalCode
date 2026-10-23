@@ -458,6 +458,39 @@ fn opening_a_file_leaves_the_keyboard_in_the_plugin_pane() {
 }
 
 #[test]
+fn a_file_opened_at_a_place_puts_the_cursor_there_and_takes_the_keyboard() {
+    let mut rig = rig();
+    std::fs::write(rig.root().join("a.txt"), "one\ntwo\nthree line\nfour\n").unwrap();
+    rig.load(
+        asking(r#"{"type":"open_file","request":8,"path":"a.txt","line":3,"column":4}"#),
+        OPEN,
+    );
+    rig.app.run_action(Action::FocusPluginView("hello".into()));
+
+    let answer = rig.ask(r#"{"type":"done","request":8}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":8}"#);
+    let head = rig.app.state().editor().selections().primary().head();
+    assert_eq!((head.line, head.column), (2, 3));
+    assert_eq!(rig.app.state().focus(), crate::app::state::Focus::Editor);
+}
+
+#[test]
+fn a_place_past_the_end_of_the_file_is_held_to_the_file() {
+    let mut rig = rig();
+    std::fs::write(rig.root().join("a.txt"), "one\ntwo\n").unwrap();
+    rig.load(
+        asking(r#"{"type":"open_file","request":8,"path":"a.txt","line":99,"column":99}"#),
+        OPEN,
+    );
+
+    rig.ask(r#"{"type":"done","request":8}"#);
+
+    let head = rig.app.state().editor().selections().primary().head();
+    assert!(head.line <= 2, "{head:?}");
+}
+
+#[test]
 fn opening_a_file_without_the_capability_is_refused_and_nothing_opens() {
     let mut rig = rig();
     rig.load(asking(OPEN_A), READ);

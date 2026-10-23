@@ -62,6 +62,9 @@ pub(crate) enum Notice {
         plugin: Box<str>,
         request: u64,
         path: String,
+        /// Where to put the cursor, counted from 1.
+        line: Option<u32>,
+        column: Option<u32>,
     },
     /// A plugin with the capability asked to change the repository. The app does
     /// it and answers the plugin with [`Runtime::send`].
@@ -876,11 +879,19 @@ impl Host {
     /// Does a request that is allowed and has a repository to do it in: the
     /// answer when it can be given here, nothing when the app will give it.
     fn carry_out(&self, plugin: &str, request: FromPlugin) -> Option<ToPlugin> {
-        if let FromPlugin::OpenFile { request, path } = request {
+        if let FromPlugin::OpenFile {
+            request,
+            path,
+            line,
+            column,
+        } = request
+        {
             (self.notify)(Notice::OpenFile {
                 plugin: plugin.into(),
                 request,
                 path,
+                line,
+                column,
             });
             return None;
         }

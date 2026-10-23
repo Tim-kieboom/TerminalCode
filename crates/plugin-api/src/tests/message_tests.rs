@@ -619,7 +619,9 @@ fn the_messages_of_1_3_are_written_as_they_always_were() {
     assert_eq!(
         FromPlugin::OpenFile {
             request: 9,
-            path: "src/a.rs".into()
+            path: "src/a.rs".into(),
+            line: None,
+            column: None,
         }
         .to_bytes()
         .unwrap(),
@@ -638,7 +640,9 @@ fn the_messages_of_1_3_are_still_read() {
         FromPlugin::from_bytes(OPEN_FILE.as_bytes()),
         Ok(FromPlugin::OpenFile {
             request: 9,
-            path: "src/a.rs".into()
+            path: "src/a.rs".into(),
+            line: None,
+            column: None,
         })
     );
 }
@@ -1191,4 +1195,30 @@ fn a_manifest_has_a_pane_unless_it_says_it_has_none() {
 
     assert!(with.view, "every plugin before 1.8 has one");
     assert!(!without.view);
+}
+
+// --- plugin API 1.9: a file opened at a line ---
+
+#[test]
+fn a_file_is_opened_at_a_line_and_column_when_they_are_given() {
+    let at = r#"{"type":"open_file","request":4,"path":"src/a.rs","line":12,"column":5}"#;
+    let message = FromPlugin::OpenFile {
+        request: 4,
+        path: "src/a.rs".into(),
+        line: Some(12),
+        column: Some(5),
+    };
+
+    assert_eq!(message.to_bytes().unwrap(), at.as_bytes());
+    assert_eq!(FromPlugin::from_bytes(at.as_bytes()), Ok(message));
+    // A line alone is fine.
+    assert_eq!(
+        FromPlugin::from_bytes(br#"{"type":"open_file","request":4,"path":"a.rs","line":3}"#),
+        Ok(FromPlugin::OpenFile {
+            request: 4,
+            path: "a.rs".into(),
+            line: Some(3),
+            column: None,
+        })
+    );
 }
