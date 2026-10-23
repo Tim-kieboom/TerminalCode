@@ -746,3 +746,86 @@ fn the_rust_adapter_lists_and_runs_a_real_project_in_the_editor_once_the_folder_
     );
     assert_eq!(rows[last], "    [ok] parses_empty", "{rows:?}");
 }
+
+impl Rig {
+    /// Where the cursor of the editor is, as line and column from 1, and the file it is in.
+    fn cursor(&self) -> (String, usize, usize) {
+        let editor = self.app.state().editor();
+        let head = editor.selections().primary().head();
+        let name = editor
+            .buffer()
+            .path()
+            .map(|path| path.to_string_lossy().replace('\\', "/"))
+            .unwrap_or_default();
+        (name, head.line + 1, head.column + 1)
+    }
+}
+
+#[test]
+#[ignore = "needs the modules built and cargo-nextest"]
+fn a_test_is_gone_to_in_the_editor_by_its_panic_when_it_failed_and_by_grep_when_it_did_not() {
+    if !nextest_is_installed() {
+        eprintln!("cargo-nextest is not installed: skipped");
+        return;
+    }
+    let mut rig = rust_rig();
+    rig.wait_until("the question", Duration::from_secs(60), |rig| rig.asking());
+    rig.key(KeyCode::Char('y'));
+    rig.press("discover");
+    rig.wait_for_header("tests 5/5");
+    rig.press("run_all");
+    rig.wait_for_header("ok 4 FAIL 1");
+    rig.wait_until("the run to end", Duration::from_secs(30), |rig| {
+        !rig.header().contains("| run ")
+    });
+
+    // The folder is selected first, then `tests`, then `fails_here`.
+    rig.press("down");
+    rig.press("down");
+    // What it wrote is under the tests, and the place it panicked is in its title.
+    rig.wait_until("what it wrote", Duration::from_secs(10), |rig| {
+        rig.pane()
+            .iter()
+            .any(|line| line.starts_with("-- fails_here"))
+    });
+    let pane = rig.pane();
+    let title = pane
+        .iter()
+        .position(|line| line.starts_with("-- fails_here"))
+        .unwrap_or_else(|| panic!("{pane:?}"));
+    assert_eq!(pane[title], "-- fails_here at src/lib.rs:14");
+    assert!(
+        pane[title + 1..]
+            .iter()
+            .any(|line| line.contains("assertion")),
+        "{pane:?}"
+    );
+    rig.press("goto");
+    rig.wait_until("the file", Duration::from_secs(10), |rig| {
+        rig.cursor().0.ends_with("src/lib.rs")
+    });
+    assert_eq!(
+        (rig.cursor().1, rig.cursor().2),
+        (14, 9),
+        "{:?}",
+        rig.cursor()
+    );
+    assert_eq!(
+        rig.app.state().focus(),
+        crate::app::state::Focus::Editor,
+        "the keyboard is in the file"
+    );
+
+    // A test that passed has no panic: grep finds its `fn` (line 8 of the library).
+    rig.app
+        .run_action(Action::FocusPluginView("test-ui".into()));
+    rig.press("down");
+    rig.press("down");
+    rig.wait_until("the next test selected", Duration::from_secs(10), |rig| {
+        rig.pane().iter().all(|line| !line.starts_with("-- "))
+    });
+    rig.press("goto");
+    rig.wait_until("the code of the test", Duration::from_secs(30), |rig| {
+        rig.cursor().0.ends_with("src/lib.rs") && rig.cursor().1 == 8
+    });
+}
