@@ -187,7 +187,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.9.3
 - [x] Version 0.9.3 (after 0.9.2: `trcode --recent` (`-r`) opens the newest recent project folder that is still there, with a note when it had to skip folders or fall back to the current one; a path named wins; plugin API 1.8: plugins without a pane, and a budget that grows with payloads). Changes to know when upgrading: the command line is stricter and takes its flags in any order: an unknown flag (an argument starting with a dash that is not `-h`, `-v`, `-r` or `--`) is now an error instead of a file name, `--help` and `--version` must be the last argument, and `--` ends the flags so that a file named like a flag can still be opened)
-- [ ] Tag `v0.9.3`
+- [x] Tag `v0.9.3` (tagged on 68e3483; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
