@@ -3,6 +3,8 @@
 use std::ffi::OsString;
 use std::path::PathBuf;
 
+use thiserror::Error;
+
 /// The name of the program on the command line (the `[[bin]]` in `Cargo.toml`).
 const COMMAND: &str = "trcode";
 
@@ -19,25 +21,45 @@ pub enum Invocation {
     Version,
 }
 
+/// Why the command line was refused.
+#[derive(Debug, Error)]
+pub enum CliError {
+    #[error("there can be no argument after `{0}`")]
+    ArgumentAfterEndingFlag(Box<str>),
+    #[error("unknown flag `{0}` (see --help; put -- before a file whose name starts with a dash)")]
+    UnknownFlag(Box<str>),
+}
+
 impl Invocation {
-    /// `--recent` first, if there; then the first argument decides: `-h` or
-    /// `--help`, `-v` or `--version`, otherwise every argument is a path. A file
-    /// that is named like a flag is opened by putting `--` before it.
-    pub fn from_args(args: impl Iterator<Item = OsString>) -> Self {
-        let mut args = args.skip(1).peekable();
+    /// Reads the arguments after the program name, in any order: `-h`/`--help` and
+    /// `-v`/`--version` must be the last argument, `-r`/`--recent` may be anywhere, and
+    /// every other argument is a path. An argument that starts with a dash and is not a
+    /// flag is refused; `--` ends the flags, so that a file named like a flag can still be
+    /// opened.
+    pub fn from_args(mut args: impl Iterator<Item = OsString>) -> Result<Self, CliError> {
+        _ = args.next();
+
         let mut recent = false;
-        while args.peek().is_some_and(|first| first == "--recent") {
-            recent = true;
-            args.next();
+        let mut paths = Vec::new();
+        while let Some(arg) = args.next() {
+            // Only a flag has to be text: a path may be any bytes.
+            match arg.to_str() {
+                Some("--") => {
+                    paths.extend(args.by_ref().map(PathBuf::from));
+                }
+                Some(flag @ ("-h" | "--help")) => return ending(flag, Self::Help, args.next()),
+                Some(flag @ ("-v" | "--version")) => {
+                    return ending(flag, Self::Version, args.next());
+                }
+                Some("-r" | "--recent") => recent = true,
+                Some(flag) if flag.starts_with('-') => {
+                    return Err(CliError::UnknownFlag(flag.into()));
+                }
+                _ => paths.push(PathBuf::from(arg)),
+            }
         }
-        match args.peek().and_then(|first| first.to_str()) {
-            Some("-h" | "--help") => Self::Help,
-            Some("-v" | "--version") => Self::Version,
-            _ => Self::Open {
-                paths: crate::paths_from_args(std::iter::once(OsString::new()).chain(args)),
-                recent,
-            },
-        }
+
+        Ok(Self::Open { paths, recent })
     }
 }
 
@@ -57,15 +79,28 @@ pub fn help_text() -> String {
          \n\
          The first folder is the project (the current folder when none is named);\n\
          every file opens in a tab. Put -- before a file whose name starts with a dash.\n\
+         --help and --version must be the last argument.\n\
          \n\
          Options:\n\
          \x20 -h, --help     Print this help\n\
          \x20 -v, --version  Print the version\n\
-         \x20     --recent   Open the newest recent project folder that is still there\n\
+         \x20 -r, --recent   Open the newest recent project folder that is still there\n\
          \x20                (the current folder when none is); a path named wins\n\
          \n\
          Press f1 in the editor for the command palette.",
         version = env!("CARGO_PKG_VERSION"),
         description = env!("CARGO_PKG_DESCRIPTION"),
     )
+}
+
+/// `invocation` for a flag that must come last: `next` is what came after it.
+fn ending(
+    flag: &str,
+    invocation: Invocation,
+    next: Option<OsString>,
+) -> Result<Invocation, CliError> {
+    match next {
+        Some(_) => Err(CliError::ArgumentAfterEndingFlag(flag.into())),
+        None => Ok(invocation),
+    }
 }

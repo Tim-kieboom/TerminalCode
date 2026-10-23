@@ -96,31 +96,6 @@ fn args(list: &[&str]) -> impl Iterator<Item = std::ffi::OsString> {
 }
 
 #[test]
-fn every_argument_after_the_program_name_is_a_path() {
-    assert_eq!(crate::paths_from_args(args(&["tc"])), Vec::<PathBuf>::new());
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "a.rs", "b.rs"])),
-        [PathBuf::from("a.rs"), PathBuf::from("b.rs")]
-    );
-}
-
-#[test]
-fn a_leading_double_dash_is_skipped_but_later_ones_are_files() {
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "--", "notes.md"])),
-        [PathBuf::from("notes.md")]
-    );
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "--"])),
-        Vec::<PathBuf>::new()
-    );
-    assert_eq!(
-        crate::paths_from_args(args(&["tc", "--", "--odd", "--"])),
-        [PathBuf::from("--odd"), PathBuf::from("--")]
-    );
-}
-
-#[test]
 fn a_directory_argument_is_the_project_and_the_rest_are_files() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("a.txt");
@@ -142,36 +117,6 @@ fn without_a_directory_argument_there_is_no_named_project() {
 }
 
 #[test]
-fn a_first_argument_that_is_a_help_or_version_flag_asks_for_that() {
-    for flag in ["-h", "--help"] {
-        assert_eq!(Invocation::from_args(args(&["tc", flag])), Invocation::Help);
-    }
-    for flag in ["-v", "--version"] {
-        assert_eq!(
-            Invocation::from_args(args(&["tc", flag])),
-            Invocation::Version
-        );
-    }
-}
-
-#[test]
-fn flags_only_count_first_and_a_double_dash_makes_them_files() {
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "a.rs", "-v"])),
-        opening(&["a.rs", "-v"])
-    );
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "--", "-h"])),
-        opening(&["-h"])
-    );
-    assert_eq!(Invocation::from_args(args(&["tc"])), opening(&[]));
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "src", "main.rs"])),
-        opening(&["src", "main.rs"])
-    );
-}
-
-#[test]
 fn the_version_and_help_texts_name_the_command_and_its_flags() {
     let version = crate::version_text();
     assert_eq!(version, format!("trcode {}", env!("CARGO_PKG_VERSION")));
@@ -189,29 +134,97 @@ fn opening(paths: &[&str]) -> Invocation {
     }
 }
 
+fn parsed(list: &[&str]) -> Invocation {
+    Invocation::from_args(args(list)).unwrap()
+}
+
+fn refused(list: &[&str]) -> String {
+    Invocation::from_args(args(list)).unwrap_err().to_string()
+}
+
 #[test]
-fn recent_is_read_before_the_paths_and_before_help() {
+fn every_argument_after_the_program_name_is_a_path() {
+    assert_eq!(parsed(&["tc"]), opening(&[]));
+    assert_eq!(parsed(&["tc", "a.rs", "b.rs"]), opening(&["a.rs", "b.rs"]));
     assert_eq!(
-        Invocation::from_args(args(&["tc", "--recent"])),
+        parsed(&["tc", "src", "main.rs"]),
+        opening(&["src", "main.rs"])
+    );
+}
+
+#[test]
+fn help_and_version_are_asked_for_by_their_flags() {
+    for flag in ["-h", "--help"] {
+        assert_eq!(parsed(&["tc", flag]), Invocation::Help);
+    }
+    for flag in ["-v", "--version"] {
+        assert_eq!(parsed(&["tc", flag]), Invocation::Version);
+    }
+}
+
+#[test]
+fn help_and_version_must_be_the_last_argument() {
+    assert!(refused(&["tc", "--help", "a.rs"]).contains("after `--help`"));
+    assert!(refused(&["tc", "-v", "-r"]).contains("after `-v`"));
+    // Anything before them is of no matter.
+    assert_eq!(parsed(&["tc", "a.rs", "--version"]), Invocation::Version);
+    assert_eq!(parsed(&["tc", "--recent", "--help"]), Invocation::Help);
+}
+
+#[test]
+fn an_unknown_flag_is_refused_by_name() {
+    assert!(refused(&["tc", "--bogus"]).contains("unknown flag `--bogus`"));
+    assert!(refused(&["tc", "a.rs", "-x"]).contains("`-x`"));
+    assert!(refused(&["tc", "-"]).contains("unknown flag `-`"));
+}
+
+#[test]
+fn recent_may_stand_anywhere_before_a_double_dash() {
+    let recent = |paths: &[&str]| Invocation::Open {
+        paths: paths.iter().map(PathBuf::from).collect(),
+        recent: true,
+    };
+    assert_eq!(parsed(&["tc", "--recent"]), recent(&[]));
+    assert_eq!(parsed(&["tc", "-r"]), recent(&[]));
+    assert_eq!(parsed(&["tc", "--recent", "src"]), recent(&["src"]));
+    assert_eq!(
+        parsed(&["tc", "src", "-r", "a.rs"]),
+        recent(&["src", "a.rs"])
+    );
+}
+
+#[test]
+fn a_double_dash_makes_everything_after_it_a_path() {
+    assert_eq!(parsed(&["tc", "--", "-h"]), opening(&["-h"]));
+    assert_eq!(parsed(&["tc", "--"]), opening(&[]));
+    assert_eq!(
+        parsed(&["tc", "--", "--odd", "--", "-r"]),
+        opening(&["--odd", "--", "-r"])
+    );
+    // What came before it still counts.
+    assert_eq!(
+        parsed(&["tc", "-r", "--", "-r"]),
         Invocation::Open {
-            paths: Vec::new(),
+            paths: vec![PathBuf::from("-r")],
             recent: true
         }
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_path_that_is_not_text_is_still_a_path() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let odd = OsString::from_vec(vec![b'a', 0xff, b'.', b'r', b's']);
+    let args = [OsString::from("tc"), odd.clone()].into_iter();
+
     assert_eq!(
-        Invocation::from_args(args(&["tc", "--recent", "src"])),
+        Invocation::from_args(args).unwrap(),
         Invocation::Open {
-            paths: vec![PathBuf::from("src")],
-            recent: true
+            paths: vec![PathBuf::from(odd)],
+            recent: false
         }
-    );
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "--recent", "--help"])),
-        Invocation::Help
-    );
-    // After `--` or after a path it is a file name.
-    assert_eq!(
-        Invocation::from_args(args(&["tc", "a.rs", "--recent"])),
-        opening(&["a.rs", "--recent"])
     );
 }

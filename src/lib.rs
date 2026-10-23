@@ -123,16 +123,6 @@ pub fn recent_project() -> (Option<PathBuf>, Option<String>) {
     }
 }
 
-/// The files to open: every argument after the program name. A leading `--`
-/// marks the end of options and is skipped.
-pub fn paths_from_args(args: impl Iterator<Item = OsString>) -> Vec<PathBuf> {
-    let mut args = args.skip(1).peekable();
-    if args.peek().is_some_and(|first| first == "--") {
-        args.next();
-    }
-    args.map(PathBuf::from).collect()
-}
-
 /// Splits the command line into the project directory, if one is named (the
 /// first directory), and the files to open.
 fn project_and_files(paths: &[PathBuf]) -> (Option<PathBuf>, Vec<PathBuf>) {

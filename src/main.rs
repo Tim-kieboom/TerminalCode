@@ -16,7 +16,8 @@ fn main() -> ExitCode {
 
 fn start() -> IdeResult {
     // Help and version are answered before the terminal is touched.
-    let (paths, note) = match Invocation::from_args(std::env::args_os()) {
+    let args = std::env::args_os();
+    let (paths, note) = match Invocation::from_args(args)? {
         Invocation::Help => return print(help_text()),
         Invocation::Version => return print(version_text()),
         // A path named wins over `--recent`.
