@@ -289,7 +289,7 @@ used `anyhow` everywhere instead of typed errors.
 |---|---|---|
 | Linux | Tier 1 | tested in CI and daily |
 | Windows | Tier 1 | ConPTY, CRLF handling, Windows Terminal kitty support varies |
-| macOS | Best-effort | CI builds, no promises on behavior |
+| macOS | Best-effort | CI tests it on pull requests and release tags only, no promises on behavior |
 
 CI (GitHub Actions) builds and runs `cargo test` and `clippy` on Linux and Windows; release binaries
 per OS.

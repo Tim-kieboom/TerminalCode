@@ -347,6 +347,36 @@ fn the_find_tests_and_run_buttons_work_through_the_real_calls() {
 
 #[test]
 #[ignore = "needs the modules built"]
+fn find_tests_again_with_thousands_of_tests_known_does_not_run_the_pane_out_of_fuel() {
+    // The second time the tests are asked for, everything the first answer built is freed in one
+    // message: three thousand tests as three pieces of memory each was nearly twice the budget.
+    let mut real = with_scenario(r#"{"tests":3000}"#, 3_000);
+    let press = |real: &Real, button: &str| {
+        real.runtime.send(
+            "test-ui",
+            ToPlugin::Press {
+                button: button.to_owned(),
+            },
+        );
+    };
+
+    for _ in 0..3 {
+        press(&real, "find");
+        real.until("the list to start again", Duration::from_secs(30), |real| {
+            real.header().contains("tests 0/0") || real.header().contains("ok 0 FAIL 0")
+        });
+        real.wait_for_header("tests 3000/3000");
+    }
+
+    assert!(
+        real.restarts.is_empty(),
+        "a plugin ran out of fuel: {:?}",
+        real.restarts
+    );
+}
+
+#[test]
+#[ignore = "needs the modules built"]
 fn cancel_then_an_immediate_re_run_shows_only_the_second_runs_results() {
     // An adapter that keeps telling a run after it was cancelled.
     let mut real = with_scenario(r#"{"tests":10,"talks_after_cancel":true}"#, 10);
