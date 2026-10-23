@@ -52,7 +52,7 @@ jobs:
       # the build is the same and the running is halved.
       - name: Test
         timeout-minutes: 10
-        run: cargo nextest run --workspace --no-fail-fast --partition count:${{ matrix.os == 'windows-latest' && 2 || 1 }}/${{ matrix.part }}
+        run: cargo nextest run --workspace --no-fail-fast --partition count:${{ matrix.part }}/${{ matrix.os == 'windows-latest' && 2 || 1 }}
       # The Git pane is a plugin in a repository of its own: build its module and run
       # the tests that load it into the editor (they are ignored unless asked for).
       - name: Git plugin (WebAssembly)
