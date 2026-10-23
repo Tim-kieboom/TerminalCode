@@ -48,6 +48,10 @@ pub enum ToPlugin {
     /// The user clicked row `row` of the plugin's [`WireView::Rows`]: the index of
     /// the line in `lines`, as the plugin sent them.
     Click { row: usize },
+    /// The user right-clicked row `row` of the plugin's [`WireView::Rows`] (the index of the line
+    /// in `lines`, as for [`ToPlugin::Click`]). The plugin answers with [`FromPlugin::Menu`], the
+    /// items of the menu to show at the pointer, or with nothing for no menu. Plugin API 1.10.
+    ContextClick { row: usize },
     /// The size of the plugin's pane in cells, inside its frame: sent when the pane
     /// is on screen (and when its size changes), so that a plugin can wrap its text.
     /// A plugin that has not been told assumes 80 columns. Plugin API 1.5.
@@ -276,9 +280,38 @@ pub enum FromPlugin {
     /// [`ToPlugin::RunDone`] saying `cancelled`. A command that is not running is
     /// ignored. Plugin API 1.7.
     RunCancel { request: u64 },
+    /// The items of a menu to show at the pointer, as the answer to [`ToPlugin::ContextClick`]
+    /// (a menu nobody asked for is not shown). Each item is one of the plugin's actions (its
+    /// `id` in the manifest), shown with the title and the keys the manifest gives it, and
+    /// choosing it runs the action, so the plugin is told [`ToPlugin::Action`] as for a key. An
+    /// action the manifest does not have is left out, and so are the items past
+    /// [`crate::MAX_MENU_ITEMS`]. Plugin API 1.10.
+    Menu { items: Vec<WireMenuItem> },
     /// A kind of message a later version of the plugin API has.
     #[serde(other)]
     Unknown,
+}
+
+/// An item of a menu a plugin shows ([`FromPlugin::Menu`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum WireMenuItem {
+    /// One of the plugin's actions, by its `id` in the manifest.
+    Action { action: String },
+    /// A rule between groups of items.
+    Separator,
+    /// A kind of item a later version has.
+    #[serde(other)]
+    Unknown,
+}
+
+impl WireMenuItem {
+    pub fn action(action: impl Into<String>) -> Self {
+        Self::Action {
+            action: action.into(),
+        }
+    }
 }
 
 /// What a plugin's pane shows.

@@ -1,4 +1,5 @@
 mod calls;
+mod menu;
 mod runs;
 
 use std::sync::mpsc;

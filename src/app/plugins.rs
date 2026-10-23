@@ -8,11 +8,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::App;
+use crate::components::popups::menu::{Entry, Menu};
 use crate::event::Event;
 use crate::event::action::Action;
 use crate::git::ActionError;
 use crate::git::GitError;
-use crate::plugin_api::{ActionDecl, Refusal, ToPlugin};
+use crate::plugin_api::{ActionDecl, Refusal, ToPlugin, WireMenuItem};
 use crate::plugins::{Notice, Runtime, WriteOp};
 use crate::ui::view::{ViewNode, button_at, input_column_at, rows_scroll};
 use crate::ui::{ComponentKind, PluginViewId};
@@ -34,6 +35,8 @@ pub(super) struct Plugins {
     /// Plugins that asked to run commands in a folder that is not trusted, and whether the
     /// user was asked.
     pub(super) trust: super::plugin_trust::Ask,
+    /// The plugin that was right-clicked, and where: the menu it answers with is shown there.
+    pub(super) menu_for: Option<(Box<str>, ratatui::layout::Position)>,
 }
 
 /// A fetch, pull or push on its way.
@@ -84,6 +87,7 @@ impl App {
             Notice::Rejected { plugin, reason } => self
                 .state
                 .notify_error(format!("plugin {plugin} said something wrong: {reason}")),
+            Notice::Menu { plugin, items } => self.plugin_menu(&plugin, &items),
             Notice::NeedsTrust { plugin } => self.plugin_needs_trust(&plugin),
             Notice::GitWrite {
                 plugin,
@@ -483,6 +487,100 @@ impl App {
             self.send_to_plugin(view.as_str(), message);
         }
         true
+    }
+
+    /// A right click on a plugin's rows: the plugin is told which row, and answers with the
+    /// menu to show there. Returns whether the click was on rows of a plugin.
+    pub(super) fn right_click_in_plugin_pane(&mut self, column: u16, row: u16) -> bool {
+        let Some(view) = self.state.plugin_at(column, row) else {
+            return false;
+        };
+        let Some(clicked) = self.rows_row_at(&view, column, row) else {
+            return false;
+        };
+        let at = ratatui::layout::Position::new(column, row);
+        self.plugins.menu_for = Some((view.as_str().into(), at));
+        self.send_to_plugin(view.as_str(), ToPlugin::ContextClick { row: clicked });
+        true
+    }
+
+    /// The row of the plugin's rows that the cell is on, counted as in a click on it.
+    fn rows_row_at(&self, view: &PluginViewId, column: u16, row: u16) -> Option<usize> {
+        let content = self.state.plugin_view(view)?.content();
+        let body = self.state.plugin_body(view)?;
+        let at = ratatui::layout::Position::new(column, row);
+        let (area, part) = content
+            .leaves(body)
+            .into_iter()
+            .find(|(area, _)| area.contains(at))?;
+        let ViewNode::Rows { rows, selected } = part else {
+            return None;
+        };
+        let top = rows_scroll(*selected, rows.len(), usize::from(area.height));
+        let clicked = top + usize::from(row - area.y);
+        (clicked < rows.len()).then_some(clicked)
+    }
+
+    /// The menu a plugin answered a right click with, shown where the pointer was: each item is
+    /// an action of the plugin, with the title and keys its manifest gives, and the editor's
+    /// own menu does the rest. What nobody asked for, and actions the plugin does not have, are
+    /// left out.
+    fn plugin_menu(&mut self, plugin: &str, items: &[WireMenuItem]) {
+        let Some((asked, at)) = self.plugins.menu_for.clone() else {
+            return;
+        };
+        if &*asked != plugin {
+            return;
+        }
+        self.plugins.menu_for = None;
+        if !matches!(
+            self.state.popup(),
+            super::state::Popup::None | super::state::Popup::PluginView(_)
+        ) {
+            return;
+        }
+        let mut entries: Vec<Entry> = Vec::new();
+        for item in items {
+            match item {
+                WireMenuItem::Action { action } => {
+                    let Some(entry) = self.plugin_menu_entry(plugin, action) else {
+                        continue;
+                    };
+                    entries.push(entry);
+                }
+                WireMenuItem::Separator => {
+                    // A rule is between items: not first, not twice.
+                    if !matches!(entries.last(), None | Some(Entry::Separator)) {
+                        entries.push(Entry::Separator);
+                    }
+                }
+                _ => {}
+            }
+        }
+        while matches!(entries.last(), Some(Entry::Separator)) {
+            entries.pop();
+        }
+        if entries.is_empty() {
+            return;
+        }
+        self.state.open_menu(Menu::on_app(entries, at));
+        self.needs_redraw = true;
+    }
+
+    /// The item of a menu for the action `id` of the plugin, if its manifest has it.
+    fn plugin_menu_entry(&self, plugin: &str, id: &str) -> Option<Entry> {
+        let declared = self.plugins.actions.get(plugin)?;
+        let decl = declared.iter().find(|decl| decl.id == id)?;
+        let action = Action::Plugin(format!("{plugin}:{id}").into());
+        let label = match decl.title.is_empty() {
+            true => decl.id.clone(),
+            false => decl.title.clone(),
+        };
+        Some(Entry::Item {
+            label: label.into(),
+            keys: self.plugin_declared_keys(&action),
+            action,
+        })
     }
 
     /// Loads a plugin from its module and starts it, with the actions it declares.

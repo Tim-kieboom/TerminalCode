@@ -5,7 +5,8 @@
 
 use crate::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MAX_MESSAGE,
-    Manifest, MessageError, Refusal, RunStream, ToPlugin, WireButton, WireLine, WireSpan, WireView,
+    Manifest, MessageError, Refusal, RunStream, ToPlugin, WireButton, WireLine, WireMenuItem,
+    WireSpan, WireView,
 };
 
 // --- ABI 1.0, as written ---
@@ -1191,4 +1192,40 @@ fn a_manifest_has_a_pane_unless_it_says_it_has_none() {
 
     assert!(with.view, "every plugin before 1.8 has one");
     assert!(!without.view);
+}
+
+// --- plugin API 1.10: a menu on a right click ---
+
+#[test]
+fn the_messages_of_1_10_are_written_as_they_always_will_be() {
+    let click = ToPlugin::ContextClick { row: 4 };
+    assert_eq!(
+        click.to_bytes().unwrap(),
+        br#"{"type":"context_click","row":4}"#
+    );
+    let menu = FromPlugin::Menu {
+        items: vec![
+            WireMenuItem::action("open"),
+            WireMenuItem::Separator,
+            WireMenuItem::action("stage"),
+        ],
+    };
+    let text = r#"{"type":"menu","items":[{"type":"action","action":"open"},{"type":"separator"},{"type":"action","action":"stage"}]}"#;
+    assert_eq!(menu.to_bytes().unwrap(), text.as_bytes());
+    assert_eq!(FromPlugin::from_bytes(text.as_bytes()), Ok(menu));
+}
+
+#[test]
+fn a_kind_of_menu_item_a_later_version_has_reads_as_unknown() {
+    let menu = FromPlugin::from_bytes(
+        br#"{"type":"menu","items":[{"type":"submenu","title":"x"},{"type":"action","action":"a"}]}"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        menu,
+        FromPlugin::Menu {
+            items: vec![WireMenuItem::Unknown, WireMenuItem::action("a")],
+        }
+    );
 }

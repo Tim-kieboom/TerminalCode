@@ -46,6 +46,7 @@ mod plugin_git_tests;
 mod plugin_key_tests;
 mod plugin_manage_tests;
 mod plugin_manager_tests;
+mod plugin_menu_tests;
 mod plugin_place_tests;
 mod plugin_rows_tests;
 mod plugin_tests;

@@ -23,7 +23,9 @@ use super::runs::Runs;
 use super::view::node_of;
 use super::{CALLBACK_FUEL, FUEL_PER_BYTE, OWNED_FUEL_CEILING, Thread};
 use crate::git::Status;
-use crate::plugin_api::{Capability, FromPlugin, Refusal, RunPattern, RunStream, ToPlugin};
+use crate::plugin_api::{
+    Capability, FromPlugin, MAX_MENU_ITEMS, Refusal, RunPattern, RunStream, ToPlugin, WireMenuItem,
+};
 use crate::ui::view::ViewNode;
 
 /// A change to the repository a plugin asked for, which the app carries out.
@@ -53,6 +55,12 @@ pub(crate) enum Notice {
     Broken { plugin: Box<str>, reason: String },
     /// A plugin said something that was not understood (told once for each start).
     Rejected { plugin: Box<str>, reason: String },
+    /// A plugin answered a right click with the items of a menu: the app shows it where the
+    /// pointer was.
+    Menu {
+        plugin: Box<str>,
+        items: Vec<WireMenuItem>,
+    },
     /// A plugin asked to run a command in a folder the user does not trust (yet): the
     /// app asks the user, and tells the runtime ([`Runtime::set_workspace`]).
     NeedsTrust { plugin: Box<str> },
@@ -717,6 +725,10 @@ impl Host {
                 FromPlugin::SetView { view } => (self.notify)(Notice::View {
                     plugin: name.into(),
                     content: node_of(view),
+                }),
+                FromPlugin::Menu { items } => (self.notify)(Notice::Menu {
+                    plugin: name.into(),
+                    items: items.into_iter().take(MAX_MENU_ITEMS).collect(),
                 }),
                 // A message of a kind this version does not know (the plugin is
                 // newer than the editor) is ignored.
