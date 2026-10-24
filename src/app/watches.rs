@@ -46,8 +46,67 @@ impl App {
         }
         self.remember_watches();
         self.debug_watch_ask_now(expression);
-        self.state.show_debug();
+        // With a session the watches are in front; without one the value comes at a stop.
+        match self.debug_active() {
+            true => self.state.show_debug(),
+            false => self.state.notify(format!(
+                "watching {expression}: its value shows at the next stop"
+            )),
+        }
         self.needs_redraw = true;
+    }
+
+    /// Takes the watch `expression` away. Whether there was one.
+    fn unpin_watch(&mut self, expression: &str) -> bool {
+        let Some(index) = self
+            .state
+            .debug()
+            .watches
+            .rows()
+            .iter()
+            .position(|row| row.depth == 0 && row.name == expression)
+        else {
+            return false;
+        };
+        self.state.debug_mut().watches.remove_root(index);
+        self.remember_watches();
+        self.needs_redraw = true;
+        true
+    }
+
+    /// What the cursor is on, as a watch: the selection, or else the name.
+    fn watch_at_cursor(&self) -> Option<String> {
+        self.expression_at_cursor().map(|at| at.expression)
+    }
+
+    /// What the editor's menu offers for the cursor: to watch what it is on, or to stop
+    /// watching it. `None` where there is no name or selection to watch.
+    pub(super) fn watch_menu_label(&self) -> Option<&'static str> {
+        let expression = self.watch_at_cursor()?;
+        let watched = self
+            .state
+            .debug()
+            .watches
+            .roots()
+            .iter()
+            .any(|name| *name == expression);
+        Some(match watched {
+            true => "Remove from Watch",
+            false => "Add to Watch",
+        })
+    }
+
+    /// "Debug: Toggle Watch": watches the selection or the name at the cursor, or stops
+    /// watching it when it is watched already.
+    pub(super) fn toggle_watch_at_cursor(&mut self) {
+        let Some(expression) = self.watch_at_cursor() else {
+            self.state
+                .notify("no name or selection at the cursor to watch");
+            return;
+        };
+        if !self.unpin_watch(&expression) {
+            self.pin_watch(&expression);
+        }
     }
 
     /// `w` in the pane: the variable the selection is on becomes a watch.

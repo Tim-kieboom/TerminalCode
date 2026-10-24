@@ -161,7 +161,7 @@ impl App {
                 keys,
             }
         };
-        vec![
+        let mut entries = vec![
             item("Cut", Action::Cut),
             item("Copy", Action::Copy),
             item("Paste", Action::Paste),
@@ -170,7 +170,12 @@ impl App {
             Entry::Separator,
             item("Find in File", Action::FindInFile),
             item("Save", Action::Save),
-        ]
+        ];
+        // The name under the click can be watched (or, when it is, no longer).
+        if let Some(label) = self.watch_menu_label() {
+            entries.extend([Entry::Separator, item(label, Action::DebugToggleWatch)]);
+        }
+        entries
     }
 }
 

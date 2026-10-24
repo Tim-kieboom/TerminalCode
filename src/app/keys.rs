@@ -448,6 +448,7 @@ impl App {
             Action::DebugStepOut => self.debug_step_out(),
             Action::DebugStop => self.debug_stop(),
             Action::DebugRestart => self.debug_restart(),
+            Action::DebugToggleWatch => self.toggle_watch_at_cursor(),
             Action::ToggleBreakpoint => self.toggle_breakpoint(),
             Action::ClearBreakpoints => self.clear_breakpoints(),
             Action::NextTab => self.state.workspace_mut().next_tab(),

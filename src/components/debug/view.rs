@@ -335,7 +335,7 @@ impl DebugView {
         let rows = data.watches.rows();
         let lines: Vec<Line> = match rows.is_empty() {
             true => vec![Line::from(Span::styled(
-                fit("watches: w pins a variable", width),
+                fit("watches: right-click a name in the code", width),
                 theme.style("errors.empty"),
             ))],
             false => rows

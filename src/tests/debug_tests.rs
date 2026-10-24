@@ -126,6 +126,12 @@ pub(super) fn is_stopped(status: &Status) -> bool {
 /// What an adapter says to take a session from the start to the first stop on the breakpoint at
 /// line 2 of `main.rs` (from 1): asserts what the client sends, in the order it does.
 pub(super) fn until_the_first_stop(adapter: &mut Adapter, root: &str) {
+    until_the_stack(adapter, root);
+    scopes_and_variables(adapter);
+}
+
+/// The same up to the answer with the stack: what is asked next depends on the test.
+pub(super) fn until_the_stack(adapter: &mut Adapter, root: &str) {
     let arguments = adapter.answer_initialize(json!({ "supportsConfigurationDoneRequest": true }));
     assert_eq!(arguments["adapterID"], "lldb-dap");
     assert_eq!(arguments["supportsRunInTerminalRequest"], true);
@@ -174,6 +180,10 @@ pub(super) fn until_the_first_stop(adapter: &mut Adapter, root: &str) {
             { "id": 1001, "name": "start" },
         ] }),
     );
+}
+
+/// The scopes of the frame and the locals.
+fn scopes_and_variables(adapter: &mut Adapter) {
     let (scopes, arguments) = adapter.expect_request("scopes");
     assert_eq!(arguments["frameId"], 1000);
     adapter.respond(

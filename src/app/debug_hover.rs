@@ -12,6 +12,14 @@ use super::debug::evaluate::Ask;
 use crate::event::action::Action;
 use crate::keymap::KeyChord;
 
+/// What the cursor is on, as something to ask the debugger about.
+pub(super) struct AtCursor {
+    pub(super) expression: String,
+    pub(super) selection: bool,
+    pub(super) document: crate::ids::DocumentId,
+    pub(super) cursor: usize,
+}
+
 /// Rows one wheel notch scrolls.
 const WHEEL_ROWS: isize = 3;
 /// The longest expression that is sent to the adapter.
@@ -67,20 +75,13 @@ impl App {
         (fit && (selection || name)).then(|| expression.to_owned())
     }
 
-    /// `f6` while the program is stopped: asks for the selection, or the word, at the cursor, for
-    /// a box that stays. Whether it did.
-    pub(super) fn ask_debug_hover_at_cursor(&mut self) -> bool {
-        if !self.debug_can_evaluate() {
-            return false;
-        }
-        let Some(document) = self.state.workspace().active_document_id() else {
-            return false;
-        };
+    /// The selection (on one line) or else the word at the cursor, as an expression to ask the
+    /// debugger about, when there is one.
+    pub(super) fn expression_at_cursor(&self) -> Option<AtCursor> {
+        let document = self.state.workspace().active_document_id()?;
         let editor = self.state.editor();
         let head = editor.selections().primary().head();
-        let Ok(cursor) = editor.buffer().position_to_byte(head) else {
-            return false;
-        };
+        let cursor = editor.buffer().position_to_byte(head).ok()?;
         let text = editor.buffer().snapshot();
         let selected = {
             let selection = editor.selections().primary();
@@ -95,17 +96,29 @@ impl App {
         let (range, selection) = match selected {
             Some(range) => (range, true),
             None => {
-                let at = [Some(cursor), cursor.checked_sub(1)]
+                let word = [Some(cursor), cursor.checked_sub(1)]
                     .into_iter()
                     .flatten()
-                    .find_map(|byte| super::hover::word_around(&text, byte));
-                match at {
-                    Some(word) => (word, false),
-                    None => return false,
-                }
+                    .find_map(|byte| super::hover::word_around(&text, byte))?;
+                (word, false)
             }
         };
-        let Some(expression) = Self::debug_expression(&text, &range, selection) else {
+        let expression = Self::debug_expression(&text, &range, selection)?;
+        Some(AtCursor {
+            expression,
+            selection,
+            document,
+            cursor,
+        })
+    }
+
+    /// `f6` while the program is stopped: asks for the selection, or the word, at the cursor, for
+    /// a box that stays. Whether it did.
+    pub(super) fn ask_debug_hover_at_cursor(&mut self) -> bool {
+        if !self.debug_can_evaluate() {
+            return false;
+        }
+        let Some(at) = self.expression_at_cursor() else {
             return false;
         };
         let screen = self.state.screen();
@@ -116,10 +129,10 @@ impl App {
             .unwrap_or_else(|| Position::new(screen.width / 4, screen.height / 3));
         self.close_hover();
         self.debug_hover_ask(Ask {
-            expression,
-            selection,
-            document,
-            byte: cursor,
+            expression: at.expression,
+            selection: at.selection,
+            document: at.document,
+            byte: at.cursor,
             anchor,
             word: None,
             pinned: true,

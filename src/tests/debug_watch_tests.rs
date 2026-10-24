@@ -222,3 +222,128 @@ fn w_in_the_hover_box_pins_the_row_the_selection_is_on() {
     rig.wait_for("the watch", |rig| rig.watch_rows() == ["a = 1"]);
     assert!(rig.has_box(), "the box stays");
 }
+
+impl Rig {
+    fn mouse_at(&mut self, kind: crossterm::event::MouseEventKind, column: u16, row: u16) {
+        self.app.handle_input(crossterm::event::Event::Mouse(
+            crossterm::event::MouseEvent {
+                kind,
+                column,
+                row,
+                modifiers: KeyModifiers::NONE,
+            },
+        ));
+        self.draw();
+    }
+
+    /// A right click on the cell `offset` columns into `text`.
+    fn right_click_on(&mut self, text: &str, offset: usize) {
+        let row = self.row_of(text);
+        let column = u16::try_from(self.gutter_of(text).chars().count() + offset).unwrap();
+        self.mouse_at(
+            crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Right),
+            column,
+            row,
+        );
+    }
+
+    /// A left click on the menu item `label`.
+    fn click_item(&mut self, label: &str) {
+        let row = self.row_of(label);
+        let column = u16::try_from(self.gutter_of(label).chars().count() + 1).unwrap();
+        self.mouse_at(
+            crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left),
+            column,
+            row,
+        );
+    }
+}
+
+#[test]
+fn the_menu_of_the_editor_adds_the_name_under_the_click_as_a_watch_and_takes_it_away_again() {
+    let mut rig = stopped(|adapter, _| {
+        let (id, arguments) = adapter.expect_request("evaluate");
+        assert_eq!(arguments["expression"], "a");
+        adapter.respond(id, "evaluate", json!({ "result": "1" }));
+    });
+
+    rig.right_click_on("let a = 1", 4);
+    assert!(rig.screen().contains("Add to Watch"), "{}", rig.screen());
+    rig.click_item("Add to Watch");
+
+    rig.wait_for("the watch and its value", |rig| {
+        rig.watch_rows() == ["a = 1"]
+    });
+    assert!(rig.state_file().contains("\"watches\""));
+
+    rig.right_click_on("let a = 1", 4);
+    assert!(
+        rig.screen().contains("Remove from Watch"),
+        "{}",
+        rig.screen()
+    );
+    rig.click_item("Remove from Watch");
+
+    assert!(rig.watch_rows().is_empty());
+}
+
+#[test]
+fn a_name_is_watched_before_any_session_and_its_value_comes_at_the_stop() {
+    let mut rig = super::debug_tests::debugging(|adapter, root| {
+        super::debug_tests::until_the_stack(adapter, root);
+        // The scopes and the watch are asked for together.
+        let (scopes, _) = adapter.expect_request("scopes");
+        let (id, arguments) = adapter.expect_request("evaluate");
+        assert_eq!(arguments["expression"], "a");
+        adapter.respond(
+            scopes,
+            "scopes",
+            json!({ "scopes": [{ "name": "Locals", "variablesReference": 7 }] }),
+        );
+        adapter.respond(id, "evaluate", json!({ "result": "1" }));
+        let (variables, _) = adapter.expect_request("variables");
+        adapter.respond(variables, "variables", json!({ "variables": [] }));
+        while adapter.next().is_some() {}
+    });
+    rig.open_file("main.rs");
+    rig.draw();
+
+    rig.right_click_on("let a = 1", 4);
+    rig.click_item("Add to Watch");
+
+    assert_eq!(rig.watch_rows(), ["a = "]);
+    assert!(rig.said_has("watching a"), "{:?}", rig.said());
+    // The stop comes and the watch has its value.
+    rig.breakpoint_on(1);
+    rig.app.run_action(Action::Debug);
+    rig.wait_for("the value", |rig| rig.watch_rows() == ["a = 1"]);
+}
+
+#[test]
+fn the_menu_has_no_watch_where_there_is_no_name_under_the_click() {
+    let mut rig = super::debug_tests::debugging(|_, _| {});
+    rig.open_file("main.rs");
+    rig.draw();
+
+    // On the braces and spaces of `fn main() {`: after the last name on the line.
+    rig.right_click_on("fn main() {", 10);
+
+    let screen = rig.screen();
+    assert!(screen.contains("Select All"), "{screen}");
+    assert!(!screen.contains("Watch"), "{screen}");
+}
+
+#[test]
+fn the_palette_action_toggles_the_watch_of_the_name_at_the_cursor() {
+    let mut rig = super::debug_tests::debugging(|_, _| {});
+    rig.open_file("main.rs");
+    rig.app.state_mut().edit(|editor| {
+        editor.go_to(crate::buffer::Position::new(1, 9));
+    });
+
+    rig.app.run_action(Action::DebugToggleWatch);
+    assert_eq!(rig.app.state().debug().watches.roots(), ["a"]);
+
+    rig.app.run_action(Action::DebugToggleWatch);
+    assert!(rig.app.state().debug().watches.roots().is_empty());
+}
