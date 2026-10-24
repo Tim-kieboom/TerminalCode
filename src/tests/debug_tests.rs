@@ -237,11 +237,8 @@ fn debug_builds_starts_the_adapter_and_stops_on_a_breakpoint_with_the_stack_and_
     // The file of the stop is in front, with the cursor on the line.
     let cursor = rig.app.state().editor().selections().primary().head();
     assert_eq!(cursor.line, 1);
-    assert!(
-        rig.said_has("stopped (breakpoint) in app::main main.rs:2"),
-        "{:?}",
-        rig.said()
-    );
+    // A stop that is a breakpoint (or a step) is not announced: the arrow and the pane say it.
+    assert!(!rig.said_has("stopped ("), "{:?}", rig.said());
     // The Debug pane came to the front with the stack and the variables.
     rig.draw();
     let screen = rig.screen();

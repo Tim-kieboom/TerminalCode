@@ -657,12 +657,16 @@ impl App {
         }
     }
 
-    /// Says where the program stopped.
+    /// Says where the program stopped, unless it did what was asked: a step, or a breakpoint
+    /// (the arrow and the pane show those).
     fn debug_announce_stop(&mut self) {
         let data = self.state.debug();
         let Status::Stopped { reason, .. } = &data.status else {
             return;
         };
+        if matches!(reason.as_str(), "step" | "breakpoint") {
+            return;
+        }
         let place = data.frame().map(|frame| {
             let file = frame
                 .path
