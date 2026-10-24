@@ -1,4 +1,4 @@
-//! The main menu: the icon in the top row, `f10`, the groups and their items.
+//! The main menu: the icon in the top row, `ctrl+k m`, the groups and their items.
 
 use crossterm::event::{
     Event as InputEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -35,6 +35,15 @@ fn draw(app: &mut App) -> String {
 fn key(app: &mut App, code: KeyCode) {
     app.handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));
     draw(app);
+}
+
+/// `ctrl+k m`.
+fn open_with_the_chord(app: &mut App) {
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('k'),
+        KeyModifiers::CONTROL,
+    )));
+    key(app, KeyCode::Char('m'));
 }
 
 fn click(app: &mut App, column: u16, row: u16) {
@@ -92,10 +101,10 @@ fn a_click_on_the_icon_opens_the_menu_under_it_and_leaves_the_keyboard_alone() {
 }
 
 #[test]
-fn f10_and_the_palette_entry_open_it_too() {
+fn the_chord_and_the_palette_entry_open_it_too() {
     let mut app = app();
 
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     assert!(app.state().menu().is_some());
     key(&mut app, KeyCode::Esc);
     assert!(app.state().menu().is_none());
@@ -108,7 +117,7 @@ fn f10_and_the_palette_entry_open_it_too() {
 fn escape_closes_the_menu_and_the_keyboard_is_where_it_was() {
     let mut app = app();
     app.state_mut().set_focus(Focus::Explorer);
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
 
     key(&mut app, KeyCode::Esc);
 
@@ -119,7 +128,7 @@ fn escape_closes_the_menu_and_the_keyboard_is_where_it_was() {
 #[test]
 fn a_click_outside_closes_it() {
     let mut app = app();
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
 
     click(&mut app, 80, 20);
 
@@ -130,7 +139,7 @@ fn a_click_outside_closes_it() {
 fn right_opens_a_group_and_enter_runs_its_item() {
     let mut app = app();
     app.state_mut().set_focus(Focus::Explorer);
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     // View is the second group; its first item is Toggle Explorer.
     key(&mut app, KeyCode::Down);
     key(&mut app, KeyCode::Right);
@@ -146,7 +155,7 @@ fn right_opens_a_group_and_enter_runs_its_item() {
 #[test]
 fn a_click_on_a_group_and_then_on_its_item_runs_it() {
     let mut app = app();
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     // The menu hangs from row 0, so its first item (File) is on row 2.
     click(&mut app, 5, 2);
     assert!(app.state().menu().unwrap().submenu().is_some());
@@ -171,7 +180,7 @@ fn a_click_on_a_group_and_then_on_its_item_runs_it() {
 #[test]
 fn every_item_shows_the_key_the_palette_shows() {
     let mut app = app();
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     key(&mut app, KeyCode::Right);
 
     let menu = app.state().menu().unwrap();
@@ -196,7 +205,7 @@ fn the_toggle_hides_the_row_and_the_menu_then_opens_at_the_top_left() {
     let screen = draw(&mut app);
     assert!(!screen.lines().next().unwrap().contains('≡'));
 
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     let screen = draw(&mut app);
     assert!(app.state().menu().is_some());
     let second = screen.lines().nth(1).unwrap();
@@ -217,7 +226,7 @@ fn a_layout_without_the_menu_bar_loads_and_has_no_row() {
 
     assert!(!screen.lines().next().unwrap().contains('≡'));
     // The menu still opens from the key.
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     assert!(app.state().menu().is_some());
 }
 
@@ -264,7 +273,7 @@ fn toggling_the_menu_bar_of_a_layout_that_has_none_says_so_and_remembers_nothing
 fn the_view_menu_toggles_the_side_pane_and_shows_its_key() {
     let mut app = app();
     app.state_mut().set_focus(Focus::Explorer);
-    key(&mut app, KeyCode::F(10));
+    open_with_the_chord(&mut app);
     key(&mut app, KeyCode::Down);
     key(&mut app, KeyCode::Right);
     let screen = draw(&mut app);

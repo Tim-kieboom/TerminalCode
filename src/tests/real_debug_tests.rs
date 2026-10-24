@@ -102,6 +102,21 @@ fn the_editor_debugs_a_real_cargo_project_with_the_real_lldb_dap() {
         rig.screen()
     );
 
+    // A restart ends the session and stops at the same breakpoint again.
+    rig.app.run_action(Action::DebugRestart);
+    rig.wait_for_status("the first session to end", |status| {
+        !matches!(status, Status::Stopped { .. })
+    });
+    rig.wait_for("the session to be started again", |rig| {
+        let data = rig.app.state().debug();
+        matches!(data.status, Status::Stopped { .. })
+            && data.tree.rows().iter().any(|row| row.name == "total")
+            && data
+                .frames
+                .first()
+                .is_some_and(|frame| frame.line == BREAKPOINT)
+    });
+
     // The breakpoint is in a loop of three: step, then go on until the program ends.
     rig.app.run_action(Action::DebugStepOver);
     rig.wait_for_status(

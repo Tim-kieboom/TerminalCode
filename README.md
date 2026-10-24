@@ -84,7 +84,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `f9` | Set a breakpoint on the line of the cursor or take it away (a click on the last column of the gutter does the same); they are remembered for the project |
 | `ctrl+k r` | Choose which binary, example or command `f5` runs (and run it); it is remembered for the project and shown in the status bar |
 | `ctrl+k g` | Debug: build and start the active binary or example under `lldb-dap` (or the adapter named by `TRCODE_DEBUG_ADAPTER`), stopping at the breakpoints; `f5` goes on while a session runs |
-| `f10`, `f11`, `shift+f11`, `shift+f5` | Debug, as in VS Code: step over, step into, step out, stop (`f10` opens the main menu while no program is stopped) |
+| `f10`, `f11`, `shift+f11`, `shift+f5`, `ctrl+shift+f5` | Debug, as in VS Code: step over, step into, step out, stop, restart |
 | `ctrl+k n`, `ctrl+k i`, `ctrl+k u`, `ctrl+k x` | Debug: step over, step into, step out, stop |
 | `ctrl+k v` | Show or hide the Debug pane (call stack and variables; in it: arrows, `enter`, `right` and `left` to open or close, `tab` between the two lists, `esc` to leave) |
 | `ctrl+z`, `ctrl+y` | Undo, redo |
@@ -95,7 +95,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+]`, `ctrl+[` | Move the whole line (every selected line, each cursor's line once) one level in or out, with the cursor staying on its text. Without the kitty keyboard protocol `ctrl+[` is the escape key, so there `ctrl+]` (also `alt+]`) indents and `alt+\` outdents |
 | arrows, `home`, `end`, `ctrl+home`, `ctrl+end` | Move; add `shift` to select |
 | `ctrl+o` | Open a file by its path (relative to the project, absolute, or from `~`); "File: Open Folder..." in the menu or the palette asks for a folder and starts the editor again in it (the open tabs are closed; unsaved ones are asked about first) |
-| `f10` | Open the main menu (the `≡` icon in the top row opens it too): File (new, open a file or a folder, open recent, save), View, Settings and Quit, each group opens a menu to its right with the keys its items have; `esc` closes it and the keyboard stays where it was |
+| `ctrl+k m` | Open the main menu (the `≡` icon in the top row opens it too): File (new, open a file or a folder, open recent, save), View, Settings and Quit, each group opens a menu to its right with the keys its items have; `esc` closes it and the keyboard stays where it was |
 | `ctrl+k d` | Show the list of problems the language servers report (errors first), in the bottom bar next to the terminal; `enter` or a click opens one (`ctrl+click` also goes to where the word there is defined), `esc` goes back to the editor |
 | `alt+up`, `alt+down` | Move the line (or the selected lines) up or down |
 | `ctrl+up`, `ctrl+down` | Move to the previous or next blank line (a line of only spaces counts as blank); add `shift` to select up to it |

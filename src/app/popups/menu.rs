@@ -250,7 +250,7 @@ impl App {
     }
 }
 
-/// The main menu: the icon in the top row, `f10` or the palette opens it.
+/// The main menu: the icon in the top row, `ctrl+k m` or the palette opens it.
 impl App {
     /// Opens the main menu under the icon, or at the top left when the top row is
     /// hidden. The keyboard stays where it was, and closing the menu leaves it there.

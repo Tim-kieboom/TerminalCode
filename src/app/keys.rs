@@ -370,8 +370,6 @@ impl App {
             Action::DebugPane(command) => self.debug_pane_command(command),
             Action::ShowDebug => self.toggle_debug_pane(),
             Action::ShowLspServer => self.show_lsp_server_of_file(),
-            // The key of the menu steps over while a debugged program is stopped (VS Code's F10).
-            Action::OpenMenu if self.debug_is_stopped() => self.debug_step_over(),
             Action::OpenMenu => self.open_main_menu(),
             Action::OpenFile => self.ask_for_file(),
             Action::OpenRecentFile(path) => self.open_recent_file(&path),
@@ -449,6 +447,7 @@ impl App {
             Action::DebugStepInto => self.debug_step_into(),
             Action::DebugStepOut => self.debug_step_out(),
             Action::DebugStop => self.debug_stop(),
+            Action::DebugRestart => self.debug_restart(),
             Action::ToggleBreakpoint => self.toggle_breakpoint(),
             Action::ClearBreakpoints => self.clear_breakpoints(),
             Action::NextTab => self.state.workspace_mut().next_tab(),

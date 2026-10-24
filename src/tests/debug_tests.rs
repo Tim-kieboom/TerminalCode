@@ -668,3 +668,76 @@ fn the_keys_of_vs_code_step_over_into_and_out() {
 fn shift_f5_ends_the_session() {
     key_asks_the_adapter_for(KeyCode::F(5), KeyModifiers::SHIFT, "disconnect");
 }
+
+#[test]
+fn restart_ends_the_session_and_starts_another_that_stops_at_the_same_breakpoint() {
+    let scripts: Arc<Mutex<Vec<Box<dyn FnOnce(&mut Adapter) + Send>>>> =
+        Arc::new(Mutex::new(Vec::new()));
+    let started = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut rig = debugging(|_, _| {});
+    let root = rig.root.display().to_string();
+    {
+        let mut scripts = scripts.lock().unwrap();
+        // Played from the end: the first session is the last one pushed.
+        let second_root = root.clone();
+        scripts.push(Box::new(move |adapter| {
+            until_the_first_stop(adapter, &second_root);
+            while adapter.next().is_some() {}
+        }));
+        scripts.push(Box::new(move |adapter| {
+            until_the_first_stop(adapter, &root);
+            let (bye, arguments) = adapter.expect_request("disconnect");
+            assert_eq!(arguments["terminateDebuggee"], true);
+            adapter.respond(bye, "disconnect", Value::Null);
+            while adapter.next().is_some() {}
+        }));
+    }
+    let factory: AdapterFactory = {
+        let (scripts, started) = (Arc::clone(&scripts), Arc::clone(&started));
+        Arc::new(move |wake| {
+            started.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            let script = scripts
+                .lock()
+                .unwrap()
+                .pop()
+                .expect("a script for the session");
+            let (client, fake) = fake_adapter_waking(wake, script);
+            std::mem::forget(fake);
+            Ok(client)
+        })
+    };
+    rig.app = std::mem::replace(
+        &mut rig.app,
+        crate::app::App::new(crate::app::state::AppState::default()),
+    )
+    .with_debug_adapter(factory);
+    rig.open_file("main.rs");
+    rig.breakpoint_on(1);
+    rig.app.run_action(Action::Debug);
+    rig.wait_for("the first stop and its variables", |rig| {
+        is_stopped(&rig.app.state().debug().status)
+            && rig.app.state().debug().tree.rows().len() == 3
+    });
+
+    rig.app.run_action(Action::DebugRestart);
+
+    rig.wait_for("the second session at the breakpoint", |rig| {
+        started.load(std::sync::atomic::Ordering::SeqCst) == 2
+            && is_stopped(&rig.app.state().debug().status)
+            && rig.app.state().debug().tree.rows().len() == 3
+    });
+}
+
+#[test]
+fn restart_with_no_session_starts_one() {
+    let mut rig = debugging(|adapter, root| {
+        until_the_first_stop(adapter, root);
+        while adapter.next().is_some() {}
+    });
+    rig.open_file("main.rs");
+    rig.breakpoint_on(1);
+
+    rig.app.run_action(Action::DebugRestart);
+
+    rig.wait_for_status("a stop", is_stopped);
+}

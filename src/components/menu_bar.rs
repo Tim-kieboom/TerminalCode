@@ -1,5 +1,5 @@
 //! The row at the top of the screen with the menu icon: a click on the icon, or
-//! `f10`, opens the main menu. The row itself takes no keyboard.
+//! `ctrl+k m`, opens the main menu. The row itself takes no keyboard.
 
 use ratatui::Frame;
 use ratatui::layout::Rect;

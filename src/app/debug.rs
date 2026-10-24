@@ -46,6 +46,8 @@ pub(crate) type Adapter =
 pub(super) struct Debugging {
     session: Option<Active>,
     adapter: Option<Adapter>,
+    /// The session is being ended to start another one.
+    restart: bool,
 }
 
 impl std::fmt::Debug for Debugging {
@@ -133,11 +135,6 @@ struct Active {
 }
 
 impl App {
-    /// Whether a session is on and its program has stopped.
-    pub(super) fn debug_is_stopped(&self) -> bool {
-        self.debug_active() && matches!(self.state.debug().status, Status::Stopped { .. })
-    }
-
     /// Whether a debug session is going.
     pub(super) fn debug_active(&self) -> bool {
         self.debug.session.is_some()
@@ -894,6 +891,25 @@ impl App {
 
     /// Ends the session: the program is stopped with it.
     pub(super) fn debug_stop(&mut self) {
+        // A stop asked for while a restart goes on is a stop.
+        self.debug.restart = false;
+        self.stop_session();
+    }
+
+    /// Ends the session and starts it again when it is over (a start when none goes).
+    pub(super) fn debug_restart(&mut self) {
+        if !self.debug_active() {
+            self.debug_start();
+            return;
+        }
+        if self.debug.restart {
+            return;
+        }
+        self.debug.restart = true;
+        self.stop_session();
+    }
+
+    fn stop_session(&mut self) {
         let Some(mut active) = self.debug.session.take() else {
             self.state.notify("there is no debug session");
             return;
@@ -925,6 +941,9 @@ impl App {
         data.status = Status::Ended(message.to_owned());
         self.state.notify(message.to_owned());
         self.needs_redraw = true;
+        if std::mem::take(&mut self.debug.restart) {
+            self.debug_start();
+        }
     }
 
     /// Gives up on a request that was never answered.

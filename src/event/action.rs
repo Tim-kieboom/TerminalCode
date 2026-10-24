@@ -221,6 +221,8 @@ pub(crate) enum Action {
     DebugStepOut,
     /// Ends the debug session and the program with it.
     DebugStop,
+    /// Ends the debug session and starts it again (a debug start when none goes).
+    DebugRestart,
     /// Sets a breakpoint on the line of the cursor, or takes the one there away.
     ToggleBreakpoint,
     /// Takes away every breakpoint.
@@ -300,6 +302,7 @@ impl Action {
                 | Self::DebugStepInto
                 | Self::DebugStepOut
                 | Self::DebugStop
+                | Self::DebugRestart
                 | Self::OpenPluginPopup(_)
                 | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
@@ -437,6 +440,7 @@ impl Action {
             Self::DebugStepInto => "Debug: Step Into",
             Self::DebugStepOut => "Debug: Step Out",
             Self::DebugStop => "Debug: Stop",
+            Self::DebugRestart => "Debug: Restart",
             Self::ToggleBreakpoint => "Debug: Toggle Breakpoint",
             Self::ClearBreakpoints => "Debug: Remove All Breakpoints",
             Self::CloseOtherTabs => "Tab: Close Others",
@@ -581,6 +585,7 @@ impl Action {
             Self::DebugStepInto,
             Self::DebugStepOut,
             Self::DebugStop,
+            Self::DebugRestart,
             Self::ToggleBreakpoint,
             Self::ClearBreakpoints,
             Self::CloseOtherTabs,

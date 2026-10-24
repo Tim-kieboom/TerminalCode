@@ -71,7 +71,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 
 ## Run and debug
 Decided after a grill, see "Run configurations and a debugger" in `docs/design.md`; the run configurations (steps 1 to 3: `crates/launch`, the Run key, the picker) the debug adapter client (step 4: `crates/dap`) the breakpoints (step 5: `crates/breakpoints`, `F9`) and the debug session with its stop and pane (step 6) are built.
-- [ ] Debug, after step 6: watches, evaluate, hover and a console; a list of the breakpoints (palette or the Debug pane); restart; a menu entry; several threads (only the thread that stopped is shown)
+- [ ] Debug, after step 6: watches, evaluate, hover and a console; a list of the breakpoints (palette or the Debug pane); a menu entry; several threads (only the thread that stopped is shown)
 
 ## Vim
 - [ ] Vim layer (moved out of 0.1.0; the editor is IDE-style until then). Mode state machine (normal, insert, visual, visual-line), motions, operators, text objects, counts, registers, `.` repeat, `/` search with `n`/`N`, minimal ex commands (`:w :q :wq :e`), a `vim` setting, a mode indicator in the status bar, table-driven parser tests. Open design question to settle first: does the vim layer sit in front of the keymap and eat keys, or are the modes a keymap `Context`? Counts and operator + motion (`d3w`, `"ayy`) are a grammar, which the chord-sequence trie does not express.
