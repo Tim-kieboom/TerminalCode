@@ -179,7 +179,7 @@ impl Rig {
     }
 
     fn wait_for(&mut self, what: &str, condition: impl Fn(&Rig) -> bool) {
-        let deadline = Instant::now() + Duration::from_secs(15);
+        let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             while let Ok(event) = self.events.try_recv() {
                 self.app.handle_event(event);

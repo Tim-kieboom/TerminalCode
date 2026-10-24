@@ -71,8 +71,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
   - [ ] 7. Docs and tests: README section "Git", design notes (the `git` command line, why no library, what is polled and what is watched), a stand-in `git` on the PATH for tests that need failures (rejected push, auth prompt, timeout), and one `#[ignore]` test against a real repository; Windows is tested in CI only, so paths and line endings (`core.autocrlf`) get their own test
 
 ## Run and debug
-Decided after a grill, see "Run configurations and a debugger" in `docs/design.md`; the run configurations (steps 1 to 3: `crates/launch`, the Run key, the picker) are built, the debugger is not.
-- [ ] Debug, step 4: a DAP client (`Content-Length` framing, requests and answers, events, reverse requests) in a crate of its own, with a fake server for the tests and one ignored test against the real `lldb-dap` (Linux and macOS first)
+Decided after a grill, see "Run configurations and a debugger" in `docs/design.md`; the run configurations (steps 1 to 3: `crates/launch`, the Run key, the picker) and the debug adapter client (step 4: `crates/dap`) are built; breakpoints and the stop are not.
 - [ ] Debug, step 5: breakpoints: toggled in the gutter, kept as a document and a byte offset moved through edits with a few characters of their line, saved per project, hollow when the adapter says they cannot be hit, dimmed when the line text changed outside the editor; `setBreakpoints` per file when a file's breakpoints change
 - [ ] Debug, step 6: a stop: the arrow and the highlighted line, the controls with keys, the Debug pane in the bottom bar (call stack, a tree of variables of the chosen frame with children asked for when opened and long lists in pages), `runInTerminal` into the same tab as Run with the same question; not yet watches, evaluate, hover or a console
 

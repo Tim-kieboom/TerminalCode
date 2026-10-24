@@ -2696,6 +2696,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "trcode-dap"
+version = "0.9.5"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "trcode-files"
 version = "0.9.5"
 dependencies = [

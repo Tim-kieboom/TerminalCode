@@ -23,6 +23,7 @@ trcode-syntax = { path = "crates/syntax" }
 trcode-clipboard = { path = "crates/clipboard" }
 trcode-jumplist = { path = "crates/jumplist" }
 trcode-launch = { path = "crates/launch" }
+trcode-dap = { path = "crates/dap" }
 trcode-ui = { path = "crates/ui" }
 trcode-plugin-api = { path = "crates/plugin-api" }
 ron = "0.12.2"
