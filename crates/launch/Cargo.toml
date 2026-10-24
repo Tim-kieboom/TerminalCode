@@ -1,0 +1,16 @@
+[package]
+name = "trcode-launch"
+description = "The run configurations of TerminalCode: the runnable targets of a cargo project and the file that overrides them"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

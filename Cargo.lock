@@ -2718,6 +2718,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "trcode-launch"
+version = "0.9.5"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "toml",
+]
+
+[[package]]
 name = "trcode-lsp"
 version = "0.9.5"
 dependencies = [
