@@ -1,6 +1,7 @@
 //! The code actions a server offers at the cursor: a box in the upper middle of
 //! the screen with a row for each, numbered for the first nine. Up and down
-//! move, Enter or a number does it, Esc closes; a click on a row does it.
+//! move, Enter or a number does it, Esc closes; a click on a row does it. The picker of
+//! run configurations is the same box with another title.
 
 use std::cell::Cell;
 
@@ -68,6 +69,8 @@ pub(crate) struct Entry {
 #[derive(Debug)]
 pub(crate) struct ActionList {
     entries: Vec<Entry>,
+    /// What the box is called, when it is not "Code actions".
+    title: Option<String>,
     selected: usize,
     /// The first row shown.
     scroll: Cell<usize>,
@@ -79,10 +82,19 @@ impl ActionList {
     pub(crate) fn new(entries: Vec<Entry>) -> Self {
         Self {
             entries,
+            title: None,
             selected: 0,
             scroll: Cell::new(0),
             area: Cell::new(Rect::default()),
         }
+    }
+
+    /// The box with another name, and the row `selected` selected.
+    pub(crate) fn titled(entries: Vec<Entry>, title: &str, selected: usize) -> Self {
+        let mut list = Self::new(entries);
+        list.title = Some(title.to_owned());
+        list.selected = selected.min(list.entries.len().saturating_sub(1));
+        list
     }
 
     #[cfg(test)]
@@ -183,7 +195,8 @@ impl ActionList {
         first = first.min(self.entries.len().saturating_sub(rows));
         self.scroll.set(first);
 
-        let title = format!(" Code actions ({}) ", self.entries.len());
+        let name = self.title.as_deref().unwrap_or("Code actions");
+        let title = format!(" {name} ({}) ", self.entries.len());
         let block = Block::new()
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)

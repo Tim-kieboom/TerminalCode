@@ -49,6 +49,7 @@ mod plugins;
 mod recent;
 mod rename;
 pub(crate) mod run;
+mod run_picker;
 #[cfg(test)]
 pub(crate) use formatting::whole_lines_for_tests;
 #[cfg(test)]
@@ -197,6 +198,7 @@ impl App {
         }
         // The file named on the command line is in front before any input.
         self.lsp_file_shown();
+        self.refresh_run_list();
         self.git_changed();
 
         loop {

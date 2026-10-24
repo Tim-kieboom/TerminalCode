@@ -67,6 +67,8 @@ enum Step {
     List,
     /// For the user's answer to "stop it and run it again?".
     Asking,
+    /// For the user's answer to "trust this folder?", asked because the file decides what runs.
+    Trusting,
     /// For the saves that format first.
     Formatting,
 }
@@ -84,15 +86,21 @@ struct Build {
 #[derive(Debug, Default)]
 pub(super) struct Runs {
     /// The configurations, once they were worked out.
-    list: Option<RunList>,
+    pub(super) list: Option<RunList>,
     loading: bool,
-    /// What the Run key starts; the first that can be run until another is chosen.
-    active: Option<ConfigId>,
+    /// What the user chose in this run of the editor (see `run_picker.rs`).
+    pub(super) active: Option<ConfigId>,
     waiting: Option<Waiting>,
     builds: HashMap<ConfigId, Build>,
     generation: u64,
     /// The program that is cargo; tests use a stand-in.
     cargo: Option<String>,
+    /// The files changed while the list was being worked out: it is worked out again.
+    stale: bool,
+    /// The picker was asked for while the list was being worked out: it opens when it is there.
+    pub(super) picker_wanted: bool,
+    /// The configurations of the rows of the picker that is open, in order.
+    pub(super) picker: Vec<ConfigId>,
 }
 
 impl App {
@@ -117,7 +125,7 @@ impl App {
             };
             let moved = match (waiting.step, waiting.config.clone()) {
                 (Step::List, _) => self.step_choose(),
-                (Step::Asking, _) => return,
+                (Step::Asking | Step::Trusting, _) => return,
                 (Step::Formatting, Some(id)) => self.step_after_saves(&id),
                 (Step::Formatting, None) => false,
             };
@@ -155,16 +163,67 @@ impl App {
         };
         let id = config.id().clone();
         let name = config.name().to_owned();
-        self.runs.active = Some(id.clone());
+        self.set_active_run(&id);
+        if config.from_file() && !self.folder_is_trusted() {
+            self.runs.waiting = Some(Waiting {
+                config: Some(id),
+                step: Step::Trusting,
+            });
+            self.open_run_trust_question(&name);
+            return false;
+        }
+        self.continue_after_trust(&id, &name)
+    }
+
+    /// Asks about a process that still runs in the tab, then saves.
+    fn continue_after_trust(&mut self, id: &ConfigId, name: &str) -> bool {
+        let id = id.clone();
         if self.state.terminal().run_is_running(id.as_str()) {
             self.runs.waiting = Some(Waiting {
                 config: Some(id.clone()),
                 step: Step::Asking,
             });
-            self.open_run_question(&name, &id);
+            self.open_run_question(name, &id);
             return false;
         }
         self.begin_saving(id)
+    }
+
+    /// Asks whether to trust the folder, because the file `.trcode/launch.toml` decides what
+    /// this runs.
+    fn open_run_trust_question(&mut self, name: &str) {
+        if !matches!(self.state.popup(), super::state::Popup::None) {
+            self.runs.waiting = None;
+            return;
+        }
+        let folder = self.project_root();
+        self.state
+            .open_confirm(Confirm::trust_to_run(&folder, name));
+        self.needs_redraw = true;
+    }
+
+    /// The folder was trusted: the run that waited for it goes on.
+    pub(super) fn run_trusted(&mut self) {
+        let waiting = self.runs.waiting.as_ref();
+        let Some(id) = waiting
+            .filter(|waiting| waiting.step == Step::Trusting)
+            .and_then(|waiting| waiting.config.clone())
+        else {
+            return;
+        };
+        let Some(name) = self
+            .runs
+            .list
+            .as_ref()
+            .and_then(|list| list.get(&id))
+            .map(|config| config.name().to_owned())
+        else {
+            self.runs.waiting = None;
+            return;
+        };
+        if self.continue_after_trust(&id, &name) {
+            self.advance_run();
+        }
     }
 
     /// Starts working out the list in a thread; its answer is [`Event::RunList`].
@@ -202,19 +261,39 @@ impl App {
         }
         self.runs.list = Some(list);
         self.runs.loading = false;
+        self.refresh_run_label();
+        if self.runs.stale {
+            // A file changed meanwhile: what was worked out may already be old.
+            self.runs.stale = false;
+            self.load_run_list();
+        }
+        if std::mem::take(&mut self.runs.picker_wanted) {
+            self.open_run_picker();
+        }
         self.advance_run();
+    }
+
+    /// Works the list out again (`Cargo.toml` or `.trcode/launch.toml` changed, or the editor
+    /// started).
+    pub(super) fn refresh_run_list(&mut self) {
+        match self.runs.loading {
+            true => self.runs.stale = true,
+            false => self.load_run_list(),
+        }
+    }
+
+    /// Whether a file that changed on disk is one the list is made of.
+    pub(super) fn is_run_input(&self, path: &std::path::Path) -> bool {
+        let name = path.file_name().and_then(|name| name.to_str());
+        name == Some("Cargo.toml") || path.ends_with(crate::launch::FILE)
     }
 
     /// The configuration to run: the active one, or the first that can be run. Says why when
     /// there is none.
     fn chosen_config(&mut self) -> Option<RunConfig> {
-        let list = self.runs.list.as_ref()?;
-        let active = self.runs.active.as_ref().and_then(|id| list.get(id));
-        let found = match active {
-            Some(config) => Some(config),
-            None => list.iter().find(|config| config.is_available()),
-        };
+        let found = self.effective_config().cloned();
         let Some(config) = found else {
+            let list = self.runs.list.as_ref()?;
             let why = match list.note() {
                 Some(note) => format!("nothing to run: {note}"),
                 None => "nothing to run: the project has no binary or example, and \
@@ -230,6 +309,14 @@ impl App {
             return None;
         }
         Some(config.clone())
+    }
+
+    /// What the Run key would start now: the active configuration (even when it cannot be
+    /// run), or the first that can be run. `None` while there is no list, or nothing in it.
+    pub(super) fn effective_config(&self) -> Option<&RunConfig> {
+        let list = self.runs.list.as_ref()?;
+        let active = self.active_run_id().and_then(|id| list.get(&id));
+        active.or_else(|| list.iter().find(|config| config.is_available()))
     }
 
     // --- the question ---
@@ -257,9 +344,16 @@ impl App {
         }
     }
 
-    /// The answer was no, or something else: the run is dropped.
+    /// The answer was no, or something else: the run that waited for it is dropped.
     pub(super) fn run_declined(&mut self) {
-        self.runs.waiting = None;
+        let asked = self
+            .runs
+            .waiting
+            .as_ref()
+            .is_some_and(|waiting| matches!(waiting.step, Step::Asking | Step::Trusting));
+        if asked {
+            self.runs.waiting = None;
+        }
     }
 
     // --- saving ---
@@ -515,10 +609,16 @@ impl App {
         self
     }
 
+    /// How many configurations the list has, once it is worked out, for tests.
+    #[cfg(test)]
+    pub(crate) fn run_list_len(&self) -> Option<usize> {
+        self.runs.list.as_ref().map(RunList::len)
+    }
+
     /// The configuration the Run key starts, for tests.
     #[cfg(test)]
-    pub(crate) fn active_run(&self) -> Option<&ConfigId> {
-        self.runs.active.as_ref()
+    pub(crate) fn active_run(&self) -> Option<ConfigId> {
+        self.active_run_id()
     }
 }
 

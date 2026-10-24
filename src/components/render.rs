@@ -70,7 +70,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         Popup::Menu(menu) => menu.render(frame, theme),
         Popup::Diagnostics(popup) => popup.render(frame, theme),
         Popup::Definitions(list) => list.render(frame, theme),
-        Popup::Actions(list) => list.render(frame, theme),
+        Popup::Actions(list) | Popup::RunPicker(list) => list.render(frame, theme),
         Popup::RootPassword(prompt) => prompt.render(frame, theme),
         Popup::PluginView(id) => draw_plugin_popup(frame, state, id, screen),
         Popup::PluginList(list) => list.render(frame, theme),

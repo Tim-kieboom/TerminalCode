@@ -60,6 +60,8 @@ pub struct RunConfig {
     env: BTreeMap<String, String>,
     cwd: Option<String>,
     release: bool,
+    /// Whether the file decides what runs: a command of it, or a target it changes.
+    from_file: bool,
 }
 
 impl RunConfig {
@@ -91,6 +93,13 @@ impl RunConfig {
     /// Whether the target is built with `--release`.
     pub fn release(&self) -> bool {
         self.release
+    }
+
+    /// Whether `.trcode/launch.toml` decides what this runs: it is a command of the file, or
+    /// a target the file changes. A project that is cloned can bring such a file, so what
+    /// runs because of it is run only in a folder the user trusts.
+    pub fn from_file(&self) -> bool {
+        self.from_file
     }
 
     /// The package it is grouped under; commands of the file have none.
@@ -125,6 +134,7 @@ impl RunConfig {
             env: BTreeMap::new(),
             cwd: None,
             release: false,
+            from_file: false,
         }
     }
 
@@ -137,12 +147,14 @@ impl RunConfig {
             env: BTreeMap::new(),
             cwd: None,
             release: false,
+            from_file: true,
         };
         config.apply(patch);
         config
     }
 
     fn apply(&mut self, patch: &Patch) {
+        self.from_file = true;
         if let Some(name) = &patch.name {
             self.name.clone_from(name);
         }
@@ -220,6 +232,7 @@ impl RunList {
                         env: env.clone(),
                         cwd: cwd.clone(),
                         release: false,
+                        from_file: true,
                     });
                 }
             }

@@ -83,12 +83,12 @@ impl App {
         self.remember_trusted(&key);
         self.publish_workspace_to_plugins();
         self.state
-            .notify("this folder is trusted: plugins may run commands in it");
+            .notify("this folder is trusted: plugins and Run may run commands in it");
     }
 }
 
 /// What a folder is remembered by: its whole path.
-fn trust_key(folder: &Path) -> String {
+pub(super) fn trust_key(folder: &Path) -> String {
     let whole: PathBuf = folder
         .canonicalize()
         .unwrap_or_else(|_| folder.to_path_buf());

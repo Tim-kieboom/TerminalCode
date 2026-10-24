@@ -22,6 +22,15 @@ impl AppState {
         self.formatting = formatting;
     }
 
+    /// The name of the run configuration the Run key starts, once it is known.
+    pub(crate) fn run_label(&self) -> Option<&str> {
+        self.run_label.as_deref()
+    }
+
+    pub(crate) fn set_run_label(&mut self, label: Option<String>) {
+        self.run_label = label;
+    }
+
     pub(crate) fn diagnostics(&self) -> &crate::lsp::Diagnostics {
         &self.lsp_diagnostics
     }

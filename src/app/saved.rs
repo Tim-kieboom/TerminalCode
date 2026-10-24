@@ -79,6 +79,18 @@ impl App {
         }
     }
 
+    /// The run configuration remembered for the project folder (a whole path).
+    pub(super) fn saved_active_run(&self, folder: &str) -> Option<String> {
+        self.saved.state.active_run(folder).map(str::to_owned)
+    }
+
+    /// Remembers the run configuration the Run key starts for the project folder.
+    pub(super) fn remember_active_run(&mut self, folder: &str, config: &str) {
+        if self.saved.state.set_active_run(folder, config) {
+            self.write_saved_state();
+        }
+    }
+
     /// Remembers whether the pane right of the editor is shown.
     pub(super) fn remember_side_shown(&mut self, shown: bool) {
         if self.saved.state.set_side_shown(shown) {

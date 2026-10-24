@@ -132,6 +132,9 @@ impl App {
         self.refresh_explorer_for(paths);
         self.git_changed();
         self.push_file_text();
+        if paths.iter().any(|path| self.is_run_input(path)) {
+            self.refresh_run_list();
+        }
         self.needs_redraw = true;
     }
 

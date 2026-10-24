@@ -248,3 +248,40 @@ fn an_empty_project_has_an_empty_list() {
     assert!(list.is_empty());
     assert_eq!(list.len(), 0);
 }
+
+#[test]
+fn what_the_file_decides_is_marked_and_a_plain_target_is_not() {
+    let list = list(
+        r#"
+[[run]]
+target = "app:bin:app"
+args = ["x"]
+
+[[run]]
+name = "Cmd"
+command = "ls"
+
+[[run]]
+target = "old:bin:old"
+"#,
+    );
+
+    assert!(
+        config(&list, "app:bin:app").from_file(),
+        "a target the file changes"
+    );
+    assert!(config(&list, "command:Cmd").from_file(), "a command");
+    assert!(config(&list, "old:bin:old").from_file());
+    assert!(
+        !config(&list, "tool:bin:tool").from_file(),
+        "a target as cargo found it"
+    );
+    assert!(!config(&list, "app:example:demo").from_file());
+}
+
+#[test]
+fn an_entry_that_names_only_a_target_still_counts_as_the_file_deciding() {
+    let list = list("[[run]]\ntarget = \"tool:bin:tool\"\n");
+
+    assert!(config(&list, "tool:bin:tool").from_file());
+}

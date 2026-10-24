@@ -19,6 +19,7 @@ use crate::app::state::{AppState, Focus, Popup};
 use crate::components::prepare_and_render;
 use crate::event::Event;
 use crate::event::action::Action;
+use crate::persist::saved_state::SavedState;
 
 /// What the stand-in cargo and the program do.
 struct Setup {
@@ -34,6 +35,8 @@ struct Setup {
     has_target: bool,
     /// The program that is cargo, when it is not the stand-in.
     cargo: Option<&'static str>,
+    /// Whether the user trusts the folder already.
+    trusted: bool,
 }
 
 impl Default for Setup {
@@ -46,6 +49,7 @@ impl Default for Setup {
             launch_file: None,
             has_target: true,
             cargo: None,
+            trusted: true,
         }
     }
 }
@@ -56,6 +60,8 @@ struct Rig {
     terminal: Terminal<TestBackend>,
     /// Keeps the project folder until the rig is dropped.
     _dir: tempfile::TempDir,
+    /// The folder `state.json` is written to.
+    config: tempfile::TempDir,
     root: PathBuf,
 }
 
@@ -116,23 +122,43 @@ fn rig(setup: Setup) -> Rig {
         fs::create_dir_all(root.join(".trcode")).unwrap();
         fs::write(root.join(".trcode/launch.toml"), text).unwrap();
     }
-    let mut state = AppState::default();
-    state.open_project(&root).unwrap();
-    let (tx, events) = mpsc::channel(1024);
-    let app = App::new(state).with_events(tx).with_cargo(
-        setup
-            .cargo
-            .unwrap_or(root.join("cargo.sh").to_str().unwrap()),
-    );
+    let config = tempfile::tempdir().unwrap();
+    let mut saved = SavedState::default();
+    if setup.trusted {
+        saved.trust(&root.to_string_lossy());
+    }
+    let stand_in = root.join("cargo.sh");
+    let cargo = setup.cargo.unwrap_or(stand_in.to_str().unwrap());
+    let (app, events) = app_in(&root, &config, saved, cargo);
     let mut rig = Rig {
         app,
         events,
         terminal: Terminal::new(TestBackend::new(110, 30)).unwrap(),
         _dir: dir,
+        config,
         root,
     };
     rig.draw();
     rig
+}
+
+/// An app for the project at `root` that remembers in `config`, starting with what was
+/// `saved`.
+fn app_in(
+    root: &Path,
+    config: &tempfile::TempDir,
+    saved: SavedState,
+    cargo: &str,
+) -> (App, mpsc::Receiver<Event>) {
+    let mut state = AppState::default();
+    state.open_project(root).unwrap();
+    let (tx, events) = mpsc::channel(1024);
+    let app = App::new(state)
+        .with_events(tx)
+        .with_config_dir(Some(config.path().to_path_buf()))
+        .with_saved_state(saved)
+        .with_cargo(cargo);
+    (app, events)
 }
 
 impl Rig {
@@ -556,6 +582,7 @@ fn the_real_cargo_builds_a_real_project_and_its_program_runs_in_the_tab() {
         events,
         terminal: Terminal::new(TestBackend::new(110, 30)).unwrap(),
         _dir: dir,
+        config: tempfile::tempdir().unwrap(),
         root,
     };
     rig.draw();
@@ -565,4 +592,316 @@ fn the_real_cargo_builds_a_real_project_and_its_program_runs_in_the_tab() {
     rig.wait_for_text("hello from hello-run with 1");
     rig.wait_for_text("[exited with code 0]");
     assert_eq!(rig.tabs(), 1);
+}
+
+// --- the picker, what is remembered, trust, and the list kept up to date ---
+
+const TWO_TARGETS_AND_A_COMMAND: &str =
+    "[[run]]\nname = \"Say hi\"\ncommand = \"echo\"\nargs = [\"hi from the command\"]\n";
+
+impl Rig {
+    fn choose(&mut self) {
+        self.app.run_action(Action::ChooseRun);
+    }
+
+    fn picker_rows(&self) -> Vec<String> {
+        self.app
+            .state()
+            .run_picker()
+            .map(|list| {
+                list.entries()
+                    .iter()
+                    .map(|entry| format!("{}|{}", entry.title, entry.kind))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn wait_for_picker(&mut self) {
+        self.wait_for("the picker", |rig| rig.app.state().run_picker().is_some());
+    }
+
+    fn saved_file(&self) -> String {
+        fs::read_to_string(self.config.path().join("state.json")).unwrap_or_default()
+    }
+}
+
+#[test]
+fn the_picker_lists_the_targets_the_commands_and_the_ones_that_are_gone() {
+    let mut rig = rig(Setup {
+        launch_file: Some(
+            "[[run]]\nname = \"Say hi\"\ncommand = \"echo\"\n[[run]]\ntarget = \"old:bin:old\"\n",
+        ),
+        ..Setup::default()
+    });
+
+    rig.choose();
+    rig.wait_for_picker();
+
+    assert_eq!(
+        rig.picker_rows(),
+        ["● app (bin)|app", "  Say hi|command", "  old (bin)|old"],
+        "the active one is marked"
+    );
+    rig.draw();
+    let screen = rig.screen();
+    assert!(screen.contains("Run configurations (3)"), "{screen}");
+    assert!(screen.contains("(disabled: target not found)"), "{screen}");
+}
+
+#[test]
+fn choosing_a_row_makes_it_the_active_one_runs_it_and_remembers_it_for_the_project() {
+    let mut rig = rig(Setup {
+        launch_file: Some(TWO_TARGETS_AND_A_COMMAND),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Enter);
+    rig.wait_for_text("hi from the command");
+
+    assert!(
+        rig.app.state().run_picker().is_none(),
+        "the picker is closed"
+    );
+    assert_eq!(rig.app.active_run().unwrap().to_string(), "command:Say hi");
+    assert!(
+        rig.saved_file().contains("command:Say hi"),
+        "{}",
+        rig.saved_file()
+    );
+    // The key now starts that one.
+    rig.run();
+    rig.wait_for_text("hi from the command");
+    assert_eq!(rig.tabs(), 1);
+}
+
+#[test]
+fn a_number_picks_that_row() {
+    let mut rig = rig(Setup {
+        launch_file: Some(TWO_TARGETS_AND_A_COMMAND),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+
+    rig.press(KeyCode::Char('2'));
+
+    rig.wait_for_text("hi from the command");
+}
+
+#[test]
+fn escape_closes_the_picker_and_changes_nothing() {
+    let mut rig = rig(Setup {
+        launch_file: Some(TWO_TARGETS_AND_A_COMMAND),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+    rig.press(KeyCode::Down);
+
+    rig.press(KeyCode::Esc);
+
+    assert!(rig.app.state().run_picker().is_none());
+    assert_eq!(rig.tabs(), 0);
+    assert!(
+        !rig.saved_file().contains("active_runs"),
+        "nothing is remembered: {}",
+        rig.saved_file()
+    );
+}
+
+#[test]
+fn a_row_whose_target_is_gone_says_so_and_the_picker_stays_open() {
+    let mut rig = rig(Setup {
+        launch_file: Some("[[run]]\ntarget = \"old:bin:old\"\n"),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+    rig.press(KeyCode::Down);
+
+    rig.press(KeyCode::Enter);
+
+    assert!(
+        rig.said_has("old (bin) cannot be run: target not found"),
+        "{:?}",
+        rig.said()
+    );
+    assert!(rig.app.state().run_picker().is_some());
+    assert_eq!(rig.tabs(), 0);
+}
+
+#[test]
+fn the_choice_is_what_the_next_start_of_the_editor_runs() {
+    let mut rig = rig(Setup {
+        launch_file: Some(TWO_TARGETS_AND_A_COMMAND),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+    rig.press(KeyCode::Char('2'));
+    rig.wait_for_text("hi from the command");
+    // The editor starts again: what is remembered is in state.json.
+    let saved = crate::persist::saved_state::load(Some(rig.config.path())).0;
+    let cargo = rig.root.join("cargo.sh").display().to_string();
+    let (app, events) = app_in(&rig.root, &rig.config, saved, &cargo);
+    rig.app = app;
+    rig.events = events;
+    rig.draw();
+
+    rig.run();
+
+    rig.wait_for_text("hi from the command");
+    assert_eq!(
+        rig.read("build-args.txt"),
+        "",
+        "the command, not the target, ran"
+    );
+}
+
+#[test]
+fn the_status_bar_names_the_active_configuration() {
+    let mut rig = rig(Setup::default());
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.join("Cargo.toml")]));
+
+    rig.wait_for_text("▶ app (bin)");
+
+    rig.app.state_mut().workspace_mut().new_file();
+    rig.draw();
+    assert!(
+        rig.screen().contains("▶ app (bin)"),
+        "also with a file open"
+    );
+}
+
+#[test]
+fn the_list_is_worked_out_again_when_the_launch_file_changes() {
+    let mut rig = rig(Setup::default());
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.join("Cargo.toml")]));
+    rig.wait_for_text("▶ app (bin)");
+    fs::create_dir_all(rig.root.join(".trcode")).unwrap();
+    let file = rig.root.join(".trcode/launch.toml");
+    fs::write(&file, TWO_TARGETS_AND_A_COMMAND).unwrap();
+
+    rig.app.handle_event(Event::FilesChanged(vec![file]));
+    rig.wait_for("the new list", |rig| rig.app.run_list_len() == Some(2));
+    rig.choose();
+
+    assert_eq!(rig.picker_rows().len(), 2, "{:?}", rig.picker_rows());
+}
+
+#[test]
+fn a_file_that_the_list_is_not_made_of_does_not_work_it_out_again() {
+    let mut rig = rig(Setup::default());
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.join("Cargo.toml")]));
+    rig.wait_for_text("▶ app (bin)");
+    // Out of date on purpose: if the list were worked out again it would see this.
+    fs::write(rig.root.join("metadata.json"), "{\"packages\": []}").unwrap();
+
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.join("a.txt")]));
+    rig.choose();
+    rig.wait_for_picker();
+
+    assert_eq!(rig.picker_rows().len(), 1, "the list was kept");
+}
+
+#[test]
+fn a_manifest_that_changed_gets_the_list_worked_out_again() {
+    let mut rig = rig(Setup::default());
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.join("Cargo.toml")]));
+    rig.wait_for_text("▶ app (bin)");
+    fs::write(rig.root.join("metadata.json"), "{\"packages\": []}").unwrap();
+
+    rig.app
+        .handle_event(Event::FilesChanged(vec![rig.root.join("Cargo.toml")]));
+
+    rig.wait_for("the list to be worked out again", |rig| {
+        !rig.screen().contains("▶ app (bin)")
+    });
+}
+
+#[test]
+fn a_command_of_a_folder_that_is_not_trusted_asks_first_and_no_runs_nothing() {
+    let mut rig = rig(Setup {
+        trusted: false,
+        launch_file: Some(TWO_TARGETS_AND_A_COMMAND),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+    rig.press(KeyCode::Char('2'));
+
+    assert!(matches!(rig.app.state().popup(), Popup::Confirm(_)));
+    let question = rig.app.state().confirm().unwrap().text();
+    assert!(question.contains("Say hi"), "{question}");
+    assert!(question.contains(".trcode/launch.toml"), "{question}");
+    rig.press(KeyCode::Char('n'));
+
+    assert_eq!(rig.tabs(), 0);
+    assert!(
+        !rig.saved_file().contains("trusted_folders"),
+        "{}",
+        rig.saved_file()
+    );
+}
+
+#[test]
+fn yes_trusts_the_folder_remembers_it_and_runs_what_waited() {
+    let mut rig = rig(Setup {
+        trusted: false,
+        launch_file: Some(TWO_TARGETS_AND_A_COMMAND),
+        ..Setup::default()
+    });
+    rig.choose();
+    rig.wait_for_picker();
+    rig.press(KeyCode::Char('2'));
+
+    rig.press(KeyCode::Char('y'));
+    rig.wait_for_text("hi from the command");
+
+    assert!(
+        rig.saved_file().contains("trusted_folders"),
+        "{}",
+        rig.saved_file()
+    );
+    // Asked once: the next run of a command goes on.
+    rig.run();
+    assert!(!matches!(rig.app.state().popup(), Popup::Confirm(_)));
+}
+
+#[test]
+fn a_target_as_cargo_found_it_runs_in_a_folder_that_is_not_trusted() {
+    let mut rig = rig(Setup {
+        trusted: false,
+        ..Setup::default()
+    });
+
+    rig.run();
+    rig.wait_for_text("hello from the program");
+
+    assert!(matches!(rig.app.state().popup(), Popup::None));
+}
+
+#[test]
+fn a_target_the_file_changes_asks_in_a_folder_that_is_not_trusted() {
+    let mut rig = rig(Setup {
+        trusted: false,
+        launch_file: Some("[[run]]\ntarget = \"app:bin:app\"\nenv = { LD_PRELOAD = \"x\" }\n"),
+        ..Setup::default()
+    });
+
+    rig.run();
+    rig.wait_for("the question", |rig| {
+        matches!(rig.app.state().popup(), Popup::Confirm(_))
+    });
+
+    assert_eq!(rig.read("build-args.txt"), "", "nothing was built yet");
 }

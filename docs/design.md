@@ -1044,7 +1044,7 @@ A plugin's rows can have a context menu like the editor's. A right click on a ro
 - **Not built:** a menu for other views than rows (buttons, a line to type into), disabled items shown dim, submenus, and the keyboard way in (`shift+f10` in a plugin's rows).
 - The Git pane uses it (version 0.3.0): a file offers Open File and Stage File or Unstage File, a heading Stage All or Unstage All, the branch Fetch, Pull and Push.
 
-## Run configurations and a debugger (decided after a grill; steps 1 and 2 built)
+## Run configurations and a debugger (decided after a grill; steps 1 to 3 built)
 
 Goal: run the program of the project from the editor, then debug it with breakpoints. Built in, not a plugin: a plugin cannot write to the stdin of a process, which a debug adapter needs, and the program needs a terminal.
 
@@ -1065,7 +1065,15 @@ Goal: run the program of the project from the editor, then debug it with breakpo
 - **The build** is `cargo build --message-format=json-render-diagnostics --color always --manifest-path <its Cargo.toml> --bin|--example NAME [--release] [--features ...]` (`launch::build_args`) run in the project folder by a thread that polls the child (so a build can be given up: the flag in `Build.cancel` kills it) and reads its standard output with an `ArtifactFinder` for the path of the executable. A build that is over is told with `Event::RunBuilt { id, generation, outcome }`; the generation makes the build of a run that was started again stale, and it is dropped.
 - **The program** is started directly (not through cargo, not through a shell) in the project folder, or the `cwd` of the configuration (relative to the project), with the arguments and variables of the configuration, and for a target the two variables `cargo run` sets that programs read when they run: `CARGO_MANIFEST_DIR` and `CARGO_PKG_NAME` (`launch::run_env`). A standalone command is started the same way, with no build.
 - **The end:** a program that ends has `[exited with code N]` written on its tab's screen and a notification; a failed build says it on the screen and in a notification. The tab stays, as an ended tab (its label says so), until it is closed or run again.
-- **Not yet:** a choice of the active configuration (step 3), the list refreshed when `Cargo.toml` or `.trcode/launch.toml` changes (step 3), `F5` in the explorer (there it refreshes the tree, as before).
+- **Not yet:** `F5` in the explorer (there it refreshes the tree, as before).
+
+### The picker and what is remembered (step 3)
+- **The picker** is "Run: Choose Configuration..." (`ctrl+k r`): the box of the code actions (`ActionList`, with a title of its own, as `Popup::RunPicker`) with a row for each configuration: the targets in the order of the list, the commands of the file, then the entries whose target is gone, dim with "(disabled: target not found)"; the second column is the package, or "command". The configuration the Run key would start has a `●` and is selected. `enter`, a number or a click picks a row: it becomes the active configuration, is remembered, and **runs at once** (choosing and not running is not offered); a row that cannot be run says why and leaves the picker open. `esc` or a click outside closes it.
+- **What the Run key starts** is the active configuration (`effective_config`): the one the user chose, here or in an earlier run of the editor (remembered per project folder, by its whole path, in `state.json` as `active_runs`, forgotten by "Config: Forget Hidden and Shown Panes" like the panes), or the first that can be run until one is chosen. One that was chosen and is gone is not replaced: Run says "cannot be run: target not found", so a renamed binary is noticed.
+- **The status bar** says `▶ name` for what the Run key starts, once the list is worked out (with a file open, and without).
+- **The list is kept up to date:** it is worked out when the editor starts, and again when a `Cargo.toml` or `.trcode/launch.toml` changes (the file watcher's batch is looked at, `App::is_run_input`); a change while the list is being worked out makes it be worked out once more when it is done. A run that waits for the list goes on with the new one.
+- **Trust (decided):** a configuration that the file decides (`RunConfig::from_file`: a command of the file, or a target the file changes, even with one field) runs only in a folder the user trusts: the first time, the question "Trust this folder?" is asked (the same question, and the same `trusted_folders` of `state.json`, as for plugins that run commands; its text says it is about `.trcode/launch.toml`), a yes goes on with the run, a no drops it. A target as cargo found it needs no trust: the user pressed Run on their own project, and what it does is what `cargo run` does; a file from a clone could change what runs, which is what the question is for.
+- **Not done:** a menu entry for Run; showing the configurations in the Debug pane later; a different key for the picker in terminals that cannot send `ctrl+k r` (the chord has no such problem).
 
 ### The debugger (after the run configurations)
 - **Adapter:** `lldb-dap` (LLVM), on Linux and macOS first. Windows is not in the first version. The adapter is an external program that must be installed; its absence is said with how to get it.
@@ -1073,12 +1081,12 @@ Goal: run the program of the project from the editor, then debug it with breakpo
 - **Breakpoints** are a document and a byte offset, moved through edits like the places of the jump list (`jumplist`), with a few characters of their line. They are saved per project in `state.json` and sent to the adapter per file (`setBreakpoints` replaces the whole list of a file) when a file's breakpoints change. After the file changed outside the editor, a breakpoint whose line text no longer matches is shown dimmed as "moved". One the adapter says cannot be hit (a comment, an empty line) is shown hollow, not refused.
 - **A stop:** an arrow in the gutter and a highlighted line; the controls (continue, step over, step into, step out, stop, restart) with keys; and a Debug pane in the bottom bar, next to the terminal tabs, with the call stack and a tree of the variables of the chosen frame (scopes, locals and fields, children asked for when a node is opened, long lists in pages). Not in the first version: watches, evaluating expressions, hover values, the debug console.
 - **Tests:** a fake DAP server in the crate, like the fake language servers; one ignored test against the real `lldb-dap`.
-- **Open:** whether a standalone command from a project's file needs the folder to be trusted first (as a plugin's commands do; it is the user who presses Run, but the file may come from a clone); what happens when the adapter dies in a session; threads when there are several.
+- **Open:** what happens when the adapter dies in a session; threads when there are several.
 
 ### Order of building
 1. `crates/launch` (`trcode-launch`): the targets from `cargo metadata` (`Targets`), the file (`LaunchFile`, with a `Problem` for each entry that is wrong), the merge into one list (`RunList`: the detected targets changed by the file, the commands of the file, then the entries whose target is gone); with tests, two of them against the real `cargo metadata`. **Built.** Not wired into the editor yet.
 2. The Run key: save all, the build step, the executable in the reused terminal tab, the question, the exit code. **Built** (`app/run.rs`, `F5`, "Run: Run"; see "How Run is built" below).
-3. The picker, the active configuration in `state.json`, the status bar.
+3. The picker, the active configuration in `state.json`, the status bar. **Built** (`app/run_picker.rs`; see "The picker and what is remembered" below).
 4. The DAP client (framing, requests, events) with a fake server.
 5. Breakpoints: the gutter, tracking, saving, `setBreakpoints`.
 6. A stop: the arrow, the controls, the Debug pane.

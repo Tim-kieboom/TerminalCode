@@ -31,14 +31,18 @@ impl Render<AppState> for StatusBar {
             } else {
                 ""
             };
+            let run = run_text(state);
             format!(
-                " {}  Ln {}, Col {}{branch}{server}{formatting} -- quit: Ctr+Q, commandPallet: f1",
+                " {}  Ln {}, Col {}{branch}{server}{run}{formatting} -- quit: Ctr+Q, commandPallet: f1",
                 editor.display_name(),
                 head.line + 1,
                 head.column + 1
             )
         } else {
-            " no open files -- new file: Ctrl+N, quit: Ctrl+Q".to_owned()
+            format!(
+                " no open files{} -- new file: Ctrl+N, quit: Ctrl+Q",
+                run_text(state)
+            )
         };
 
         let theme = state.theme();
@@ -50,4 +54,12 @@ impl Render<AppState> for StatusBar {
         let style = theme.style("status.bar");
         frame.render_widget(Paragraph::new(Line::from(text)).style(style), inner);
     }
+}
+
+/// The active run configuration, for the status bar: `  ▶ app (bin)`.
+fn run_text(state: &AppState) -> String {
+    state
+        .run_label()
+        .map(|name| format!("  ▶ {name}"))
+        .unwrap_or_default()
 }

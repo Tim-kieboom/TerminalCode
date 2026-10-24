@@ -75,7 +75,7 @@ impl App {
                     self.show_plugin_list(Some(id));
                 }
                 Purpose::UpdateAll => self.show_plugin_list(None),
-                Purpose::RunAgain(_) => self.run_declined(),
+                Purpose::RunAgain(_) | Purpose::TrustFolder => self.run_declined(),
                 _ => {}
             }
             self.ask_about_next_plugin();
@@ -91,7 +91,10 @@ impl App {
             Purpose::UpdatePlugin(id) => self.update_plugin(id),
             Purpose::UpdateAll => self.update_all_plugins(),
             Purpose::RemovePlugin(id) => self.remove_plugin(id),
-            Purpose::TrustFolder => self.trust_folder(),
+            Purpose::TrustFolder => {
+                self.trust_folder();
+                self.run_trusted();
+            }
             Purpose::RunAgain(id) => self.run_confirmed(id),
         }
         self.ask_about_next_plugin();

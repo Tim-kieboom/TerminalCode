@@ -143,6 +143,9 @@ pub(crate) struct SavedState {
     /// Whether the pane right of the editor was last shown or hidden, if it was ever changed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     side_shown: Option<bool>,
+    /// The run configuration the Run key starts, for each project folder (a whole path).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    active_runs: BTreeMap<String, String>,
 }
 
 impl SavedState {
@@ -174,7 +177,22 @@ impl SavedState {
             trusted_folders: BTreeSet::new(),
             side_percent: None,
             side_shown: None,
+            active_runs: BTreeMap::new(),
         }
+    }
+
+    /// The run configuration the user chose for the project folder, if they did.
+    pub(crate) fn active_run(&self, folder: &str) -> Option<&str> {
+        self.active_runs.get(folder).map(String::as_str)
+    }
+
+    /// Remembers the run configuration chosen for the project folder. Returns whether that
+    /// is news.
+    pub(crate) fn set_active_run(&mut self, folder: &str, config: &str) -> bool {
+        self.active_runs
+            .insert(folder.to_owned(), config.to_owned())
+            .as_deref()
+            != Some(config)
     }
 
     /// Whether the pane right of the editor was last shown (`true`) or hidden.

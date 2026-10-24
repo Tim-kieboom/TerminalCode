@@ -182,6 +182,37 @@ impl AppState {
         }
     }
 
+    /// Opens the picker of run configurations.
+    pub(crate) fn open_run_picker(&mut self, list: ActionList) {
+        self.popup = Popup::RunPicker(list);
+    }
+
+    pub(crate) fn run_picker_mut(&mut self) -> Option<&mut ActionList> {
+        match &mut self.popup {
+            Popup::RunPicker(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn run_picker(&self) -> Option<&ActionList> {
+        match &self.popup {
+            Popup::RunPicker(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// Closes the picker of run configurations.
+    pub(crate) fn take_run_picker(&mut self) -> Option<ActionList> {
+        if !matches!(self.popup, Popup::RunPicker(_)) {
+            return None;
+        }
+        match std::mem::take(&mut self.popup) {
+            Popup::RunPicker(list) => Some(list),
+            _ => None,
+        }
+    }
+
     /// Opens the box with the diagnostics of a line, closing any other popup.
     pub(crate) fn open_diagnostic_popup(&mut self, popup: DiagnosticPopup) {
         self.popup = Popup::Diagnostics(popup);

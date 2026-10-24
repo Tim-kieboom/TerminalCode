@@ -164,6 +164,25 @@ impl Confirm {
         }
     }
 
+    /// Asks whether to trust the project folder `folder` because the run configuration
+    /// `name` is decided by the file `.trcode/launch.toml`, which can come with a clone.
+    pub(crate) fn trust_to_run(folder: &Path, name: &str) -> Self {
+        Self {
+            title: " Trust this folder ".to_owned(),
+            lines: vec![
+                format!("Run {name}?"),
+                String::new(),
+                format!("What it runs is decided by {} of the project folder:", crate::launch::FILE),
+                format!("  {}", display(folder)),
+                "A project you cloned can bring a file that runs any command.".to_owned(),
+                String::new(),
+                "Only trust a folder whose code you would run yourself.".to_owned(),
+                "The answer is remembered for this folder, and lets plugins run commands in it too.".to_owned(),
+            ],
+            purpose: Purpose::TrustFolder,
+        }
+    }
+
     /// Asks whether to install the plugin `id` from an index that is not the official
     /// one: where it comes from, the address, and the hash it will be held to.
     pub(crate) fn install_from_source(

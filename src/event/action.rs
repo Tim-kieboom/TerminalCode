@@ -204,6 +204,9 @@ pub(crate) enum Action {
     SaveAll,
     /// Builds and starts the active run configuration in its terminal tab.
     Run,
+    /// Opens the picker of run configurations; the one chosen is run, and becomes the one
+    /// the Run key starts.
+    ChooseRun,
     NextTab,
     PreviousTab,
     SplitRight,
@@ -271,6 +274,7 @@ impl Action {
                 | Self::ShowPlugins
                 | Self::TrustFolder
                 | Self::Run
+                | Self::ChooseRun
                 | Self::OpenPluginPopup(_)
                 | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
@@ -399,6 +403,7 @@ impl Action {
             Self::Save => "File: Save",
             Self::SaveAll => "File: Save All",
             Self::Run => "Run: Run",
+            Self::ChooseRun => "Run: Choose Configuration...",
             Self::CloseOtherTabs => "Tab: Close Others",
             Self::CloseTabsToLeft => "Tab: Close to the Left",
             Self::CloseTabsToRight => "Tab: Close to the Right",
@@ -533,6 +538,7 @@ impl Action {
             Self::Save,
             Self::SaveAll,
             Self::Run,
+            Self::ChooseRun,
             Self::CloseOtherTabs,
             Self::CloseTabsToLeft,
             Self::CloseTabsToRight,
