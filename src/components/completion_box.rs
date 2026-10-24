@@ -98,10 +98,8 @@ impl CompletionBox {
 
     /// The rows of the box as text, for a box `width` columns wide inside its
     /// border: the kind letter, the name, and the note at the right edge. Only
-    /// the rows that show.
-    fn rows(&self, width: usize) -> Vec<(String, String, String)> {
-        let selected = self.completion.selected_index();
-        let first = self.first_row(selected);
+    /// the rows that show, from row `first`.
+    fn rows(&self, width: usize, first: usize) -> Vec<(String, String, String)> {
         self.completion
             .items()
             .enumerate()
@@ -180,11 +178,11 @@ impl CompletionBox {
         crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
 
-        let first = self.scroll.get().min(self.completion.len() - 1);
         let selected = self.completion.selected_index();
+        let first = self.first_row(selected);
         let item_style = Style::default();
         let lines: Vec<Line> = self
-            .rows(usize::from(inner.width))
+            .rows(usize::from(inner.width), first)
             .into_iter()
             .enumerate()
             .map(|(offset, (tag, name, note))| {
@@ -324,3 +322,6 @@ fn render_docs(
 
 /// The fewest rows the box with the documentation is drawn in: the border and two lines.
 const MIN_DOCS_ROWS: u16 = 4;
+
+#[cfg(test)]
+mod tests;

@@ -176,11 +176,27 @@ impl DebugHoverBox {
 
     pub(crate) fn select(&mut self, row: usize) {
         self.selected = row.min(self.tree.rows().len().saturating_sub(1));
+        self.keep_selected_in_view();
     }
 
     pub(crate) fn move_by(&mut self, rows: isize) {
         let last = self.tree.rows().len().saturating_sub(1);
         self.selected = self.selected.saturating_add_signed(rows).min(last);
+        self.keep_selected_in_view();
+    }
+
+    /// Scrolls just far enough that the selected row shows: what the box shows is what the
+    /// keys act on.
+    fn keep_selected_in_view(&mut self) {
+        let shown = match self.area.get().height {
+            0..=2 => MOST_LINES,
+            height => usize::from(height - 2),
+        };
+        if self.selected < self.scroll {
+            self.scroll = self.selected;
+        } else if self.selected >= self.scroll + shown {
+            self.scroll = self.selected + 1 - shown;
+        }
     }
 
     /// One page: what fits in the box, less a row.
@@ -334,3 +350,6 @@ impl DebugHoverBox {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
