@@ -66,7 +66,9 @@ impl Client {
     }
 
     /// Starts the adapter `program` with `args` and talks to it over its standard input and
-    /// output. What it writes to its standard error is dropped.
+    /// output. What it writes to its standard error is dropped, unless `TRCODE_DEBUG_LOG` names a
+    /// file: then that file gets everything sent and received (`>>` and `<<`) and the adapter's
+    /// standard error, to find out why an adapter does not do what it should.
     pub fn spawn(
         program: &str,
         args: &[String],
@@ -76,11 +78,22 @@ impl Client {
             program: program.to_owned(),
             source,
         };
+        let log = std::env::var_os("TRCODE_DEBUG_LOG").and_then(|path| {
+            std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .ok()
+        });
+        let stderr = log
+            .as_ref()
+            .and_then(|file| file.try_clone().ok())
+            .map_or_else(Stdio::null, Stdio::from);
         let mut child = Command::new(program)
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(stderr)
             .spawn()
             .map_err(spawn_error)?;
         let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
@@ -89,7 +102,14 @@ impl Client {
                 "no pipes to the adapter",
             )));
         };
-        let mut client = Self::new(stdout, stdin, wake);
+        let mut client = match log {
+            Some(file) => {
+                let reader = Tee::new(stdout, file.try_clone().ok(), "<<");
+                let writer = Tee::new(stdin, Some(file), ">>");
+                Self::new(reader, writer, wake)
+            }
+            None => Self::new(stdout, stdin, wake),
+        };
         client.process = Some(child);
         Ok(client)
     }
@@ -278,5 +298,45 @@ impl Drop for Client {
             let _ = child.kill();
             let _ = child.wait();
         }
+    }
+}
+
+/// A reader or writer that also copies what passes to a log file.
+struct Tee<T> {
+    inner: T,
+    log: Option<std::fs::File>,
+    mark: &'static str,
+}
+
+impl<T> Tee<T> {
+    fn new(inner: T, log: Option<std::fs::File>, mark: &'static str) -> Self {
+        Self { inner, log, mark }
+    }
+
+    fn note(&mut self, bytes: &[u8]) {
+        use std::io::Write as _;
+        if let Some(log) = &mut self.log {
+            let _ = writeln!(log, "{} {}", self.mark, String::from_utf8_lossy(bytes));
+        }
+    }
+}
+
+impl<T: Read> Read for Tee<T> {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let count = self.inner.read(buffer)?;
+        self.note(&buffer[..count]);
+        Ok(count)
+    }
+}
+
+impl<T: Write> Write for Tee<T> {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let count = self.inner.write(buffer)?;
+        self.note(&buffer[..count]);
+        Ok(count)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
     }
 }
