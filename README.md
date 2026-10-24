@@ -2,9 +2,16 @@
 
 A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatui](https://ratatui.rs).
 
-![TerminalCode editing its own source, with the explorer on the left and an integrated terminal below](screenshots/screenshot_1.jpg)
+![TerminalCode editing its own source, with the explorer on the left, a rust-analyzer hover popup and an integrated terminal below](screenshots/main_0_9_4.png)
 
 *The background picture comes from the terminal emulator, not from TerminalCode.*
+
+| | |
+|---|---|
+| ![The markdown viewer](screenshots/markdown_viewer_0_9_4.png) | ![The plugin manager](screenshots/plugin_manager_0_9_4.png) |
+| *The markdown viewer* | *The plugin manager* |
+| ![The test UI](screenshots/test_ui_0_9_4.png) | |
+| *The test UI* | |
 
 ## Status
 
