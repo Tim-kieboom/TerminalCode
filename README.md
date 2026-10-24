@@ -87,6 +87,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `f10`, `f11`, `shift+f11`, `shift+f5`, `ctrl+shift+f5` | Debug, as in VS Code: step over, step into, step out, stop, restart |
 | `ctrl+k n`, `ctrl+k i`, `ctrl+k u`, `ctrl+k x` | Debug: step over, step into, step out, stop |
 | `ctrl+k v` | Show or hide the Debug pane (call stack and variables; in it: arrows, `enter`, `right` and `left` to open or close, `tab` between the two lists, `esc` to leave) |
+| mouse pointer, `f6` | While a program is stopped: rest the pointer on a variable (or select an expression first) to see its value in a box; a struct or list opens like in the Debug pane. A click in the box or `f6` keeps it (then arrows, `right`, `left`, `enter`, `esc`); stepping updates it. `lldb-dap` reads variable paths on hover (no calls, no calculations) and says so when it refuses |
 | `ctrl+z`, `ctrl+y` | Undo, redo |
 | `ctrl+c`, `ctrl+x`, `ctrl+v` | Copy, cut, paste (also `ctrl+insert`, `shift+delete`, `shift+insert`) |
 | `ctrl+a` | Select all |

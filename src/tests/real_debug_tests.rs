@@ -102,6 +102,15 @@ fn the_editor_debugs_a_real_cargo_project_with_the_real_lldb_dap() {
         rig.screen()
     );
 
+    // The pointer on a variable shows its value, and the box shows the next one after a step.
+    rig.rest_on("total += i", 2);
+    rig.wait_for("the box of the debugger", |rig| rig.has_box());
+    assert_eq!(rig.box_rows(), ["total = 0"]);
+    rig.app.run_action(Action::DebugStepOver);
+    rig.wait_for("the box after the step", |rig| {
+        rig.box_rows() == ["total = 1"]
+    });
+
     // A restart ends the session and stops at the same breakpoint again.
     rig.app.run_action(Action::DebugRestart);
     rig.wait_for_status("the first session to end", |status| {

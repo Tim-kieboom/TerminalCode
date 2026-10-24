@@ -18,11 +18,11 @@ use super::App;
 use crate::breakpoints::Answer;
 use crate::components::debug::model::{Frame, Incoming, Read, Status};
 use crate::dap::{
-    Capabilities, Client, ContinueResponse, DapError, Event as DapEvent, InitializeArguments,
-    Nothing, PendingReply, ReverseRequest, RunInTerminalArguments, RunInTerminalResponse,
-    ScopesResponse, SetBreakpointsArguments, SetBreakpointsResponse, Source, SourceBreakpoint,
-    StackTraceArguments, StackTraceResponse, Stopped, ThreadsResponse, Update, VariablesArguments,
-    VariablesResponse,
+    Capabilities, Client, ContinueResponse, DapError, EvaluateResponse, Event as DapEvent,
+    InitializeArguments, Nothing, PendingReply, ReverseRequest, RunInTerminalArguments,
+    RunInTerminalResponse, ScopesResponse, SetBreakpointsArguments, SetBreakpointsResponse, Source,
+    SourceBreakpoint, StackTraceArguments, StackTraceResponse, Stopped, ThreadsResponse, Update,
+    VariablesArguments, VariablesResponse,
 };
 use crate::event::Event;
 use crate::launch::{ConfigId, RunConfig, What, run_env};
@@ -46,6 +46,8 @@ pub(crate) type Adapter =
 pub(super) struct Debugging {
     session: Option<Active>,
     adapter: Option<Adapter>,
+    /// The expression the hover box waits for the value of.
+    evaluating: evaluate::Evaluating,
     /// The session is being ended to start another one.
     restart: bool,
 }
@@ -57,6 +59,8 @@ impl std::fmt::Debug for Debugging {
             .finish_non_exhaustive()
     }
 }
+
+pub(super) mod evaluate;
 
 /// A request that was sent and is waiting for its answer.
 struct Waiting {
@@ -81,7 +85,13 @@ enum Kind {
     Variables {
         row: u64,
         start: i64,
+        /// For the box of the hover, not the pane.
+        hover: bool,
         reply: PendingReply<VariablesResponse>,
+    },
+    Evaluate {
+        ticket: u64,
+        reply: PendingReply<EvaluateResponse>,
     },
     Continue(PendingReply<ContinueResponse>),
     Step(&'static str, PendingReply<Nothing>),
@@ -107,6 +117,7 @@ impl Kind {
             Self::Stack(_) => "stackTrace",
             Self::Scopes { .. } => "scopes",
             Self::Variables { .. } => "variables",
+            Self::Evaluate { .. } => "evaluate",
             Self::Continue(_) => "continue",
             Self::Step(name, _) => name,
             Self::Disconnect(_) => "disconnect",
@@ -478,11 +489,28 @@ impl App {
                 Kind::Variables {
                     row,
                     start,
+                    hover,
                     mut reply,
                 } => match reply.try_take() {
-                    None => Kind::Variables { row, start, reply },
+                    None => Kind::Variables {
+                        row,
+                        start,
+                        hover,
+                        reply,
+                    },
+                    Some(result) if hover => {
+                        self.debug_hover_variables(active, row, start, result);
+                        continue;
+                    }
                     Some(result) => {
                         self.debug_variables(row, start, result);
+                        continue;
+                    }
+                },
+                Kind::Evaluate { ticket, mut reply } => match reply.try_take() {
+                    None => Kind::Evaluate { ticket, reply },
+                    Some(result) => {
+                        self.debug_evaluated(active, ticket, result);
                         continue;
                     }
                 },
@@ -655,6 +683,7 @@ impl App {
         if let Some(frame) = first {
             self.debug_ask_scopes(active, frame);
         }
+        self.debug_hover_refresh(active);
     }
 
     /// Says where the program stopped, unless it did what was asked: a step, or a breakpoint
@@ -763,6 +792,7 @@ impl App {
                 kind: Kind::Variables {
                     row: read.row,
                     start: read.page.map_or(0, |(start, _)| start),
+                    hover: false,
                     reply,
                 },
             }),
@@ -809,6 +839,7 @@ impl App {
         self.debug_reveal_frame(false);
         if let Some(mut active) = self.debug.session.take() {
             self.debug_ask_scopes(&mut active, frame);
+            self.debug_hover_refresh(&mut active);
             self.debug.session = Some(active);
         }
     }
@@ -940,6 +971,7 @@ impl App {
         active.feeder.finish(1);
         drop(active);
         self.state.breakpoints_mut().forget_sent();
+        self.close_debug_hover();
         let data = self.state.debug_mut();
         data.forget_stop();
         data.status = Status::Ended(message.to_owned());

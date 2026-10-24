@@ -402,3 +402,51 @@ fn a_request_of_the_adapter_that_is_not_known_is_refused_and_never_left_waiting(
     );
     fake.finish();
 }
+
+#[test]
+fn evaluate_asks_for_an_expression_in_a_frame_for_a_context_and_reads_the_children() {
+    let answer = answered(
+        "evaluate",
+        json!({ "result": "Vec<i32> @ 0x10", "type": "Vec<i32>", "variablesReference": 5,
+                "indexedVariables": 3 }),
+        |arguments| {
+            assert_eq!(arguments["expression"], "v");
+            assert_eq!(arguments["frameId"], 1000);
+            assert_eq!(arguments["context"], "hover");
+        },
+        |client| client.evaluate(&EvaluateArguments::hover("v", 1000)),
+    );
+
+    assert_eq!(answer.result, "Vec<i32> @ 0x10");
+    assert_eq!(answer.type_name.as_deref(), Some("Vec<i32>"));
+    assert_eq!(answer.variables_reference, 5);
+    assert_eq!(answer.indexed_variables, Some(3));
+}
+
+#[test]
+fn a_refused_evaluation_says_what_the_adapter_said() {
+    let (client, fake) = fake_adapter(|adapter| {
+        let (seq, _) = adapter.expect_request("evaluate");
+        adapter.refuse(
+            seq,
+            "evaluate",
+            "<user expression 0>:1:3: unrecognized token",
+            Value::Null,
+        );
+    });
+
+    let error = client
+        .evaluate(&EvaluateArguments::hover("x + y", 1))
+        .unwrap()
+        .wait(PATIENCE)
+        .unwrap_err();
+    fake.finish();
+
+    let DapError::Rejected { rejection, .. } = error else {
+        panic!("{error}");
+    };
+    assert_eq!(
+        rejection.describe(),
+        "<user expression 0>:1:3: unrecognized token"
+    );
+}

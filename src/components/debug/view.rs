@@ -351,7 +351,11 @@ fn hint(status: &Status) -> String {
 }
 
 /// One row of the variables: an arrow for what has children, the name, the value, the type.
-fn variable_line(theme: &crate::ui::theme::Theme, row: &VarRow, width: usize) -> Line<'static> {
+pub(super) fn variable_line(
+    theme: &crate::ui::theme::Theme,
+    row: &VarRow,
+    width: usize,
+) -> Line<'static> {
     let indent = "  ".repeat(row.depth);
     if let RowKind::More { .. } = row.kind {
         let text = fit(&format!("{indent}  {}", row.value), width);

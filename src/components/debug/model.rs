@@ -152,6 +152,70 @@ impl Tree {
         }
     }
 
+    /// Starts again with one row at the top: what an expression came to, opening to its
+    /// children when it has any.
+    pub(crate) fn set_root(&mut self, name: &str, root: Incoming) {
+        self.rows.clear();
+        let id = self.new_id();
+        self.rows.push(VarRow {
+            id,
+            depth: 0,
+            name: name.to_owned(),
+            value: root.value,
+            type_name: root.type_name,
+            reference: root.reference,
+            expanded: false,
+            loading: false,
+            kind: RowKind::Variable,
+            total: root.total,
+        });
+    }
+
+    /// The names from the top row down to the row at `index`: what names it when the rows are
+    /// read again.
+    pub(crate) fn path_of(&self, index: usize) -> Vec<String> {
+        let Some(row) = self.rows.get(index) else {
+            return Vec::new();
+        };
+        let mut depth = row.depth;
+        let mut path = vec![row.name.clone()];
+        for above in self.rows[..index].iter().rev() {
+            if above.depth < depth {
+                depth = above.depth;
+                path.push(above.name.clone());
+            }
+        }
+        path.reverse();
+        path
+    }
+
+    /// The paths of the rows that are open.
+    pub(crate) fn open_paths(&self) -> Vec<Vec<String>> {
+        (0..self.rows.len())
+            .filter(|&index| self.rows[index].expanded)
+            .map(|index| self.path_of(index))
+            .collect()
+    }
+
+    /// Opens the rows whose path is in `paths` (and takes them out of it), as many as there
+    /// are now: what has to be read for them. Called after each answer, it opens the rows that
+    /// were open before, level by level.
+    pub(crate) fn reopen(&mut self, paths: &mut Vec<Vec<String>>) -> Vec<Read> {
+        let mut reads = Vec::new();
+        let mut index = 0;
+        while index < self.rows.len() && !paths.is_empty() {
+            if !self.rows[index].expanded && self.rows[index].has_children() {
+                let path = self.path_of(index);
+                if let Some(found) = paths.iter().position(|wanted| *wanted == path) {
+                    paths.remove(found);
+                    reads.extend(self.toggle(index));
+                }
+            }
+            index += 1;
+        }
+        reads
+    }
+
     /// Opens (or, if it is open, closes) the row at `index`. What has to be read to open it.
     pub(crate) fn toggle(&mut self, index: usize) -> Option<Read> {
         let row = self.rows.get(index)?;

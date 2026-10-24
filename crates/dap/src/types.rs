@@ -392,6 +392,44 @@ pub struct VariablesResponse {
     pub variables: Vec<Variable>,
 }
 
+// --- evaluating ---
+
+/// What `evaluate` is asked: an expression in a frame, for a `context` (`hover` makes `lldb-dap`
+/// read variable paths only, with no calls and no operators, so no effect on the program).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluateArguments {
+    pub expression: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frame_id: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub context: Option<String>,
+}
+
+impl EvaluateArguments {
+    /// `expression` as the mouse pointer over it asks for it, in `frame_id`.
+    pub fn hover(expression: impl Into<String>, frame_id: i64) -> Self {
+        Self {
+            expression: expression.into(),
+            frame_id: Some(frame_id),
+            context: Some("hover".to_owned()),
+        }
+    }
+}
+
+/// What an expression came to; like a variable, it has children when `variables_reference` is
+/// not 0.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct EvaluateResponse {
+    pub result: String,
+    #[serde(rename = "type")]
+    pub type_name: Option<String>,
+    pub variables_reference: i64,
+    pub named_variables: Option<i64>,
+    pub indexed_variables: Option<i64>,
+}
+
 // --- running ---
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

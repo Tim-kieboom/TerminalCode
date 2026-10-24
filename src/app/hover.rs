@@ -11,6 +11,7 @@ use ratatui::layout::Position;
 use ropey::Rope;
 
 use super::App;
+use super::debug::evaluate::Ask;
 use super::state::Popup;
 use crate::components::hover_box::HoverBox;
 use crate::components::popups::diagnostic_popup::Entry;
@@ -53,6 +54,10 @@ struct Candidate {
     cell: Position,
     since: Instant,
     asked: bool,
+    /// What the debugger is asked, while the program is stopped; `selection` when it is the
+    /// selection that is hovered.
+    expression: Option<String>,
+    selection: bool,
 }
 
 struct Pending {
@@ -76,10 +81,15 @@ impl App {
     pub(super) fn hover_pointer_moved(&mut self, column: u16, row: u16) {
         // A box pinned with `f6` stays whatever the pointer does; one from the
         // pointer stays while the pointer is on the box, to be scrolled.
-        if let Some(shown) = self.state.hover_box() {
-            if shown.is_pinned() || shown.scroll().contains(column, row) {
-                return;
-            }
+        if let Some(shown) = self.state.hover_box()
+            && (shown.is_pinned() || shown.scroll().contains(column, row))
+        {
+            return;
+        }
+        if let Some(shown) = self.state.debug_hover()
+            && (shown.is_pinned() || shown.contains(column, row))
+        {
+            return;
         }
         let free = matches!(self.state.popup(), Popup::None)
             && self.state.completion_box().is_none()
@@ -91,8 +101,22 @@ impl App {
             self.clear_hover();
             return;
         };
+        // While the program is stopped, a selection under the pointer is what is asked about,
+        // else the word.
+        let asks_debugger = self.debug_can_evaluate();
+        let selected = asks_debugger
+            .then(|| self.selection_holding(document, byte))
+            .flatten();
+        let selection = selected.is_some();
         // A word, or a spot a diagnostic covers (a `;`, a bracket).
-        let word = word_around(&text, byte).or_else(|| self.problem_range_at(document, byte));
+        let word = selected
+            .clone()
+            .or_else(|| word_around(&text, byte))
+            .or_else(|| self.problem_range_at(document, byte));
+        let expression = word
+            .as_ref()
+            .filter(|_| asks_debugger)
+            .and_then(|range| Self::debug_expression(&text, range, selection));
         let Some(word) = word else {
             self.clear_hover();
             return;
@@ -114,6 +138,8 @@ impl App {
             cell: Position::new(column, row),
             since: Instant::now(),
             asked: false,
+            expression,
+            selection,
         });
     }
 
@@ -134,7 +160,45 @@ impl App {
         candidate.asked = true;
         let (document, byte, cell) = (candidate.document, candidate.byte, candidate.cell);
         let word = Some(candidate.word.clone());
+        // The debugger first, when the program is stopped: its answer, or its words about a
+        // selection, take the place of the language server's.
+        if let Some(expression) = candidate.expression.clone() {
+            let selection = candidate.selection;
+            let asked = self.debug_hover_ask(Ask {
+                expression,
+                selection,
+                document,
+                byte,
+                anchor: cell,
+                word: word.clone(),
+                pinned: false,
+            });
+            if asked {
+                return;
+            }
+        }
         self.ask_hover(document, byte, cell, word, false);
+    }
+
+    /// Whether the pointer still rests on `word` of `document`.
+    pub(super) fn hover_candidate_is(&self, document: DocumentId, word: &Range<usize>) -> bool {
+        self.lsp
+            .hovering
+            .candidate
+            .as_ref()
+            .is_some_and(|candidate| candidate.document == document && candidate.word == *word)
+    }
+
+    /// Asks the language server about the thing at `byte`, after the debugger had nothing to say.
+    pub(super) fn ask_hover_of_server(
+        &mut self,
+        document: DocumentId,
+        byte: usize,
+        anchor: Position,
+        word: Option<Range<usize>>,
+        pinned: bool,
+    ) {
+        self.ask_hover(document, byte, anchor, word, pinned);
     }
 
     /// The diagnostics whose range holds `byte`, worst first.
@@ -258,6 +322,15 @@ impl App {
     /// What the loop does before each frame: takes the box away when the text
     /// changed, another document is in front, or a popup is open.
     pub(crate) fn hover_step(&mut self) {
+        if let Some(shown) = self.state.debug_hover() {
+            let same = self.state.workspace().active_document_id() == Some(shown.document())
+                && self.state.workspace().document_version(shown.document())
+                    == Some(shown.version())
+                && matches!(self.state.popup(), Popup::None);
+            if !same {
+                self.close_debug_hover();
+            }
+        }
         let Some(shown) = self.state.hover_box() else {
             return;
         };
@@ -273,7 +346,8 @@ impl App {
     pub(super) fn close_hover(&mut self) -> bool {
         self.lsp.hovering.pending = None;
         self.lsp.hovering.candidate = None;
-        let had = self.state.hover_box().is_some();
+        let had_debug = self.close_debug_hover();
+        let had = self.state.hover_box().is_some() || had_debug;
         if had {
             self.state.set_hover_box(None);
             self.needs_redraw = true;
@@ -291,6 +365,10 @@ impl App {
     /// without one, asks about the word at the cursor and keeps the answer; on a
     /// box that is kept already it takes it away.
     pub(super) fn show_hover(&mut self) {
+        if self.pin_debug_hover() {
+            self.lsp.hovering.candidate = None;
+            return;
+        }
         if let Some(shown) = self.state.hover_box_mut() {
             // The key that pinned it also lets it go.
             if shown.is_pinned() {
@@ -307,6 +385,9 @@ impl App {
 
     /// Asks about the word at the cursor, for a box under the cursor that stays.
     fn ask_hover_at_cursor(&mut self) {
+        if self.ask_debug_hover_at_cursor() {
+            return;
+        }
         let Some(document) = self.state.workspace().active_document_id() else {
             return;
         };
@@ -363,7 +444,7 @@ fn is_word_char(c: char) -> bool {
 
 /// The bytes of the word that holds the character at `byte`; `None` when that
 /// character is not part of a word.
-fn word_around(text: &Rope, byte: usize) -> Option<Range<usize>> {
+pub(super) fn word_around(text: &Rope, byte: usize) -> Option<Range<usize>> {
     if byte >= text.len_bytes() {
         return None;
     }
@@ -408,6 +489,9 @@ impl App {
     pub(super) fn handle_hover_key(&mut self, key: crossterm::event::KeyEvent) -> bool {
         use crossterm::event::{KeyCode, KeyEventKind, KeyModifiers};
 
+        if self.state.debug_hover().is_some() {
+            return self.handle_debug_hover_key(key);
+        }
         let Some(shown) = self.state.hover_box() else {
             return false;
         };

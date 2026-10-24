@@ -204,6 +204,14 @@ impl Client {
         self.request("variables", arguments)
     }
 
+    /// What `arguments.expression` comes to in a frame of the program, which has stopped.
+    pub fn evaluate(
+        &self,
+        arguments: &EvaluateArguments,
+    ) -> Result<PendingReply<EvaluateResponse>, DapError> {
+        self.request("evaluate", arguments)
+    }
+
     /// Answers `runInTerminal`: the process that was started, or why it could not be.
     pub fn respond_run_in_terminal(
         &self,

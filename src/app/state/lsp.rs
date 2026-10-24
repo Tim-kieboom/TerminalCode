@@ -81,6 +81,23 @@ impl AppState {
         self.hover_box = hover_box;
     }
 
+    pub(crate) fn debug_hover(&self) -> Option<&crate::components::debug::DebugHoverBox> {
+        self.debug_hover.as_ref()
+    }
+
+    pub(crate) fn debug_hover_mut(
+        &mut self,
+    ) -> Option<&mut crate::components::debug::DebugHoverBox> {
+        self.debug_hover.as_mut()
+    }
+
+    pub(crate) fn set_debug_hover(
+        &mut self,
+        hover: Option<crate::components::debug::DebugHoverBox>,
+    ) {
+        self.debug_hover = hover;
+    }
+
     pub(crate) fn completion_box(&self) -> Option<&CompletionBox> {
         self.completion_box.as_ref()
     }

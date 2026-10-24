@@ -99,6 +99,11 @@ impl App {
             return;
         }
 
+        // A click or the wheel on the box of the debugger is for the box.
+        if self.handle_debug_hover_mouse(event) {
+            return;
+        }
+
         if matches!(event.kind, MouseEventKind::Down(_)) && self.state.dismiss_errors() {
             self.needs_redraw = true;
         }

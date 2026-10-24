@@ -93,6 +93,11 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     {
         hover.render(frame, state.theme());
     }
+    if matches!(state.popup(), Popup::None)
+        && let Some(hover) = state.debug_hover()
+    {
+        hover.render(frame, state.theme());
+    }
 }
 
 /// Fills the whole screen with the theme's background, if it has one, so that

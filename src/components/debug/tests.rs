@@ -237,3 +237,73 @@ fn the_end_of_a_stop_clears_what_it_showed() {
 
     assert!(data.frame().is_none() && data.tree.rows().is_empty());
 }
+
+/// An expression that came to a struct `p` (5) with a field `name` (6) holding more, and `age`.
+fn expression_tree() -> Tree {
+    let mut tree = Tree::default();
+    tree.set_root("p", var("", "P @ 0x10", 5));
+    let read = tree.toggle(0).unwrap();
+    tree.fill(
+        read.row,
+        0,
+        vec![var("name", "String", 6), var("age", "30", 0)],
+    );
+    let read = tree.toggle(1).unwrap();
+    tree.fill(read.row, 0, vec![var("len", "3", 0)]);
+    tree
+}
+
+#[test]
+fn an_expression_is_a_row_with_its_value_that_opens_to_its_children() {
+    let tree = expression_tree();
+
+    assert_eq!(names(&tree), ["p", "  name", "    len", "  age"]);
+    assert_eq!(tree.rows()[0].value, "P @ 0x10");
+}
+
+#[test]
+fn a_row_is_named_by_the_names_above_it() {
+    let tree = expression_tree();
+
+    assert_eq!(tree.path_of(2), ["p", "name", "len"]);
+    assert_eq!(tree.path_of(3), ["p", "age"]);
+    assert_eq!(tree.open_paths(), [vec!["p"], vec!["p", "name"]]);
+}
+
+#[test]
+fn rows_that_were_open_are_opened_again_level_by_level_as_the_answers_come() {
+    let mut paths = expression_tree().open_paths();
+    // The program went on and stopped: the same expression, new values and new references.
+    let mut tree = Tree::default();
+    tree.set_root("p", var("", "P @ 0x20", 15));
+
+    let reads = tree.reopen(&mut paths);
+    assert_eq!(reads.len(), 1, "only the top row is there to open");
+    tree.fill(
+        reads[0].row,
+        0,
+        vec![var("name", "String", 16), var("age", "31", 0)],
+    );
+    let reads = tree.reopen(&mut paths);
+    assert_eq!((reads.len(), reads[0].reference), (1, 16));
+    tree.fill(reads[0].row, 0, vec![var("len", "4", 0)]);
+
+    assert_eq!(names(&tree), ["p", "  name", "    len", "  age"]);
+    assert_eq!(tree.rows()[3].value, "31");
+    assert!(
+        tree.reopen(&mut paths).is_empty() && paths.is_empty(),
+        "nothing is left to open"
+    );
+}
+
+#[test]
+fn a_row_that_is_gone_is_left_closed_and_forgotten() {
+    let mut paths = vec![vec!["p".to_owned(), "gone".to_owned()]];
+    let mut tree = Tree::default();
+    tree.set_root("p", var("", "P", 5));
+    let read = tree.toggle(0).unwrap();
+    tree.fill(read.row, 0, vec![var("age", "1", 0)]);
+
+    assert!(tree.reopen(&mut paths).is_empty());
+    assert_eq!(names(&tree), ["p", "  age"]);
+}
