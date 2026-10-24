@@ -24,6 +24,9 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 /// Smallest line-number column, in digits.
+/// What stands in the gutter of the line the program is stopped on.
+const STOP_ARROW: &str = "▶";
+
 /// What stands in the gutter of a line with a breakpoint, and the color of it.
 fn breakpoint_mark(kind: crate::breakpoints::Kind) -> (&'static str, &'static str) {
     match kind {
@@ -70,6 +73,8 @@ pub(crate) struct Content<'a> {
     pub(crate) action_line: Option<usize>,
     /// The breakpoints of the document, which get a mark in the gutter.
     pub(crate) breakpoints: &'a [crate::breakpoints::Shown],
+    /// The line the program is stopped on (in the debugger): an arrow and a colored line.
+    pub(crate) stop_line: Option<usize>,
 }
 
 /// Draws the editor into `area` inside `pane_frame`.
@@ -90,6 +95,7 @@ pub(crate) fn draw(
         git,
         action_line,
         breakpoints,
+        stop_line,
     } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
@@ -105,6 +111,7 @@ pub(crate) fn draw(
         git,
         action_line,
         breakpoints,
+        stop_line,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
     for selection in view.selections().iter() {
@@ -167,6 +174,7 @@ struct Overlays<'a> {
     git: &'a crate::git::Lines,
     action_line: Option<usize>,
     breakpoints: &'a [crate::breakpoints::Shown],
+    stop_line: Option<usize>,
 }
 
 fn draw_lines(
@@ -184,6 +192,7 @@ fn draw_lines(
         git,
         action_line,
         breakpoints,
+        stop_line,
     } = *overlays;
     let scroll = view.scroll();
     let head_line = view.selections().primary().head().line;
@@ -225,6 +234,11 @@ fn draw_lines(
                 Span::styled(mark, theme.style(slot))
             }
             None => bar,
+        };
+        // The arrow of the debugger is before all: it is where the program is.
+        let bar = match stop_line == Some(line) {
+            true => Span::styled(STOP_ARROW, theme.style("debug.arrow")),
+            false => bar,
         };
         numbers.push(Line::from(vec![
             Span::styled(format!("{:>width$}", line + 1), number_style),
@@ -297,7 +311,11 @@ fn draw_lines(
                 }
             }
         }
-        texts.push(Line::from(spans));
+        let row = Line::from(spans);
+        texts.push(match stop_line == Some(line) {
+            true => row.style(theme.style("debug.stopped")),
+            false => row,
+        });
     }
 
     frame.render_widget(Paragraph::new(numbers), geometry.gutter);

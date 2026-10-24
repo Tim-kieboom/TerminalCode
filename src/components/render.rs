@@ -122,6 +122,14 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
             let body = placement.frame.inner(placement.area);
             state.errors_mut().prepare(placement.area, body, count);
         }
+        ComponentKind::Debug => {
+            let data = state.debug();
+            let (frames, variables) = (data.frames.len(), data.tree.rows().len());
+            let body = placement.frame.inner(placement.area);
+            state
+                .debug_view_mut()
+                .prepare(placement.area, body, frames, variables);
+        }
         ComponentKind::Plugin(id) => {
             let inner = placement.frame.inner(placement.area);
             state.set_plugin_area(id.clone(), placement.area, inner);
@@ -141,6 +149,7 @@ fn draw_component(frame: &mut Frame, state: &AppState, placement: &Placement) {
             let rows = state.error_rows();
             state.errors().render(frame, state, placement, &rows);
         }
+        ComponentKind::Debug => state.debug_view().render(frame, state, placement),
         _ => render_plain(frame, state, placement),
     }
 }

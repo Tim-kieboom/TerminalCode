@@ -15,11 +15,12 @@ use crate::event::action::Action;
 use crate::keymap::{Context, KeyChord, Lookup};
 
 /// The contexts looked in for a key that is taken.
-const ALL_CONTEXTS: [Context; 5] = [
+const ALL_CONTEXTS: [Context; 6] = [
     Context::Global,
     Context::Editor,
     Context::Explorer,
     Context::Errors,
+    Context::Debug,
     Context::Plugin,
 ];
 

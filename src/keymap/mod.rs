@@ -54,6 +54,8 @@ pub(crate) enum Context {
     Editor,
     Explorer,
     Errors,
+    /// While the Debug pane has the keyboard.
+    Debug,
     /// While a plugin's pane has the keyboard: the user's bindings for plugin
     /// actions and for keys in a plugin pane.
     Plugin,

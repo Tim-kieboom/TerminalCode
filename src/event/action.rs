@@ -1,5 +1,6 @@
 use serde::Deserialize;
 
+use crate::components::debug::DebugCommand;
 use crate::components::editor::Motion;
 use crate::components::errors::ErrorsCommand;
 use crate::components::explorer::ExplorerCommand;
@@ -130,6 +131,10 @@ pub(crate) enum Action {
     /// Shows the Errors view and gives it the keyboard; with the keyboard in it,
     /// hides it.
     ShowErrors,
+    /// Moves in the Debug pane, or opens what it is on.
+    DebugPane(DebugCommand),
+    /// Shows the Debug pane and gives it the keyboard; with the keyboard in it, hides it.
+    ShowDebug,
     /// Says which language server the file in front has, or why it has none.
     ShowLspServer,
     Save,
@@ -308,6 +313,8 @@ impl Action {
                 | Self::Explorer(_)
                 | Self::Errors(_)
                 | Self::ShowErrors
+                | Self::DebugPane(_)
+                | Self::ShowDebug
                 | Self::OpenMenu
                 | Self::OpenFile
                 | Self::OpenRecentFile(_)
@@ -470,6 +477,7 @@ impl Action {
             Self::DeleteWordForward => "Edit: Delete Word Forward",
             Self::SelectAll => "Selection: Select All",
             Self::ShowErrors => "View: Show Errors",
+            Self::ShowDebug => "View: Show Debug",
             Self::ShowLspServer => "LSP: Show Server of This File",
             Self::ClearRecent => "File: Clear Recent",
             Self::OpenFile => "File: Open File...",
@@ -485,7 +493,7 @@ impl Action {
             Self::CollapseCursors => "Cursor: Back to One Cursor",
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
-            Self::Explorer(_) | Self::Errors(_) => return None,
+            Self::Explorer(_) | Self::Errors(_) | Self::DebugPane(_) => return None,
             Self::OpenRecentFile(_) | Self::OpenRecentFolder(_) => return None,
             Self::TogglePluginView(_)
             | Self::FocusPluginView(_)
@@ -611,6 +619,7 @@ impl Action {
             Self::OpenMenu,
             Self::ToggleMenuBar,
             Self::ShowErrors,
+            Self::ShowDebug,
             Self::ShowLspServer,
             Self::NextBarView,
             Self::PreviousBarView,

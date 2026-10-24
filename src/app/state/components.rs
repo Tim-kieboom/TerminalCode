@@ -1,6 +1,7 @@
 //! The parts of the screen: which are shown, and access to each.
 
 use super::{AppState, PluginView};
+use crate::components::debug::DebugView;
 use crate::components::errors::{ErrorRow, ErrorsView};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::menu_bar::MenuBar;
@@ -34,6 +35,7 @@ impl AppState {
             }
             ComponentKind::Terminal => self.components.terminal.is_shown(),
             ComponentKind::Errors => self.components.errors.is_shown(),
+            ComponentKind::Debug => self.components.debug.is_shown(),
             ComponentKind::MenuBar => self.components.menu_bar.is_shown(),
             ComponentKind::Editor => true,
         }
@@ -116,6 +118,7 @@ impl AppState {
             ComponentKind::Terminal => self.components.terminal.set_shown(shown),
             ComponentKind::StatusBar => self.components.status_bar.set_shown(shown),
             ComponentKind::Errors => self.components.errors.set_shown(shown),
+            ComponentKind::Debug => self.components.debug.set_shown(shown),
             ComponentKind::MenuBar => self.components.menu_bar.set_shown(shown),
             ComponentKind::Editor | ComponentKind::Plugin(_) => {}
         }
@@ -155,6 +158,23 @@ impl AppState {
 
     pub(crate) fn errors_mut(&mut self) -> &mut ErrorsView {
         self.components.errors.node_mut()
+    }
+
+    pub(crate) fn debug_view(&self) -> &DebugView {
+        self.components.debug.node()
+    }
+
+    pub(crate) fn debug_view_mut(&mut self) -> &mut DebugView {
+        self.components.debug.node_mut()
+    }
+
+    pub(crate) fn show_debug(&mut self) {
+        self.select_view(&ComponentKind::Debug);
+        self.components.debug.show();
+    }
+
+    pub(crate) fn hide_debug(&mut self) {
+        self.components.debug.hide();
     }
 
     pub(crate) fn show_errors(&mut self) {

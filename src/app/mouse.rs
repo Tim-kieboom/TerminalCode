@@ -220,7 +220,7 @@ impl App {
             return;
         }
 
-        if self.handle_errors_mouse(event) {
+        if self.handle_errors_mouse(event) || self.handle_debug_mouse(event) {
             self.needs_redraw = true;
             return;
         }

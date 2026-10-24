@@ -83,6 +83,9 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `f5` | Run: save all, build the active binary or example (or a command of `.trcode/launch.toml`) and start it in its terminal tab; in the explorer `f5` refreshes the tree |
 | `f9` | Set a breakpoint on the line of the cursor or take it away (a click on the last column of the gutter does the same); they are remembered for the project |
 | `ctrl+k r` | Choose which binary, example or command `f5` runs (and run it); it is remembered for the project and shown in the status bar |
+| `ctrl+k g` | Debug: build and start the active binary or example under `lldb-dap` (or the adapter named by `TRCODE_DEBUG_ADAPTER`), stopping at the breakpoints; `f5` goes on while a session runs |
+| `ctrl+k n`, `ctrl+k i`, `ctrl+k u`, `ctrl+k x` | Debug: step over, step into, step out, stop |
+| `ctrl+k v` | Show or hide the Debug pane (call stack and variables; in it: arrows, `enter`, `right` and `left` to open or close, `tab` between the two lists, `esc` to leave) |
 | `ctrl+z`, `ctrl+y` | Undo, redo |
 | `ctrl+c`, `ctrl+x`, `ctrl+v` | Copy, cut, paste (also `ctrl+insert`, `shift+delete`, `shift+insert`) |
 | `ctrl+a` | Select all |

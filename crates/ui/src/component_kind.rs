@@ -19,6 +19,8 @@ pub enum ComponentKind {
     MenuBar,
     /// What the language servers say is wrong with the open documents.
     Errors,
+    /// The call stack and the variables of a program stopped in the debugger.
+    Debug,
     Plugin(PluginViewId),
 }
 impl ComponentKind {
@@ -30,7 +32,7 @@ impl ComponentKind {
             Self::Terminal => Some(BackgroundPane::Terminal),
             Self::StatusBar => Some(BackgroundPane::StatusBar),
             Self::MenuBar => Some(BackgroundPane::StatusBar),
-            Self::Errors => Some(BackgroundPane::Terminal),
+            Self::Errors | Self::Debug => Some(BackgroundPane::Terminal),
             Self::Plugin(_) => None,
         }
     }
@@ -43,6 +45,7 @@ impl ComponentKind {
             Self::StatusBar => "Status",
             Self::MenuBar => "Menu",
             Self::Errors => "Errors",
+            Self::Debug => "Debug",
             Self::Plugin(id) => id.as_str(),
         }
     }

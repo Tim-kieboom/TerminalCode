@@ -40,7 +40,10 @@ impl Shown {
             ComponentKind::Terminal => Some(&mut self.terminal),
             ComponentKind::StatusBar => Some(&mut self.status_bar),
             ComponentKind::MenuBar => Some(&mut self.menu_bar),
-            ComponentKind::Editor | ComponentKind::Errors | ComponentKind::Plugin(_) => None,
+            ComponentKind::Editor
+            | ComponentKind::Errors
+            | ComponentKind::Debug
+            | ComponentKind::Plugin(_) => None,
         }
     }
 }

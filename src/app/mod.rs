@@ -31,6 +31,7 @@ mod code_actions;
 mod completion;
 mod config_files;
 pub(crate) mod debug;
+mod debug_view;
 mod definition;
 mod diagnostics;
 mod dividers;

@@ -2,7 +2,7 @@
 # keys:    modifiers (ctrl, alt, shift, super) joined with "+", then a key: a single
 #          character, or a name such as enter, esc, tab, space, up, f5.
 #          Separate chords with spaces for a sequence: "ctrl+k ctrl+s".
-# context: "global" (default), "editor", "explorer", "errors" or "plugin" (while a plugin's pane has the keyboard;
+# context: "global" (default), "editor", "explorer", "errors", "debug" or "plugin" (while a plugin's pane has the keyboard;
 #          the keys a plugin declares work there too, yours win). Editor bindings win over global ones.
 # action:  see below. Leave it out in your own keymap to remove a default binding.
 # Actions: "quit", "command_palette", "find_file", "find_in_project", "next_search_result", "previous_search_result", "next_diagnostic", "previous_diagnostic", "show_diagnostics", "show_hover", "jump_back", "jump_forward", "go_to_definition", "rename_symbol", "code_actions", "format_document", "format_selection", "find_in_file", "find_next", "find_previous", "replace_in_file", "go_to_line", "save", "undo", "redo", "insert_newline", "delete_backward",
@@ -10,7 +10,7 @@
 #   "indent", "outdent", "indent_line", "outdent_line", "toggle_comment", "toggle_mouse", "new_file", "close_tab", "close_other_tabs", "close_tabs_to_left", "close_tabs_to_right", "toggle_pin_tab", "close_all_tabs", "reopen_closed_tab", "save_all", "run", "choose_run", "toggle_breakpoint", "clear_breakpoints", "debug", "debug_continue", "debug_step_over", "debug_step_into", "debug_step_out", "debug_stop", "next_tab", "previous_tab",
 #   "split_right", "split_down", "focus_next_pane", { focus_pane = "left"|"right"|"up"|"down" },
 #   "delete_forward", { insert_text = "..." }, { move = motion },
-#   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "context_menu", "toggle_explorer", "toggle_side_pane", "reset_pane_sizes", "side_pane_wider", "side_pane_narrower", "pane_grow", "pane_shrink", "toggle_status_bar", "toggle_terminal", "open_file", "open_folder", "open_menu", "toggle_menu_bar", "next_bar_view", "previous_bar_view", "show_errors", { errors = "up"|"down"|"page_up"|"page_down"|"first"|"last"|"open"|"leave" }, "terminal_new_tab", "terminal_copy", "terminal_next_tab", "terminal_previous_tab", "terminal_close_tab", "focus_editor", { focus_plugin_view = "plugin-name" }, { open_plugin_popup = "plugin-name" } (also written { open_plugin = "plugin-name" }: opens a plugin wherever it is placed, and gives it the keyboard), { plugin = "plugin-name:action-id" },
+#   { select = motion }, "focus_explorer", "delete_selected", "create_file", "create_folder", "rename", "move_entry", "context_menu", "toggle_explorer", "toggle_side_pane", "reset_pane_sizes", "side_pane_wider", "side_pane_narrower", "pane_grow", "pane_shrink", "toggle_status_bar", "toggle_terminal", "open_file", "open_folder", "open_menu", "toggle_menu_bar", "next_bar_view", "previous_bar_view", "show_errors", { errors = "up"|"down"|"page_up"|"page_down"|"first"|"last"|"open"|"leave" }, "show_debug", { debug_pane = "up"|"down"|"page_up"|"page_down"|"first"|"last"|"open"|"expand"|"collapse"|"switch"|"leave" }, "terminal_new_tab", "terminal_copy", "terminal_next_tab", "terminal_previous_tab", "terminal_close_tab", "focus_editor", { focus_plugin_view = "plugin-name" }, { open_plugin_popup = "plugin-name" } (also written { open_plugin = "plugin-name" }: opens a plugin wherever it is placed, and gives it the keyboard), { plugin = "plugin-name:action-id" },
 #   { toggle_plugin_view = "view.id" }, { explorer = command }, { plugin = "name" }.
 # Explorer commands: up, down, page_up, page_down, first, last, expand, collapse, open, refresh,
 #   toggle_hidden.
@@ -641,6 +641,93 @@ action = "debug_step_out"
 
 [[binding]]
 keys = "ctrl+k x"
+action = "debug_stop"
+
+# The Debug pane (the stack and the variables of the program, in the bottom bar): shows it and
+# gives it the keyboard; with the keyboard in it, hides it
+[[binding]]
+keys = "ctrl+k v"
+action = "show_debug"
+
+[[binding]]
+keys = "up"
+context = "debug"
+action = { debug_pane = "up" }
+
+[[binding]]
+keys = "down"
+context = "debug"
+action = { debug_pane = "down" }
+
+[[binding]]
+keys = "pageup"
+context = "debug"
+action = { debug_pane = "page_up" }
+
+[[binding]]
+keys = "pagedown"
+context = "debug"
+action = { debug_pane = "page_down" }
+
+[[binding]]
+keys = "home"
+context = "debug"
+action = { debug_pane = "first" }
+
+[[binding]]
+keys = "end"
+context = "debug"
+action = { debug_pane = "last" }
+
+[[binding]]
+keys = "enter"
+context = "debug"
+action = { debug_pane = "open" }
+
+[[binding]]
+keys = "right"
+context = "debug"
+action = { debug_pane = "expand" }
+
+[[binding]]
+keys = "left"
+context = "debug"
+action = { debug_pane = "collapse" }
+
+[[binding]]
+keys = "tab"
+context = "debug"
+action = { debug_pane = "switch" }
+
+[[binding]]
+keys = "esc"
+context = "debug"
+action = { debug_pane = "leave" }
+
+# With the keyboard in the Debug pane the program is stepped with plain keys
+[[binding]]
+keys = "c"
+context = "debug"
+action = "debug_continue"
+
+[[binding]]
+keys = "n"
+context = "debug"
+action = "debug_step_over"
+
+[[binding]]
+keys = "i"
+context = "debug"
+action = "debug_step_into"
+
+[[binding]]
+keys = "o"
+context = "debug"
+action = "debug_step_out"
+
+[[binding]]
+keys = "x"
+context = "debug"
 action = "debug_stop"
 
 # Set a breakpoint on the line of the cursor, or take it away (a click on the last column of the

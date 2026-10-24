@@ -178,6 +178,7 @@ enum Target {
     Explorer,
     Terminal,
     Errors,
+    Debug,
 }
 
 impl App {
@@ -191,6 +192,7 @@ impl App {
             Focus::Explorer => self.state.explorer().area(),
             Focus::Terminal => self.state.terminal().area(),
             Focus::Errors => self.state.errors().area(),
+            Focus::Debug => self.state.debug_view().area(),
             Focus::Plugin => self
                 .state
                 .focused_plugin()
@@ -227,6 +229,10 @@ impl App {
             consider(Target::Errors, self.state.errors().area());
         }
 
+        if focus != Focus::Debug && self.state.is_showing(&ComponentKind::Debug) {
+            consider(Target::Debug, self.state.debug_view().area());
+        }
+
         match best {
             Some((Target::Pane(id), _)) => {
                 self.state.workspace_mut().focus_pane(id);
@@ -235,6 +241,7 @@ impl App {
             Some((Target::Explorer, _)) => self.state.set_focus(Focus::Explorer),
             Some((Target::Terminal, _)) => self.state.set_focus(Focus::Terminal),
             Some((Target::Errors, _)) => self.state.set_focus(Focus::Errors),
+            Some((Target::Debug, _)) => self.state.set_focus(Focus::Debug),
             None => {}
         }
     }

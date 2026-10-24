@@ -20,6 +20,7 @@ pub(super) const NO_FILE_MESSAGE: &str = "no open file (ctrl+n opens a new one)"
 pub(super) const EDITOR_CONTEXTS: [Context; 2] = [Context::Editor, Context::Global];
 pub(super) const EXPLORER_CONTEXTS: [Context; 2] = [Context::Explorer, Context::Global];
 pub(super) const ERRORS_CONTEXTS: [Context; 2] = [Context::Errors, Context::Global];
+pub(super) const DEBUG_CONTEXTS: [Context; 2] = [Context::Debug, Context::Global];
 /// A plugin's pane: the user's bindings for plugins, then the keys the plugin
 /// declared, then the global ones.
 pub(super) const PLUGIN_CONTEXTS: [Context; 3] =
@@ -292,6 +293,7 @@ impl App {
             Focus::Explorer => &EXPLORER_CONTEXTS,
             Focus::Terminal => &EDITOR_CONTEXTS,
             Focus::Errors => &ERRORS_CONTEXTS,
+            Focus::Debug => &DEBUG_CONTEXTS,
             Focus::Plugin => &PLUGIN_CONTEXTS,
         }
     }
@@ -365,6 +367,8 @@ impl App {
             Action::Explorer(command) => self.explorer_command(command)?,
             Action::Errors(command) => self.errors_command(command),
             Action::ShowErrors => self.toggle_errors(),
+            Action::DebugPane(command) => self.debug_pane_command(command),
+            Action::ShowDebug => self.toggle_debug_pane(),
             Action::ShowLspServer => self.show_lsp_server_of_file(),
             Action::OpenMenu => self.open_main_menu(),
             Action::OpenFile => self.ask_for_file(),

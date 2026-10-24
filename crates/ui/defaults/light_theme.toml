@@ -196,6 +196,14 @@ modifiers = ["bold"]
 text = "black"
 background = "@warning"
 
+# The debugger: the line the program is stopped on, and the arrow in the gutter before it
+["debug.stopped"]
+background = "@accent_bg"
+
+["debug.arrow"]
+text = "@warning"
+modifiers = ["bold"]
+
 # Language server diagnostics: `text` colors the gutter mark and the message in the
 # status bar, `underline` the line under the text they are about.
 ["editor.diagnostic.error"]

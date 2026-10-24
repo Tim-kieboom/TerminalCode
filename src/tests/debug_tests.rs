@@ -21,7 +21,7 @@ use crate::event::action::Action;
 const SOURCE: &str = "fn main() {\n    let a = 1;\n    let b = 2;\n}\n";
 
 /// An adapter factory that starts the scripted adapter, once.
-fn scripted(script: impl FnOnce(&mut Adapter) + Send + 'static) -> AdapterFactory {
+pub(super) fn scripted(script: impl FnOnce(&mut Adapter) + Send + 'static) -> AdapterFactory {
     let script = Arc::new(Mutex::new(Some(script)));
     Arc::new(move |wake| {
         let script = script
@@ -38,7 +38,7 @@ fn scripted(script: impl FnOnce(&mut Adapter) + Send + 'static) -> AdapterFactor
 
 /// A rig with `main.rs` open and a breakpoint on its second line, which `script` plays the
 /// adapter for.
-fn debugging(script: impl FnOnce(&mut Adapter, &str) + Send + 'static) -> Rig {
+pub(super) fn debugging(script: impl FnOnce(&mut Adapter, &str) + Send + 'static) -> Rig {
     let setup = Setup::default();
     let mut rig = rig_with(setup, None);
     let root = rig.root.display().to_string();
@@ -74,6 +74,42 @@ impl Rig {
         ));
     }
 
+    /// The color behind the cell at `column` of `row`.
+    pub(super) fn background_at(&self, column: u16, row: u16) -> ratatui::style::Color {
+        self.terminal.backend().buffer()[(column, row)].bg
+    }
+
+    /// The text of every row of the screen, a cell for each column.
+    fn cells(&self) -> Vec<String> {
+        let buffer = self.terminal.backend().buffer();
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol().to_owned())
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// The screen row that shows `text`.
+    pub(super) fn row_of(&self, text: &str) -> u16 {
+        self.cells()
+            .iter()
+            .position(|row| row.contains(text))
+            .map(|row| row as u16)
+            .unwrap_or_else(|| panic!("{text} is not on the screen"))
+    }
+
+    /// The columns before `text` on its row.
+    pub(super) fn gutter_of(&self, text: &str) -> String {
+        let cells = self.cells();
+        let row = cells
+            .iter()
+            .find(|row| row.contains(text))
+            .unwrap_or_else(|| panic!("{text} is not on the screen"));
+        row[..row.find(text).unwrap()].to_owned()
+    }
+
     pub(super) fn status(&self) -> Status {
         self.app.state().debug().status.clone()
     }
@@ -83,7 +119,7 @@ impl Rig {
     }
 }
 
-fn is_stopped(status: &Status) -> bool {
+pub(super) fn is_stopped(status: &Status) -> bool {
     matches!(status, Status::Stopped { .. })
 }
 
@@ -161,6 +197,8 @@ fn debug_builds_starts_the_adapter_and_stops_on_a_breakpoint_with_the_stack_and_
         // Hold on until the test is done.
         while adapter.next().is_some() {}
     });
+    // Wide, so that the messages (at the right) do not cover the pane.
+    rig.terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(220, 30)).unwrap();
     rig.open_file("main.rs");
     rig.breakpoint_on(1);
 
@@ -168,7 +206,9 @@ fn debug_builds_starts_the_adapter_and_stops_on_a_breakpoint_with_the_stack_and_
     rig.wait_for_status("a stop", is_stopped);
 
     // The program was started in the tab by the editor, because the adapter asked.
-    rig.wait_for_text("hello from the program");
+    rig.wait_for("the program's output", |rig| {
+        rig.tab_text().contains("hello from the program")
+    });
     assert_eq!(rig.tabs(), 1);
     let data = rig.app.state().debug();
     assert_eq!(
@@ -201,6 +241,27 @@ fn debug_builds_starts_the_adapter_and_stops_on_a_breakpoint_with_the_stack_and_
         rig.said_has("stopped (breakpoint) in app::main main.rs:2"),
         "{:?}",
         rig.said()
+    );
+    // The Debug pane came to the front with the stack and the variables.
+    rig.draw();
+    let screen = rig.screen();
+    assert!(screen.contains("stopped (breakpoint)"), "{screen}");
+    assert!(screen.contains("▶ app::main  main.rs:2"), "{screen}");
+    assert!(screen.contains("▾ Locals"), "{screen}");
+    assert!(screen.contains("a = 1  i32"), "{screen}");
+    // The line the program is stopped on has the arrow in the gutter and a color behind it.
+    rig.draw();
+    assert!(
+        rig.gutter_of("    let a = 1;").contains('▶'),
+        "{}",
+        rig.screen()
+    );
+    assert!(!rig.gutter_of("    let b = 2;").contains('▶'));
+    let (stopped_row, other_row) = (rig.row_of("let a = 1;"), rig.row_of("let b = 2;"));
+    let column = rig.gutter_of("    let a = 1;").chars().count() as u16 + 6;
+    assert_ne!(
+        rig.background_at(column, stopped_row),
+        rig.background_at(column, other_row)
     );
     // The adapter verified the breakpoint.
     let shown = rig

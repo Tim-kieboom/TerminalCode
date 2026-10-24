@@ -649,7 +649,9 @@ impl App {
         data.selected_frame = 0;
         let first = data.frames.first().map(|frame| frame.id);
         self.debug_announce_stop();
-        self.debug_reveal_frame();
+        self.debug_reveal_frame(true);
+        // The pane with the stack and the variables comes to the front (not the keyboard).
+        self.state.show_debug();
         if let Some(frame) = first {
             self.debug_ask_scopes(active, frame);
         }
@@ -680,7 +682,7 @@ impl App {
 
     /// Shows the file and line of the chosen frame: opens the file if it is not open, and puts
     /// the cursor there. A frame with no file of the project (a library) shows nothing.
-    pub(super) fn debug_reveal_frame(&mut self) {
+    pub(super) fn debug_reveal_frame(&mut self, keyboard_to_editor: bool) {
         let Some((path, line)) = self
             .state
             .debug()
@@ -700,9 +702,11 @@ impl App {
             let at = editor.buffer().clamp_position(at);
             editor.go_to(at);
         });
-        // The keys that step are the editor's: the keyboard is there, not in the terminal tab
-        // the program runs in.
-        self.state.set_focus(super::state::Focus::Editor);
+        // The keys that step are the editor's: after a stop the keyboard is there, not in the
+        // terminal tab the program runs in.
+        if keyboard_to_editor {
+            self.state.set_focus(super::state::Focus::Editor);
+        }
     }
 
     fn debug_ask_scopes(&mut self, active: &mut Active, frame: i64) {
@@ -785,6 +789,37 @@ impl App {
                 tree.fill(row, start, children);
             }
             Err(_) => tree.failed(row),
+        }
+    }
+
+    /// Chooses frame `index` of the stack (in the pane): the editor shows where it is, and the
+    /// variables are those of the frame.
+    pub(super) fn debug_select_frame(&mut self, index: usize) {
+        let data = self.state.debug_mut();
+        let Some(frame) = data.frames.get(index).map(|frame| frame.id) else {
+            return;
+        };
+        data.selected_frame = index;
+        data.tree.clear();
+        self.state.debug_view_mut().select_frame(index);
+        self.debug_reveal_frame(false);
+        if let Some(mut active) = self.debug.session.take() {
+            self.debug_ask_scopes(&mut active, frame);
+            self.debug.session = Some(active);
+        }
+    }
+
+    /// Opens or closes the row `index` of the variables.
+    pub(super) fn debug_toggle_variable(&mut self, index: usize) {
+        let Some(read) = self.state.debug_mut().tree.toggle(index) else {
+            return;
+        };
+        if let Some(mut active) = self.debug.session.take() {
+            self.debug_ask_variables(&mut active, read);
+            self.debug.session = Some(active);
+        } else {
+            // The session is over: what was shown cannot be opened.
+            self.state.debug_mut().tree.failed(read.row);
         }
     }
 

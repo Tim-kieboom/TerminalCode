@@ -89,6 +89,7 @@ impl Render<AppState> for Workspace {
                 git: &document.git,
                 action_line: state.action_mark_in(tab.document),
                 breakpoints: &shown_breakpoints,
+                stop_line: state.debug().stop_line(document.buffer.path()),
             };
             editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 

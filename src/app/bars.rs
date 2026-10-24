@@ -51,6 +51,7 @@ impl App {
             Focus::Explorer => ComponentKind::Explorer,
             Focus::Terminal => ComponentKind::Terminal,
             Focus::Errors => ComponentKind::Errors,
+            Focus::Debug => ComponentKind::Debug,
             Focus::Plugin => match self.state.focused_plugin() {
                 Some(id) => ComponentKind::Plugin(id.clone()),
                 None => return,
@@ -80,6 +81,7 @@ impl App {
             ComponentKind::Explorer => self.focus_explorer_shown(),
             ComponentKind::Terminal => self.show_terminal_with_keyboard(),
             ComponentKind::Errors => self.show_errors_with_keyboard(),
+            ComponentKind::Debug => self.show_debug_with_keyboard(),
             ComponentKind::Plugin(_)
             | ComponentKind::Editor
             | ComponentKind::StatusBar

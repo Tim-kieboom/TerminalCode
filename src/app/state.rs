@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::components::completion_box::CompletionBox;
+use crate::components::debug::DebugView;
 use crate::components::editor::{Editor, EditorRef};
 use crate::components::errors::ErrorsView;
 use crate::components::explorer::Explorer;
@@ -53,6 +54,8 @@ pub(crate) enum Focus {
     Explorer,
     Terminal,
     Errors,
+    /// The Debug pane: the stack and the variables of a program stopped in the debugger.
+    Debug,
     /// A plugin's pane (see `AppState::focused_plugin`).
     Plugin,
 }
@@ -173,6 +176,7 @@ struct AppComponents {
     terminal: Hideable<TerminalPane>,
     menu_bar: Hideable<MenuBar>,
     errors: Hideable<ErrorsView>,
+    debug: Hideable<DebugView>,
     plugin_views: HashMap<PluginViewId, Hideable<PluginView>>,
 }
 
@@ -186,6 +190,7 @@ impl Default for AppComponents {
             terminal: Hideable::new_hidden(TerminalPane::default()),
             menu_bar: Hideable::new_show(MenuBar),
             errors: Hideable::new_hidden(ErrorsView::default()),
+            debug: Hideable::new_hidden(DebugView::default()),
             plugin_views: HashMap::new(),
         }
     }

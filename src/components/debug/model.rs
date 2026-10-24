@@ -32,6 +32,7 @@ pub(crate) enum Status {
 
 impl Status {
     /// Whether a session is going (the program may be running or stopped).
+    #[cfg(test)]
     pub(crate) fn is_active(&self) -> bool {
         matches!(self, Self::Starting | Self::Running | Self::Stopped { .. })
     }
@@ -334,6 +335,15 @@ impl DebugData {
         self.frames.clear();
         self.selected_frame = 0;
         self.tree.clear();
+    }
+
+    /// The line, from 0, the program is stopped on in the file at `path` (the frame chosen,
+    /// when it is in that file).
+    pub(crate) fn stop_line(&self, path: Option<&std::path::Path>) -> Option<usize> {
+        let frame = self.frame()?;
+        let (here, wanted) = (frame.path.as_deref()?, path?);
+        let same = here == wanted || crate::files::paths::canonical(wanted) == here;
+        same.then_some(frame.line)
     }
 
     /// The frame chosen, the one the editor shows.

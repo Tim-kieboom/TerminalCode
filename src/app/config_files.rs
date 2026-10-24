@@ -309,6 +309,7 @@ impl App {
             Focus::Explorer => !self.state.layout().contains(&ComponentKind::Explorer),
             Focus::Terminal => !self.state.layout().contains(&ComponentKind::Terminal),
             Focus::Errors => !self.state.layout().contains(&ComponentKind::Errors),
+            Focus::Debug => !self.state.layout().contains(&ComponentKind::Debug),
             Focus::Plugin => self.state.focused_plugin().is_none_or(|id| {
                 !self
                     .state
