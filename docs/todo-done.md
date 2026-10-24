@@ -195,7 +195,7 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.9.5
 - [x] Version 0.9.5 (after 0.9.4: plugin API 1.10: a right click on a row of a plugin's pane asks the plugin for a menu (`ToPlugin::ContextClick`, answered with `FromPlugin::Menu`), which the editor shows at the pointer with the titles and keys of the plugin's actions; the Git plugin 0.3.0 uses it for files, headings and the branch; new screenshots)
-- [ ] Tag `v0.9.5`
+- [x] Tag `v0.9.5` (tagged on aac3136; CI green on Linux, macOS and Windows; the release run builds the archives and SHA256SUMS; the draft is to be published by hand)
 
 ## M8 — Config + polish (finished items)
 - [x] First slice of `settings.json` (`theme`, JSONC, `Config: Open Settings`, applied at startup and on save; see `docs/design.md`, "Config")
