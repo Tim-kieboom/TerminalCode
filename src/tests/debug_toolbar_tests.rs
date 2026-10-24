@@ -1,5 +1,7 @@
 //! The toolbar of the debugger over the editor: when it is there and what its buttons do.
 
+#![cfg(unix)]
+
 use crossterm::event::{
     Event as InputEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };

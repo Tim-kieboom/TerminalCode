@@ -1,6 +1,8 @@
 //! The watches: pinning a variable from what is on the screen, what a watch comes to at each
 //! stop, and what is remembered.
 
+#![cfg(unix)]
+
 use crossterm::event::{KeyCode, KeyModifiers};
 use serde_json::{Value, json};
 

@@ -1,6 +1,8 @@
 //! What the debugger says about the expression under the pointer: the box with the value and its
 //! tree, the selection and its errors, and the box that comes again after a stop.
 
+#![cfg(unix)]
+
 use std::time::{Duration, Instant};
 
 use crossterm::event::MouseEventKind;
