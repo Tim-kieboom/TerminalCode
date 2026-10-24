@@ -27,6 +27,7 @@ use crate::dap::{
 use crate::event::Event;
 use crate::launch::{ConfigId, RunConfig, What, run_env};
 use crate::pty::{Feeder, Session, Shell, SpawnConfig};
+use crate::ui::ComponentKind;
 
 /// How long an answer is waited for.
 const PATIENCE: Duration = Duration::from_secs(30);
@@ -50,6 +51,8 @@ pub(super) struct Debugging {
     evaluating: evaluate::Evaluating,
     /// The session is being ended to start another one.
     restart: bool,
+    /// The user was told that the layout has no Debug view.
+    told_no_view: bool,
 }
 
 impl std::fmt::Debug for Debugging {
@@ -680,6 +683,14 @@ impl App {
         self.debug_reveal_frame(true);
         // The pane with the stack and the variables comes to the front (not the keyboard).
         self.state.show_debug();
+        // A layout file from before the Debug view has none: the stop would show nothing.
+        if !self.state.layout().contains(&ComponentKind::Debug)
+            && !std::mem::replace(&mut self.debug.told_no_view, true)
+        {
+            self.state.notify(
+                "the layout has no Debug view: add Debug to the views of the bottom bar in layout.ron (views: [Terminal, Errors, Debug])",
+            );
+        }
         if let Some(frame) = first {
             self.debug_ask_scopes(active, frame);
         }

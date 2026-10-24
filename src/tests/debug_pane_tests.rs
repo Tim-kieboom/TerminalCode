@@ -8,7 +8,7 @@ use crossterm::event::{
 };
 use serde_json::{Value, json};
 
-use super::debug_tests::{debugging, is_stopped};
+use super::debug_tests::{debugging, is_stopped, until_the_first_stop};
 use super::run_tests::Rig;
 use crate::app::state::Focus;
 use crate::components::debug::Section;
@@ -367,4 +367,25 @@ fn a_layout_without_the_pane_says_so() {
         rig.said()
     );
     assert_eq!(rig.app.state().focus(), Focus::Editor);
+}
+
+#[test]
+fn a_layout_without_the_debug_view_is_said_at_the_first_stop() {
+    let mut rig = debugging(|adapter, root| {
+        until_the_first_stop(adapter, root);
+        while adapter.next().is_some() {}
+    });
+    rig.app.state_mut().set_layout(
+        crate::ui::layout::LayoutTree::from_ron(
+            "Col([Pane(view: Editor, sides: [], title: Hidden), Fixed(12, BottomBar(views: [Terminal, Errors])), Fixed(1, Pane(view: StatusBar))])",
+        )
+        .unwrap(),
+    );
+    rig.open_file("main.rs");
+    rig.breakpoint_on(1);
+
+    rig.app.run_action(Action::Debug);
+    rig.wait_for("the notice", |rig| {
+        rig.said_has("the layout has no Debug view")
+    });
 }
