@@ -1,6 +1,6 @@
 # TODO
 
-See `design.md` for decisions. Everything finished is in `todo-done.md` (milestones M0 to M8, releases 0.1.0 to 0.9.5, the layout and theme rewrites, the finished backlog items); this file keeps only open work, grouped by area. The current version is 0.9.5.
+See `design.md` for decisions. Everything finished is in `todo-done.md` (milestones M0 to M8, releases 0.1.0 to 0.10.0, the layout and theme rewrites, the finished backlog items); this file keeps only open work, grouped by area. The current version is 0.10.0.
 
 ## Fixes
 - [ ] Check by hand that the quit handshake (`src/terminal/drain.rs`) stops the stray mouse reports at the shell prompt after quitting: move the pointer constantly while quitting (hold a key that quits) 20 times in kitty and in a non-kitty terminal; if text such as `5;96;23M35;95;23M` still shows up, a report was cut in half by crossterm's reader, which the handshake does not cover
