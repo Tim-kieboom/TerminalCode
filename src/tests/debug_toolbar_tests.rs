@@ -3,7 +3,7 @@
 use crossterm::event::{
     Event as InputEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use super::debug_hover_tests::stopped;
 use super::debug_tests::debugging;

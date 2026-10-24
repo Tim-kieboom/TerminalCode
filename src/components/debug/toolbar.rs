@@ -77,7 +77,6 @@ fn label(status: &Status) -> Option<&'static str> {
 pub(crate) struct Toolbar {
     area: Rect,
     buttons: Vec<(Rect, Button)>,
-    label: Rect,
 }
 
 impl Toolbar {
@@ -101,12 +100,6 @@ impl Toolbar {
             x,
             y,
             width,
-            height: 1,
-        };
-        self.label = Rect {
-            x,
-            y,
-            width: label_width,
             height: 1,
         };
         // A column of separation between the label and the buttons.
@@ -158,10 +151,5 @@ impl Toolbar {
         }
         spans.push(Span::styled(" ", base));
         frame.render_widget(Paragraph::new(Line::from(spans)).style(base), self.area);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn label_area(&self) -> Rect {
-        self.label
     }
 }

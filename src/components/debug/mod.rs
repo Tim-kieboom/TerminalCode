@@ -9,5 +9,5 @@ mod toolbar;
 mod view;
 
 pub(crate) use hover::DebugHoverBox;
-pub(crate) use toolbar::{Button, Toolbar};
+pub(crate) use toolbar::Toolbar;
 pub(crate) use view::{Counts, DebugCommand, DebugView, Section};
