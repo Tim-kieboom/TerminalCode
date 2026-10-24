@@ -172,12 +172,12 @@ fn a_theme_that_was_removed_cannot_be_chosen() {
     let dir = tempfile::tempdir().unwrap();
     let mut keymap = crate::keymap::Keymap::defaults(crate::terminal::KeyboardSupport::Enhanced);
     keymap
-        .apply_toml("[[binding]]\nkeys = \"f9\"\naction = { use_installed_theme = \"ghost\" }")
+        .apply_toml("[[binding]]\nkeys = \"f11\"\naction = { use_installed_theme = \"ghost\" }")
         .unwrap();
     let mut app = App::with_keymap(crate::app::state::AppState::default(), keymap)
         .with_config_dir(Some(dir.path().to_path_buf()));
 
-    press(&mut app, KeyCode::F(9));
+    press(&mut app, KeyCode::F(11));
 
     assert!(app.state().notifications().has_errors());
 }

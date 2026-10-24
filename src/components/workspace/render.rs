@@ -78,6 +78,7 @@ impl Render<AppState> for Workspace {
 
             let document = &self.documents[&tab.document];
             let editor = EditorRef::new(&document.buffer, &tab.view);
+            let shown_breakpoints = state.breakpoints().shown(tab.document);
             let content = editor_render::Content {
                 editor,
                 syntax: document.syntax.spans(),
@@ -87,6 +88,7 @@ impl Render<AppState> for Workspace {
                 diagnostics: state.diagnostics().of(tab.document),
                 git: &document.git,
                 action_line: state.action_mark_in(tab.document),
+                breakpoints: &shown_breakpoints,
             };
             editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
 

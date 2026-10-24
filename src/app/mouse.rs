@@ -285,6 +285,18 @@ impl App {
             return;
         }
 
+        // A click on the marker column of the gutter sets or takes away a breakpoint.
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && !adds_cursor(event.modifiers)
+            && let Some((document, line)) = self
+                .state
+                .workspace()
+                .gutter_marker_at(event.column, event.row)
+        {
+            self.toggle_breakpoint_in(document, line);
+            return;
+        }
+
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
         let sideways = extend;
         let (column, row) = (event.column, event.row);

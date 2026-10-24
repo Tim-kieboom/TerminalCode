@@ -437,6 +437,8 @@ impl App {
             Action::SaveAll => self.save_all(),
             Action::Run => self.run_active(),
             Action::ChooseRun => self.choose_run(),
+            Action::ToggleBreakpoint => self.toggle_breakpoint(),
+            Action::ClearBreakpoints => self.clear_breakpoints(),
             Action::NextTab => self.state.workspace_mut().next_tab(),
             Action::PreviousTab => self.state.workspace_mut().previous_tab(),
             Action::ToggleSidePane => self.toggle_side_pane(),

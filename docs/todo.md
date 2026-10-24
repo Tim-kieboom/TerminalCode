@@ -71,8 +71,8 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
   - [ ] 7. Docs and tests: README section "Git", design notes (the `git` command line, why no library, what is polled and what is watched), a stand-in `git` on the PATH for tests that need failures (rejected push, auth prompt, timeout), and one `#[ignore]` test against a real repository; Windows is tested in CI only, so paths and line endings (`core.autocrlf`) get their own test
 
 ## Run and debug
-Decided after a grill, see "Run configurations and a debugger" in `docs/design.md`; the run configurations (steps 1 to 3: `crates/launch`, the Run key, the picker) and the debug adapter client (step 4: `crates/dap`) are built; breakpoints and the stop are not.
-- [ ] Debug, step 5: breakpoints: toggled in the gutter, kept as a document and a byte offset moved through edits with a few characters of their line, saved per project, hollow when the adapter says they cannot be hit, dimmed when the line text changed outside the editor; `setBreakpoints` per file when a file's breakpoints change
+Decided after a grill, see "Run configurations and a debugger" in `docs/design.md`; the run configurations (steps 1 to 3: `crates/launch`, the Run key, the picker) the debug adapter client (step 4: `crates/dap`) and the breakpoints (step 5: `crates/breakpoints`, `F9`) are built; the debug session and the stop are not.
+- [ ] Debug, step 5, what is left: handing the breakpoints to the adapter belongs to a session (step 6): `take_changes` after the setup (`initialized`) and whenever a file's breakpoints change, `setBreakpoints` for each, `answered` with the replies (and the `breakpoint` events), `forget_sent` when a session starts and ends; and a list of the breakpoints (palette or the Debug pane) with their files and lines
 - [ ] Debug, step 6: a stop: the arrow and the highlighted line, the controls with keys, the Debug pane in the bottom bar (call stack, a tree of variables of the chosen frame with children asked for when opened and long lists in pages), `runInTerminal` into the same tab as Run with the same question; not yet watches, evaluate, hover or a console
 
 ## Vim

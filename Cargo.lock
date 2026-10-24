@@ -2448,6 +2448,7 @@ dependencies = [
  "tokio",
  "toml",
  "trash",
+ "trcode-breakpoints",
  "trcode-buffer",
  "trcode-clipboard",
  "trcode-files",
@@ -2673,6 +2674,13 @@ dependencies = [
  "scopeguard",
  "urlencoding",
  "windows",
+]
+
+[[package]]
+name = "trcode-breakpoints"
+version = "0.9.5"
+dependencies = [
+ "trcode-ids",
 ]
 
 [[package]]

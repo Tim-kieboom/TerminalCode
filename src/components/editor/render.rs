@@ -24,6 +24,15 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 /// Smallest line-number column, in digits.
+/// What stands in the gutter of a line with a breakpoint, and the color of it.
+fn breakpoint_mark(kind: crate::breakpoints::Kind) -> (&'static str, &'static str) {
+    match kind {
+        crate::breakpoints::Kind::Set => ("●", "editor.diagnostic.error"),
+        crate::breakpoints::Kind::Hollow => ("○", "editor.diagnostic.error"),
+        crate::breakpoints::Kind::Moved => ("●", "tab.inactive"),
+    }
+}
+
 /// What stands in the gutter of a line the server has code actions for.
 const ACTION_MARK: &str = "●";
 const MIN_GUTTER_DIGITS: usize = 3;
@@ -59,6 +68,8 @@ pub(crate) struct Content<'a> {
     pub(crate) git: &'a crate::git::Lines,
     /// The line the server has code actions for, which gets a mark in the gutter.
     pub(crate) action_line: Option<usize>,
+    /// The breakpoints of the document, which get a mark in the gutter.
+    pub(crate) breakpoints: &'a [crate::breakpoints::Shown],
 }
 
 /// Draws the editor into `area` inside `pane_frame`.
@@ -78,6 +89,7 @@ pub(crate) fn draw(
         diagnostics,
         git,
         action_line,
+        breakpoints,
     } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
     let name = display_name(buffer);
@@ -92,6 +104,7 @@ pub(crate) fn draw(
         diagnostics,
         git,
         action_line,
+        breakpoints,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
     for selection in view.selections().iter() {
@@ -153,6 +166,7 @@ struct Overlays<'a> {
     diagnostics: &'a [Diagnostic],
     git: &'a crate::git::Lines,
     action_line: Option<usize>,
+    breakpoints: &'a [crate::breakpoints::Shown],
 }
 
 fn draw_lines(
@@ -169,6 +183,7 @@ fn draw_lines(
         diagnostics,
         git,
         action_line,
+        breakpoints,
     } = *overlays;
     let scroll = view.scroll();
     let head_line = view.selections().primary().head().line;
@@ -201,6 +216,15 @@ fn draw_lines(
         let bar = match action_line == Some(line) {
             true => Span::styled(ACTION_MARK, theme.style("editor.diagnostic.warning")),
             false => bar,
+        };
+        // A breakpoint is there before all: red when set, a ring when the adapter cannot place
+        // it, dim when what it was set on is not on the line any more.
+        let bar = match breakpoints.iter().find(|point| point.line == line) {
+            Some(point) => {
+                let (mark, slot) = breakpoint_mark(point.kind);
+                Span::styled(mark, theme.style(slot))
+            }
+            None => bar,
         };
         numbers.push(Line::from(vec![
             Span::styled(format!("{:>width$}", line + 1), number_style),

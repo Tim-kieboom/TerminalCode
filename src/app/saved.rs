@@ -1,7 +1,7 @@
 //! Remembering which panes are hidden, between runs: see [`crate::persist::saved_state`].
 
 use super::App;
-use crate::persist::saved_state::{self, PluginRecord, SavedState};
+use crate::persist::saved_state::{self, PluginRecord, SavedBreakpoint, SavedState};
 use crate::ui::ComponentKind;
 
 /// The panes that can be hidden and are remembered.
@@ -47,6 +47,7 @@ impl App {
             seen: self.panes_shown(),
             failure_told: false,
         };
+        self.import_saved_breakpoints();
         self
     }
 
@@ -75,6 +76,18 @@ impl App {
     /// Remembers that the user trusts the folder.
     pub(super) fn remember_trusted(&mut self, folder: &str) {
         if self.saved.state.trust(folder) {
+            self.write_saved_state();
+        }
+    }
+
+    /// The breakpoints remembered for the project folder (a whole path).
+    pub(super) fn saved_breakpoints(&self, folder: &str) -> Vec<SavedBreakpoint> {
+        self.saved.state.breakpoints(folder).to_vec()
+    }
+
+    /// Remembers the breakpoints of the project folder.
+    pub(super) fn store_breakpoints(&mut self, folder: &str, items: Vec<SavedBreakpoint>) {
+        if self.saved.state.set_breakpoints(folder, items) {
             self.write_saved_state();
         }
     }

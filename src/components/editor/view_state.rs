@@ -123,6 +123,18 @@ impl ViewState {
         self.viewport_height = usize::from(text_area.height);
     }
 
+    /// The line whose marker (the last column of the gutter, where the marks of git, the
+    /// lightbulb and the breakpoints are) is at a screen cell, when `lines` is how many
+    /// lines the text has.
+    pub(crate) fn marker_line_at(&self, column: u16, row: u16, lines: usize) -> Option<usize> {
+        let (gutter, text) = (self.gutter?, self.text_area?);
+        let marker = gutter.right().checked_sub(1)?;
+        let on_marker =
+            gutter.width >= 2 && column == marker && row >= text.y && row < text.bottom();
+        let line = self.scroll.top + usize::from(row.checked_sub(text.y)?);
+        (on_marker && line < lines).then_some(line)
+    }
+
     /// Where the line numbers are on screen, as last drawn.
     pub(crate) fn set_gutter(&mut self, gutter: Rect) {
         self.gutter = Some(gutter);

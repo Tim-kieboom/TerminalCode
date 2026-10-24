@@ -81,6 +81,7 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+q` | Quit (asks first when something is unsaved) |
 | `ctrl+s` / `ctrl+k a` | Save / save all |
 | `f5` | Run: save all, build the active binary or example (or a command of `.trcode/launch.toml`) and start it in its terminal tab; in the explorer `f5` refreshes the tree |
+| `f9` | Set a breakpoint on the line of the cursor or take it away (a click on the last column of the gutter does the same); they are remembered for the project |
 | `ctrl+k r` | Choose which binary, example or command `f5` runs (and run it); it is remembered for the project and shown in the status bar |
 | `ctrl+z`, `ctrl+y` | Undo, redo |
 | `ctrl+c`, `ctrl+x`, `ctrl+v` | Copy, cut, paste (also `ctrl+insert`, `shift+delete`, `shift+insert`) |

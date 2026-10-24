@@ -119,6 +119,8 @@ pub(crate) struct AppState {
     lsp_diagnostics: crate::lsp::Diagnostics,
     /// The name of the run configuration the Run key starts, for the status bar.
     run_label: Option<String>,
+    /// The breakpoints, drawn in the gutter of the editors.
+    breakpoints: crate::breakpoints::Breakpoints,
     /// The line of a document that the server has code actions for, marked in the gutter.
     action_mark: Option<(crate::ids::DocumentId, usize)>,
     /// The suggestions for the word being typed, while there are any.

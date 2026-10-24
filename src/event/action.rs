@@ -207,6 +207,10 @@ pub(crate) enum Action {
     /// Opens the picker of run configurations; the one chosen is run, and becomes the one
     /// the Run key starts.
     ChooseRun,
+    /// Sets a breakpoint on the line of the cursor, or takes the one there away.
+    ToggleBreakpoint,
+    /// Takes away every breakpoint.
+    ClearBreakpoints,
     NextTab,
     PreviousTab,
     SplitRight,
@@ -275,6 +279,7 @@ impl Action {
                 | Self::TrustFolder
                 | Self::Run
                 | Self::ChooseRun
+                | Self::ClearBreakpoints
                 | Self::OpenPluginPopup(_)
                 | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
@@ -404,6 +409,8 @@ impl Action {
             Self::SaveAll => "File: Save All",
             Self::Run => "Run: Run",
             Self::ChooseRun => "Run: Choose Configuration...",
+            Self::ToggleBreakpoint => "Debug: Toggle Breakpoint",
+            Self::ClearBreakpoints => "Debug: Remove All Breakpoints",
             Self::CloseOtherTabs => "Tab: Close Others",
             Self::CloseTabsToLeft => "Tab: Close to the Left",
             Self::CloseTabsToRight => "Tab: Close to the Right",
@@ -539,6 +546,8 @@ impl Action {
             Self::SaveAll,
             Self::Run,
             Self::ChooseRun,
+            Self::ToggleBreakpoint,
+            Self::ClearBreakpoints,
             Self::CloseOtherTabs,
             Self::CloseTabsToLeft,
             Self::CloseTabsToRight,

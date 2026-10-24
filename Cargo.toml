@@ -24,6 +24,7 @@ trcode-clipboard = { path = "crates/clipboard" }
 trcode-jumplist = { path = "crates/jumplist" }
 trcode-launch = { path = "crates/launch" }
 trcode-dap = { path = "crates/dap" }
+trcode-breakpoints = { path = "crates/breakpoints" }
 trcode-ui = { path = "crates/ui" }
 trcode-plugin-api = { path = "crates/plugin-api" }
 ron = "0.12.2"
@@ -99,6 +100,7 @@ trcode-syntax.workspace = true
 trcode-clipboard.workspace = true
 trcode-jumplist.workspace = true
 trcode-launch.workspace = true
+trcode-breakpoints.workspace = true
 trcode-ui.workspace = true
 trcode-plugin-api.workspace = true
 tokio.workspace = true

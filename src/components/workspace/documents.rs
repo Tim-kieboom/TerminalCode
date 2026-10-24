@@ -201,6 +201,14 @@ impl Workspace {
             .collect()
     }
 
+    /// Every open document that has a file, with the file.
+    pub(crate) fn documents_with_paths(&self) -> Vec<(DocumentId, PathBuf)> {
+        self.documents
+            .iter()
+            .filter_map(|(id, document)| Some((*id, document.buffer.path()?.to_path_buf())))
+            .collect()
+    }
+
     /// The file, the name for a title and the text of an open document.
     pub(crate) fn document_info(
         &self,

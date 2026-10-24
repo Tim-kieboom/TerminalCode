@@ -22,6 +22,14 @@ impl AppState {
         self.formatting = formatting;
     }
 
+    pub(crate) fn breakpoints(&self) -> &crate::breakpoints::Breakpoints {
+        &self.breakpoints
+    }
+
+    pub(crate) fn breakpoints_mut(&mut self) -> &mut crate::breakpoints::Breakpoints {
+        &mut self.breakpoints
+    }
+
     /// The name of the run configuration the Run key starts, once it is known.
     pub(crate) fn run_label(&self) -> Option<&str> {
         self.run_label.as_deref()

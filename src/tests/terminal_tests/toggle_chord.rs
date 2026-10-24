@@ -50,7 +50,7 @@ fn a_rebound_toggle_chord_closes_the_pane_too() {
     state.open_project(dir.path()).unwrap();
     let mut keymap = Keymap::defaults(KeyboardSupport::Enhanced);
     keymap
-        .apply_toml("[[binding]]\nkeys = \"f9\"\naction = \"toggle_terminal\"\n")
+        .apply_toml("[[binding]]\nkeys = \"f11\"\naction = \"toggle_terminal\"\n")
         .unwrap();
     let (tx, events) = mpsc::channel(1024);
     let app = App::with_keymap(state, keymap)
@@ -63,10 +63,10 @@ fn a_rebound_toggle_chord_closes_the_pane_too() {
     };
     rig.draw();
 
-    rig.press(KeyCode::F(9), KeyModifiers::NONE);
+    rig.press(KeyCode::F(11), KeyModifiers::NONE);
     rig.draw();
     assert_eq!(rig.app.state().focus(), Focus::Terminal);
-    rig.press(KeyCode::F(9), KeyModifiers::NONE);
+    rig.press(KeyCode::F(11), KeyModifiers::NONE);
 
     assert_eq!(rig.app.state().focus(), Focus::Editor);
     assert!(!rig.app.state().is_visible(&ComponentKind::Terminal));

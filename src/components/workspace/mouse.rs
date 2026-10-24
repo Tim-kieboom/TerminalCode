@@ -33,6 +33,16 @@ impl Workspace {
         })
     }
 
+    /// The document and line whose marker (the last column of the gutter) is at a screen cell:
+    /// a click there toggles a breakpoint instead of moving the cursor.
+    pub(crate) fn gutter_marker_at(&self, column: u16, row: u16) -> Option<(DocumentId, usize)> {
+        let pane = self.panes.get(self.pane_at(column, row)?)?;
+        let tab = pane.tabs.get(pane.active)?;
+        let lines = self.documents.get(&tab.document)?.buffer.len_lines();
+        let line = tab.view.marker_line_at(column, row, lines)?;
+        Some((tab.document, line))
+    }
+
     pub(super) fn press_with(
         &mut self,
         column: u16,

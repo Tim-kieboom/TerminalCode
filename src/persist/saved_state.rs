@@ -146,6 +146,20 @@ pub(crate) struct SavedState {
     /// The run configuration the Run key starts, for each project folder (a whole path).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     active_runs: BTreeMap<String, String>,
+    /// The breakpoints of each project folder (a whole path). Not forgotten by a reset: they
+    /// are the user's work, not a decision that can be asked again.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    breakpoints: BTreeMap<String, Vec<SavedBreakpoint>>,
+}
+
+/// A breakpoint as it is remembered: the file (from the project folder when it is inside it),
+/// the line from 0, and the start of the text of the line, to know that it is the same line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct SavedBreakpoint {
+    pub(crate) file: String,
+    pub(crate) line: usize,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub(crate) text: String,
 }
 
 impl SavedState {
@@ -178,7 +192,27 @@ impl SavedState {
             side_percent: None,
             side_shown: None,
             active_runs: BTreeMap::new(),
+            breakpoints: self.breakpoints.clone(),
         }
+    }
+
+    /// The breakpoints remembered for the project folder.
+    pub(crate) fn breakpoints(&self, folder: &str) -> &[SavedBreakpoint] {
+        self.breakpoints.get(folder).map_or(&[], Vec::as_slice)
+    }
+
+    /// Remembers the breakpoints of the project folder. Returns whether that is news.
+    pub(crate) fn set_breakpoints(
+        &mut self,
+        folder: &str,
+        breakpoints: Vec<SavedBreakpoint>,
+    ) -> bool {
+        if breakpoints.is_empty() {
+            return self.breakpoints.remove(folder).is_some();
+        }
+        self.breakpoints
+            .insert(folder.to_owned(), breakpoints.clone())
+            != Some(breakpoints)
     }
 
     /// The run configuration the user chose for the project folder, if they did.

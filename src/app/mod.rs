@@ -26,6 +26,7 @@ use crate::terminal::{self, KeyboardSupport};
 mod apply_edit;
 mod background;
 mod bars;
+mod breakpoints;
 mod code_actions;
 mod completion;
 mod config_files;
@@ -265,6 +266,8 @@ impl App {
             }
 
             if self.should_quit() {
+                // The lines the breakpoints moved to while files were open.
+                self.remember_breakpoints();
                 return Ok(self.restart_in.take());
             }
         }
@@ -458,6 +461,7 @@ impl App {
         self.push_file_text();
         self.push_plugin_sizes();
         self.track_jump(&input, before);
+        self.sync_breakpoint_documents();
         self.notice_tab_switch();
         self.show_pending_keys();
         self.remember_panes();
@@ -531,6 +535,8 @@ impl App {
                 self.needs_redraw = true;
             }
         }
+        self.apply_edits_made_by_events();
+        self.sync_breakpoint_documents();
         self.push_file_text();
         self.push_plugin_sizes();
         self.remember_panes();

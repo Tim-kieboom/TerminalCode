@@ -36,6 +36,19 @@ impl App {
         })
     }
 
+    /// Edits an event made (a format that came back, a rename, a reload) move the places of the
+    /// jump list and the breakpoints, as the edits of an input do.
+    pub(super) fn apply_edits_made_by_events(&mut self) {
+        for (document, change) in self.apply_edit_events() {
+            let change = Change {
+                start: change.start,
+                old_end: change.old_end,
+                new_end: change.new_end,
+            };
+            self.jumps.list.remap(document, change);
+        }
+    }
+
     /// Records `place`, which something took the cursor away from outside of an input
     /// (the answer of a server).
     pub(super) fn record_place(&mut self, place: Place) {
@@ -51,13 +64,14 @@ impl App {
     /// What the app does around each input: the place the cursor was at, from
     /// before it, is recorded when the input was a jump.
     pub(super) fn track_jump(&mut self, input: &InputEvent, before: Option<Place>) {
-        let events = self.state.workspace_mut().take_edit_events();
+        // The same edits move the breakpoints.
+        let changes = self.apply_edit_events();
         let mut before = before;
-        for (document, event) in events {
+        for (document, change) in changes {
             let change = Change {
-                start: event.start,
-                old_end: event.old_end,
-                new_end: event.new_end,
+                start: change.start,
+                old_end: change.old_end,
+                new_end: change.new_end,
             };
             self.jumps.list.remap(document, change);
             before = before.map(|place| place.moved(document, change));

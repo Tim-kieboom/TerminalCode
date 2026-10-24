@@ -12,6 +12,7 @@ use crate::files::watcher::FsWatcher;
 use crate::terminal::Capabilities;
 
 mod app;
+use trcode_breakpoints as breakpoints;
 use trcode_buffer as buffer;
 use trcode_clipboard as clipboard;
 use trcode_files as files;

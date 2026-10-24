@@ -36,4 +36,4 @@ If a requested implementation conflicts with the coding guidelines, explain the 
 - **`docs/design.md`** should be the design document
 - `cargo build` fails to link while `trcode.exe` is running. Stop the application before rebuilding.
 - Unit tests live in sibling `tests.rs` files (`#[cfg(test)] mod tests;`), per the coding guidelines.
-- The repository is a Cargo workspace: the editor is the root package, and the leaf crates it is built from are in `crates/` (`trcode-ids`, `trcode-buffer`, `trcode-files`, `trcode-pty`, `trcode-lsp`, `trcode-syntax`, `trcode-clipboard`, `trcode-jumplist`, `trcode-launch`, `trcode-dap`, `trcode-ui`, `trcode-plugin-api`). A crate depends only on crates below it; see "Workspace" in `docs/design.md`.
+- The repository is a Cargo workspace: the editor is the root package, and the leaf crates it is built from are in `crates/` (`trcode-ids`, `trcode-buffer`, `trcode-files`, `trcode-pty`, `trcode-lsp`, `trcode-syntax`, `trcode-clipboard`, `trcode-jumplist`, `trcode-launch`, `trcode-dap`, `trcode-breakpoints`, `trcode-ui`, `trcode-plugin-api`). A crate depends only on crates below it; see "Workspace" in `docs/design.md`.
