@@ -13,6 +13,8 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 | ![The test UI](screenshots/test_ui_0_9_4.png) | |
 | *The test UI* | |
 
+**Demo:** [watch a short video of TerminalCode in use](demos/trcode_demo.mp4) (37 MB).
+
 ## Status
 
 **This is version 0.10.0.** The command is `trcode` (it was `terminal_code` before 0.2.1). Release builds for Linux and Windows (and macOS, best effort) are on the
