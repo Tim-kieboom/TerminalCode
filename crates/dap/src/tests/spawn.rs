@@ -56,14 +56,26 @@ fn what_a_program_writes_to_its_output_is_read_as_the_adapters_messages() {
 
 #[test]
 fn a_name_is_found_on_the_path_and_a_path_or_a_missing_name_is_left_alone() {
-    let found = crate::client::find_program("sh");
-    assert!(found.is_absolute() && found.is_file(), "{found:?}");
+    let folder = tempfile::tempdir().unwrap();
+    let file = if cfg!(windows) {
+        "adapter-x.exe"
+    } else {
+        "adapter-x"
+    };
+    std::fs::write(folder.path().join(file), "").unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let paths = std::env::join_paths([elsewhere.path(), folder.path()]).unwrap();
+
+    let found = crate::client::find_program_in("adapter-x", &paths);
+
+    assert_eq!(found, folder.path().join(file));
+    assert!(found.is_absolute());
     assert_eq!(
-        crate::client::find_program("./some/adapter"),
+        crate::client::find_program_in("./some/adapter", &paths),
         std::path::PathBuf::from("./some/adapter")
     );
     assert_eq!(
-        crate::client::find_program("trcode-no-such-adapter"),
+        crate::client::find_program_in("trcode-no-such-adapter", &paths),
         std::path::PathBuf::from("trcode-no-such-adapter")
     );
 }

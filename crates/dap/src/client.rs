@@ -355,15 +355,29 @@ impl<T: Write> Write for Tee<T> {
 /// The whole path of `program` when it is a name to be found on the `PATH`; anything with a
 /// separator in it, or not found, as it is.
 pub(crate) fn find_program(program: &str) -> std::path::PathBuf {
+    match std::env::var_os("PATH") {
+        Some(paths) => find_program_in(program, &paths),
+        None => std::path::PathBuf::from(program),
+    }
+}
+
+/// [`find_program`] in the folders of `paths`, a list as the `PATH` is written.
+pub(crate) fn find_program_in(program: &str, paths: &std::ffi::OsStr) -> std::path::PathBuf {
     let name = std::path::Path::new(program);
     if name.components().count() != 1 {
         return name.to_path_buf();
     }
-    let Some(paths) = std::env::var_os("PATH") else {
-        return name.to_path_buf();
-    };
-    std::env::split_paths(&paths)
-        .map(|folder| folder.join(name))
+    // On Windows a program is found without its `.exe`.
+    let extensions: &[&str] = if cfg!(windows) { &["", "exe"] } else { &[""] };
+    std::env::split_paths(paths)
+        .flat_map(|folder| {
+            extensions
+                .iter()
+                .map(move |extension| match extension.is_empty() {
+                    true => folder.join(program),
+                    false => folder.join(format!("{program}.{extension}")),
+                })
+        })
         .find(|candidate| candidate.is_file())
         .unwrap_or_else(|| name.to_path_buf())
 }
