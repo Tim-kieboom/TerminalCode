@@ -120,7 +120,7 @@ impl App {
     }
 
     /// Makes the pane visible. Returns whether the layout has one.
-    fn show_terminal_pane(&mut self) -> bool {
+    pub(in crate::app) fn show_terminal_pane(&mut self) -> bool {
         if !self.state.layout().contains(&ComponentKind::Terminal) {
             self.state.notify("the layout has no terminal");
             return false;
@@ -145,18 +145,13 @@ impl App {
                 .notify_error("the terminal needs the event loop, which is not running");
             return false;
         };
-        let (mut rows, columns) = self
-            .state
-            .terminal_size_now()
-            .or(self.state.terminal().size())
-            .unwrap_or(FIRST_SIZE);
-        // The tab bar takes a row.
-        rows = rows.saturating_sub(1).max(1);
+        let (rows, columns) = self.terminal_dimensions();
         let directory = self.project_root();
         let spawn = |shell: &Shell| {
             let config = SpawnConfig {
                 shell: shell.clone(),
                 directory: directory.clone(),
+                env: Vec::new(),
                 rows,
                 columns,
             };
@@ -193,6 +188,17 @@ impl App {
         true
     }
 
+    /// The rows and columns a new session gets: the text area of the pane, less the row of the
+    /// tab bar.
+    pub(in crate::app) fn terminal_dimensions(&self) -> (u16, u16) {
+        let (rows, columns) = self
+            .state
+            .terminal_size_now()
+            .or(self.state.terminal().size())
+            .unwrap_or(FIRST_SIZE);
+        (rows.saturating_sub(1).max(1), columns)
+    }
+
     /// After a shell could not start: a pane with no tab is no use, so it is
     /// hidden again and the keyboard stays where it was.
     fn hide_pane_without_tabs(&mut self) {
@@ -209,13 +215,18 @@ impl App {
     pub(in crate::app) fn terminal_changed(&mut self) {
         self.needs_redraw = true;
         let many = self.state.terminal().tab_count() > 1;
-        for (number, code) in self.state.terminal_mut().take_exits() {
+        for exit in self.state.terminal_mut().take_exits() {
+            if exit.run.is_some() {
+                self.run_tab_ended(&exit);
+                continue;
+            }
+            let number = exit.number;
             let which = if many {
                 format!("terminal {number}'s shell")
             } else {
                 "the terminal's shell".to_owned()
             };
-            let how = match code {
+            let how = match exit.code {
                 0 => "ended".to_owned(),
                 code => format!("ended with code {code}"),
             };

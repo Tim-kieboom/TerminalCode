@@ -159,6 +159,11 @@ impl App {
 
     /// Saves every modified file, and says what it left alone.
     pub(super) fn save_all(&mut self) {
+        self.save_all_reporting();
+    }
+
+    /// [`App::save_all`], and what it did.
+    pub(super) fn save_all_reporting(&mut self) -> crate::components::workspace::SaveAll {
         // The documents that are formatted first are saved when that ends.
         let dirty = self.state.workspace().dirty_documents();
         let mut formatting = Vec::new();
@@ -188,10 +193,11 @@ impl App {
             (0, 0) => "nothing to save".to_owned(),
             (1, 0) => "saved 1 file".to_owned(),
             (saved, 0) => format!("saved {saved} files"),
-            (0, _) => return,
+            (0, _) => return report,
             (saved, _) => format!("saved {saved} of {} modified files", saved + skipped),
         };
         self.state.notify(message);
+        report
     }
 }
 

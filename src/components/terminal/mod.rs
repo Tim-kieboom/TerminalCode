@@ -68,6 +68,19 @@ struct Tab {
     title: String,
     /// The end of the shell has been reported to the user.
     exit_reported: bool,
+    /// The run configuration this tab is the tab of (see `app/run.rs`); a shell has none.
+    run: Option<String>,
+}
+
+/// A shell or program that ended, as [`TerminalPane::take_exits`] tells it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TabExit {
+    /// The tab's number, from 1.
+    pub(crate) number: usize,
+    pub(crate) code: u32,
+    pub(crate) title: String,
+    /// The run configuration of the tab, when it is a run's.
+    pub(crate) run: Option<String>,
 }
 
 impl Tab {
@@ -83,8 +96,44 @@ impl TerminalPane {
             session,
             title,
             exit_reported: false,
+            run: None,
         });
         self.active = self.tabs.len() - 1;
+    }
+
+    /// Adds a tab for the run configuration `run` and makes it the active one.
+    pub(crate) fn start_run(&mut self, session: Session, title: String, run: String) {
+        self.start(session, title);
+        if let Some(tab) = self.tabs.last_mut() {
+            tab.run = Some(run);
+        }
+    }
+
+    /// The tab of the run configuration `run`.
+    pub(crate) fn run_tab(&self, run: &str) -> Option<usize> {
+        self.tabs
+            .iter()
+            .position(|tab| tab.run.as_deref() == Some(run))
+    }
+
+    /// Whether the tab of `run` has a program running (or a build, which is shown there too).
+    pub(crate) fn run_is_running(&self, run: &str) -> bool {
+        self.run_tab(run)
+            .and_then(|index| self.tabs.get(index))
+            .is_some_and(Tab::is_running)
+    }
+
+    /// Gives tab `index` a new session, which stops the old one, and makes the tab the active
+    /// one. Its end is to be reported again.
+    pub(crate) fn replace_session(&mut self, index: usize, session: Session, title: String) {
+        let Some(tab) = self.tabs.get_mut(index) else {
+            return;
+        };
+        tab.session = session;
+        tab.title = title;
+        tab.exit_reported = false;
+        self.active = index;
+        self.selection = None;
     }
 
     /// The active tab's shell.
@@ -92,8 +141,7 @@ impl TerminalPane {
         self.tabs.get(self.active).map(|tab| &tab.session)
     }
 
-    /// The shell of tab `index`, for tests.
-    #[cfg(test)]
+    /// The shell of tab `index`.
     pub(crate) fn session_of(&self, index: usize) -> Option<&Session> {
         self.tabs.get(index).map(|tab| &tab.session)
     }
@@ -358,9 +406,8 @@ impl TerminalPane {
         self.size
     }
 
-    /// Shells that ended since the last call, each once: the tab's number
-    /// (from 1) and the exit code.
-    pub(crate) fn take_exits(&mut self) -> Vec<(usize, u32)> {
+    /// Shells that ended since the last call, each once.
+    pub(crate) fn take_exits(&mut self) -> Vec<TabExit> {
         let mut exits = Vec::new();
         for (index, tab) in self.tabs.iter_mut().enumerate() {
             if tab.exit_reported {
@@ -368,7 +415,12 @@ impl TerminalPane {
             }
             if let Some(code) = tab.session.finished() {
                 tab.exit_reported = true;
-                exits.push((index + 1, code));
+                exits.push(TabExit {
+                    number: index + 1,
+                    code,
+                    title: tab.title.clone(),
+                    run: tab.run.clone(),
+                });
             }
         }
         exits

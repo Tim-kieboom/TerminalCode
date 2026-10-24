@@ -28,6 +28,8 @@ const SCROLLBACK: usize = 10_000;
 pub struct SpawnConfig {
     pub shell: Shell,
     pub directory: PathBuf,
+    /// Variables set for the program, besides what it inherits.
+    pub env: Vec<(String, String)>,
     pub rows: u16,
     pub columns: u16,
 }
@@ -40,7 +42,8 @@ pub struct Written {
     pub complete: bool,
 }
 
-/// A running shell. Dropping it stops the shell.
+/// A running shell. Dropping it stops the shell. A [detached](Session::detached) one has
+/// no shell: it shows what it is fed.
 ///
 /// Output is parsed on the reader thread, which keeps the screen up to date
 /// behind a lock the drawing thread takes only to look. Input goes through a
@@ -49,7 +52,8 @@ pub struct Written {
 pub struct Session {
     shared: Arc<Shared>,
     input: Arc<BoundedQueue<Message>>,
-    child: Arc<Mutex<Box<dyn Child + Send + Sync>>>,
+    /// `None` for a detached session.
+    child: Option<Arc<Mutex<Box<dyn Child + Send + Sync>>>>,
     process_id: Option<u32>,
 }
 
@@ -71,6 +75,58 @@ struct Shared {
     wanted_size: Mutex<Option<PtySize>>,
     /// How many bytes the child has printed so far.
     received: std::sync::atomic::AtomicU64,
+    /// The exit code a detached session was given when it was finished.
+    detached_exit: Mutex<Option<u32>>,
+}
+
+/// What puts text on the screen of a [detached](Session::detached) session from another
+/// thread, and ends it.
+#[derive(Clone)]
+pub struct Feeder {
+    shared: Arc<Shared>,
+    wake: Arc<dyn Fn() + Send + Sync>,
+}
+
+impl std::fmt::Debug for Feeder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Feeder").finish_non_exhaustive()
+    }
+}
+
+impl Feeder {
+    /// Shows `text` as a program's output is shown: a line feed also returns the cursor (the
+    /// terminal a program writes to does that for it).
+    pub fn text(&self, text: &[u8]) {
+        let mut crlf = Vec::with_capacity(text.len() + text.len() / 16);
+        let mut before = 0u8;
+        for &byte in text {
+            if byte == b'\n' && before != b'\r' {
+                crlf.push(b'\r');
+            }
+            crlf.push(byte);
+            before = byte;
+        }
+        self.shared
+            .screen
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .process(&crlf);
+        self.shared
+            .received
+            .fetch_add(text.len() as u64, Ordering::Relaxed);
+        wake_once(&self.shared, &*self.wake);
+    }
+
+    /// Ends the session with `code`: it is over, as a shell is when it exits.
+    pub fn finish(&self, code: u32) {
+        *self
+            .shared
+            .detached_exit
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(code);
+        self.shared.ended.store(true, Ordering::SeqCst);
+        wake_once(&self.shared, &*self.wake);
+    }
 }
 
 enum Message {
@@ -97,6 +153,9 @@ impl Session {
         command.args(&config.shell.args);
         command.cwd(working_directory(&config.directory));
         command.env("TERM", "xterm-256color");
+        for (name, value) in &config.env {
+            command.env(name, value);
+        }
         let child = pair
             .slave
             .spawn_command(command)
@@ -122,6 +181,7 @@ impl Session {
             ended: AtomicBool::new(false),
             wanted_size: Mutex::new(None),
             received: std::sync::atomic::AtomicU64::new(0),
+            detached_exit: Mutex::new(None),
         });
         let input = Arc::new(BoundedQueue::new(QUEUED_CHUNKS));
         let process_id = child.process_id();
@@ -140,15 +200,60 @@ impl Session {
         Ok(Self {
             shared,
             input,
-            child,
+            child: Some(child),
             process_id,
         })
+    }
+
+    /// A session with no shell, for output that is not a program's: it shows what its
+    /// [`Feeder`] puts on it, takes no input, and is over when it is finished.
+    pub fn detached(
+        rows: u16,
+        columns: u16,
+        wake: impl Fn() + Send + Sync + 'static,
+    ) -> (Self, Feeder) {
+        let shared = Arc::new(Shared {
+            screen: Mutex::new(vt100::Parser::new(rows, columns, SCROLLBACK)),
+            wake_pending: AtomicBool::new(false),
+            ended: AtomicBool::new(false),
+            wanted_size: Mutex::new(None),
+            received: std::sync::atomic::AtomicU64::new(0),
+            detached_exit: Mutex::new(None),
+        });
+        let session = Self {
+            shared: Arc::clone(&shared),
+            input: Arc::new(BoundedQueue::new(1)),
+            child: None,
+            process_id: None,
+        };
+        let feeder = Feeder {
+            shared,
+            wake: Arc::new(wake),
+        };
+        (session, feeder)
+    }
+
+    /// Shows `text` on the screen as a program's output is shown; the exit of the shell
+    /// is told this way too.
+    pub fn show(&self, text: &str) {
+        Feeder {
+            shared: Arc::clone(&self.shared),
+            wake: Arc::new(|| {}),
+        }
+        .text(text.as_bytes());
     }
 
     /// Sends `bytes` to the shell. Waits at most 20 ms for room: if the shell
     /// is not reading and the queue stays full, the rest is dropped, and the
     /// result says how much went through.
     pub fn write(&self, bytes: &[u8]) -> Written {
+        if self.child.is_none() {
+            // Nobody is listening.
+            return Written {
+                sent: bytes.len(),
+                complete: true,
+            };
+        }
         let mut sent = 0;
         for chunk in bytes.chunks(CHUNK) {
             let queued = self
@@ -179,7 +284,9 @@ impl Session {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(size_of(rows, columns));
         // If the queue is full the writer applies the size after its next item.
-        let _ = self.input.push_within(Message::Resize, Duration::ZERO);
+        if self.child.is_some() {
+            let _ = self.input.push_within(Message::Resize, Duration::ZERO);
+        }
     }
 
     /// Moves the view into the history by `rows` (negative moves it back toward
@@ -222,8 +329,14 @@ impl Session {
 
     /// The exit code, once the shell has ended.
     pub fn exit_code(&self) -> Option<u32> {
-        let mut child = self
-            .child
+        let Some(child) = &self.child else {
+            return *self
+                .shared
+                .detached_exit
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+        };
+        let mut child = child
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         child
@@ -278,8 +391,10 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) {
         self.input.close();
-        let mut child = self
-            .child
+        let Some(child) = &self.child else {
+            return;
+        };
+        let mut child = child
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Already gone is fine.

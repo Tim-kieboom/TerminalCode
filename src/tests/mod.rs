@@ -60,6 +60,7 @@ mod rename_tests;
 mod reset_tests;
 #[cfg(target_os = "linux")]
 mod root_save_tests;
+mod run_tests;
 mod saved_state_tests;
 mod search_tests;
 mod settings_tests;

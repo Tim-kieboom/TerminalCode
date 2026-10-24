@@ -39,6 +39,8 @@ pub(crate) enum Purpose {
     RemovePlugin(Box<str>),
     /// Let plugins run commands in this project folder.
     TrustFolder,
+    /// Stop what runs in the tab of this run configuration (its id) and run it again.
+    RunAgain(Box<str>),
 }
 
 /// What a key press answers.
@@ -248,6 +250,20 @@ impl Confirm {
                 "Its folder is deleted. What you decided about it is kept, so installing it again brings it back as it was.".to_owned(),
             ],
             purpose: Purpose::RemovePlugin(id.into()),
+        }
+    }
+
+    /// Asks whether to stop what runs in the tab of `name` (the run configuration `id`) and
+    /// run it again.
+    pub(crate) fn run_again(name: &str, id: &str) -> Self {
+        Self {
+            title: " Run again ".to_owned(),
+            lines: vec![
+                format!("{name} is still running in its terminal tab."),
+                String::new(),
+                "Stop it and run it again?".to_owned(),
+            ],
+            purpose: Purpose::RunAgain(id.into()),
         }
     }
 

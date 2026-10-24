@@ -20,6 +20,7 @@ fn run(shell: Shell, directory: &Path, done: impl Fn(&Session) -> bool) -> Seen 
     let config = SpawnConfig {
         shell,
         directory: directory.to_path_buf(),
+        env: Vec::new(),
         rows: 24,
         columns: 80,
     };

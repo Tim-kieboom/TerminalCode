@@ -202,6 +202,8 @@ pub(crate) enum Action {
     ReopenClosedTab,
     /// Saves every modified file.
     SaveAll,
+    /// Builds and starts the active run configuration in its terminal tab.
+    Run,
     NextTab,
     PreviousTab,
     SplitRight,
@@ -268,6 +270,7 @@ impl Action {
                 | Self::FocusPluginView(_)
                 | Self::ShowPlugins
                 | Self::TrustFolder
+                | Self::Run
                 | Self::OpenPluginPopup(_)
                 | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
@@ -395,6 +398,7 @@ impl Action {
             Self::ToggleMouse => "View: Toggle Mouse",
             Self::Save => "File: Save",
             Self::SaveAll => "File: Save All",
+            Self::Run => "Run: Run",
             Self::CloseOtherTabs => "Tab: Close Others",
             Self::CloseTabsToLeft => "Tab: Close to the Left",
             Self::CloseTabsToRight => "Tab: Close to the Right",
@@ -528,6 +532,7 @@ impl Action {
             Self::NewTheme,
             Self::Save,
             Self::SaveAll,
+            Self::Run,
             Self::CloseOtherTabs,
             Self::CloseTabsToLeft,
             Self::CloseTabsToRight,

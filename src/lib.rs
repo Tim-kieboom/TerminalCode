@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::path::PathBuf;
 
 use ratatui::{Terminal, backend::Backend};
@@ -18,6 +17,7 @@ use trcode_clipboard as clipboard;
 use trcode_files as files;
 use trcode_ids as ids;
 use trcode_jumplist as jumplist;
+use trcode_launch as launch;
 use trcode_lsp as lsp;
 use trcode_plugin_api as plugin_api;
 use trcode_pty as pty;

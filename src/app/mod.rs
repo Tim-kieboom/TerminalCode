@@ -48,6 +48,7 @@ mod plugin_trust;
 mod plugins;
 mod recent;
 mod rename;
+pub(crate) mod run;
 #[cfg(test)]
 pub(crate) use formatting::whole_lines_for_tests;
 #[cfg(test)]
@@ -132,6 +133,8 @@ pub(crate) struct App {
     git: git::Tracking,
     /// The plugin thread.
     plugins: plugins::Plugins,
+    /// Run: the list of configurations, the active one and what is being built.
+    runs: run::Runs,
 }
 
 /// Everything that can wake the app loop.
@@ -212,6 +215,7 @@ impl App {
                 self.code_actions_forget_stale();
                 self.lightbulb_watch();
                 self.formatting_step();
+                self.run_step();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;
@@ -292,6 +296,7 @@ impl App {
             lsp: lsp::Lsp::default(),
             git: git::Tracking::default(),
             plugins: plugins::Plugins::default(),
+            runs: run::Runs::default(),
             saved: Saved::new([true, false, true, true]),
             recent: recent::Recents::default(),
         }
@@ -508,6 +513,12 @@ impl App {
             } => self.git_base_answer(document, request, result),
             Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
+            Event::RunList(list) => self.run_list_ready(list),
+            Event::RunBuilt {
+                id,
+                generation,
+                outcome,
+            } => self.run_built(&id, generation, outcome),
             Event::Highlighted(output) => {
                 if self.state.workspace_mut().accept_highlights(output) {
                     self.needs_redraw = true;

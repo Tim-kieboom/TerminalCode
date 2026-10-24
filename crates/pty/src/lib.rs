@@ -5,7 +5,7 @@
 pub use error::PtyError;
 pub use keys::{encode_key, encode_paste};
 pub use mouse::encode_mouse;
-pub use session::{Session, SpawnConfig};
+pub use session::{Feeder, Session, SpawnConfig};
 pub use shell::Shell;
 
 mod error;

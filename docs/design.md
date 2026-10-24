@@ -1044,7 +1044,7 @@ A plugin's rows can have a context menu like the editor's. A right click on a ro
 - **Not built:** a menu for other views than rows (buttons, a line to type into), disabled items shown dim, submenus, and the keyboard way in (`shift+f10` in a plugin's rows).
 - The Git pane uses it (version 0.3.0): a file offers Open File and Stage File or Unstage File, a heading Stage All or Unstage All, the branch Fetch, Pull and Push.
 
-## Run configurations and a debugger (decided after a grill; step 1 built)
+## Run configurations and a debugger (decided after a grill; steps 1 and 2 built)
 
 Goal: run the program of the project from the editor, then debug it with breakpoints. Built in, not a plugin: a plugin cannot write to the stdin of a process, which a debug adapter needs, and the program needs a terminal.
 
@@ -1059,6 +1059,14 @@ Goal: run the program of the project from the editor, then debug it with breakpo
 - **The tab** is reused: one for each configuration. A second Run of one whose process still runs asks first ("stop it and run again?"); one that has ended is cleared and started again. A finished process leaves its output and its exit code in the tab until the tab is closed or run again.
 - **The active configuration** is what the Run key starts; it is chosen with a picker (the targets grouped by package, then the commands of the file, then the entries whose target is gone, grey), remembered per project in `state.json`, and shown in the status bar. With none chosen, or when the chosen one is gone, Run opens the picker.
 
+### How Run is built (step 2)
+- **The steps** (`app/run.rs`, a `Waiting` that is one of `List`, `Asking`, `Formatting`): the list is worked out in a thread (`Targets::fetch` and `LaunchFile::load`, answered by `Event::RunList`), once, the first time Run is pressed (a refresh when a file changes is step 3); the configuration is the active one, or the first that can be run, and is made the active one; a process still running in its tab is asked about (`Confirm::run_again`, any key but `y` drops the run); every modified file with a path is saved with the code of "Save All" (`save_all_reporting`), and a file that cannot be saved (changed on disk, deleted, not writable) stops the run with "not running: some files could not be saved"; then the run waits until no save is still waiting for a language server to format (`run_step` is called each frame) and starts.
+- **A tab for a build has no shell.** `Session::detached` (in `trcode-pty`) is a session with no child: it shows what its `Feeder` puts on it (a line feed also returns the cursor, as a terminal does for a program), takes no input, and ends when it is finished with a code. The build thread feeds cargo's standard error to it as it comes (`--color always`, so the errors have their colors). When the program is built, a new session with the program in it takes the place of the tab's (`TerminalPane::replace_session`: the old session is stopped by being dropped), so the program starts on a fresh screen; when the build fails, the tab keeps the errors and says `[the build failed: cargo ended with code N]`.
+- **The build** is `cargo build --message-format=json-render-diagnostics --color always --manifest-path <its Cargo.toml> --bin|--example NAME [--release] [--features ...]` (`launch::build_args`) run in the project folder by a thread that polls the child (so a build can be given up: the flag in `Build.cancel` kills it) and reads its standard output with an `ArtifactFinder` for the path of the executable. A build that is over is told with `Event::RunBuilt { id, generation, outcome }`; the generation makes the build of a run that was started again stale, and it is dropped.
+- **The program** is started directly (not through cargo, not through a shell) in the project folder, or the `cwd` of the configuration (relative to the project), with the arguments and variables of the configuration, and for a target the two variables `cargo run` sets that programs read when they run: `CARGO_MANIFEST_DIR` and `CARGO_PKG_NAME` (`launch::run_env`). A standalone command is started the same way, with no build.
+- **The end:** a program that ends has `[exited with code N]` written on its tab's screen and a notification; a failed build says it on the screen and in a notification. The tab stays, as an ended tab (its label says so), until it is closed or run again.
+- **Not yet:** a choice of the active configuration (step 3), the list refreshed when `Cargo.toml` or `.trcode/launch.toml` changes (step 3), `F5` in the explorer (there it refreshes the tree, as before).
+
 ### The debugger (after the run configurations)
 - **Adapter:** `lldb-dap` (LLVM), on Linux and macOS first. Windows is not in the first version. The adapter is an external program that must be installed; its absence is said with how to get it.
 - **The program runs in the terminal tab** through the reverse request `runInTerminal` (the editor advertises `supportsRunInTerminalRequest`; the adapter hands over an argv that waits for the debugger, the editor starts it in the tab and the adapter attaches). So stdin works, and Debug behaves like Run, including the question when a process still runs in the tab. Debug uses the same build step as Run, then hands the artifact to the adapter instead of starting it.
@@ -1069,7 +1077,7 @@ Goal: run the program of the project from the editor, then debug it with breakpo
 
 ### Order of building
 1. `crates/launch` (`trcode-launch`): the targets from `cargo metadata` (`Targets`), the file (`LaunchFile`, with a `Problem` for each entry that is wrong), the merge into one list (`RunList`: the detected targets changed by the file, the commands of the file, then the entries whose target is gone); with tests, two of them against the real `cargo metadata`. **Built.** Not wired into the editor yet.
-2. The Run key: save all, the build step, the executable in the reused terminal tab, the question, the exit code.
+2. The Run key: save all, the build step, the executable in the reused terminal tab, the question, the exit code. **Built** (`app/run.rs`, `F5`, "Run: Run"; see "How Run is built" below).
 3. The picker, the active configuration in `state.json`, the status bar.
 4. The DAP client (framing, requests, events) with a fake server.
 5. Breakpoints: the gutter, tracking, saving, `setBreakpoints`.

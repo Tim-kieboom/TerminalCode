@@ -70,6 +70,15 @@ pub(crate) enum Event {
     PluginJob(crate::plugins::install::JobEvent),
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
+    /// The run configurations were worked out (see `app/run.rs`).
+    RunList(crate::launch::RunList),
+    /// The build of a run is over: how it went. `generation` tells which build, since a
+    /// run started again leaves the one before it behind.
+    RunBuilt {
+        id: String,
+        generation: u64,
+        outcome: crate::app::run::BuildOutcome,
+    },
 }
 
 impl From<trcode_files::watcher::WatchEvent> for Event {

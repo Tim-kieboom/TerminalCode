@@ -2453,6 +2453,7 @@ dependencies = [
  "trcode-files",
  "trcode-ids",
  "trcode-jumplist",
+ "trcode-launch",
  "trcode-lsp",
  "trcode-plugin-api",
  "trcode-pty",

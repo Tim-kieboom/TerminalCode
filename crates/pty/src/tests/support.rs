@@ -26,6 +26,7 @@ pub(super) fn start_shell(shell: Shell) -> Rig {
         &SpawnConfig {
             shell,
             directory: directory.clone(),
+            env: Vec::new(),
             rows: 24,
             columns: 80,
         },

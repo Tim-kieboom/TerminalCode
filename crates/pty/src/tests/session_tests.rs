@@ -98,6 +98,7 @@ fn a_program_that_does_not_exist_is_an_error() {
         &SpawnConfig {
             shell: Shell::program("/nonexistent/shell"),
             directory: dir.path().to_path_buf(),
+            env: Vec::new(),
             rows: 24,
             columns: 80,
         },
@@ -183,4 +184,108 @@ fn dropping_the_session_stops_the_shell() {
     drop(rig);
 
     assert!(!process.exists(), "the shell is gone, and reaped");
+}
+
+#[cfg(unix)]
+#[test]
+fn variables_asked_for_are_set_for_the_program() {
+    let dir = tempfile::tempdir().unwrap();
+    let session = Session::spawn(
+        &SpawnConfig {
+            shell: Shell::script("echo \"[$ONE-$TWO]\""),
+            directory: dir.path().to_path_buf(),
+            env: vec![
+                ("ONE".to_owned(), "1".to_owned()),
+                ("TWO".to_owned(), "two words".to_owned()),
+            ],
+            rows: 24,
+            columns: 80,
+        },
+        || {},
+    )
+    .unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !session
+        .with_screen(|screen| screen.contents())
+        .contains("[1-two words]")
+    {
+        assert!(Instant::now() < deadline, "the program never printed it");
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn detached() -> (
+    Session,
+    crate::Feeder,
+    std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) {
+    let wakes = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counter = std::sync::Arc::clone(&wakes);
+    let (session, feeder) = Session::detached(5, 40, move || {
+        counter.fetch_add(1, Ordering::SeqCst);
+    });
+    (session, feeder, wakes)
+}
+
+#[test]
+fn a_detached_session_shows_what_it_is_fed_and_each_line_starts_at_the_left() {
+    let (session, feeder, wakes) = detached();
+
+    feeder.text(b"first\nsecond\r\nthird");
+
+    let text = session.with_screen(|screen| screen.contents());
+    assert_eq!(text, "first\nsecond\nthird");
+    assert!(wakes.load(Ordering::SeqCst) >= 1, "the app is told");
+    assert!(session.take_dirty());
+}
+
+#[test]
+fn colors_fed_to_a_detached_session_are_understood() {
+    let (session, feeder, _) = detached();
+
+    feeder.text(b"\x1b[31merror\x1b[0m: x\n");
+
+    session.with_screen(|screen| {
+        assert_eq!(screen.cell(0, 0).unwrap().fgcolor(), vt100::Color::Idx(1));
+        assert_eq!(screen.cell(0, 7).unwrap().fgcolor(), vt100::Color::Default);
+    });
+}
+
+#[test]
+fn a_detached_session_runs_until_it_is_finished_and_then_has_its_code() {
+    let (session, feeder, wakes) = detached();
+    assert_eq!(session.exit_code(), None);
+    assert!(!session.output_ended());
+    assert_eq!(session.finished(), None);
+    assert_eq!(session.process_id(), None);
+
+    feeder.finish(101);
+
+    assert_eq!(session.exit_code(), Some(101));
+    assert!(session.output_ended());
+    assert_eq!(session.finished(), Some(101));
+    assert!(wakes.load(Ordering::SeqCst) >= 1);
+}
+
+#[test]
+fn input_to_a_detached_session_goes_nowhere_and_nothing_blocks() {
+    let (session, _feeder, _) = detached();
+
+    let written = session.write(&vec![b'x'; 1_000_000]);
+    session.resize(10, 20);
+
+    assert!(written.complete);
+    assert_eq!(written.sent, 1_000_000);
+    assert_eq!(session.with_screen(|screen| screen.size()), (10, 20));
+}
+
+#[test]
+fn a_session_can_be_told_something_the_shell_did_not_print() {
+    let rig = start("printf 'done'; sleep 5");
+    rig.wait_for_text("done");
+
+    rig.session.show("\n[exited with code 3]\n");
+
+    assert!(rig.text().contains("[exited with code 3]"));
 }

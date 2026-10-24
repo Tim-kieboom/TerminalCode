@@ -6,6 +6,7 @@ fn session(script: &str) -> Session {
         &SpawnConfig {
             shell: Shell::script(script),
             directory: std::env::temp_dir(),
+            env: Vec::new(),
             rows: 10,
             columns: 40,
         },
@@ -158,7 +159,12 @@ fn each_ended_shell_is_reported_once_with_its_tab_number() {
     pane.start(session("exit 4"), "b".to_owned());
     wait_until_ended(&pane, 1);
 
-    assert_eq!(pane.take_exits(), [(2, 4)]);
+    let exits: Vec<(usize, u32)> = pane
+        .take_exits()
+        .iter()
+        .map(|exit| (exit.number, exit.code))
+        .collect();
+    assert_eq!(exits, [(2, 4)]);
     assert_eq!(pane.take_exits(), []);
 }
 

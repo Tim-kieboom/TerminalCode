@@ -24,7 +24,7 @@ use crate::syntax::DocumentSyntax;
 use crate::syntax::worker::Key as SyntaxKey;
 
 use bulk::ClosedTab;
-pub(crate) use bulk::{CloseMany, CloseScope};
+pub(crate) use bulk::{CloseMany, CloseScope, SaveAll};
 pub(crate) use disk::{DiskEvent, LspDocument, SaveOutcome};
 pub(crate) use panes::neighbor_score;
 pub(crate) use tree::Divider;

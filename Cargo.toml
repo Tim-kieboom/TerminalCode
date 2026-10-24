@@ -97,6 +97,7 @@ trcode-lsp.workspace = true
 trcode-syntax.workspace = true
 trcode-clipboard.workspace = true
 trcode-jumplist.workspace = true
+trcode-launch.workspace = true
 trcode-ui.workspace = true
 trcode-plugin-api.workspace = true
 tokio.workspace = true

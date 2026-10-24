@@ -434,6 +434,7 @@ impl App {
             Action::CloseAllTabs => self.close_tabs(CloseScope::All),
             Action::ReopenClosedTab => self.reopen_closed_tab(),
             Action::SaveAll => self.save_all(),
+            Action::Run => self.run_active(),
             Action::NextTab => self.state.workspace_mut().next_tab(),
             Action::PreviousTab => self.state.workspace_mut().previous_tab(),
             Action::ToggleSidePane => self.toggle_side_pane(),

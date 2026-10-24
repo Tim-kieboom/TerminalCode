@@ -6,10 +6,12 @@
 //! This crate only works out the list. Starting a build or a program is the editor's.
 //! See "Run configurations and a debugger" in `docs/design.md`.
 
+mod build;
 mod file;
 mod list;
 mod target;
 
+pub use build::{ArtifactFinder, build_args, run_env};
 pub use file::{FILE, LaunchFile, Problem};
 pub use list::{ConfigId, RunConfig, RunList, What};
 pub use target::{IdError, Kind, MetadataError, Target, TargetId, Targets};

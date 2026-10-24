@@ -45,6 +45,13 @@ pub(super) struct Formatting {
     told: HashSet<ServerKey>,
 }
 
+impl App {
+    /// Whether a save that formats first is still waiting for a language server.
+    pub(super) fn formatting_pending(&self) -> bool {
+        !self.lsp.formatting.pending.is_empty()
+    }
+}
+
 impl Default for Formatting {
     fn default() -> Self {
         Self {
