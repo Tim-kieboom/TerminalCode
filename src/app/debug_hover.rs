@@ -239,7 +239,10 @@ impl App {
                     shown.scroll_by(rows);
                 }
             }
-            _ => return false,
+            // The rest of a click (the button let go, a drag) belongs to the box too, or it would
+            // take the box away.
+            MouseEventKind::Moved => return false,
+            _ => {}
         }
         self.needs_redraw = true;
         true

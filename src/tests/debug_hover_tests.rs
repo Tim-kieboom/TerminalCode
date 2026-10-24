@@ -271,3 +271,42 @@ fn the_box_goes_away_when_the_session_ends() {
 
     rig.wait_for("the box to go", |rig| !rig.has_box());
 }
+
+#[test]
+fn a_click_on_the_arrow_of_the_box_opens_it_and_the_button_let_go_does_not_close_it() {
+    let mut rig = stopped(|adapter, _| {
+        let (id, _) = adapter.expect_request("evaluate");
+        adapter.respond(
+            id,
+            "evaluate",
+            json!({ "result": "P @ 0x10", "variablesReference": 20 }),
+        );
+        let (id, _) = adapter.expect_request("variables");
+        adapter.respond(
+            id,
+            "variables",
+            json!({ "variables": [{ "name": "x", "value": "1" }] }),
+        );
+    });
+    rig.rest_on("let a = 1", 4);
+    rig.wait_for("the box", |rig| rig.has_box());
+    rig.draw();
+    let row = rig.row_of("▸ a = P @ 0x10");
+    let column = u16::try_from(rig.gutter_of("▸ a = P @ 0x10").chars().count()).unwrap();
+
+    for kind in [
+        MouseEventKind::Down(crossterm::event::MouseButton::Left),
+        MouseEventKind::Up(crossterm::event::MouseButton::Left),
+    ] {
+        rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+
+    rig.wait_for("the children", |rig| rig.box_rows().len() == 2);
+    assert!(rig.has_box());
+    assert_eq!(rig.box_rows(), ["a = P @ 0x10", "  x = 1"]);
+}
