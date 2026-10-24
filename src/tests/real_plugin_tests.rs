@@ -216,9 +216,23 @@ impl Rig {
             if done(self) {
                 return;
             }
-            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            assert!(
+                Instant::now() < deadline,
+                "timed out waiting for {what}\n{}",
+                self.describe()
+            );
             std::thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    /// What there is to see when a wait ran out: the pane, and what git says.
+    fn describe(&self) -> String {
+        format!(
+            "the pane:\n{}\ngit status:\n{}\ngit log:\n{}",
+            self.rows().join("\n"),
+            git(&self.root, &["status", "--short", "--branch"]),
+            git(&self.root, &["log", "--oneline", "-3"]),
+        )
     }
 
     fn has_row(&self, text: &str) -> bool {
