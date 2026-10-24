@@ -669,10 +669,12 @@ fn shift_f5_ends_the_session() {
     key_asks_the_adapter_for(KeyCode::F(5), KeyModifiers::SHIFT, "disconnect");
 }
 
+/// What a scripted adapter plays.
+type Script = Box<dyn FnOnce(&mut Adapter) + Send>;
+
 #[test]
 fn restart_ends_the_session_and_starts_another_that_stops_at_the_same_breakpoint() {
-    let scripts: Arc<Mutex<Vec<Box<dyn FnOnce(&mut Adapter) + Send>>>> =
-        Arc::new(Mutex::new(Vec::new()));
+    let scripts: Arc<Mutex<Vec<Script>>> = Arc::new(Mutex::new(Vec::new()));
     let started = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let mut rig = debugging(|_, _| {});
     let root = rig.root.display().to_string();
