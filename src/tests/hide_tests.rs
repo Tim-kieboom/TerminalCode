@@ -242,7 +242,7 @@ fn app_with_plugin() -> App {
 keys = "ctrl+t"
 action = { toggle_plugin_view = "test.view" }
 [[binding]]
-keys = "f11"
+keys = "f13"
 action = { toggle_plugin_view = "no.such.view" }"#,
         )
         .unwrap();
@@ -291,7 +291,7 @@ fn a_plugin_update_does_not_show_a_view_the_user_hid() {
 fn toggling_a_plugin_view_that_does_not_exist_says_so() {
     let mut app = app_with_plugin();
 
-    press(&mut app, KeyCode::F(11));
+    press(&mut app, KeyCode::F(13));
 
     assert!(
         app.state()

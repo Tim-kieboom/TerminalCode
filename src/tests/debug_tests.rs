@@ -6,7 +6,7 @@
 use std::fs;
 use std::sync::{Arc, Mutex};
 
-use crossterm::event::KeyCode;
+use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{Value, json};
 
 use super::run_tests::{Rig, Setup, rig_with};
@@ -630,4 +630,41 @@ fn the_palette_and_the_chords_have_the_debug_commands() {
     ] {
         assert!(titles.contains(&wanted), "{wanted}");
     }
+}
+
+/// Presses `code` with `modifiers` while the program is stopped, and the adapter is asked for
+/// `request`.
+fn key_asks_the_adapter_for(code: KeyCode, modifiers: KeyModifiers, request: &'static str) {
+    let (seen, asked) = std::sync::mpsc::channel();
+    let mut rig = debugging(move |adapter, root| {
+        until_the_first_stop(adapter, root);
+        let (id, _) = adapter.expect_request(request);
+        let _ = seen.send(());
+        adapter.respond(id, request, Value::Null);
+        while adapter.next().is_some() {}
+    });
+    rig.open_file("main.rs");
+    rig.breakpoint_on(1);
+    rig.app.run_action(Action::Debug);
+    rig.wait_for("the first stop and its variables", |rig| {
+        is_stopped(&rig.app.state().debug().status)
+            && rig.app.state().debug().tree.rows().len() == 3
+    });
+
+    rig.app
+        .handle_input(InputEvent::Key(KeyEvent::new(code, modifiers)));
+
+    rig.wait_for(request, |_| asked.try_recv().is_ok());
+}
+
+#[test]
+fn the_keys_of_vs_code_step_over_into_and_out() {
+    key_asks_the_adapter_for(KeyCode::F(10), KeyModifiers::NONE, "next");
+    key_asks_the_adapter_for(KeyCode::F(11), KeyModifiers::NONE, "stepIn");
+    key_asks_the_adapter_for(KeyCode::F(11), KeyModifiers::SHIFT, "stepOut");
+}
+
+#[test]
+fn shift_f5_ends_the_session() {
+    key_asks_the_adapter_for(KeyCode::F(5), KeyModifiers::SHIFT, "disconnect");
 }

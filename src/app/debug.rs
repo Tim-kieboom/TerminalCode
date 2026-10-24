@@ -133,6 +133,11 @@ struct Active {
 }
 
 impl App {
+    /// Whether a session is on and its program has stopped.
+    pub(super) fn debug_is_stopped(&self) -> bool {
+        self.debug_active() && matches!(self.state.debug().status, Status::Stopped { .. })
+    }
+
     /// Whether a debug session is going.
     pub(super) fn debug_active(&self) -> bool {
         self.debug.session.is_some()

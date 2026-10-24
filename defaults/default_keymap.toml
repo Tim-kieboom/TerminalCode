@@ -549,7 +549,8 @@ action = "toggle_terminal"
 keys = "ctrl+o"
 action = "open_file"
 
-# The main menu: the icon in the top row opens it too
+# The main menu: the icon in the top row opens it too (while a debugged program is stopped,
+# F10 steps over instead, as in VS Code: the icon still opens it)
 [[binding]]
 keys = "f10"
 action = "open_menu"
@@ -641,6 +642,20 @@ action = "debug_step_out"
 
 [[binding]]
 keys = "ctrl+k x"
+action = "debug_stop"
+
+# The keys of VS Code: F10 and F11 step over and into, shift+f11 steps out, shift+f5 stops (F5
+# goes on, F9 is the breakpoint). F10 opens the main menu when no program is stopped.
+[[binding]]
+keys = "f11"
+action = "debug_step_into"
+
+[[binding]]
+keys = "shift+f11"
+action = "debug_step_out"
+
+[[binding]]
+keys = "shift+f5"
 action = "debug_stop"
 
 # The Debug pane (the stack and the variables of the program, in the bottom bar): shows it and

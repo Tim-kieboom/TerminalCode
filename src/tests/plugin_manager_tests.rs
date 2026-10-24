@@ -1090,9 +1090,9 @@ fn a_letter_on_its_own_and_a_key_that_is_used_are_refused_and_the_question_goes_
 
     // A modifier on its own is not a key, and nothing was written so far.
     assert!(rig.keymap_text().is_empty());
-    rig.press_with(KeyCode::F(11), KeyModifiers::NONE);
+    rig.press_with(KeyCode::F(13), KeyModifiers::NONE);
     assert!(list_is_open(&rig), "a function key will do");
-    assert!(rig.keymap_text().contains("keys = \"f11\""));
+    assert!(rig.keymap_text().contains("keys = \"f13\""));
 }
 
 #[test]
