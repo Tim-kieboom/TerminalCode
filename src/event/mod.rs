@@ -70,6 +70,8 @@ pub(crate) enum Event {
     PluginJob(crate::plugins::install::JobEvent),
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
+    /// The debug adapter said something, or answered (see `app/debug.rs`).
+    DebugChanged,
     /// The run configurations were worked out (see `app/run.rs`).
     RunList(crate::launch::RunList),
     /// The build of a run is over: how it went. `generation` tells which build, since a

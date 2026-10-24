@@ -61,6 +61,14 @@ struct Waiting {
     step: Step,
 }
 
+/// What a run is for: the program is run, or handed to a debugger.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum Purpose {
+    #[default]
+    Run,
+    Debug,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     /// For the list of configurations.
@@ -80,6 +88,7 @@ struct Build {
     generation: u64,
     cancel: Arc<AtomicBool>,
     feeder: Feeder,
+    purpose: Purpose,
 }
 
 /// What Run keeps.
@@ -91,6 +100,8 @@ pub(super) struct Runs {
     /// What the user chose in this run of the editor (see `run_picker.rs`).
     pub(super) active: Option<ConfigId>,
     waiting: Option<Waiting>,
+    /// What the run that is starting is for.
+    purpose: Purpose,
     builds: HashMap<ConfigId, Build>,
     generation: u64,
     /// The program that is cargo; tests use a stand-in.
@@ -104,12 +115,31 @@ pub(super) struct Runs {
 }
 
 impl App {
-    /// The Run key.
+    /// The Run key. While a program is stopped in the debugger it goes on instead.
     pub(super) fn run_active(&mut self) {
+        if self.debug_active() {
+            self.debug_continue();
+            return;
+        }
+        self.begin_run(Purpose::Run);
+    }
+
+    /// "Debug: Start": builds the active configuration and runs it under the debugger.
+    pub(super) fn debug_start(&mut self) {
+        if self.debug_active() {
+            self.state
+                .notify("a debug session is going: stop it first (ctrl+k x)");
+            return;
+        }
+        self.begin_run(Purpose::Debug);
+    }
+
+    fn begin_run(&mut self, purpose: Purpose) {
         if self.runs.waiting.is_some() {
             self.state.notify("a run is starting already");
             return;
         }
+        self.runs.purpose = purpose;
         self.runs.waiting = Some(Waiting {
             config: None,
             step: Step::List,
@@ -385,13 +415,14 @@ impl App {
         let Some(config) = config.cloned() else {
             return false;
         };
-        self.start_run(&config);
+        let purpose = self.runs.purpose;
+        self.start_run(&config, purpose);
         false
     }
 
     // --- starting ---
 
-    fn start_run(&mut self, config: &RunConfig) {
+    fn start_run(&mut self, config: &RunConfig, purpose: Purpose) {
         let Some(events) = self.background.sender() else {
             self.state
                 .notify_error("running needs the event loop, which is not running");
@@ -405,7 +436,11 @@ impl App {
                 if !self.place_run_tab(config, session) {
                     return;
                 }
-                self.start_build(config, feeder, events);
+                self.start_build(config, feeder, events, purpose);
+            }
+            What::Command(_) if purpose == Purpose::Debug => {
+                self.state
+                    .notify("only a binary or an example of cargo can be debugged");
             }
             What::Command(program) => {
                 let spawned = self.spawn_program(config, program, Vec::new(), rows, columns);
@@ -456,7 +491,13 @@ impl App {
     }
 
     /// Starts `cargo build` for the target of `config` in a thread.
-    fn start_build(&mut self, config: &RunConfig, feeder: Feeder, events: Sender<Event>) {
+    fn start_build(
+        &mut self,
+        config: &RunConfig,
+        feeder: Feeder,
+        events: Sender<Event>,
+        purpose: Purpose,
+    ) {
         let What::Cargo(target) = config.what() else {
             return;
         };
@@ -469,6 +510,7 @@ impl App {
                 generation,
                 cancel: Arc::clone(&cancel),
                 feeder: feeder.clone(),
+                purpose,
             },
         );
         let spec = BuildSpec {
@@ -511,6 +553,11 @@ impl App {
         };
         let said = match outcome {
             BuildOutcome::Cancelled => return,
+            BuildOutcome::Built(program) if build.purpose == Purpose::Debug => {
+                // The program is started by the debugger, in this tab, when it asks.
+                self.start_debug(&config, program, build.feeder);
+                return;
+            }
             BuildOutcome::Built(program) => {
                 let program = program.display().to_string();
                 let spawned =
@@ -582,7 +629,8 @@ impl App {
         let session = self.state.terminal().session_of(exit.number - 1);
         let is_program = session.is_some_and(|session| session.process_id().is_some());
         if !is_program {
-            self.state.notify(format!("{name}: the build failed"));
+            self.state
+                .notify(format!("{name}: not started (see its tab)"));
             return;
         }
         if let Some(session) = session {

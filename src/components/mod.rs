@@ -1,4 +1,5 @@
 pub mod completion_box;
+pub mod debug;
 pub mod editor;
 pub mod errors;
 pub mod explorer;

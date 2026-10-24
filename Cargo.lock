@@ -2451,6 +2451,7 @@ dependencies = [
  "trcode-breakpoints",
  "trcode-buffer",
  "trcode-clipboard",
+ "trcode-dap",
  "trcode-files",
  "trcode-ids",
  "trcode-jumplist",

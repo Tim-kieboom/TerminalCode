@@ -22,6 +22,14 @@ impl AppState {
         self.formatting = formatting;
     }
 
+    pub(crate) fn debug(&self) -> &crate::components::debug::model::DebugData {
+        &self.debug
+    }
+
+    pub(crate) fn debug_mut(&mut self) -> &mut crate::components::debug::model::DebugData {
+        &mut self.debug
+    }
+
     pub(crate) fn breakpoints(&self) -> &crate::breakpoints::Breakpoints {
         &self.breakpoints
     }

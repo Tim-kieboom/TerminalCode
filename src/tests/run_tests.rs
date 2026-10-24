@@ -22,21 +22,21 @@ use crate::event::action::Action;
 use crate::persist::saved_state::SavedState;
 
 /// What the stand-in cargo and the program do.
-struct Setup {
+pub(super) struct Setup {
     /// What `cargo build` prints on its standard error, and how long it takes.
-    build_says: &'static str,
-    build_seconds: &'static str,
-    build_code: i32,
+    pub(super) build_says: &'static str,
+    pub(super) build_seconds: &'static str,
+    pub(super) build_code: i32,
     /// The script of the program.
-    program: &'static str,
+    pub(super) program: &'static str,
     /// The file `.trcode/launch.toml`, when there is one.
-    launch_file: Option<&'static str>,
+    pub(super) launch_file: Option<&'static str>,
     /// Whether the project has a runnable target.
-    has_target: bool,
+    pub(super) has_target: bool,
     /// The program that is cargo, when it is not the stand-in.
-    cargo: Option<&'static str>,
+    pub(super) cargo: Option<&'static str>,
     /// Whether the user trusts the folder already.
-    trusted: bool,
+    pub(super) trusted: bool,
 }
 
 impl Default for Setup {
@@ -54,15 +54,15 @@ impl Default for Setup {
     }
 }
 
-struct Rig {
-    app: App,
-    events: mpsc::Receiver<Event>,
-    terminal: Terminal<TestBackend>,
+pub(super) struct Rig {
+    pub(super) app: App,
+    pub(super) events: mpsc::Receiver<Event>,
+    pub(super) terminal: Terminal<TestBackend>,
     /// Keeps the project folder until the rig is dropped.
-    _dir: tempfile::TempDir,
+    pub(super) _dir: tempfile::TempDir,
     /// The folder `state.json` is written to.
-    config: tempfile::TempDir,
-    root: PathBuf,
+    pub(super) config: tempfile::TempDir,
+    pub(super) root: PathBuf,
 }
 
 fn executable(path: &Path, text: &str) {
@@ -70,7 +70,12 @@ fn executable(path: &Path, text: &str) {
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).unwrap();
 }
 
-fn rig(setup: Setup) -> Rig {
+pub(super) fn rig(setup: Setup) -> Rig {
+    rig_with(setup, None)
+}
+
+/// The rig, with `adapter` to start the debugger with when there is one.
+pub(super) fn rig_with(setup: Setup, adapter: Option<crate::app::debug::Adapter>) -> Rig {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();
     fs::write(root.join("a.txt"), "alpha\n").unwrap();
@@ -129,7 +134,10 @@ fn rig(setup: Setup) -> Rig {
     }
     let stand_in = root.join("cargo.sh");
     let cargo = setup.cargo.unwrap_or(stand_in.to_str().unwrap());
-    let (app, events) = app_in(&root, &config, saved, cargo);
+    let (mut app, events) = app_in(&root, &config, saved, cargo);
+    if let Some(adapter) = adapter {
+        app = app.with_debug_adapter(adapter);
+    }
     let mut rig = Rig {
         app,
         events,
@@ -162,23 +170,23 @@ fn app_in(
 }
 
 impl Rig {
-    fn draw(&mut self) {
+    pub(super) fn draw(&mut self) {
         let app = &mut self.app;
         self.terminal
             .draw(|frame| prepare_and_render(frame, app.state_mut()))
             .unwrap();
     }
 
-    fn run(&mut self) {
+    pub(super) fn run(&mut self) {
         self.app.run_action(Action::Run);
     }
 
-    fn press(&mut self, code: KeyCode) {
+    pub(super) fn press(&mut self, code: KeyCode) {
         self.app
             .handle_input(InputEvent::Key(KeyEvent::new(code, KeyModifiers::NONE)));
     }
 
-    fn wait_for(&mut self, what: &str, condition: impl Fn(&Rig) -> bool) {
+    pub(super) fn wait_for(&mut self, what: &str, condition: impl Fn(&Rig) -> bool) {
         let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             while let Ok(event) = self.events.try_recv() {
@@ -198,16 +206,16 @@ impl Rig {
         }
     }
 
-    fn wait_for_text(&mut self, text: &str) {
+    pub(super) fn wait_for_text(&mut self, text: &str) {
         self.wait_for(text, |rig| rig.screen().contains(text));
     }
 
-    fn screen(&self) -> String {
+    pub(super) fn screen(&self) -> String {
         self.terminal.backend().to_string()
     }
 
     /// Everything the user was told.
-    fn said(&self) -> Vec<String> {
+    pub(super) fn said(&self) -> Vec<String> {
         self.app
             .state()
             .notifications()
@@ -217,19 +225,29 @@ impl Rig {
             .collect()
     }
 
-    fn said_has(&self, text: &str) -> bool {
+    pub(super) fn said_has(&self, text: &str) -> bool {
         self.said().iter().any(|told| told.contains(text))
     }
 
-    fn read(&self, name: &str) -> String {
+    pub(super) fn read(&self, name: &str) -> String {
         fs::read_to_string(self.root.join(name)).unwrap_or_default()
     }
 
-    fn tabs(&self) -> usize {
+    /// What the screen of the tab in front shows (the notifications do not cover it).
+    pub(super) fn tab_text(&self) -> String {
+        self.app
+            .state()
+            .terminal()
+            .session()
+            .map(|session| session.with_screen(|screen| screen.contents()))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn tabs(&self) -> usize {
         self.app.state().terminal().tab_count()
     }
 
-    fn starts(&self) -> usize {
+    pub(super) fn starts(&self) -> usize {
         self.read("starts.txt").lines().count()
     }
 }
@@ -302,7 +320,7 @@ fn a_build_that_fails_shows_cargos_errors_and_starts_nothing() {
 
     assert!(rig.screen().contains("cannot find value 'x'"));
     assert_eq!(rig.starts(), 0, "the program was not started");
-    rig.wait_for("the notice", |rig| rig.said_has("the build failed"));
+    rig.wait_for("the notice", |rig| rig.said_has("not started"));
     assert!(!rig.app.state().terminal().is_running(), "the tab is over");
 }
 

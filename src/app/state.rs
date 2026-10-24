@@ -121,6 +121,8 @@ pub(crate) struct AppState {
     run_label: Option<String>,
     /// The breakpoints, drawn in the gutter of the editors.
     breakpoints: crate::breakpoints::Breakpoints,
+    /// What the debugger shows: where the session is, the stack, the variables.
+    debug: crate::components::debug::model::DebugData,
     /// The line of a document that the server has code actions for, marked in the gutter.
     action_mark: Option<(crate::ids::DocumentId, usize)>,
     /// The suggestions for the word being typed, while there are any.

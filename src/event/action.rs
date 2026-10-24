@@ -207,6 +207,15 @@ pub(crate) enum Action {
     /// Opens the picker of run configurations; the one chosen is run, and becomes the one
     /// the Run key starts.
     ChooseRun,
+    /// Builds the active run configuration and runs it under the debugger.
+    Debug,
+    /// Goes on from where the program stopped (`F5` does it too while a program is stopped).
+    DebugContinue,
+    DebugStepOver,
+    DebugStepInto,
+    DebugStepOut,
+    /// Ends the debug session and the program with it.
+    DebugStop,
     /// Sets a breakpoint on the line of the cursor, or takes the one there away.
     ToggleBreakpoint,
     /// Takes away every breakpoint.
@@ -280,6 +289,12 @@ impl Action {
                 | Self::Run
                 | Self::ChooseRun
                 | Self::ClearBreakpoints
+                | Self::Debug
+                | Self::DebugContinue
+                | Self::DebugStepOver
+                | Self::DebugStepInto
+                | Self::DebugStepOut
+                | Self::DebugStop
                 | Self::OpenPluginPopup(_)
                 | Self::PluginPlaced(_)
                 | Self::TogglePlugin(_)
@@ -409,6 +424,12 @@ impl Action {
             Self::SaveAll => "File: Save All",
             Self::Run => "Run: Run",
             Self::ChooseRun => "Run: Choose Configuration...",
+            Self::Debug => "Debug: Start",
+            Self::DebugContinue => "Debug: Continue",
+            Self::DebugStepOver => "Debug: Step Over",
+            Self::DebugStepInto => "Debug: Step Into",
+            Self::DebugStepOut => "Debug: Step Out",
+            Self::DebugStop => "Debug: Stop",
             Self::ToggleBreakpoint => "Debug: Toggle Breakpoint",
             Self::ClearBreakpoints => "Debug: Remove All Breakpoints",
             Self::CloseOtherTabs => "Tab: Close Others",
@@ -546,6 +567,12 @@ impl Action {
             Self::SaveAll,
             Self::Run,
             Self::ChooseRun,
+            Self::Debug,
+            Self::DebugContinue,
+            Self::DebugStepOver,
+            Self::DebugStepInto,
+            Self::DebugStepOut,
+            Self::DebugStop,
             Self::ToggleBreakpoint,
             Self::ClearBreakpoints,
             Self::CloseOtherTabs,

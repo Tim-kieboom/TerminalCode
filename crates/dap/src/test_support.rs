@@ -200,12 +200,22 @@ impl Fake {
 /// Starts an adapter that plays `script`, and a client connected to it. The script ends when it
 /// returns, which hangs up on the client.
 pub fn fake_adapter(script: impl FnOnce(&mut Adapter) + Send + 'static) -> (Client, Fake) {
+    fake_adapter_waking(|| {}, script)
+}
+
+/// Like [`fake_adapter`], and `wake` is called too when something comes to the client (the
+/// editor's way of hearing of it).
+pub fn fake_adapter_waking(
+    wake: impl Fn() + Send + 'static,
+    script: impl FnOnce(&mut Adapter) + Send + 'static,
+) -> (Client, Fake) {
     let (client_reads, adapter_writes) = pipe();
     let (adapter_reads, client_writes) = pipe();
     let wakes = Arc::new(AtomicUsize::new(0));
     let counter = Arc::clone(&wakes);
     let client = Client::new(client_reads, client_writes, move || {
         counter.fetch_add(1, Ordering::SeqCst);
+        wake();
     });
     let thread = std::thread::spawn(move || {
         let mut adapter = Adapter {

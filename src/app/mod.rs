@@ -30,6 +30,7 @@ mod breakpoints;
 mod code_actions;
 mod completion;
 mod config_files;
+pub(crate) mod debug;
 mod definition;
 mod diagnostics;
 mod dividers;
@@ -137,6 +138,8 @@ pub(crate) struct App {
     plugins: plugins::Plugins,
     /// Run: the list of configurations, the active one and what is being built.
     runs: run::Runs,
+    /// The debug session.
+    debug: debug::Debugging,
 }
 
 /// Everything that can wake the app loop.
@@ -219,6 +222,7 @@ impl App {
                 self.lightbulb_watch();
                 self.formatting_step();
                 self.run_step();
+                self.debug_forget_stale();
                 draw_frame(terminal, &mut self)?;
                 last_draw = Some(Instant::now());
                 continue;
@@ -302,6 +306,7 @@ impl App {
             git: git::Tracking::default(),
             plugins: plugins::Plugins::default(),
             runs: run::Runs::default(),
+            debug: debug::Debugging::default(),
             saved: Saved::new([true, false, true, true]),
             recent: recent::Recents::default(),
         }
@@ -462,6 +467,7 @@ impl App {
         self.push_plugin_sizes();
         self.track_jump(&input, before);
         self.sync_breakpoint_documents();
+        self.debug_sync_breakpoints();
         self.notice_tab_switch();
         self.show_pending_keys();
         self.remember_panes();
@@ -519,6 +525,7 @@ impl App {
             } => self.git_base_answer(document, request, result),
             Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
+            Event::DebugChanged => self.debug_changed(),
             Event::RunList(list) => self.run_list_ready(list),
             Event::RunBuilt {
                 id,
@@ -537,6 +544,7 @@ impl App {
         }
         self.apply_edits_made_by_events();
         self.sync_breakpoint_documents();
+        self.debug_sync_breakpoints();
         self.push_file_text();
         self.push_plugin_sizes();
         self.remember_panes();
