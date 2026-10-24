@@ -24,6 +24,7 @@ use std::thread;
 use std::time::Duration;
 
 use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::error::TrySendError;
 
 use super::App;
 use super::state::Focus;
@@ -680,10 +681,21 @@ fn run_env_of(config: &RunConfig) -> Vec<(String, String)> {
 
 /// The wake-up of a tab's session: delivery matters more than speed (a lost one leaves the
 /// screen stale).
-fn tab_wake(events: &Sender<Event>) -> impl Fn() + Send + Sync + 'static + use<> {
+pub(crate) fn tab_wake(events: &Sender<Event>) -> impl Fn() + Send + Sync + 'static + use<> {
     let events = events.clone();
     move || {
-        let _ = events.blocking_send(Event::TerminalChanged);
+        // The app itself writes to a tab too (the debugger's messages), from the thread that
+        // drives the runtime, where blocking is not allowed: a full queue is waited for on a
+        // thread of its own.
+        match events.try_send(Event::TerminalChanged) {
+            Err(TrySendError::Full(event)) => {
+                let events = events.clone();
+                std::thread::spawn(move || {
+                    let _ = events.blocking_send(event);
+                });
+            }
+            Ok(()) | Err(TrySendError::Closed(_)) => {}
+        }
     }
 }
 

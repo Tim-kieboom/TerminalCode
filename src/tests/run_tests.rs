@@ -923,3 +923,15 @@ fn a_target_the_file_changes_asks_in_a_folder_that_is_not_trusted() {
 
     assert_eq!(rig.read("build-args.txt"), "", "nothing was built yet");
 }
+
+/// The app writes to a tab from the thread that drives the runtime (the debugger's messages):
+/// the wake-up must not block there, even when the queue is full.
+#[tokio::test]
+async fn a_tab_wakes_the_app_from_inside_the_runtime_without_blocking() {
+    let (tx, mut rx) = mpsc::channel(1);
+    let wake = crate::app::run::tab_wake(&tx);
+    wake();
+    wake();
+    assert!(rx.recv().await.is_some());
+    assert!(rx.recv().await.is_some());
+}
