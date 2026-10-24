@@ -31,18 +31,41 @@ pub(crate) enum DebugCommand {
     Expand,
     /// Closes the variable.
     Collapse,
-    /// The other of the two lists.
+    /// The next of the three lists.
     Switch,
+    /// Pins the variable under the selection as a watch.
+    Pin,
+    /// Takes the watch under the selection away.
+    Remove,
     /// Gives the keyboard back to the editor.
     Leave,
 }
 
-/// The two lists.
+/// The three lists.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) enum Section {
     #[default]
     Stack,
     Variables,
+    Watches,
+}
+
+/// How many rows each list has.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Counts {
+    pub(crate) frames: usize,
+    pub(crate) variables: usize,
+    pub(crate) watches: usize,
+}
+
+impl Counts {
+    pub(crate) fn of(data: &super::model::DebugData) -> Self {
+        Self {
+            frames: data.frames.len(),
+            variables: data.tree.rows().len(),
+            watches: data.watches.rows().len(),
+        }
+    }
 }
 
 /// A selection and the first row shown, of one list.
@@ -87,11 +110,13 @@ pub(crate) struct DebugView {
     section: Section,
     stack: Cursor,
     variables: Cursor,
+    watches: Cursor,
     /// Whether the next draw scrolls to keep the selections in view; the wheel turns it off.
     follow: bool,
     area: Rect,
     stack_body: Rect,
     variables_body: Rect,
+    watches_body: Rect,
 }
 
 impl DebugView {
@@ -117,51 +142,53 @@ impl DebugView {
         self.variables.selected
     }
 
+    /// The row of the watches the selection is on.
+    pub(crate) fn selected_watch(&self) -> usize {
+        self.watches.selected
+    }
+
     /// Puts the selection of the stack on the frame the session chose.
     pub(crate) fn select_frame(&mut self, frame: usize) {
         self.stack.selected = frame;
         self.follow = true;
     }
 
-    /// Moves in the list that has the keys, among `frames` and `variables` rows.
-    pub(crate) fn apply(&mut self, command: DebugCommand, frames: usize, variables: usize) {
+    /// Moves in the list that has the keys, among `counts` rows.
+    pub(crate) fn apply(&mut self, command: DebugCommand, counts: Counts) {
         match command {
             DebugCommand::Switch => {
                 self.section = match self.section {
                     Section::Stack => Section::Variables,
-                    Section::Variables => Section::Stack,
+                    Section::Variables => Section::Watches,
+                    Section::Watches => Section::Stack,
                 };
             }
-            _ => match self.section {
-                Section::Stack => {
-                    let page = usize::from(self.stack_body.height).saturating_sub(1).max(1);
-                    self.stack.apply(command, frames, page);
-                }
-                Section::Variables => {
-                    let page = usize::from(self.variables_body.height)
-                        .saturating_sub(1)
-                        .max(1);
-                    self.variables.apply(command, variables, page);
-                }
-            },
+            DebugCommand::Pin | DebugCommand::Remove => {}
+            _ => {
+                let (cursor, count, body) = match self.section {
+                    Section::Stack => (&mut self.stack, counts.frames, self.stack_body),
+                    Section::Variables => {
+                        (&mut self.variables, counts.variables, self.variables_body)
+                    }
+                    Section::Watches => (&mut self.watches, counts.watches, self.watches_body),
+                };
+                let page = usize::from(body.height).saturating_sub(1).max(1);
+                cursor.apply(command, count, page);
+            }
         }
         self.follow = true;
     }
 
     /// Scrolls the list under the pointer without moving its selection.
-    pub(crate) fn scroll_by(
-        &mut self,
-        column: u16,
-        row: u16,
-        rows: isize,
-        frames: usize,
-        variables: usize,
-    ) {
+    pub(crate) fn scroll_by(&mut self, column: u16, row: u16, rows: isize, counts: Counts) {
         self.follow = false;
         let position = Position::new(column, row);
-        let (cursor, count, body) = match self.variables_body.contains(position) {
-            true => (&mut self.variables, variables, self.variables_body),
-            false => (&mut self.stack, frames, self.stack_body),
+        let (cursor, count, body) = if self.watches_body.contains(position) {
+            (&mut self.watches, counts.watches, self.watches_body)
+        } else if self.variables_body.contains(position) {
+            (&mut self.variables, counts.variables, self.variables_body)
+        } else {
+            (&mut self.stack, counts.frames, self.stack_body)
         };
         let most = count.saturating_sub(usize::from(body.height).max(1));
         cursor.scroll = cursor.scroll.saturating_add_signed(rows).min(most);
@@ -172,18 +199,29 @@ impl DebugView {
         &mut self,
         column: u16,
         row: u16,
-        frames: usize,
-        variables: usize,
+        counts: Counts,
     ) -> Option<(Section, usize)> {
         let position = Position::new(column, row);
         let (section, cursor, body, count) = if self.stack_body.contains(position) {
-            (Section::Stack, &mut self.stack, self.stack_body, frames)
+            (
+                Section::Stack,
+                &mut self.stack,
+                self.stack_body,
+                counts.frames,
+            )
         } else if self.variables_body.contains(position) {
             (
                 Section::Variables,
                 &mut self.variables,
                 self.variables_body,
-                variables,
+                counts.variables,
+            )
+        } else if self.watches_body.contains(position) {
+            (
+                Section::Watches,
+                &mut self.watches,
+                self.watches_body,
+                counts.watches,
             )
         } else {
             return None;
@@ -199,15 +237,19 @@ impl DebugView {
     }
 
     /// Takes where the pane is drawn and keeps its selections and scrolls sensible.
-    pub(crate) fn prepare(&mut self, area: Rect, body: Rect, frames: usize, variables: usize) {
+    pub(crate) fn prepare(&mut self, area: Rect, body: Rect, counts: Counts) {
         self.area = area;
-        let (_, stack, vars) = layout(body);
+        let (_, stack, vars, watches) = layout(body);
         self.stack_body = stack;
         self.variables_body = vars;
+        self.watches_body = watches;
         let follow = self.follow;
-        self.stack.keep(frames, usize::from(stack.height), follow);
+        self.stack
+            .keep(counts.frames, usize::from(stack.height), follow);
         self.variables
-            .keep(variables, usize::from(vars.height), follow);
+            .keep(counts.variables, usize::from(vars.height), follow);
+        self.watches
+            .keep(counts.watches, usize::from(watches.height), follow);
     }
 
     /// Draws the frame and the two lists.
@@ -220,7 +262,7 @@ impl DebugView {
         let inner = block.inner(placement.area);
         frame.render_widget(block, placement.area);
 
-        if data.frames.is_empty() {
+        if data.frames.is_empty() && data.watches.rows().is_empty() {
             let hint = hint(&data.status);
             frame.render_widget(
                 Paragraph::new(hint).style(theme.style("errors.empty")),
@@ -229,7 +271,7 @@ impl DebugView {
             return;
         }
         let live = state.has_keyboard(Focus::Debug);
-        let (header, stack_area, vars_area) = layout(inner);
+        let (header, stack_area, vars_area, watch_area) = layout(inner);
         frame.render_widget(
             Paragraph::new(status_line(&data.status)).style(theme.style("tab.inactive")),
             header,
@@ -288,12 +330,35 @@ impl DebugView {
             })
             .collect();
         frame.render_widget(Paragraph::new(lines), vars_area);
+
+        let width = usize::from(watch_area.width);
+        let rows = data.watches.rows();
+        let lines: Vec<Line> = match rows.is_empty() {
+            true => vec![Line::from(Span::styled(
+                fit("watches: w pins a variable", width),
+                theme.style("errors.empty"),
+            ))],
+            false => rows
+                .iter()
+                .enumerate()
+                .skip(self.watches.scroll)
+                .take(usize::from(watch_area.height))
+                .map(|(index, row)| {
+                    let line = variable_line(theme, row, width);
+                    match index == self.watches.selected {
+                        true => line.style(selected_style(Section::Watches)),
+                        false => line,
+                    }
+                })
+                .collect(),
+        };
+        frame.render_widget(Paragraph::new(lines), watch_area);
     }
 }
 
 /// The areas of the pane: a line at the top that says where the session is, then the stack
-/// (left) and the variables (right) with a column between.
-fn layout(inner: Rect) -> (Rect, Rect, Rect) {
+/// (left), the variables and the watches (right) with a column between each.
+fn layout(inner: Rect) -> (Rect, Rect, Rect, Rect) {
     let header_height = u16::from(inner.height > 2);
     let header = Rect {
         height: header_height,
@@ -304,24 +369,28 @@ fn layout(inner: Rect) -> (Rect, Rect, Rect) {
         height: inner.height - header_height,
         ..inner
     };
-    let (stack, variables) = split(body);
-    (header, stack, variables)
+    let (stack, variables, watches) = split(body);
+    (header, stack, variables, watches)
 }
 
-/// The areas of the stack (left) and the variables (right) in `body`, with a column between.
-fn split(body: Rect) -> (Rect, Rect) {
-    let stack = (body.width * 2 / 5).min(body.width);
-    let gap = u16::from(body.width > stack + 2);
-    let stack_area = Rect {
-        width: stack,
+/// The areas of the stack (left), the variables and the watches (right) in `body`, with a
+/// column between each.
+fn split(body: Rect) -> (Rect, Rect, Rect) {
+    let gap = u16::from(body.width > 30);
+    let room = body.width.saturating_sub(2 * gap);
+    let stack = room * 3 / 10;
+    let watches = room * 3 / 10;
+    let variables = room - stack - watches;
+    let at = |x: u16, width: u16| Rect {
+        x: body.x + x,
+        width,
         ..body
     };
-    let vars_area = Rect {
-        x: body.x + stack + gap,
-        width: body.width.saturating_sub(stack + gap),
-        ..body
-    };
-    (stack_area, vars_area)
+    (
+        at(0, stack),
+        at(stack + gap, variables),
+        at(stack + gap + variables + gap, watches),
+    )
 }
 
 /// What the top line says about the session.

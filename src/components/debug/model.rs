@@ -97,7 +97,7 @@ pub(crate) struct Read {
 }
 
 /// A variable as the adapter said it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Incoming {
     pub(crate) name: String,
     pub(crate) value: String,
@@ -169,6 +169,71 @@ impl Tree {
             kind: RowKind::Variable,
             total: root.total,
         });
+    }
+
+    /// Adds a row at the top level, after the others: what the expression `name` came to.
+    pub(crate) fn add_root(&mut self, name: &str, root: Incoming) {
+        let id = self.new_id();
+        self.rows.push(VarRow {
+            id,
+            depth: 0,
+            name: name.to_owned(),
+            value: root.value,
+            type_name: root.type_name,
+            reference: root.reference,
+            expanded: false,
+            loading: false,
+            kind: RowKind::Variable,
+            total: root.total,
+        });
+    }
+
+    /// The top-level row named `name` comes to `root` now: its children are forgotten (the
+    /// rows that were open are asked for again with [`Tree::reopen`]). Whether there is such a row.
+    pub(crate) fn replace_root(&mut self, name: &str, root: Incoming) -> bool {
+        let Some(at) = self
+            .rows
+            .iter()
+            .position(|row| row.depth == 0 && row.name == name)
+        else {
+            return false;
+        };
+        self.collapse_children(at);
+        let id = self.new_id();
+        self.rows[at] = VarRow {
+            id,
+            depth: 0,
+            name: name.to_owned(),
+            value: root.value,
+            type_name: root.type_name,
+            reference: root.reference,
+            expanded: false,
+            loading: false,
+            kind: RowKind::Variable,
+            total: root.total,
+        };
+        true
+    }
+
+    /// Takes the top-level row at `index` away with everything below it.
+    pub(crate) fn remove_root(&mut self, index: usize) {
+        let Some(row) = self.rows.get(index) else {
+            return;
+        };
+        if row.depth != 0 {
+            return;
+        }
+        let end = self.end_of_children(index);
+        self.rows.drain(index..end);
+    }
+
+    /// The names of the top-level rows, in order.
+    pub(crate) fn roots(&self) -> Vec<String> {
+        self.rows
+            .iter()
+            .filter(|row| row.depth == 0)
+            .map(|row| row.name.clone())
+            .collect()
     }
 
     /// The names from the top row down to the row at `index`: what names it when the rows are
@@ -391,14 +456,44 @@ pub(crate) struct DebugData {
     pub(crate) frames: Vec<Frame>,
     pub(crate) selected_frame: usize,
     pub(crate) tree: Tree,
+    /// The watches: an expression each, at the top level, with what it comes to in the frame
+    /// chosen. They outlive the session; their values do not.
+    pub(crate) watches: Tree,
+    /// Paths of the rows of the watches to open again after a stop, as the answers come.
+    pub(crate) watch_restore: Vec<Vec<String>>,
+    /// How many answers of the debugger the watches wait for.
+    pub(crate) watch_busy: usize,
 }
 
 impl DebugData {
-    /// The program runs again, or the session is over: nothing of the last stop is true.
+    /// The program runs again, or the session is over: nothing of the last stop is true. The
+    /// watches keep what they showed until the next stop answers them (or the session ends:
+    /// [`DebugData::forget_watch_values`]).
     pub(crate) fn forget_stop(&mut self) {
         self.frames.clear();
         self.selected_frame = 0;
         self.tree.clear();
+    }
+
+    /// The watches show no value (the session is over, or none has started: there is nothing
+    /// to evaluate them in).
+    pub(crate) fn forget_watch_values(&mut self) {
+        let names = self.watches.roots();
+        self.watches.clear();
+        for name in names {
+            self.watches.add_root(&name, Incoming::default());
+        }
+        self.watch_restore.clear();
+        self.watch_busy = 0;
+    }
+
+    /// Adds a watch. Whether it is new (a watch is listed once).
+    pub(crate) fn add_watch(&mut self, expression: &str) -> bool {
+        if self.watches.roots().iter().any(|name| name == expression) {
+            return false;
+        }
+        self.watches.add_root(expression, Incoming::default());
+        true
     }
 
     /// The line, from 0, the program is stopped on in the file at `path` (the frame chosen,

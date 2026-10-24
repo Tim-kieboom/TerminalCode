@@ -48,6 +48,7 @@ impl App {
             failure_told: false,
         };
         self.import_saved_breakpoints();
+        self.import_saved_watches();
         self
     }
 
@@ -88,6 +89,18 @@ impl App {
     /// Remembers the breakpoints of the project folder.
     pub(super) fn store_breakpoints(&mut self, folder: &str, items: Vec<SavedBreakpoint>) {
         if self.saved.state.set_breakpoints(folder, items) {
+            self.write_saved_state();
+        }
+    }
+
+    /// The watches remembered for the project folder (a whole path).
+    pub(super) fn saved_watches(&self, folder: &str) -> Vec<String> {
+        self.saved.state.watches(folder).to_vec()
+    }
+
+    /// Remembers the watches of the project folder.
+    pub(super) fn store_watches(&mut self, folder: &str, watches: Vec<String>) {
+        if self.saved.state.set_watches(folder, watches) {
             self.write_saved_state();
         }
     }

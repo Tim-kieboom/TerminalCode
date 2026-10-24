@@ -129,11 +129,9 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
         }
         ComponentKind::Debug => {
             let data = state.debug();
-            let (frames, variables) = (data.frames.len(), data.tree.rows().len());
+            let counts = crate::components::debug::Counts::of(data);
             let body = placement.frame.inner(placement.area);
-            state
-                .debug_view_mut()
-                .prepare(placement.area, body, frames, variables);
+            state.debug_view_mut().prepare(placement.area, body, counts);
         }
         ComponentKind::Plugin(id) => {
             let inner = placement.frame.inner(placement.area);

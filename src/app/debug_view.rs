@@ -5,7 +5,7 @@ use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
 use crate::app::state::Focus;
-use crate::components::debug::{DebugCommand, Section};
+use crate::components::debug::{Counts, DebugCommand, Section};
 use crate::ui::ComponentKind;
 
 /// Rows one wheel notch scrolls.
@@ -34,16 +34,15 @@ impl App {
     }
 
     pub(super) fn debug_pane_command(&mut self, command: DebugCommand) {
-        let data = self.state.debug();
-        let (frames, variables) = (data.frames.len(), data.tree.rows().len());
-        self.state
-            .debug_view_mut()
-            .apply(command, frames, variables);
+        let counts = Counts::of(self.state.debug());
+        self.state.debug_view_mut().apply(command, counts);
         match command {
             DebugCommand::Leave => self.state.set_focus(Focus::Editor),
             DebugCommand::Open | DebugCommand::Expand | DebugCommand::Collapse => {
                 self.debug_pane_activate(command);
             }
+            DebugCommand::Pin => self.pin_selected_variable(),
+            DebugCommand::Remove => self.remove_selected_watch(),
             _ => {}
         }
     }
@@ -66,14 +65,21 @@ impl App {
                     .rows()
                     .get(index)
                     .map(|row| row.expanded);
-                let wanted = matches!(
-                    (command, expanded),
-                    (DebugCommand::Open, Some(_))
-                        | (DebugCommand::Expand, Some(false))
-                        | (DebugCommand::Collapse, Some(true))
-                );
-                if wanted {
+                if toggles(command, expanded) {
                     self.debug_toggle_variable(index);
+                }
+            }
+            Section::Watches => {
+                let index = self.state.debug_view().selected_watch();
+                let expanded = self
+                    .state
+                    .debug()
+                    .watches
+                    .rows()
+                    .get(index)
+                    .map(|row| row.expanded);
+                if toggles(command, expanded) {
+                    self.debug_watch_toggle(index);
                 }
             }
         }
@@ -88,39 +94,43 @@ impl App {
         {
             return false;
         }
-        let data = self.state.debug();
-        let (frames, variables) = (data.frames.len(), data.tree.rows().len());
+        let counts = Counts::of(self.state.debug());
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) => {
                 self.state.set_focus(Focus::Debug);
-                let hit = self.state.debug_view_mut().select_at(
-                    event.column,
-                    event.row,
-                    frames,
-                    variables,
-                );
+                let hit = self
+                    .state
+                    .debug_view_mut()
+                    .select_at(event.column, event.row, counts);
                 match hit {
                     Some((Section::Stack, index)) => self.debug_select_frame(index),
                     Some((Section::Variables, index)) => self.debug_toggle_variable(index),
+                    Some((Section::Watches, index)) => self.debug_watch_toggle(index),
                     None => {}
                 }
             }
-            MouseEventKind::ScrollUp => self.state.debug_view_mut().scroll_by(
-                event.column,
-                event.row,
-                -WHEEL_ROWS,
-                frames,
-                variables,
-            ),
-            MouseEventKind::ScrollDown => self.state.debug_view_mut().scroll_by(
-                event.column,
-                event.row,
-                WHEEL_ROWS,
-                frames,
-                variables,
-            ),
+            MouseEventKind::ScrollUp => {
+                self.state
+                    .debug_view_mut()
+                    .scroll_by(event.column, event.row, -WHEEL_ROWS, counts)
+            }
+            MouseEventKind::ScrollDown => {
+                self.state
+                    .debug_view_mut()
+                    .scroll_by(event.column, event.row, WHEEL_ROWS, counts)
+            }
             _ => return false,
         }
         true
     }
+}
+
+/// Whether `command` opens or closes a row that is `expanded` (or is not a row, `None`).
+fn toggles(command: DebugCommand, expanded: Option<bool>) -> bool {
+    matches!(
+        (command, expanded),
+        (DebugCommand::Open, Some(_))
+            | (DebugCommand::Expand, Some(false))
+            | (DebugCommand::Collapse, Some(true))
+    )
 }

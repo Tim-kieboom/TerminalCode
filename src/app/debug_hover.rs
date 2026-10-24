@@ -177,6 +177,12 @@ impl App {
             let last = isize::try_from(shown.tree().rows().len()).unwrap_or(isize::MAX);
             let selected = shown.selected();
             let open = shown.tree().rows().get(selected).map(|row| row.expanded);
+            // `w` pins the row the selection is on as a watch, and the box stays.
+            if key.code == KeyCode::Char('w') {
+                let path = shown.tree().path_of(selected);
+                self.pin_watch(&super::watches::path_expression(&path));
+                return true;
+            }
             let used = match key.code {
                 KeyCode::Up => Some(-1),
                 KeyCode::Down => Some(1),

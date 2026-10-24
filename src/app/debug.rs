@@ -64,6 +64,15 @@ impl std::fmt::Debug for Debugging {
 }
 
 pub(super) mod evaluate;
+mod watch;
+
+/// Which tree the children asked for are for.
+#[derive(Clone, Copy)]
+enum Target {
+    Pane,
+    Hover,
+    Watch,
+}
 
 /// A request that was sent and is waiting for its answer.
 struct Waiting {
@@ -88,12 +97,16 @@ enum Kind {
     Variables {
         row: u64,
         start: i64,
-        /// For the box of the hover, not the pane.
-        hover: bool,
+        target: Target,
         reply: PendingReply<VariablesResponse>,
     },
     Evaluate {
         ticket: u64,
+        reply: PendingReply<EvaluateResponse>,
+    },
+    /// What a watch comes to.
+    Watch {
+        expression: String,
         reply: PendingReply<EvaluateResponse>,
     },
     Continue(PendingReply<ContinueResponse>),
@@ -120,7 +133,7 @@ impl Kind {
             Self::Stack(_) => "stackTrace",
             Self::Scopes { .. } => "scopes",
             Self::Variables { .. } => "variables",
-            Self::Evaluate { .. } => "evaluate",
+            Self::Evaluate { .. } | Self::Watch { .. } => "evaluate",
             Self::Continue(_) => "continue",
             Self::Step(name, _) => name,
             Self::Disconnect(_) => "disconnect",
@@ -207,6 +220,7 @@ impl App {
         });
         let data = self.state.debug_mut();
         data.forget_stop();
+        data.forget_watch_values();
         data.status = Status::Starting;
         self.needs_redraw = true;
     }
@@ -492,21 +506,31 @@ impl App {
                 Kind::Variables {
                     row,
                     start,
-                    hover,
+                    target,
                     mut reply,
                 } => match reply.try_take() {
                     None => Kind::Variables {
                         row,
                         start,
-                        hover,
+                        target,
                         reply,
                     },
-                    Some(result) if hover => {
-                        self.debug_hover_variables(active, row, start, result);
+                    Some(result) => {
+                        match target {
+                            Target::Pane => self.debug_variables(row, start, result),
+                            Target::Hover => self.debug_hover_variables(active, row, start, result),
+                            Target::Watch => self.debug_watch_variables(active, row, start, result),
+                        }
                         continue;
                     }
+                },
+                Kind::Watch {
+                    expression,
+                    mut reply,
+                } => match reply.try_take() {
+                    None => Kind::Watch { expression, reply },
                     Some(result) => {
-                        self.debug_variables(row, start, result);
+                        self.debug_watch_evaluated(active, &expression, result);
                         continue;
                     }
                 },
@@ -695,6 +719,7 @@ impl App {
             self.debug_ask_scopes(active, frame);
         }
         self.debug_hover_refresh(active);
+        self.debug_watches_refresh(active);
     }
 
     /// Says where the program stopped, unless it did what was asked: a step, or a breakpoint
@@ -803,7 +828,7 @@ impl App {
                 kind: Kind::Variables {
                     row: read.row,
                     start: read.page.map_or(0, |(start, _)| start),
-                    hover: false,
+                    target: Target::Pane,
                     reply,
                 },
             }),
@@ -851,6 +876,7 @@ impl App {
         if let Some(mut active) = self.debug.session.take() {
             self.debug_ask_scopes(&mut active, frame);
             self.debug_hover_refresh(&mut active);
+            self.debug_watches_refresh(&mut active);
             self.debug.session = Some(active);
         }
     }
@@ -985,6 +1011,7 @@ impl App {
         self.close_debug_hover();
         let data = self.state.debug_mut();
         data.forget_stop();
+        data.forget_watch_values();
         data.status = Status::Ended(message.to_owned());
         self.state.notify(message.to_owned());
         self.needs_redraw = true;

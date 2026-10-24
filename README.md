@@ -86,7 +86,8 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+k g` | Debug: build and start the active binary or example under `lldb-dap` (or the adapter named by `TRCODE_DEBUG_ADAPTER`), stopping at the breakpoints; `f5` goes on while a session runs |
 | `f10`, `f11`, `shift+f11`, `shift+f5`, `ctrl+shift+f5` | Debug, as in VS Code: step over, step into, step out, stop, restart |
 | `ctrl+k n`, `ctrl+k i`, `ctrl+k u`, `ctrl+k x` | Debug: step over, step into, step out, stop |
-| `ctrl+k v` | Show or hide the Debug pane (call stack and variables; in it: arrows, `enter`, `right` and `left` to open or close, `tab` between the two lists, `esc` to leave) |
+| `ctrl+k v` | Show or hide the Debug pane (call stack and variables; in it: arrows, `enter`, `right` and `left` to open or close, `tab` between the three lists, `esc` to leave) |
+| `w` | In the Debug pane (the keyboard is in it with `ctrl+k v`) or in a kept hover box: pins the selected variable as a watch, the third list of the pane. A watch shows what its expression comes to at each stop and opens like a variable; `delete` takes it away; they are remembered for the project. Watches use the safe hover evaluation (variable paths only, no calls or calculations) |
 | mouse pointer, `f6` | While a program is stopped: rest the pointer on a variable (or select an expression first) to see its value in a box; a struct or list opens like in the Debug pane. A click in the box or `f6` keeps it (then arrows, `right`, `left`, `enter`, `esc`); stepping updates it. `lldb-dap` reads variable paths on hover (no calls, no calculations) and says so when it refuses |
 | `ctrl+z`, `ctrl+y` | Undo, redo |
 | `ctrl+c`, `ctrl+x`, `ctrl+v` | Copy, cut, paste (also `ctrl+insert`, `shift+delete`, `shift+insert`) |

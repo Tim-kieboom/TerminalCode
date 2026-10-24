@@ -15,7 +15,7 @@ use crate::event::action::Action;
 const LONG_ENOUGH: Duration = Duration::from_millis(450);
 
 /// A rig stopped on the breakpoint of `until_the_first_stop`, with `script` going on from there.
-fn stopped(
+pub(super) fn stopped(
     script: impl FnOnce(&mut crate::dap::test_support::Adapter, &str) + Send + 'static,
 ) -> Rig {
     let mut rig = debugging(move |adapter, root| {

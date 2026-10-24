@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use super::{Active, Kind, Waiting};
+use super::{Active, Kind, Target, Waiting};
 use crate::app::App;
 use crate::app::state::Popup;
 use crate::components::debug::DebugHoverBox;
@@ -47,7 +47,7 @@ pub(super) struct Evaluating {
     pending: Option<Pending>,
 }
 
-fn incoming(response: EvaluateResponse) -> Incoming {
+pub(super) fn incoming(response: EvaluateResponse) -> Incoming {
     Incoming {
         name: String::new(),
         value: response.result,
@@ -58,7 +58,7 @@ fn incoming(response: EvaluateResponse) -> Incoming {
 }
 
 /// What the adapter said, as it said it.
-fn words(error: &DapError) -> String {
+pub(super) fn words(error: &DapError) -> String {
     match error {
         DapError::Rejected { rejection, .. } => rejection.describe(),
         other => other.to_string(),
@@ -260,7 +260,7 @@ impl App {
                 kind: Kind::Variables {
                     row: read.row,
                     start: read.page.map_or(0, |(start, _)| start),
-                    hover: true,
+                    target: Target::Hover,
                     reply,
                 },
             }),

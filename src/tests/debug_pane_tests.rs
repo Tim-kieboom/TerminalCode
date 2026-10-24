@@ -76,7 +76,7 @@ fn at_a_stop(script_after: impl FnOnce(&mut Adapter, &str) + Send + 'static) -> 
     rig
 }
 
-fn chord(rig: &mut Rig, first: char, second: char) {
+pub(super) fn chord(rig: &mut Rig, first: char, second: char) {
     rig.app.handle_input(InputEvent::Key(KeyEvent::new(
         KeyCode::Char(first),
         KeyModifiers::CONTROL,
@@ -172,6 +172,8 @@ fn tab_switches_lists_and_enter_on_a_frame_chooses_it_shows_its_file_and_reads_i
     rig.press(KeyCode::Tab);
     assert_eq!(rig.app.state().debug_view().section(), Section::Variables);
     rig.press(KeyCode::Tab);
+    assert_eq!(rig.app.state().debug_view().section(), Section::Watches);
+    rig.press(KeyCode::Tab);
     assert_eq!(rig.app.state().debug_view().section(), Section::Stack);
 }
 
@@ -263,10 +265,10 @@ fn a_long_list_is_read_a_page_at_a_time() {
     );
 
     // The row that says how much is left reads the next page when it is opened.
-    rig.app
-        .state_mut()
-        .debug_view_mut()
-        .apply(crate::components::debug::DebugCommand::Last, 0, 0);
+    rig.app.state_mut().debug_view_mut().apply(
+        crate::components::debug::DebugCommand::Last,
+        crate::components::debug::Counts::default(),
+    );
     for _ in 0..more {
         rig.press(KeyCode::Down);
     }

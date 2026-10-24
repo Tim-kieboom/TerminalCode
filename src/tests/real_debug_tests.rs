@@ -10,6 +10,7 @@
 
 use std::fs;
 
+use crossterm::event::{KeyCode, KeyModifiers};
 use tokio::sync::mpsc;
 
 use super::run_tests::Rig;
@@ -106,9 +107,13 @@ fn the_editor_debugs_a_real_cargo_project_with_the_real_lldb_dap() {
     rig.rest_on("total += i", 2);
     rig.wait_for("the box of the debugger", |rig| rig.has_box());
     assert_eq!(rig.box_rows(), ["total = 0"]);
+    // Pinned from the box, the watch follows the program too.
+    rig.key_with(KeyCode::F(6), KeyModifiers::NONE);
+    rig.press(KeyCode::Char('w'));
+    rig.wait_for("the watch", |rig| rig.watch_rows() == ["total = 0"]);
     rig.app.run_action(Action::DebugStepOver);
-    rig.wait_for("the box after the step", |rig| {
-        rig.box_rows() == ["total = 1"]
+    rig.wait_for("the box and the watch after the step", |rig| {
+        rig.box_rows() == ["total = 1"] && rig.watch_rows() == ["total = 1"]
     });
 
     // A restart ends the session and stops at the same breakpoint again.

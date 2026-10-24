@@ -307,3 +307,54 @@ fn a_row_that_is_gone_is_left_closed_and_forgotten() {
     assert!(tree.reopen(&mut paths).is_empty());
     assert_eq!(names(&tree), ["p", "  age"]);
 }
+
+#[test]
+fn watches_are_rows_at_the_top_that_come_to_a_value_again_with_their_children_forgotten() {
+    let mut tree = Tree::default();
+    tree.add_root("p", var("", "P", 5));
+    tree.add_root("n", var("", "1", 0));
+    let read = tree.toggle(0).unwrap();
+    tree.fill(read.row, 0, vec![var("x", "1", 0)]);
+    assert_eq!(names(&tree), ["p", "  x", "n"]);
+
+    assert!(tree.replace_root("p", var("", "P'", 6)));
+
+    assert_eq!(names(&tree), ["p", "n"]);
+    assert_eq!(tree.rows()[0].value, "P'");
+    assert!(!tree.replace_root("gone", var("", "", 0)));
+    assert_eq!(tree.roots(), ["p", "n"]);
+}
+
+#[test]
+fn removing_a_watch_takes_its_children_with_it() {
+    let mut tree = Tree::default();
+    tree.add_root("p", var("", "P", 5));
+    tree.add_root("n", var("", "1", 0));
+    let read = tree.toggle(0).unwrap();
+    tree.fill(read.row, 0, vec![var("x", "1", 0)]);
+
+    tree.remove_root(1); // a child: nothing
+    assert_eq!(names(&tree), ["p", "  x", "n"]);
+    tree.remove_root(0);
+
+    assert_eq!(names(&tree), ["n"]);
+}
+
+#[test]
+fn a_watch_is_listed_once_and_forgets_its_value_when_the_stop_is_over() {
+    let mut data = DebugData::default();
+    assert!(data.add_watch("total"));
+    assert!(!data.add_watch("total"));
+    data.watches.replace_root("total", var("", "6", 0));
+
+    data.forget_stop();
+    assert_eq!(
+        data.watches.rows()[0].value,
+        "6",
+        "a step does not blank them"
+    );
+    data.forget_watch_values();
+
+    assert_eq!(data.watches.roots(), ["total"]);
+    assert_eq!(data.watches.rows()[0].value, "");
+}

@@ -8,4 +8,4 @@ mod tests;
 mod view;
 
 pub(crate) use hover::DebugHoverBox;
-pub(crate) use view::{DebugCommand, DebugView, Section};
+pub(crate) use view::{Counts, DebugCommand, DebugView, Section};

@@ -54,6 +54,11 @@ mod recent;
 mod rename;
 pub(crate) mod run;
 mod run_picker;
+mod watches;
+#[cfg(test)]
+pub(crate) mod watches_for_tests {
+    pub(crate) use super::watches::path_expression;
+}
 #[cfg(test)]
 pub(crate) use formatting::whole_lines_for_tests;
 #[cfg(test)]

@@ -153,6 +153,10 @@ pub(crate) struct SavedState {
     /// are the user's work, not a decision that can be asked again.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     breakpoints: BTreeMap<String, Vec<SavedBreakpoint>>,
+    /// The watches (expressions) of each project folder (a whole path), in the order they are
+    /// listed. Kept by a reset like the breakpoints.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    watches: BTreeMap<String, Vec<String>>,
 }
 
 /// A breakpoint as it is remembered: the file (from the project folder when it is inside it),
@@ -196,6 +200,7 @@ impl SavedState {
             side_shown: None,
             active_runs: BTreeMap::new(),
             breakpoints: self.breakpoints.clone(),
+            watches: self.watches.clone(),
         }
     }
 
@@ -216,6 +221,19 @@ impl SavedState {
         self.breakpoints
             .insert(folder.to_owned(), breakpoints.clone())
             != Some(breakpoints)
+    }
+
+    /// The watches remembered for the project folder.
+    pub(crate) fn watches(&self, folder: &str) -> &[String] {
+        self.watches.get(folder).map_or(&[], Vec::as_slice)
+    }
+
+    /// Remembers the watches of the project folder. Returns whether that is news.
+    pub(crate) fn set_watches(&mut self, folder: &str, watches: Vec<String>) -> bool {
+        if watches.is_empty() {
+            return self.watches.remove(folder).is_some();
+        }
+        self.watches.insert(folder.to_owned(), watches.clone()) != Some(watches)
     }
 
     /// The run configuration the user chose for the project folder, if they did.
