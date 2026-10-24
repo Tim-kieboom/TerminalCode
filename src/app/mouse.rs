@@ -99,6 +99,10 @@ impl App {
             return;
         }
 
+        // The buttons of the debugger over the editor.
+        if self.handle_debug_toolbar_mouse(event) {
+            return;
+        }
         // A click or the wheel on the box of the debugger is for the box.
         if self.handle_debug_hover_mouse(event) {
             return;

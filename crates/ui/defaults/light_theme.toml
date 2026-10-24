@@ -204,6 +204,16 @@ background = "@accent_bg"
 text = "@warning"
 modifiers = ["bold"]
 
+# The controls over the editor while a session goes, and the button that ends it
+["debug.toolbar"]
+text = "@on_accent"
+background = "@accent_bg"
+
+["debug.toolbar.stop"]
+text = "@error"
+background = "@accent_bg"
+modifiers = ["bold"]
+
 # Language server diagnostics: `text` colors the gutter mark and the message in the
 # status bar, `underline` the line under the text they are about.
 ["editor.diagnostic.error"]

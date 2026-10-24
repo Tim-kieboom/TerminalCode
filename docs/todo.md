@@ -72,7 +72,6 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 ## Run and debug
 Decided after a grill, see "Run configurations and a debugger" in `docs/design.md`; the run configurations (steps 1 to 3: `crates/launch`, the Run key, the picker) the debug adapter client (step 4: `crates/dap`) the breakpoints (step 5: `crates/breakpoints`, `F9`) and the debug session with its stop and pane (step 6) are built.
 - [ ] Debug hover, what is left: the pause before the box shows is the language server's (400 ms); nothing shows while the program runs (the old box stays until the next stop); the rows of a long list that were paged in are not opened again after a stop (only the first page); the box has no mouse way to select a row without opening it; a test of the fall through to the language server (a name the debugger refuses)
-- [ ] Debug toolbar: a small box in the middle above the editor while a session goes ("debugging", the controls: continue, step over/into/out, restart, stop; a button to close the debugger), like VS Code's; asked for after the watches
 - [ ] Debug, after step 6: typed watches (an expression typed in, and a mode that can run calls) and evaluate, a debug console; a list of the breakpoints (palette or the Debug pane); a menu entry; several threads (only the thread that stopped is shown)
 
 ## Vim

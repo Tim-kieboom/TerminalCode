@@ -134,6 +134,8 @@ pub(crate) struct AppState {
     hover_box: Option<HoverBox>,
     /// What the debugger says about the expression under the pointer or the cursor.
     debug_hover: Option<crate::components::debug::DebugHoverBox>,
+    /// The controls of the debugger over the editor.
+    debug_toolbar: crate::components::debug::Toolbar,
     /// The thread that parses for syntax highlighting, once the app has an
     /// event channel for it to answer on.
     syntax: Option<SyntaxWorker>,

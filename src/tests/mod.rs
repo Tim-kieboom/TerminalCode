@@ -11,6 +11,7 @@ mod cursor_tests;
 mod debug_hover_tests;
 mod debug_pane_tests;
 mod debug_tests;
+mod debug_toolbar_tests;
 mod debug_watch_tests;
 mod definition_tests;
 mod delete_tests;

@@ -134,3 +134,26 @@ fn toggles(command: DebugCommand, expanded: Option<bool>) -> bool {
             | (DebugCommand::Collapse, Some(true))
     )
 }
+
+impl App {
+    /// A click on a button of the toolbar over the editor does what the button says; the rest of
+    /// the toolbar takes the mouse too (a click there is not for the text under it). Whether the
+    /// event was used up.
+    pub(super) fn handle_debug_toolbar_mouse(&mut self, event: MouseEvent) -> bool {
+        let toolbar = self.state.debug_toolbar();
+        if self.modal_open() || !toolbar.contains(event.column, event.row) {
+            return false;
+        }
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(button) = toolbar.button_at(event.column, event.row) {
+                    self.run_action(button.action());
+                }
+            }
+            MouseEventKind::Moved => return false,
+            _ => {}
+        }
+        self.needs_redraw = true;
+        true
+    }
+}

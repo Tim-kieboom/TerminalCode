@@ -5,7 +5,9 @@ mod hover;
 pub(crate) mod model;
 #[cfg(test)]
 mod tests;
+mod toolbar;
 mod view;
 
 pub(crate) use hover::DebugHoverBox;
+pub(crate) use toolbar::{Button, Toolbar};
 pub(crate) use view::{Counts, DebugCommand, DebugView, Section};

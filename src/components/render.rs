@@ -44,6 +44,7 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
     let hits = state.notifications().render(frame, state.theme(), bottom);
     state.set_notification_hits(hits);
 
+    state.place_debug_toolbar();
     let screen = frame.area();
     if let Some(id) = state.plugin_popup().cloned() {
         let area = plugin_popup_area(screen);
@@ -92,6 +93,11 @@ pub fn prepare_and_render(frame: &mut Frame, state: &mut AppState) {
         && let Some(hover) = state.hover_box()
     {
         hover.render(frame, state.theme());
+    }
+    if matches!(state.popup(), Popup::None) {
+        state
+            .debug_toolbar()
+            .render(frame, state.theme(), &state.debug().status);
     }
     if matches!(state.popup(), Popup::None)
         && let Some(hover) = state.debug_hover()

@@ -98,6 +98,17 @@ impl AppState {
         self.debug_hover = hover;
     }
 
+    pub(crate) fn debug_toolbar(&self) -> &crate::components::debug::Toolbar {
+        &self.debug_toolbar
+    }
+
+    /// Puts the toolbar of the debugger over the focused editor pane.
+    pub(crate) fn place_debug_toolbar(&mut self) {
+        let pane = self.workspace().focused_area();
+        let status = self.debug.status.clone();
+        self.debug_toolbar.place(pane, &status);
+    }
+
     pub(crate) fn completion_box(&self) -> Option<&CompletionBox> {
         self.completion_box.as_ref()
     }
