@@ -531,3 +531,38 @@ fn without_cargo_and_without_commands_it_says_why_there_is_nothing_to_run() {
     rig.wait_for("the reason", |rig| rig.said_has("cargo is not installed"));
     assert_eq!(rig.tabs(), 0);
 }
+
+#[test]
+fn the_real_cargo_builds_a_real_project_and_its_program_runs_in_the_tab() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().canonicalize().unwrap();
+    fs::create_dir(root.join("src")).unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[package]\nname = \"hello-run\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/main.rs"),
+        "fn main() {\n    println!(\"hello from {} with {:?}\", env!(\"CARGO_PKG_NAME\"), std::env::args().count());\n}\n",
+    )
+    .unwrap();
+    let mut state = AppState::default();
+    state.open_project(&root).unwrap();
+    let (tx, events) = mpsc::channel(1024);
+    let app = App::new(state).with_events(tx);
+    let mut rig = Rig {
+        app,
+        events,
+        terminal: Terminal::new(TestBackend::new(110, 30)).unwrap(),
+        _dir: dir,
+        root,
+    };
+    rig.draw();
+
+    rig.run();
+
+    rig.wait_for_text("hello from hello-run with 1");
+    rig.wait_for_text("[exited with code 0]");
+    assert_eq!(rig.tabs(), 1);
+}
