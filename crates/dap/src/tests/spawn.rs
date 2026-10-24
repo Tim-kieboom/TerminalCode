@@ -53,3 +53,17 @@ fn what_a_program_writes_to_its_output_is_read_as_the_adapters_messages() {
     // Dropping the client ends the program, which would otherwise wait for its input for good.
     drop(client);
 }
+
+#[test]
+fn a_name_is_found_on_the_path_and_a_path_or_a_missing_name_is_left_alone() {
+    let found = crate::client::find_program("sh");
+    assert!(found.is_absolute() && found.is_file(), "{found:?}");
+    assert_eq!(
+        crate::client::find_program("./some/adapter"),
+        std::path::PathBuf::from("./some/adapter")
+    );
+    assert_eq!(
+        crate::client::find_program("trcode-no-such-adapter"),
+        std::path::PathBuf::from("trcode-no-such-adapter")
+    );
+}

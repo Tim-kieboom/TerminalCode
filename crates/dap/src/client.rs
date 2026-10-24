@@ -89,7 +89,10 @@ impl Client {
             .as_ref()
             .and_then(|file| file.try_clone().ok())
             .map_or_else(Stdio::null, Stdio::from);
-        let mut child = Command::new(program)
+        // An adapter found by name tells the launcher it asks for as its own name, which is then
+        // taken for a file of the project's folder: it is started by its whole path.
+        let found = find_program(program);
+        let mut child = Command::new(&found)
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -339,4 +342,20 @@ impl<T: Write> Write for Tee<T> {
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
+}
+
+/// The whole path of `program` when it is a name to be found on the `PATH`; anything with a
+/// separator in it, or not found, as it is.
+pub(crate) fn find_program(program: &str) -> std::path::PathBuf {
+    let name = std::path::Path::new(program);
+    if name.components().count() != 1 {
+        return name.to_path_buf();
+    }
+    let Some(paths) = std::env::var_os("PATH") else {
+        return name.to_path_buf();
+    };
+    std::env::split_paths(&paths)
+        .map(|folder| folder.join(name))
+        .find(|candidate| candidate.is_file())
+        .unwrap_or_else(|| name.to_path_buf())
 }
