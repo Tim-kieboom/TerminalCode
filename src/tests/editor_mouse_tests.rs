@@ -375,7 +375,9 @@ fn right_click_in_the_text_moves_the_cursor_and_opens_the_menu() {
             "Select All",
             "---",
             "Find in File",
-            "Save"
+            "Save",
+            "---",
+            "Add to Watch"
         ]
     );
     assert_eq!(screen.app.state().menu().unwrap().target(), None);

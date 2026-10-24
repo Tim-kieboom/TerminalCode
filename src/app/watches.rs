@@ -83,13 +83,7 @@ impl App {
     /// watching it. `None` where there is no name or selection to watch.
     pub(super) fn watch_menu_label(&self) -> Option<&'static str> {
         let expression = self.watch_at_cursor()?;
-        let watched = self
-            .state
-            .debug()
-            .watches
-            .roots()
-            .iter()
-            .any(|name| *name == expression);
+        let watched = self.state.debug().watches.roots().contains(&expression);
         Some(match watched {
             true => "Remove from Watch",
             false => "Add to Watch",
