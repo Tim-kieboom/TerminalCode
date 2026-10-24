@@ -334,10 +334,8 @@ impl App {
             rows,
             columns,
         };
-        let session = Session::spawn(&spawn, move || {
-            let _ = events.blocking_send(Event::TerminalChanged);
-        })
-        .map_err(|error| error.to_string())?;
+        let session = Session::spawn(&spawn, super::run::tab_wake(&events))
+            .map_err(|error| error.to_string())?;
         let process_id = session.process_id().map(i64::from);
         let title = self
             .runs_config_name(&active.config)
