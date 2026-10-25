@@ -2,12 +2,13 @@
 //! password and, after a wrong one, a line saying so. Enter tries the
 //! password, Esc gives up. While `sudo` is working the keys do nothing.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
+use crate::components::popups::key_with_ctrl;
 use crate::files::rootsave::Secret;
 use crate::ids::DocumentId;
 use crate::ui::theme::Theme;
@@ -27,11 +28,8 @@ pub(crate) enum Command {
 
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release || key.modifiers.contains(KeyModifiers::ALT) {
-            return None;
-        }
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        Some(match (key.code, ctrl) {
+        let (code, ctrl) = key_with_ctrl(key)?;
+        Some(match (code, ctrl) {
             (KeyCode::Esc, _) => Self::Cancel,
             (KeyCode::Enter, _) => Self::Submit,
             (KeyCode::Backspace, _) => Self::Backspace,

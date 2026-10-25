@@ -1,16 +1,18 @@
+use crossterm::event::KeyModifiers;
+
 use super::*;
 
 #[test]
 fn a_line_wraps_at_spaces_and_a_long_word_is_cut() {
-    assert_eq!(wrap("aa bb cc", 5), ["aa bb", "cc"]);
-    assert_eq!(wrap("abcdefgh", 3), ["abc", "def", "gh"]);
-    assert_eq!(wrap("", 5), [""]);
-    assert_eq!(wrap("short", 20), ["short"]);
+    assert_eq!(wrap_indented("aa bb cc", 5), ["aa bb", "cc"]);
+    assert_eq!(wrap_indented("abcdefgh", 3), ["abc", "def", "gh"]);
+    assert_eq!(wrap_indented("", 5), [""]);
+    assert_eq!(wrap_indented("short", 20), ["short"]);
 }
 
 #[test]
 fn wide_characters_count_two_columns() {
-    assert_eq!(wrap("日本語", 4), ["日本", "語"]);
+    assert_eq!(wrap_indented("日本語", 4), ["日本", "語"]);
 }
 
 #[test]

@@ -104,6 +104,7 @@ Verify
 - function size
 - parameter count
 - visibility
+- file layout: globals (`const`, `static`) first, then `pub` items (ideally most to least relevant), then private items
 
 ---
 
@@ -112,6 +113,7 @@ Verify
 Verify
 
 - tests cover public behavior and edge cases
+- tests are in a `tests` submodule of the module they test (`src/foo/tests/bar.rs` for `src/foo/bar.rs`), not inline and not in `{name}_tests.rs` beside the source
 - tests are not brittle or coupled to implementation details
 - tests avoid `unwrap()` where an assertion is feasible
 - filesystem tests use temp dirs and do not write into the repo

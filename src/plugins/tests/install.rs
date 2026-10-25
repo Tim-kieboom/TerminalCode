@@ -1,11 +1,20 @@
 use std::collections::HashMap;
+use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use super::*;
+use sha2::{Digest, Sha256};
+
 use crate::plugin_api::Abi;
+use crate::plugins::index::{Entry, IndexError};
+use crate::plugins::install::{
+    DESCRIPTION_FILE, InstallError, MARKER_FILE, Policy, STAGING, Stage, fetch, fetch_index, hex,
+    install, marker, remove, sibling,
+};
+use crate::plugins::manifest::{self, Host, Installed, MANIFEST_FILE, ManifestError};
 
 const HOST: Host<'static> = Host {
     abi: Abi::CURRENT,
@@ -231,15 +240,16 @@ fn the_stages_are_reported_in_order() {
         |stage| seen.push(stage),
     )
     .unwrap();
+
     assert_eq!(
-        seen,
-        [
+        &seen,
+        &[
             Stage::Manifest,
             Stage::Module,
             Stage::Checking,
-            Stage::Installing
-        ]
-    );
+            Stage::Installing,
+        ],
+    )
 }
 
 #[test]
@@ -532,10 +542,10 @@ fn a_module_and_marker_swapped_together_still_meet_the_pin() {
     )
     .unwrap();
 
-    assert!(matches!(
-        installed.module(),
-        Err(ManifestError::ModuleChanged(_))
-    ));
+    assert!(match installed.module() {
+        Err(ManifestError::ModuleChanged(_)) => true,
+        _ => false,
+    });
 }
 
 #[test]

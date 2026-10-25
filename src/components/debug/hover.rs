@@ -17,8 +17,8 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
 use super::model::{Incoming, Tree};
 use super::view::variable_line;
-use crate::components::editor::render::fit;
-use crate::components::popups::diagnostic_popup::{place, wrap_text};
+use crate::components::list_cursor::ListCursor;
+use crate::components::text::{fit, place, wrap_text};
 use crate::ids::DocumentId;
 use crate::ui::theme::Theme;
 
@@ -49,8 +49,7 @@ pub(crate) struct DebugHoverBox {
     version: u64,
     /// Stays when the pointer moves, and has the keys.
     pinned: bool,
-    selected: usize,
-    scroll: usize,
+    cursor: ListCursor,
     /// Paths of the rows to open again after the program stopped, as the answers come.
     restore: Vec<Vec<String>>,
     /// How many readings of children (for `restore`) are not answered yet.
@@ -119,8 +118,7 @@ impl DebugHoverBox {
             document,
             version,
             pinned,
-            selected: 0,
-            scroll: 0,
+            cursor: ListCursor::default(),
             restore: Vec::new(),
             reading: 0,
             area: Cell::new(Rect::default()),
@@ -165,7 +163,7 @@ impl DebugHoverBox {
     }
 
     pub(crate) fn selected(&self) -> usize {
-        self.selected
+        self.cursor.selected()
     }
 
     pub(crate) fn contains(&self, column: u16, row: u16) -> bool {
@@ -175,13 +173,12 @@ impl DebugHoverBox {
     // --- moving ---
 
     pub(crate) fn select(&mut self, row: usize) {
-        self.selected = row.min(self.tree.rows().len().saturating_sub(1));
+        self.cursor.select(row, self.tree.rows().len());
         self.keep_selected_in_view();
     }
 
     pub(crate) fn move_by(&mut self, rows: isize) {
-        let last = self.tree.rows().len().saturating_sub(1);
-        self.selected = self.selected.saturating_add_signed(rows).min(last);
+        self.cursor.shift(rows, self.tree.rows().len());
         self.keep_selected_in_view();
     }
 
@@ -192,11 +189,7 @@ impl DebugHoverBox {
             0..=2 => MOST_LINES,
             height => usize::from(height - 2),
         };
-        if self.selected < self.scroll {
-            self.scroll = self.selected;
-        } else if self.selected >= self.scroll + shown {
-            self.scroll = self.selected + 1 - shown;
-        }
+        self.cursor.reveal(shown);
     }
 
     /// One page: what fits in the box, less a row.
@@ -206,8 +199,8 @@ impl DebugHoverBox {
     }
 
     pub(crate) fn scroll_by(&mut self, rows: isize) {
-        let most = self.tree.rows().len().saturating_sub(MOST_LINES);
-        self.scroll = self.scroll.saturating_add_signed(rows).min(most);
+        self.cursor
+            .scroll_by(rows, self.tree.rows().len(), MOST_LINES);
     }
 
     /// The row of the tree under a screen cell.
@@ -217,7 +210,7 @@ impl DebugHoverBox {
             && row > area.y
             && row + 1 < area.bottom()
             && matches!(self.body, Body::Value);
-        let index = self.scroll + usize::from(row.saturating_sub(area.y + 1));
+        let index = self.cursor.scroll() + usize::from(row.saturating_sub(area.y + 1));
         (inside && index < self.tree.rows().len()).then_some(index)
     }
 
@@ -238,8 +231,7 @@ impl DebugHoverBox {
     ) -> Vec<super::model::Read> {
         self.body = Body::Value;
         self.tree.set_root(&self.expression.clone(), root);
-        self.selected = 0;
-        self.scroll = 0;
+        self.cursor.reset();
         self.restore = restore;
         self.reopen()
     }
@@ -310,7 +302,7 @@ impl DebugHoverBox {
             width: inner.width.saturating_sub(2),
             ..inner
         };
-        let first = self.scroll.min(lines.len().saturating_sub(rows));
+        let first = self.cursor.scroll().min(lines.len().saturating_sub(rows));
         let selected_style = theme.style(match self.pinned {
             true => "errors.selected",
             false => "errors.selected.inactive",
@@ -321,7 +313,7 @@ impl DebugHoverBox {
             .skip(first)
             .take(rows)
             .map(
-                |(index, line)| match self.is_tree() && index == self.selected {
+                |(index, line)| match self.is_tree() && index == self.cursor.selected() {
                     true => line.style(selected_style),
                     false => line,
                 },

@@ -5,10 +5,10 @@
 use std::time::Instant;
 
 use super::evaluate::{incoming, words};
-use super::{Active, Kind, Target, Waiting};
+use super::{Active, Kind, Target, Waiting, incoming_children};
 use crate::app::App;
 use crate::components::debug::model::{Incoming, Read};
-use crate::dap::{DapError, EvaluateArguments, EvaluateResponse, VariablesArguments};
+use crate::dap::{DapError, EvaluateArguments, EvaluateResponse};
 
 /// What the adapter said, in one line (a row has one).
 fn one_line(text: &str) -> String {
@@ -105,26 +105,12 @@ impl App {
     }
 
     fn debug_ask_watch_variables(&mut self, active: &mut Active, read: Read) {
-        let arguments = match read.page {
-            Some((start, count)) => VariablesArguments::page(read.reference, start, count),
-            None => VariablesArguments::of(read.reference),
-        };
-        match active.client.variables(&arguments) {
-            Ok(reply) => active.waiting.push(Waiting {
-                at: Instant::now(),
-                kind: Kind::Variables {
-                    row: read.row,
-                    start: read.page.map_or(0, |(start, _)| start),
-                    target: Target::Watch,
-                    reply,
-                },
-            }),
-            Err(_) => {
-                let data = self.state.debug_mut();
-                data.watches.failed(read.row);
-                data.watch_busy = data.watch_busy.saturating_sub(1);
-            }
+        if Self::debug_ask_children(active, &read, Target::Watch) {
+            return;
         }
+        let data = self.state.debug_mut();
+        data.watches.failed(read.row);
+        data.watch_busy = data.watch_busy.saturating_sub(1);
     }
 
     pub(super) fn debug_watch_variables(
@@ -137,20 +123,7 @@ impl App {
         let data = self.state.debug_mut();
         data.watch_busy = data.watch_busy.saturating_sub(1);
         match result {
-            Ok(response) => {
-                let children = response
-                    .variables
-                    .into_iter()
-                    .map(|variable| Incoming {
-                        name: variable.name,
-                        value: variable.value,
-                        type_name: variable.type_name,
-                        reference: variable.variables_reference,
-                        total: variable.indexed_variables.or(variable.named_variables),
-                    })
-                    .collect();
-                data.watches.fill(row, start, children);
-            }
+            Ok(response) => data.watches.fill(row, start, incoming_children(response)),
             Err(_) => data.watches.failed(row),
         }
         self.debug_watch_reopen(active);

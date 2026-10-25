@@ -1,6 +1,12 @@
-mod calls;
-mod menu;
-mod runs;
+pub mod calls;
+pub mod exec;
+pub mod index;
+pub mod install;
+pub mod instance;
+pub mod manifest;
+pub mod menu;
+pub mod runs;
+pub mod trust;
 
 use std::sync::mpsc;
 use std::time::{Duration, Instant};

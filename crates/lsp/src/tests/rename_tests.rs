@@ -244,3 +244,18 @@ fn the_client_says_it_makes_edits_a_server_asks_for_and_renames_files() {
         json!(["rename"])
     );
 }
+
+#[test]
+fn document_changes_win_over_changes_when_a_server_sends_both() {
+    let answer = json!({
+        "changes": { "file:///p/a.rs": [edit((0, 3), (0, 6), "bar")] },
+        "documentChanges": [
+            { "textDocument": { "uri": "file:///p/a.rs", "version": 3 }, "edits": [edit((0, 3), (0, 6), "bar")] },
+        ],
+    });
+
+    let found = parse_workspace_edit(&answer).unwrap();
+
+    assert_eq!(found.files.len(), 1);
+    assert_eq!(found.files[0].edits.len(), 1);
+}

@@ -1,6 +1,10 @@
 use std::fs;
 use std::path::Path;
 
+use trcode_plugin_api::{Abi, AbiError, RunPattern};
+
+use crate::plugins::manifest::{Host, Installed, MANIFEST_FILE, ManifestError, read, scan};
+
 use super::*;
 
 const HOST: Host<'static> = Host {

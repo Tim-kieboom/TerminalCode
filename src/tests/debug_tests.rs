@@ -750,3 +750,26 @@ fn restart_with_no_session_starts_one() {
 
     rig.wait_for_status("a stop", is_stopped);
 }
+
+#[test]
+fn a_variable_becomes_a_row_counting_its_indexed_children_before_the_named() {
+    use crate::components::debug::model::Incoming;
+    use crate::dap::Variable;
+
+    let both: Variable = serde_json::from_value(json!({
+        "name": "v", "value": "[..]", "type": "Vec", "variablesReference": 7,
+        "indexedVariables": 3, "namedVariables": 5
+    }))
+    .unwrap();
+    let named: Variable = serde_json::from_value(json!({
+        "name": "w", "value": "{..}", "namedVariables": 5
+    }))
+    .unwrap();
+
+    let row = Incoming::from(both);
+    assert_eq!(row.name, "v");
+    assert_eq!(row.type_name.as_deref(), Some("Vec"));
+    assert_eq!(row.reference, 7);
+    assert_eq!(row.total, Some(3));
+    assert_eq!(Incoming::from(named).total, Some(5));
+}

@@ -5,8 +5,9 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
 
-use super::TerminalPane;
+use super::{Cell, TerminalPane};
 use crate::app::state::{AppState, Focus};
+use crate::components::text::truncate;
 use crate::ui::cursor::dim_cell;
 use crate::ui::layout::Placement;
 
@@ -97,21 +98,6 @@ pub(super) fn tab_rects(labels: &[String], bar: Rect) -> Vec<Rect> {
         .collect()
 }
 
-/// `text` cut to at most `width` display columns.
-fn truncate(text: &str, width: usize) -> String {
-    let mut used = 0;
-    let mut out = String::new();
-    for c in text.chars() {
-        let w = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
-        if used + w > width {
-            break;
-        }
-        used += w;
-        out.push(c);
-    }
-    out
-}
-
 /// Copies the cells of `screen` into `buffer` inside `area`. A screen larger
 /// than the area is cut; a smaller one leaves the rest of the area as it was.
 pub(super) fn draw_screen(buffer: &mut Buffer, area: Rect, screen: &vt100::Screen) {
@@ -187,18 +173,18 @@ pub(super) fn draw_scroll_indicator(buffer: &mut Buffer, area: Rect, offset: usi
     }
 }
 
-/// Gives the cells from `first` to `last` (row, column; both included, reading order) the
+/// Gives the cells from `first` to `last` (both included, reading order) the
 /// style of a selection.
 pub(super) fn draw_selection(
     buffer: &mut Buffer,
     area: Rect,
-    (first, last): ((u16, u16), (u16, u16)),
+    (first, last): (Cell, Cell),
     style: Style,
 ) {
-    for row in first.0..=last.0.min(area.height.saturating_sub(1)) {
-        let from = if row == first.0 { first.1 } else { 0 };
-        let to = if row == last.0 {
-            last.1
+    for row in first.row..=last.row.min(area.height.saturating_sub(1)) {
+        let from = if row == first.row { first.column } else { 0 };
+        let to = if row == last.row {
+            last.column
         } else {
             area.width.saturating_sub(1)
         };

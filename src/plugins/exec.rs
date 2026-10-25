@@ -179,16 +179,42 @@ fn stop(child: &mut Child) -> Option<i32> {
     signal_group(child, Signal::Terminate);
     let until = Instant::now() + GRACE;
     while Instant::now() < until {
-        if let Ok(Some(status)) = child.try_wait() {
-            // What it started may still be there.
+        if has_exited(child) {
+            // What it started may still be there. The child is not reaped yet (see
+            // `has_exited`), so its group id is still ours to signal.
             signal_group(child, Signal::Kill);
-            return status.code();
+            return child.wait().ok().and_then(|status| status.code());
         }
         thread::sleep(POLL);
     }
     signal_group(child, Signal::Kill);
     let _ = child.kill();
     child.wait().ok().and_then(|status| status.code())
+}
+
+/// Whether the child has ended, without collecting its exit status: until it is waited
+/// for, its id (which is also its group's) cannot be given to another process.
+#[cfg(unix)]
+fn has_exited(child: &Child) -> bool {
+    // SAFETY: `siginfo_t` is plain data that all-zero bytes are valid for; `waitid` only
+    // writes into it. `WNOWAIT` leaves the child waitable, so its id is still its own.
+    unsafe {
+        let mut info: libc::siginfo_t = std::mem::zeroed();
+        let status = libc::waitid(
+            libc::P_PID,
+            child.id(),
+            &mut info,
+            libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
+        );
+        status == 0 && info.si_pid() != 0
+    }
+}
+
+/// Elsewhere `try_wait` is the only way to look; `Child` keeps the status it collected,
+/// and there is no group to signal.
+#[cfg(not(unix))]
+fn has_exited(child: &mut Child) -> bool {
+    matches!(child.try_wait(), Ok(Some(_)))
 }
 
 enum Signal {
@@ -206,7 +232,8 @@ fn signal_group(child: &mut Child, signal: Signal) {
         Signal::Kill => libc::SIGKILL,
     };
     // SAFETY: a signal to the group the child leads (see `spawn`); it sends and touches no
-    // memory of ours. The child has not been waited for, so its id is still its own.
+    // memory of ours. Callers signal only a child that has not been waited for (it is either
+    // running or ended but not yet collected, see `has_exited`), so its id is still its own.
     unsafe {
         libc::killpg(pid, signal);
     }
@@ -273,6 +300,3 @@ fn pass_on(bytes: &[u8], stream: RunStream, sink: &dyn Sink, output: &Output) {
     }
     sink.output(stream, String::from_utf8_lossy(bytes).into_owned());
 }
-
-#[cfg(test)]
-mod tests;

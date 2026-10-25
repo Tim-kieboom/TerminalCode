@@ -4,7 +4,7 @@
 //! removes, `space` turns on or off, `p` places, `r` asks the index again, Esc closes
 //! (while something is downloading it stops that instead).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Modifier;
@@ -12,6 +12,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 use unicode_width::UnicodeWidthStr;
 
+use crate::components::popups::plain_key;
 use crate::ui::backdrop;
 use crate::ui::theme::Theme;
 
@@ -54,20 +55,14 @@ pub(crate) enum Command {
 
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release
-            || key
-                .modifiers
-                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-        {
-            return None;
-        }
+        let code = plain_key(key)?;
         // Shift and `i`: the terminal says `I`, or `i` with shift when it can.
         if key.modifiers.contains(KeyModifiers::SHIFT)
             && matches!(key.code, KeyCode::Char('i' | 'I'))
         {
             return Some(Self::UpdateAll);
         }
-        Some(match key.code {
+        Some(match code {
             KeyCode::Up => Self::Previous,
             KeyCode::Down => Self::Next,
             KeyCode::Enter => Self::Primary,

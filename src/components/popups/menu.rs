@@ -7,13 +7,14 @@
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
+use crate::components::popups::plain_key;
 use crate::event::action::Action;
 use crate::ui::theme::Theme;
 
@@ -68,14 +69,8 @@ pub(crate) enum Step {
 
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release
-            || key
-                .modifiers
-                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-        {
-            return None;
-        }
-        Some(match key.code {
+        let code = plain_key(key)?;
+        Some(match code {
             KeyCode::Up => Self::Previous,
             KeyCode::Down => Self::Next,
             KeyCode::Right => Self::Right,

@@ -11,8 +11,8 @@ use crate::app::App;
 use crate::app::state::AppState;
 use crate::buffer::Buffer;
 use crate::components::editor::Editor;
-use crate::components::popups::diagnostic_popup::wrap_text;
 use crate::components::prepare_and_render;
+use crate::components::text::wrap_text;
 use crate::event::action::Action;
 use crate::lsp::{Diagnostic, Severity};
 

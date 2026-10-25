@@ -12,12 +12,12 @@ use crate::plugin_api::{MAX_OPEN_RUNS, Refusal, RunPattern, allows};
 #[derive(Debug, Default)]
 pub(super) struct Runs {
     /// The project folder, and whether the user trusts it.
-    root: Option<PathBuf>,
-    trusted: bool,
+    pub(super) root: Option<PathBuf>,
+    pub(super) trusted: bool,
     /// The plugins that may run commands, with the commands each may run.
-    allowed: HashMap<Box<str>, Vec<RunPattern>>,
+    pub(super) allowed: HashMap<Box<str>, Vec<RunPattern>>,
     /// The commands that run: plugin, then the plugin's request number.
-    open: HashMap<Box<str>, HashMap<u64, Arc<Control>>>,
+    pub(super) open: HashMap<Box<str>, HashMap<u64, Arc<Control>>>,
 }
 
 impl Runs {
@@ -162,6 +162,3 @@ fn folder_in(root: &Path, cwd: &str) -> Result<PathBuf, String> {
         false => Err(format!("`{cwd}` is not a folder inside the project")),
     }
 }
-
-#[cfg(test)]
-mod tests;

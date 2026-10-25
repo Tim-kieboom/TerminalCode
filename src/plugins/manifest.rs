@@ -279,6 +279,3 @@ pub(super) fn at_least(have: &str, required: &str) -> Result<bool, ManifestError
     };
     Ok(parse(have)? >= parse(required)?)
 }
-
-#[cfg(test)]
-mod tests;

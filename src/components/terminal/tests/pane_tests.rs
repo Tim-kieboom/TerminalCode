@@ -1,4 +1,6 @@
-use crate::components::terminal::TerminalPane;
+use ratatui::layout::Rect;
+
+use crate::components::terminal::{Cell, TerminalPane};
 use crate::pty::{Session, Shell, SpawnConfig};
 
 fn session(script: &str) -> Session {
@@ -224,4 +226,44 @@ fn without_a_bar_or_room_there_is_no_plus_button() {
         add_button_after(&[], Rect::new(0, 0, 2, 1)),
         Rect::default()
     );
+}
+
+fn pane_with_text_at(x: u16, y: u16, width: u16, height: u16) -> TerminalPane {
+    TerminalPane {
+        text_area: Rect::new(x, y, width, height),
+        ..TerminalPane::default()
+    }
+}
+
+#[test]
+fn a_cell_under_the_pointer_is_counted_from_the_corner_of_the_text() {
+    let pane = pane_with_text_at(5, 3, 10, 4);
+    assert_eq!(pane.cell_at(5, 3), Some(Cell { row: 0, column: 0 }));
+    assert_eq!(pane.cell_at(8, 5), Some(Cell { row: 2, column: 3 }));
+    assert_eq!(pane.cell_at(4, 3), None, "the frame");
+    assert_eq!(pane.cell_at(5, 7), None, "below the text");
+}
+
+#[test]
+fn the_cell_and_the_clamped_cell_agree_on_the_order_of_row_and_column() {
+    let pane = pane_with_text_at(5, 3, 10, 4);
+    assert_eq!(pane.screen_cell(8, 5), Some((3, 2)), "(column, row)");
+    assert_eq!(pane.clamped_cell(8, 5), pane.cell_at(8, 5));
+}
+
+#[test]
+fn a_drag_outside_the_text_clamps_to_the_edge_it_left_by() {
+    let pane = pane_with_text_at(5, 3, 10, 4);
+    assert_eq!(pane.clamped_cell(0, 0), Some(Cell { row: 0, column: 0 }));
+    assert_eq!(pane.clamped_cell(99, 99), Some(Cell { row: 3, column: 9 }));
+    assert_eq!(pane.clamped_cell(99, 4), Some(Cell { row: 1, column: 9 }));
+    assert_eq!(pane_with_text_at(0, 0, 0, 0).clamped_cell(1, 1), None);
+}
+
+#[test]
+fn cells_order_by_row_and_then_column() {
+    let early = Cell { row: 1, column: 9 };
+    let late = Cell { row: 2, column: 0 };
+    assert!(early < late);
+    assert_eq!(Cell::from((2, 0)), late, "a tuple is (row, column)");
 }

@@ -1259,3 +1259,17 @@ fn a_kind_of_menu_item_a_later_version_has_reads_as_unknown() {
         }
     );
 }
+
+#[test]
+fn a_kind_of_output_that_is_not_known_yet_is_still_a_message() {
+    let text = r#"{"type":"run_output","request":3,"stream":"debug","text":"hi"}"#;
+    let message = ToPlugin::from_bytes(text.as_bytes()).unwrap();
+    assert!(matches!(
+        message,
+        ToPlugin::RunOutput {
+            request: 3,
+            stream: RunStream::Unknown,
+            ..
+        }
+    ));
+}

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::{Id, Incoming, LspError};
+use crate::{Connection, Id, Incoming, LspError};
 
 use crate::test_support::{PATIENCE, connect, connect_with_wake};
 
@@ -350,4 +350,39 @@ fn other_requests_of_the_server_are_still_answered_by_the_client_itself() {
         assert_eq!(answer.unwrap(), Value::Null);
     });
     rig.server.finish();
+}
+
+/// A stream to a server that never reads: a write waits until the test lets go of `release`.
+struct StuckWriter(mpsc::Receiver<()>);
+
+impl std::io::Write for StuckWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _ = self.0.recv();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn a_server_that_never_reads_does_not_block_the_caller() {
+    let (release, stuck) = mpsc::channel();
+    let (reader, _server_writer) = crate::test_support::pipe();
+    let (connection, _incoming) = Connection::start(reader, StuckWriter(stuck), || {});
+    let started = std::time::Instant::now();
+
+    let big = json!({ "text": "x".repeat(200_000) });
+    let failure = (0..10_000)
+        .map(|_| connection.notify("textDocument/didChange", big.clone()))
+        .find_map(Result::err);
+
+    assert!(started.elapsed() < PATIENCE);
+    assert!(matches!(failure, Some(LspError::Closed(_))));
+    assert!(matches!(
+        connection.request("late", Value::Null),
+        Err(LspError::Closed(_))
+    ));
+    drop(release);
 }

@@ -14,6 +14,7 @@ use crate::buffer::{Buffer, Position, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, ViewState, display_name};
 use crate::components::popups::find::Find;
+use crate::components::text::fit;
 use crate::git::HunkKind;
 use crate::lsp::{Diagnostic, Severity};
 use crate::syntax::Span as SyntaxSpan;
@@ -21,7 +22,6 @@ use crate::ui::cursor::{dim_cell, extra_cell as extra_cursor_cell};
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
 /// Smallest line-number column, in digits.
 /// What stands in the gutter of the line the program is stopped on.
@@ -185,141 +185,199 @@ fn draw_lines(
     overlays: &Overlays<'_>,
     geometry: &Geometry,
 ) {
-    let Overlays {
-        syntax,
-        find,
-        diagnostics,
-        git,
-        action_line,
-        breakpoints,
-        stop_line,
-    } = *overlays;
-    let scroll = view.scroll();
-    let head_line = view.selections().primary().head().line;
+    let drawer = LineDrawer {
+        theme,
+        buffer,
+        view,
+        overlays,
+        geometry,
+    };
+    let top = view.scroll().top;
+    let visible = top..top + usize::from(geometry.text.height);
 
     let mut numbers = Vec::new();
     let mut texts = Vec::new();
-    let visible = scroll.top..scroll.top + usize::from(geometry.text.height);
     for line in visible.take_while(|line| *line < buffer.len_lines()) {
-        let number_slot = if line == head_line {
-            "editor.line_number.current"
-        } else {
-            "editor.line_number"
-        };
-        let width = usize::from(geometry.gutter.width).saturating_sub(1);
-        let line_start = buffer.line_start_byte(line);
-        let next_start = buffer.line_start_byte(line + 1);
-        let here: Vec<&Diagnostic> = diagnostics
-            .iter()
-            .filter(|diagnostic| touches_line(diagnostic, line_start, next_start))
-            .collect();
-        // The column after the number is a bar in the color of what git says
-        // about the line, when the line differs from the index.
-        let number_style = theme.style(number_slot);
-        let bar = match git.mark_at(line) {
-            Some(kind) => Span::styled(change_bar(kind), theme.style(change_slot(kind))),
-            None => Span::styled(" ", number_style),
-        };
-        // A line with actions has a mark where the bar of git is: the cursor's line shows it
-        // instead of the bar.
-        let bar = match action_line == Some(line) {
-            true => Span::styled(ACTION_MARK, theme.style("editor.diagnostic.warning")),
-            false => bar,
-        };
-        // A breakpoint is there before all: red when set, a ring when the adapter cannot place
-        // it, dim when what it was set on is not on the line any more.
-        let bar = match breakpoints.iter().find(|point| point.line == line) {
-            Some(point) => {
-                let (mark, slot) = breakpoint_mark(point.kind);
-                Span::styled(mark, theme.style(slot))
-            }
-            None => bar,
-        };
-        // The arrow of the debugger is before all: it is where the program is.
-        let bar = match stop_line == Some(line) {
-            true => Span::styled(STOP_ARROW, theme.style("debug.arrow")),
-            false => bar,
-        };
-        numbers.push(Line::from(vec![
-            Span::styled(format!("{:>width$}", line + 1), number_style),
-            bar,
-        ]));
-
-        let Ok(content) = buffer.line_content(line) else {
-            continue;
-        };
-        let underlines = Underlines::new(theme, &here, line_start, &content);
-        let cells = visible_cells(
-            &content,
-            scroll.left,
-            usize::from(geometry.text.width),
-            view.tab_width(),
-        );
-        let line_len = buffer.line_len(line).unwrap_or(0);
-        let selected: Vec<(Range<usize>, bool)> = view
-            .selections()
-            .iter()
-            .filter_map(|selection| selected_columns(selection, line, line_len))
-            .collect();
-        let colors = LineColors::new(syntax, buffer.line_start_byte(line), &content);
-
-        let selection_style = theme.style("editor.selection");
-        let match_style = theme.style("editor.match");
-        let found = find.map_or(&[][..], |find| find.matches_on_line(line));
-        let mut spans: Vec<Span> = cells
-            .into_iter()
-            .map(|cell| {
-                let base = colors.style_of(cell.grapheme);
-                let style = match &selected {
-                    selected
-                        if selected
-                            .iter()
-                            .any(|(range, _)| range.contains(&cell.grapheme)) =>
-                    {
-                        base.patch(selection_style)
-                    }
-                    _ if found
-                        .iter()
-                        .any(|m| (m.start..m.end).contains(&cell.grapheme)) =>
-                    {
-                        base.patch(match_style)
-                    }
-                    _ => base,
-                };
-                Span::styled(cell.text, underlines.apply(cell.grapheme, style))
-            })
-            .collect();
-        let spacer = selected.iter().any(|(_, continues)| *continues);
-        if spacer {
-            spans.push(Span::styled(" ", selection_style));
+        numbers.push(drawer.gutter(line));
+        if let Some(text) = drawer.text(line) {
+            texts.push(text);
         }
-        // What the server says about this line, after the code, in the color of
-        // its severity.
-        if let Some((severity, message)) = inline_message(&here, line_start, next_start) {
-            let line_width = display_column(&content, usize::MAX, view.tab_width());
-            // Where the code ends in the window; a line that ends left of it has
-            // scrolled away together with what is said about it.
-            if let Some(end) = line_width.checked_sub(scroll.left) {
-                let start = end + usize::from(spacer) + INLINE_GAP;
-                let room = usize::from(geometry.text.width).saturating_sub(start);
-                if room >= INLINE_MIN_WIDTH {
-                    spans.push(Span::raw(" ".repeat(INLINE_GAP)));
-                    spans.push(Span::styled(
-                        fit(&message, room),
-                        theme.style(slot_of(severity)),
-                    ));
-                }
-            }
-        }
-        let row = Line::from(spans);
-        texts.push(match stop_line == Some(line) {
-            true => row.style(theme.style("debug.stopped")),
-            false => row,
-        });
     }
 
     frame.render_widget(Paragraph::new(numbers), geometry.gutter);
     frame.render_widget(Paragraph::new(texts), geometry.text);
+}
+
+/// What it takes to draw the lines of one editor, one line at a time.
+struct LineDrawer<'a> {
+    theme: &'a Theme,
+    buffer: &'a Buffer,
+    view: &'a ViewState,
+    overlays: &'a Overlays<'a>,
+    geometry: &'a Geometry,
+}
+
+impl LineDrawer<'_> {
+    /// The gutter of `line`: its number, and the mark after it.
+    fn gutter(&self, line: usize) -> Line<'static> {
+        let head_line = self.view.selections().primary().head().line;
+        let number_slot = match line == head_line {
+            true => "editor.line_number.current",
+            false => "editor.line_number",
+        };
+        let number_style = self.theme.style(number_slot);
+        let width = usize::from(self.geometry.gutter.width).saturating_sub(1);
+        Line::from(vec![
+            Span::styled(format!("{:>width$}", line + 1), number_style),
+            self.gutter_mark(line, number_style),
+        ])
+    }
+
+    /// The column after the number. What is there, first that applies: the arrow of the
+    /// debugger (it is where the program is); a breakpoint (red when set, a ring when the
+    /// adapter cannot place it, dim when what it was set on is not on the line any more); the
+    /// mark of the code actions (the cursor's line shows it instead of the bar of git); a bar
+    /// in the color of what git says about the line, when it differs from the index.
+    fn gutter_mark(&self, line: usize, number_style: Style) -> Span<'static> {
+        let theme = self.theme;
+        let overlays = self.overlays;
+        if overlays.stop_line == Some(line) {
+            return Span::styled(STOP_ARROW, theme.style("debug.arrow"));
+        }
+        if let Some(point) = overlays.breakpoints.iter().find(|point| point.line == line) {
+            let (mark, slot) = breakpoint_mark(point.kind);
+            return Span::styled(mark, theme.style(slot));
+        }
+        if overlays.action_line == Some(line) {
+            return Span::styled(ACTION_MARK, theme.style("editor.diagnostic.warning"));
+        }
+        match overlays.git.mark_at(line) {
+            Some(kind) => Span::styled(change_bar(kind), theme.style(change_slot(kind))),
+            None => Span::styled(" ", number_style),
+        }
+    }
+
+    /// The text of `line`: the code with its colors, selections and matches, then what the
+    /// server says about it. `None` when the line cannot be read.
+    fn text(&self, line: usize) -> Option<Line<'static>> {
+        let buffer = self.buffer;
+        let scroll = self.view.scroll();
+        let line_start = buffer.line_start_byte(line);
+        let next_start = buffer.line_start_byte(line + 1);
+        let content = buffer.line_content(line).ok()?;
+        let here: Vec<&Diagnostic> = self
+            .overlays
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| touches_line(diagnostic, line_start, next_start))
+            .collect();
+
+        let selected = self.selected_columns_on(line);
+        let mut spans = self.code_spans(line, &content, &here, &selected);
+        let spacer = selected.iter().any(|(_, continues)| *continues);
+        if spacer {
+            spans.push(Span::styled(" ", self.theme.style("editor.selection")));
+        }
+        let tab_width = self.view.tab_width();
+        let line_width = display_column(&content, usize::MAX, tab_width);
+        spans.extend(self.inline_diagnostic(
+            &here,
+            line_start..next_start,
+            line_width.checked_sub(scroll.left),
+            usize::from(spacer),
+        ));
+        let row = Line::from(spans);
+        Some(match self.overlays.stop_line == Some(line) {
+            true => row.style(self.theme.style("debug.stopped")),
+            false => row,
+        })
+    }
+
+    /// The selected columns of `line`, and for each whether it goes on past the line's end.
+    fn selected_columns_on(&self, line: usize) -> Vec<(Range<usize>, bool)> {
+        let line_len = self.buffer.line_len(line).unwrap_or(0);
+        self.view
+            .selections()
+            .iter()
+            .filter_map(|selection| selected_columns(selection, line, line_len))
+            .collect()
+    }
+
+    /// The visible cells of `content`, each with the style of its syntax, selection, search
+    /// match and diagnostic underline.
+    fn code_spans(
+        &self,
+        line: usize,
+        content: &str,
+        here: &[&Diagnostic],
+        selected: &[(Range<usize>, bool)],
+    ) -> Vec<Span<'static>> {
+        let theme = self.theme;
+        let line_start = self.buffer.line_start_byte(line);
+        let underlines = Underlines::new(theme, here, line_start, content);
+        let colors = LineColors::new(self.overlays.syntax, line_start, content);
+        let cells = visible_cells(
+            content,
+            self.view.scroll().left,
+            usize::from(self.geometry.text.width),
+            self.view.tab_width(),
+        );
+        let selection_style = theme.style("editor.selection");
+        let match_style = theme.style("editor.match");
+        let found = self
+            .overlays
+            .find
+            .map_or(&[][..], |find| find.matches_on_line(line));
+        cells
+            .into_iter()
+            .map(|cell| {
+                let base = colors.style_of(cell.grapheme);
+                let is_selected = selected
+                    .iter()
+                    .any(|(range, _)| range.contains(&cell.grapheme));
+                let is_match = found
+                    .iter()
+                    .any(|m| (m.start..m.end).contains(&cell.grapheme));
+                let style = if is_selected {
+                    base.patch(selection_style)
+                } else if is_match {
+                    base.patch(match_style)
+                } else {
+                    base
+                };
+                Span::styled(cell.text, underlines.apply(cell.grapheme, style))
+            })
+            .collect()
+    }
+
+    /// What the server says about the line, after the code, in the color of its severity.
+    /// `code_end` is where the code ends in the window: a line that ends left of it has
+    /// scrolled away together with what is said about it. `spacer` is 1 when a space was
+    /// added for a selection that goes on past the end of the line.
+    fn inline_diagnostic(
+        &self,
+        here: &[&Diagnostic],
+        line_bytes: Range<usize>,
+        code_end: Option<usize>,
+        spacer: usize,
+    ) -> Vec<Span<'static>> {
+        let Some((severity, message)) = inline_message(here, line_bytes.start, line_bytes.end)
+        else {
+            return Vec::new();
+        };
+        let Some(end) = code_end else {
+            return Vec::new();
+        };
+        let start = end + spacer + INLINE_GAP;
+        let room = usize::from(self.geometry.text.width).saturating_sub(start);
+        if room < INLINE_MIN_WIDTH {
+            return Vec::new();
+        }
+        vec![
+            Span::raw(" ".repeat(INLINE_GAP)),
+            Span::styled(fit(&message, room), self.theme.style(slot_of(severity))),
+        ]
+    }
 }
 
 /// What stands in the gutter for a line that differs from the index; a removal
@@ -545,23 +603,4 @@ fn inline_message(
         others => format!(" (+{})", others - 1),
     };
     Some((worst.severity, format!("{first_line}{more}")))
-}
-
-/// `text` cut to `width` columns, with `…` where it was cut.
-pub(crate) fn fit(text: &str, width: usize) -> String {
-    if text.width() <= width {
-        return text.to_owned();
-    }
-    let mut out = String::new();
-    let mut used = 0;
-    for character in text.chars() {
-        let columns = unicode_width::UnicodeWidthChar::width(character).unwrap_or(0);
-        if used + columns + 1 > width {
-            break;
-        }
-        out.push(character);
-        used += columns;
-    }
-    out.push('…');
-    out
 }

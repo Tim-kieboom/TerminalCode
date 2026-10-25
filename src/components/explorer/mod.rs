@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use ratatui::layout::{Position, Rect};
 use serde::Deserialize;
 
+use crate::components::list_cursor::{Step, stepped};
 pub(crate) use drag::Release;
 use drag::{Drag, Press};
 pub(crate) use tree::{ExplorerError, NodeKind, Row};
@@ -147,15 +148,25 @@ impl Explorer {
         command: ExplorerCommand,
     ) -> Result<Option<PathBuf>, ExplorerError> {
         self.follow_selection = true;
-        let last = self.rows.len().saturating_sub(1);
+        let count = self.rows.len();
         let page = usize::from(self.body.height).saturating_sub(1).max(1);
         match command {
-            ExplorerCommand::Up => self.selected = self.selected.saturating_sub(1),
-            ExplorerCommand::Down => self.selected = (self.selected + 1).min(last),
-            ExplorerCommand::PageUp => self.selected = self.selected.saturating_sub(page),
-            ExplorerCommand::PageDown => self.selected = (self.selected + page).min(last),
-            ExplorerCommand::First => self.selected = 0,
-            ExplorerCommand::Last => self.selected = last,
+            ExplorerCommand::Up => self.selected = stepped(self.selected, Step::Up, count, page),
+            ExplorerCommand::Down => {
+                self.selected = stepped(self.selected, Step::Down, count, page);
+            }
+            ExplorerCommand::PageUp => {
+                self.selected = stepped(self.selected, Step::PageUp, count, page);
+            }
+            ExplorerCommand::PageDown => {
+                self.selected = stepped(self.selected, Step::PageDown, count, page);
+            }
+            ExplorerCommand::First => {
+                self.selected = stepped(self.selected, Step::First, count, page)
+            }
+            ExplorerCommand::Last => {
+                self.selected = stepped(self.selected, Step::Last, count, page)
+            }
             ExplorerCommand::Expand => self.expand_selected()?,
             ExplorerCommand::Collapse => self.collapse_selected(),
             ExplorerCommand::Open => return self.open_selected(),

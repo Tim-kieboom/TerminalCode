@@ -3,14 +3,15 @@
 
 use std::cell::Cell;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use unicode_width::UnicodeWidthChar;
 
+use crate::components::popups::plain_key;
+use crate::components::text::wrap_indented;
 use crate::ui::backdrop;
 use crate::ui::theme::Theme;
 
@@ -37,14 +38,8 @@ pub(crate) enum Command {
 
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release
-            || key
-                .modifiers
-                .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-        {
-            return None;
-        }
-        Some(match key.code {
+        let code = plain_key(key)?;
+        Some(match code {
             KeyCode::Up | KeyCode::Char('k') => Self::Scroll(-1),
             KeyCode::Down | KeyCode::Char('j') => Self::Scroll(1),
             KeyCode::PageUp => Self::Page(-1),
@@ -175,7 +170,7 @@ impl Readme {
         let heading = theme.style("pane.title").add_modifier(Modifier::BOLD);
         let mut lines: Vec<Line<'static>> = Vec::new();
         let push = |lines: &mut Vec<Line<'static>>, text_of: &str, style| {
-            for piece in wrap(text_of, width) {
+            for piece in wrap_indented(text_of, width) {
                 lines.push(Line::from(Span::styled(format!(" {piece}"), style)));
             }
         };
@@ -212,45 +207,6 @@ impl Readme {
 /// A line of Markdown without the marks that only make it look like Markdown.
 fn plain(line: &str) -> String {
     line.replace("**", "").replace('`', "")
-}
-
-/// `text` cut into lines of at most `width` columns: at spaces when it can, in the
-/// middle of a word when a word is longer than a line.
-fn wrap(text: &str, width: usize) -> Vec<String> {
-    if text.is_empty() {
-        return vec![String::new()];
-    }
-    // Indentation (lists, code, tables) is kept on the first line.
-    let mut out: Vec<String> = Vec::new();
-    let mut current = String::new();
-    let mut used = 0;
-    for word in text.split_inclusive(' ') {
-        let word_width: usize = word
-            .trim_end()
-            .chars()
-            .filter_map(UnicodeWidthChar::width)
-            .sum();
-        if used + word_width.min(width) > width && used > 0 {
-            out.push(current.trim_end().to_owned());
-            current.clear();
-            used = 0;
-        }
-        for c in word.chars() {
-            let w = c.width().unwrap_or(0);
-            // A space that does not fit ends the line and is not carried to the next.
-            if c == ' ' && used + w > width {
-                continue;
-            }
-            if used + w > width {
-                out.push(std::mem::take(&mut current));
-                used = 0;
-            }
-            current.push(c);
-            used += w;
-        }
-    }
-    out.push(current.trim_end().to_owned());
-    out
 }
 
 #[cfg(test)]

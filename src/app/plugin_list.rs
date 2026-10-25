@@ -670,10 +670,7 @@ impl App {
             };
             let result = install::install(&entry, &dir, Host::THIS, policy, &cancel, progress)
                 .map(|_| ())
-                .map_err(|error| match error {
-                    InstallError::Cancelled => "stopped".to_owned(),
-                    other => other.to_string(),
-                });
+                .map_err(|error| error.to_string());
             let _ = events.blocking_send(Event::PluginJob(JobEvent::Done { id, update, result }));
         });
         self.show_plugin_list(Some(&chosen));
@@ -745,7 +742,7 @@ impl App {
                 }
                 match result {
                     Ok(()) => self.installed_plugin(&id, update),
-                    Err(reason) if reason == "stopped" => {
+                    Err(reason) if reason == InstallError::Cancelled.to_string() => {
                         self.state
                             .notify(format!("plugin {id}: stopped, nothing was installed"));
                         self.show_plugin_list(Some(&id));

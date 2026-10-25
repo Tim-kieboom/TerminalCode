@@ -43,14 +43,6 @@ fn the_active_tab_scrolls_into_view() {
     assert_eq!(bar.before, Rect::new(0, 0, 2, 1));
 }
 
-#[test]
-fn truncate_cuts_by_display_width() {
-    assert_eq!(truncate("abcdef", 3), "abc");
-    assert_eq!(truncate("\u{3053}\u{3053}", 3), "\u{3053}");
-    assert_eq!(truncate("ab", 10), "ab");
-    assert_eq!(truncate("ab", 0), "");
-}
-
 fn screen(workspace: &mut Workspace, width: u16, height: u16) -> String {
     let state = AppState::default();
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();

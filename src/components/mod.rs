@@ -1,9 +1,13 @@
+#[cfg(test)]
+mod tests;
+
 pub mod completion_box;
 pub mod debug;
 pub mod editor;
 pub mod errors;
 pub mod explorer;
 pub mod hover_box;
+pub(crate) mod list_cursor;
 pub mod menu_bar;
 pub mod notifications;
 pub mod popups;
@@ -11,6 +15,7 @@ mod render;
 pub mod scroll_text;
 pub mod status_view;
 pub mod terminal;
+pub(crate) mod text;
 pub mod workspace;
 pub(crate) use render::plugin_popup_area;
 pub use render::prepare_and_render;

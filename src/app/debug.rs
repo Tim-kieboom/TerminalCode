@@ -22,7 +22,7 @@ use crate::dap::{
     InitializeArguments, Nothing, PendingReply, ReverseRequest, RunInTerminalArguments,
     RunInTerminalResponse, ScopesResponse, SetBreakpointsArguments, SetBreakpointsResponse, Source,
     SourceBreakpoint, StackTraceArguments, StackTraceResponse, Stopped, ThreadsResponse, Update,
-    VariablesArguments, VariablesResponse,
+    Variable, VariablesArguments, VariablesResponse,
 };
 use crate::event::Event;
 use crate::launch::{ConfigId, RunConfig, What, run_env};
@@ -114,7 +114,86 @@ enum Kind {
     Disconnect(PendingReply<Nothing>),
 }
 
+/// What a request came back with, with what is needed to handle it.
+enum Answered {
+    Initialized(Result<Capabilities, DapError>),
+    Launched(Result<Nothing, DapError>),
+    Breakpoints {
+        path: PathBuf,
+        result: Result<SetBreakpointsResponse, DapError>,
+    },
+    ConfigurationDone(Result<Nothing, DapError>),
+    Threads(Result<ThreadsResponse, DapError>),
+    Stack(Result<StackTraceResponse, DapError>),
+    Scopes {
+        frame: i64,
+        result: Result<ScopesResponse, DapError>,
+    },
+    Variables {
+        row: u64,
+        start: i64,
+        target: Target,
+        result: Result<VariablesResponse, DapError>,
+    },
+    Evaluated {
+        ticket: u64,
+        result: Result<EvaluateResponse, DapError>,
+    },
+    Watch {
+        expression: String,
+        result: Result<EvaluateResponse, DapError>,
+    },
+    /// `continue` or a step: only a failure is of interest.
+    Resumed(Result<(), DapError>),
+    Disconnected,
+}
+
 impl Kind {
+    /// The answer, once it has come. A request that was answered is not asked again, so
+    /// what it carries (a path, an expression) is moved out.
+    fn poll(&mut self) -> Option<Answered> {
+        Some(match self {
+            Self::Initialize(reply) => Answered::Initialized(reply.try_take()?),
+            Self::Launch(reply) => Answered::Launched(reply.try_take()?),
+            Self::SetBreakpoints { path, reply } => Answered::Breakpoints {
+                result: reply.try_take()?,
+                path: std::mem::take(path),
+            },
+            Self::ConfigurationDone(reply) => Answered::ConfigurationDone(reply.try_take()?),
+            Self::Threads(reply) => Answered::Threads(reply.try_take()?),
+            Self::Stack(reply) => Answered::Stack(reply.try_take()?),
+            Self::Scopes { frame, reply } => Answered::Scopes {
+                frame: *frame,
+                result: reply.try_take()?,
+            },
+            Self::Variables {
+                row,
+                start,
+                target,
+                reply,
+            } => Answered::Variables {
+                row: *row,
+                start: *start,
+                target: *target,
+                result: reply.try_take()?,
+            },
+            Self::Evaluate { ticket, reply } => Answered::Evaluated {
+                ticket: *ticket,
+                result: reply.try_take()?,
+            },
+            Self::Watch { expression, reply } => Answered::Watch {
+                result: reply.try_take()?,
+                expression: std::mem::take(expression),
+            },
+            Self::Continue(reply) => Answered::Resumed(reply.try_take()?.map(|_| ())),
+            Self::Step(_, reply) => Answered::Resumed(reply.try_take()?.map(|_| ())),
+            Self::Disconnect(reply) => {
+                let _ = reply.try_take()?;
+                Answered::Disconnected
+            }
+        })
+    }
+
     fn limit(&self) -> Duration {
         match self {
             Self::Launch(_) => LAUNCH_PATIENCE,
@@ -447,132 +526,57 @@ impl App {
 
     fn debug_answers(&mut self, active: &mut Active) {
         let mut still = Vec::new();
-        for waiting in std::mem::take(&mut active.waiting) {
-            let Waiting { at, kind } = waiting;
-            let kind = match kind {
-                Kind::Initialize(mut reply) => match reply.try_take() {
-                    None => Kind::Initialize(reply),
-                    Some(result) => {
-                        self.debug_initialized(active, result);
-                        continue;
-                    }
-                },
-                Kind::Launch(mut reply) => match reply.try_take() {
-                    None => Kind::Launch(reply),
-                    Some(Ok(_)) => continue,
-                    Some(Err(error)) => {
-                        active
-                            .ending
-                            .get_or_insert(format!("the program could not be launched: {error}"));
-                        continue;
-                    }
-                },
-                Kind::SetBreakpoints { path, mut reply } => match reply.try_take() {
-                    None => Kind::SetBreakpoints { path, reply },
-                    Some(result) => {
-                        self.debug_breakpoints_answered(&path, result);
-                        continue;
-                    }
-                },
-                Kind::ConfigurationDone(mut reply) => match reply.try_take() {
-                    None => Kind::ConfigurationDone(reply),
-                    Some(Ok(_)) => continue,
-                    Some(Err(error)) => {
-                        active.ending.get_or_insert(error.to_string());
-                        continue;
-                    }
-                },
-                Kind::Threads(mut reply) => match reply.try_take() {
-                    None => Kind::Threads(reply),
-                    Some(result) => {
-                        self.debug_threads(active, result);
-                        continue;
-                    }
-                },
-                Kind::Stack(mut reply) => match reply.try_take() {
-                    None => Kind::Stack(reply),
-                    Some(result) => {
-                        self.debug_stack(active, result);
-                        continue;
-                    }
-                },
-                Kind::Scopes { frame, mut reply } => match reply.try_take() {
-                    None => Kind::Scopes { frame, reply },
-                    Some(result) => {
-                        self.debug_scopes(active, frame, result);
-                        continue;
-                    }
-                },
-                Kind::Variables {
-                    row,
-                    start,
-                    target,
-                    mut reply,
-                } => match reply.try_take() {
-                    None => Kind::Variables {
-                        row,
-                        start,
-                        target,
-                        reply,
-                    },
-                    Some(result) => {
-                        match target {
-                            Target::Pane => self.debug_variables(row, start, result),
-                            Target::Hover => self.debug_hover_variables(active, row, start, result),
-                            Target::Watch => self.debug_watch_variables(active, row, start, result),
-                        }
-                        continue;
-                    }
-                },
-                Kind::Watch {
-                    expression,
-                    mut reply,
-                } => match reply.try_take() {
-                    None => Kind::Watch { expression, reply },
-                    Some(result) => {
-                        self.debug_watch_evaluated(active, &expression, result);
-                        continue;
-                    }
-                },
-                Kind::Evaluate { ticket, mut reply } => match reply.try_take() {
-                    None => Kind::Evaluate { ticket, reply },
-                    Some(result) => {
-                        self.debug_evaluated(active, ticket, result);
-                        continue;
-                    }
-                },
-                Kind::Continue(mut reply) => match reply.try_take() {
-                    None => Kind::Continue(reply),
-                    Some(result) => {
-                        if let Err(error) = result {
-                            self.state.notify_error(error.to_string());
-                        }
-                        continue;
-                    }
-                },
-                Kind::Step(name, mut reply) => match reply.try_take() {
-                    None => Kind::Step(name, reply),
-                    Some(result) => {
-                        if let Err(error) = result {
-                            self.state.notify_error(error.to_string());
-                        }
-                        continue;
-                    }
-                },
-                Kind::Disconnect(mut reply) => match reply.try_take() {
-                    None => Kind::Disconnect(reply),
-                    Some(_) => {
-                        active
-                            .ending
-                            .get_or_insert("the debug session was stopped".to_owned());
-                        continue;
-                    }
-                },
-            };
-            still.push(Waiting { at, kind });
+        for mut waiting in std::mem::take(&mut active.waiting) {
+            match waiting.kind.poll() {
+                None => still.push(waiting),
+                Some(answer) => self.debug_answered(active, answer),
+            }
         }
         // What the answers asked for was put in `waiting` meanwhile.
         active.waiting.extend(still);
+    }
+
+    /// Handles one answer that came back.
+    fn debug_answered(&mut self, active: &mut Active, answer: Answered) {
+        match answer {
+            Answered::Initialized(result) => self.debug_initialized(active, result),
+            Answered::Launched(Ok(_)) | Answered::ConfigurationDone(Ok(_)) => {}
+            Answered::Launched(Err(error)) => {
+                active
+                    .ending
+                    .get_or_insert(format!("the program could not be launched: {error}"));
+            }
+            Answered::ConfigurationDone(Err(error)) => {
+                active.ending.get_or_insert(error.to_string());
+            }
+            Answered::Breakpoints { path, result } => {
+                self.debug_breakpoints_answered(&path, result);
+            }
+            Answered::Threads(result) => self.debug_threads(active, result),
+            Answered::Stack(result) => self.debug_stack(active, result),
+            Answered::Scopes { frame, result } => self.debug_scopes(active, frame, result),
+            Answered::Variables {
+                row,
+                start,
+                target,
+                result,
+            } => match target {
+                Target::Pane => self.debug_variables(row, start, result),
+                Target::Hover => self.debug_hover_variables(active, row, start, result),
+                Target::Watch => self.debug_watch_variables(active, row, start, result),
+            },
+            Answered::Watch { expression, result } => {
+                self.debug_watch_evaluated(active, &expression, result);
+            }
+            Answered::Evaluated { ticket, result } => self.debug_evaluated(active, ticket, result),
+            Answered::Resumed(Ok(())) => {}
+            Answered::Resumed(Err(error)) => self.state.notify_error(error.to_string()),
+            Answered::Disconnected => {
+                active
+                    .ending
+                    .get_or_insert("the debug session was stopped".to_owned());
+            }
+        }
     }
 
     fn debug_initialized(&mut self, active: &mut Active, result: Result<Capabilities, DapError>) {
@@ -818,22 +822,31 @@ impl App {
 
     /// Asks for the children a row of the tree opened for.
     fn debug_ask_variables(&mut self, active: &mut Active, read: Read) {
+        if !Self::debug_ask_children(active, &read, Target::Pane) {
+            self.state.debug_mut().tree.failed(read.row);
+        }
+    }
+
+    /// Asks the adapter for the children of a row, for the tree `target`: the answer is
+    /// handled when it comes. `false` when the request could not be sent.
+    fn debug_ask_children(active: &mut Active, read: &Read, target: Target) -> bool {
         let arguments = match read.page {
             Some((start, count)) => VariablesArguments::page(read.reference, start, count),
             None => VariablesArguments::of(read.reference),
         };
-        match active.client.variables(&arguments) {
-            Ok(reply) => active.waiting.push(Waiting {
-                at: Instant::now(),
-                kind: Kind::Variables {
-                    row: read.row,
-                    start: read.page.map_or(0, |(start, _)| start),
-                    target: Target::Pane,
-                    reply,
-                },
-            }),
-            Err(_) => self.state.debug_mut().tree.failed(read.row),
-        }
+        let Ok(reply) = active.client.variables(&arguments) else {
+            return false;
+        };
+        active.waiting.push(Waiting {
+            at: Instant::now(),
+            kind: Kind::Variables {
+                row: read.row,
+                start: read.page.map_or(0, |(start, _)| start),
+                target,
+                reply,
+            },
+        });
+        true
     }
 
     fn debug_variables(
@@ -844,20 +857,7 @@ impl App {
     ) {
         let tree = &mut self.state.debug_mut().tree;
         match result {
-            Ok(response) => {
-                let children = response
-                    .variables
-                    .into_iter()
-                    .map(|variable| Incoming {
-                        name: variable.name,
-                        value: variable.value,
-                        type_name: variable.type_name,
-                        reference: variable.variables_reference,
-                        total: variable.indexed_variables.or(variable.named_variables),
-                    })
-                    .collect();
-                tree.fill(row, start, children);
-            }
+            Ok(response) => tree.fill(row, start, incoming_children(response)),
             Err(_) => tree.failed(row),
         }
     }
@@ -1085,4 +1085,21 @@ fn adapter_trouble(error: &DapError) -> String {
         }
         other => other.to_string(),
     }
+}
+
+impl From<Variable> for Incoming {
+    fn from(variable: Variable) -> Self {
+        Self {
+            name: variable.name,
+            value: variable.value,
+            type_name: variable.type_name,
+            reference: variable.variables_reference,
+            total: variable.indexed_variables.or(variable.named_variables),
+        }
+    }
+}
+
+/// The children an adapter answered with, as the trees take them.
+fn incoming_children(response: VariablesResponse) -> Vec<Incoming> {
+    response.variables.into_iter().map(Incoming::from).collect()
 }

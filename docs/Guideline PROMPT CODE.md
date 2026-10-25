@@ -145,6 +145,16 @@ Avoid complicated iterator chains when explicit control flow is easier to unders
 
 Readable code always wins.
 
+#### File layout
+
+Order the top of every file like this:
+
+1. Global items (`const`, `static`) first.
+2. `pub` items next, ideally sorted from most relevant to least relevant.
+3. Private items and helpers after that.
+
+A reader should see a file's constants and public surface before any implementation detail.
+
 ---
 
 ### Standard APIs
@@ -168,7 +178,8 @@ Do not invent custom APIs.
 
 Write unit tests in separate test files, not inline `mod tests` blocks.
 
-- Place each module's tests in a `{name}_tests.rs` file next to the source (`src/foo.rs` → `src/foo_tests.rs`).
+- Keep each module's tests in a `tests` submodule of that module, declared with `#[cfg(test)] mod tests;`: the tests of a directory module `src/foo/` are in `src/foo/tests/`, one file for each source file (`src/foo/bar.rs` → `src/foo/tests/bar.rs`, listed in `src/foo/tests/mod.rs`). A small module may have a single `tests.rs` instead. Do not put tests in `{name}_tests.rs` files next to the source, or in a `tests` folder of an unrelated module.
+- A test file imports what it tests through the module's path (`use crate::foo::bar::{...}`), and takes a helper from the module that owns it (for example `path_in` of `saved_state`, not of `recent`).
 - Test public behavior and edge cases, not implementation details.
 - Keep test helpers small and focused.
 - Use temporary directories (for example `tempfile::tempdir()`) for filesystem tests instead of writing into the repo.

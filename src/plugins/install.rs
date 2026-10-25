@@ -33,7 +33,7 @@ pub(crate) const MARKER_FILE: &str = "installed.json";
 pub(crate) const DESCRIPTION_FILE: &str = "description.md";
 
 /// The workshop inside the plugins folder.
-const STAGING: &str = ".staging";
+pub(super) const STAGING: &str = ".staging";
 
 /// How long one download may take, start to end.
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -70,7 +70,7 @@ impl Policy {
         }
     }
 
-    fn allows(&self, url: &str) -> bool {
+    pub(super) fn allows(&self, url: &str) -> bool {
         let Some((scheme, rest)) = url.split_once("://") else {
             return false;
         };
@@ -450,6 +450,3 @@ pub(crate) fn remove(plugins_dir: &Path, id: &str) -> Result<(), InstallError> {
 pub(super) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
-
-#[cfg(test)]
-pub(crate) mod tests;

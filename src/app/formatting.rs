@@ -94,6 +94,14 @@ enum State {
     },
 }
 
+/// Whether a language server can be asked to format.
+enum Readiness {
+    Ready,
+    /// Not running yet, and there is still time to wait for it.
+    Starting,
+    Unusable(&'static str),
+}
+
 /// How the formatting of a document ended.
 enum Done {
     /// The document was closed meanwhile.
@@ -340,83 +348,73 @@ impl App {
         let Some(current) = current else {
             return Some(Done::Gone);
         };
-        match std::mem::replace(&mut item.state, State::Waiting) {
+        match &mut item.state {
             State::Waiting => {
-                let manager = self.lsp.manager.as_ref();
-                let running = manager.is_some_and(|manager| manager.is_running(&item.key));
-                if running {
-                    let formats =
-                        manager.is_some_and(|manager| manager.offers_formatting(&item.key));
-                    if !formats {
-                        return Some(Done::Unformatted(
-                            "the language server does not format".to_owned(),
-                        ));
-                    }
-                } else if !manager.is_some_and(|manager| manager.is_starting(&item.key)) {
-                    return Some(Done::Unformatted(
-                        "the language server is not running".to_owned(),
-                    ));
-                } else if item.started.elapsed() >= self.lsp.formatting.ready_patience {
-                    return Some(Done::Unformatted(
-                        "the language server was not ready".to_owned(),
-                    ));
-                } else {
-                    return None;
-                }
-                // The server has to know the text as it is before it is asked about it.
-                self.lsp_sync();
-                let tab_size = u32::try_from(self.settings.tab_size.get()).unwrap_or(4);
-                let spaces = self.settings.indent_style == IndentKind::Spaces;
-                let request = self
-                    .lsp
-                    .manager
-                    .as_ref()
-                    .and_then(|manager| match item.range {
-                        Some((start, end)) => manager.request_range_formatting(
-                            &item.key, &item.uri, start, end, tab_size, spaces,
-                        ),
-                        None => manager.request_formatting(&item.key, &item.uri, tab_size, spaces),
-                    });
-                match request {
-                    Some(request) => {
-                        item.state = State::Asked {
-                            request,
-                            version: current,
-                            sent: Instant::now(),
-                        };
+                let asked = self.format_ask(item, current);
+                match asked {
+                    Ok(Some(state)) => {
+                        item.state = state;
                         None
                     }
-                    None => Some(Done::Unformatted(
-                        "the language server did not take the request".to_owned(),
-                    )),
+                    Ok(None) => None,
+                    Err(reason) => Some(Done::Unformatted(reason.to_owned())),
                 }
             }
             State::Asked {
-                mut request,
+                request,
                 version,
                 sent,
             } => {
-                if current != version {
-                    return Some(Done::Unformatted(
-                        "the file changed while formatting".to_owned(),
-                    ));
-                }
-                match request.try_take() {
-                    Some(Ok(edits)) => Some(Done::Formatted(edits, version)),
-                    Some(Err(error)) => Some(Done::Unformatted(error.to_string())),
-                    None if sent.elapsed() >= self.lsp.formatting.format_patience => Some(
-                        Done::Unformatted("the language server did not answer in time".to_owned()),
-                    ),
-                    None => {
-                        item.state = State::Asked {
-                            request,
-                            version,
-                            sent,
-                        };
-                        None
-                    }
-                }
+                let patience = self.lsp.formatting.format_patience;
+                format_answer(request, *version, *sent, current, patience)
             }
+        }
+    }
+
+    /// The step of a format that is not asked yet: `Ok(Some)` is the state once the
+    /// request is sent, `Ok(None)` is to wait for the server, `Err` the reason to give up.
+    fn format_ask(&mut self, item: &Pending, current: u64) -> Result<Option<State>, &'static str> {
+        match self.server_readiness(item) {
+            Readiness::Unusable(reason) => return Err(reason),
+            Readiness::Starting => return Ok(None),
+            Readiness::Ready => {}
+        }
+        // The server has to know the text as it is before it is asked about it.
+        self.lsp_sync();
+        let tab_size = u32::try_from(self.settings.tab_size.get()).unwrap_or(4);
+        let spaces = self.settings.indent_style == IndentKind::Spaces;
+        let manager = self.lsp.manager.as_ref();
+        let request = manager.and_then(|manager| match item.range {
+            Some((start, end)) => {
+                manager.request_range_formatting(&item.key, &item.uri, start, end, tab_size, spaces)
+            }
+            None => manager.request_formatting(&item.key, &item.uri, tab_size, spaces),
+        });
+        match request {
+            Some(request) => Ok(Some(State::Asked {
+                request,
+                version: current,
+                sent: Instant::now(),
+            })),
+            None => Err("the language server did not take the request"),
+        }
+    }
+
+    /// Whether the server of `item` can be asked to format yet.
+    fn server_readiness(&self, item: &Pending) -> Readiness {
+        let manager = self.lsp.manager.as_ref();
+        if manager.is_some_and(|manager| manager.is_running(&item.key)) {
+            return match manager.is_some_and(|manager| manager.offers_formatting(&item.key)) {
+                true => Readiness::Ready,
+                false => Readiness::Unusable("the language server does not format"),
+            };
+        }
+        if !manager.is_some_and(|manager| manager.is_starting(&item.key)) {
+            return Readiness::Unusable("the language server is not running");
+        }
+        match item.started.elapsed() >= self.lsp.formatting.ready_patience {
+            true => Readiness::Unusable("the language server was not ready"),
+            false => Readiness::Starting,
         }
     }
 
@@ -599,4 +597,27 @@ pub(crate) fn whole_lines_for_tests(
     end: usize,
 ) -> (LspPosition, LspPosition) {
     whole_lines(text, start, end)
+}
+
+/// The step of a format that was asked: `Some` when it has an answer, or gave up.
+fn format_answer(
+    request: &mut PendingFormat,
+    version: u64,
+    sent: Instant,
+    current: u64,
+    patience: Duration,
+) -> Option<Done> {
+    if current != version {
+        return Some(Done::Unformatted(
+            "the file changed while formatting".to_owned(),
+        ));
+    }
+    match request.try_take() {
+        Some(Ok(edits)) => Some(Done::Formatted(edits, version)),
+        Some(Err(error)) => Some(Done::Unformatted(error.to_string())),
+        None if sent.elapsed() >= patience => Some(Done::Unformatted(
+            "the language server did not answer in time".to_owned(),
+        )),
+        None => None,
+    }
 }

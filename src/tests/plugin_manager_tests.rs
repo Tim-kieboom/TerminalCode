@@ -22,9 +22,9 @@ use crate::event::action::Action;
 use crate::persist::saved_state::{self, Place, PluginRecord, SavedState};
 use crate::plugins::fixtures::{Echo, First};
 use crate::plugins::index::Index;
-use crate::plugins::install::tests::{Reply, serve};
 use crate::plugins::install::{self, JobEvent, Policy};
 use crate::plugins::manifest::Host;
+use crate::plugins::tests::install::{Reply, serve};
 use crate::ui::layout::LayoutTree;
 use crate::ui::{ComponentKind, PluginViewId};
 
@@ -1093,6 +1093,20 @@ fn a_letter_on_its_own_and_a_key_that_is_used_are_refused_and_the_question_goes_
     rig.press_with(KeyCode::F(13), KeyModifiers::NONE);
     assert!(list_is_open(&rig), "a function key will do");
     assert!(rig.keymap_text().contains("keys = \"f13\""));
+}
+
+#[test]
+fn a_key_that_needs_escaping_is_written_as_valid_toml() {
+    for key in ['\\', '"'] {
+        let mut rig = running_in_the_list();
+        rig.type_text("k");
+        rig.press_with(KeyCode::Char(key), KeyModifiers::ALT);
+
+        assert!(list_is_open(&rig), "{key}: back in the list");
+        let text = rig.keymap_text();
+        let keymap = crate::keymap::Keymap::from_toml(&text);
+        assert!(keymap.is_ok(), "{key}: {text}");
+    }
 }
 
 #[test]

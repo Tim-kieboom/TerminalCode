@@ -20,6 +20,7 @@ fn start() -> IdeResult {
     let (paths, note) = match Invocation::from_args(args)? {
         Invocation::Help => return print(help_text()),
         Invocation::Version => return print(version_text()),
+
         // A path named wins over `--recent`.
         Invocation::Open { paths, recent } if recent && paths.is_empty() => {
             let (folder, note) = terminal_code::recent_project();
