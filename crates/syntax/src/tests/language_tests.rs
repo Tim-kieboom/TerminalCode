@@ -72,6 +72,9 @@ fn the_language_comes_from_the_extension() {
     assert_eq!(language("src/main.rs"), Some(Language::Rust));
     assert_eq!(language("Cargo.toml"), Some(Language::Toml));
     assert_eq!(language("a/b.json"), Some(Language::Json));
+    for name in ["a.js", "a.mjs", "a.cjs", "App.jsx"] {
+        assert_eq!(language(name), Some(Language::JavaScript), "{name}");
+    }
     assert_eq!(language("README.md"), Some(Language::Markdown));
     assert_eq!(language("notes.markdown"), Some(Language::Markdown));
     assert_eq!(language("flake.nix"), Some(Language::Nix));
@@ -85,6 +88,7 @@ fn every_language_sets_up_with_each_built_in_theme() {
         Language::Rust,
         Language::Toml,
         Language::Json,
+        Language::JavaScript,
         Language::Markdown,
         Language::Nix,
     ] {

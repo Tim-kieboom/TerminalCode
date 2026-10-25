@@ -24,7 +24,7 @@ impl Dialect {
     /// indent (unknown types, and Markdown, where brackets end prose lines).
     pub(super) fn of(path: &Path) -> Option<Self> {
         let line_comment = match Language::from_path(path)? {
-            Language::Rust | Language::Json => "//",
+            Language::Rust | Language::Json | Language::JavaScript => "//",
             Language::Toml | Language::Nix => "#",
             Language::Markdown => return None,
         };

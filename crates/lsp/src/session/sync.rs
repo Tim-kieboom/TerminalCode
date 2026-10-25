@@ -310,6 +310,7 @@ pub fn language_id(extension: &str) -> String {
         "nix" => "nix",
         "py" => "python",
         "js" | "mjs" | "cjs" => "javascript",
+        "jsx" => "javascriptreact",
         "ts" => "typescript",
         "c" => "c",
         "h" => "c",

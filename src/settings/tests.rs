@@ -295,12 +295,28 @@ fn language_servers_default_to_those_of_the_default_file() {
     );
     assert_eq!(
         settings.language_servers.names().collect::<Vec<_>>(),
-        ["json", "nix", "rust"]
+        ["javascript", "json", "nix", "rust"]
     );
     assert_eq!(
         settings.language_servers.get("rust").unwrap().command,
         "rust-analyzer"
     );
+}
+
+#[test]
+fn javascript_has_a_default_server_for_its_files_that_is_not_for_json_or_typescript() {
+    let settings = parse("{}").settings;
+    let server = settings.language_servers.get("javascript").unwrap();
+
+    assert_eq!(server.command, "typescript-language-server");
+    assert_eq!(server.args, ["--stdio"]);
+    for extension in ["js", "mjs", "cjs", "jsx"] {
+        assert!(
+            server.extensions.iter().any(|e| e == extension),
+            "{extension}"
+        );
+    }
+    assert!(!server.extensions.iter().any(|e| e == "json" || e == "ts"));
 }
 
 #[test]
@@ -311,7 +327,7 @@ fn a_language_server_entry_is_read_and_the_default_ones_stay() {
 
     assert_eq!(
         settings.language_servers.names().collect::<Vec<_>>(),
-        ["json", "nix", "rust", "zig"]
+        ["javascript", "json", "nix", "rust", "zig"]
     );
 }
 
@@ -332,7 +348,7 @@ fn a_server_can_be_replaced_or_turned_off_in_the_file() {
     );
     assert_eq!(
         off.language_servers.names().collect::<Vec<_>>(),
-        ["json", "nix"]
+        ["javascript", "json", "nix"]
     );
 }
 

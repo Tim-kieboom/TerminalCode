@@ -295,6 +295,7 @@ fn the_extra_patterns_are_part_of_a_valid_query_for_every_language() {
         Language::Rust,
         Language::Toml,
         Language::Json,
+        Language::JavaScript,
         Language::Markdown,
         Language::Nix,
     ] {

@@ -107,6 +107,13 @@
             "args": ["--stdio"],
             "extensions": ["json", "jsonc"],
             "format_on_save": false
+        },
+        "javascript": {
+            "command": "typescript-language-server",
+            "args": ["--stdio"],
+            "extensions": ["js", "mjs", "cjs", "jsx"],
+            "root_files": ["package.json", "jsconfig.json"],
+            "format_on_save": false
         }
     }
 }

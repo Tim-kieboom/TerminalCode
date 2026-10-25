@@ -39,6 +39,7 @@ pub enum Language {
     Rust,
     Toml,
     Json,
+    JavaScript,
     Markdown,
     Nix,
 }
@@ -49,6 +50,7 @@ impl Language {
             Self::Rust => "Rust",
             Self::Toml => "TOML",
             Self::Json => "JSON",
+            Self::JavaScript => "JavaScript",
             Self::Markdown => "Markdown",
             Self::Nix => "Nix",
         }
@@ -59,7 +61,7 @@ impl Language {
     /// server's JSONC) do.
     pub fn comment(self) -> Comment {
         match self {
-            Self::Rust | Self::Json => Comment::Line("//"),
+            Self::Rust | Self::Json | Self::JavaScript => Comment::Line("//"),
             Self::Toml | Self::Nix => Comment::Line("#"),
             Self::Markdown => Comment::Around("<!--", "-->"),
         }
@@ -71,6 +73,7 @@ impl Language {
             "rs" => Some(Self::Rust),
             "toml" => Some(Self::Toml),
             "json" | "jsonc" => Some(Self::Json),
+            "js" | "mjs" | "cjs" | "jsx" => Some(Self::JavaScript),
             "md" | "markdown" => Some(Self::Markdown),
             "nix" => Some(Self::Nix),
             _ => None,
@@ -82,6 +85,7 @@ impl Language {
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
             Self::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
             Self::Json => tree_sitter_json::LANGUAGE.into(),
+            Self::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
             Self::Markdown => tree_sitter_md::LANGUAGE.into(),
             Self::Nix => tree_sitter_nix::LANGUAGE.into(),
         }
@@ -94,6 +98,12 @@ impl Language {
             Self::Rust => tree_sitter_rust::HIGHLIGHTS_QUERY,
             Self::Toml => tree_sitter_toml_ng::HIGHLIGHTS_QUERY,
             Self::Json => tree_sitter_json::HIGHLIGHTS_QUERY,
+            // The grammar parses JSX too, so its query for the tags comes with it.
+            Self::JavaScript => &format!(
+                "{}\n{}",
+                tree_sitter_javascript::HIGHLIGHT_QUERY,
+                tree_sitter_javascript::JSX_HIGHLIGHT_QUERY
+            ),
             Self::Markdown => tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
             Self::Nix => tree_sitter_nix::HIGHLIGHTS_QUERY,
         };
