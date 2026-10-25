@@ -68,7 +68,11 @@ impl App {
         let (rows, columns) = self.terminal_dimensions();
         let (session, feeder) = Session::detached(rows, columns, tab_wake(&events));
         if !self.place_run_tab(&config, session) {
-            self.plugin_debug_failed(plugin, request, "there is no terminal tab for it");
+            self.plugin_debug_failed(
+                plugin,
+                request,
+                "there is no terminal tab for it (the editor says why)",
+            );
             return;
         }
         self.start_debug(&config, PathBuf::from(program), feeder);

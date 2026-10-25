@@ -584,7 +584,7 @@ fn rust_rig() -> Rig {
     state.open_project(&root).unwrap();
     state.set_layout(
         LayoutTree::from_ron(
-            r#"Row([Pane(view: Editor), Fixed(80, Pane(view: Plugin("test-ui")))])"#,
+            r#"Col([Row([Pane(view: Editor), Fixed(80, Pane(view: Plugin("test-ui")))]), Fixed(10, Pane(view: Terminal, hidden: false))])"#,
         )
         .unwrap(),
     );
@@ -828,4 +828,181 @@ fn a_test_is_gone_to_in_the_editor_by_its_panic_when_it_failed_and_by_grep_when_
     rig.wait_until("the code of the test", Duration::from_secs(30), |rig| {
         rig.cursor().0.ends_with("src/lib.rs") && rig.cursor().1 == 8
     });
+}
+
+impl Rig {
+    fn draw(&mut self) {
+        let mut terminal =
+            ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 40)).unwrap();
+        let app = &mut self.app;
+        terminal
+            .draw(|frame| crate::components::prepare_and_render(frame, app.state_mut()))
+            .unwrap();
+    }
+
+    /// Right-clicks the line `row` of the tests of the pane (the first is its header), under
+    /// its row of buttons.
+    fn right_click_on_line(&mut self, row: usize) {
+        self.draw();
+        let body = self
+            .app
+            .state()
+            .plugin_body(&PluginViewId::new("test-ui"))
+            .expect("the pane is on the screen");
+        self.app
+            .handle_input(InputEvent::Mouse(crossterm::event::MouseEvent {
+                kind: crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Right),
+                column: body.x + 4,
+                row: body.y + 1 + row as u16,
+                modifiers: KeyModifiers::NONE,
+            }));
+    }
+
+    fn menu_labels(&self) -> Vec<String> {
+        self.app
+            .state()
+            .menu()
+            .map(|menu| {
+                menu.labels_for_test()
+                    .into_iter()
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Chooses the item of the menu that is open with this label.
+    fn choose(&mut self, label: &str) {
+        let at = self
+            .menu_labels()
+            .iter()
+            .position(|item| item == label)
+            .unwrap_or_else(|| panic!("no {label} in {:?}", self.menu_labels()));
+        for _ in 0..at {
+            self.key(KeyCode::Down);
+        }
+        self.key(KeyCode::Enter);
+    }
+
+    /// The row of the pane that shows `text`.
+    fn line_of(&self, text: &str) -> usize {
+        self.pane()
+            .iter()
+            .position(|line| line.trim_end().ends_with(text))
+            .unwrap_or_else(|| panic!("{text} is not in {:?}", self.pane()))
+    }
+
+    /// A rig that has listed and run the project, as the user would.
+    fn after_a_run() -> Self {
+        let mut rig = rust_rig();
+        rig.wait_until("the question", Duration::from_secs(60), |rig| rig.asking());
+        rig.key(KeyCode::Char('y'));
+        rig.press("discover");
+        rig.wait_for_header("tests 5/5");
+        rig.press("run_all");
+        rig.wait_for_header("ok 4 FAIL 1");
+        rig.wait_until("the run to end", Duration::from_secs(30), |rig| {
+            !rig.header().contains("| run ")
+        });
+        rig
+    }
+}
+
+#[test]
+#[ignore = "needs the modules built and cargo-nextest"]
+fn a_right_click_on_a_failed_test_offers_its_error_which_is_shown_in_a_popup() {
+    if !nextest_is_installed() {
+        eprintln!("cargo-nextest is not installed: skipped");
+        return;
+    }
+    let mut rig = Rig::after_a_run();
+
+    let row = rig.line_of("] fails_here");
+    rig.right_click_on_line(row);
+    rig.wait_until("the menu", Duration::from_secs(10), |rig| {
+        matches!(rig.app.state().popup(), Popup::Menu(_))
+    });
+
+    assert_eq!(
+        rig.menu_labels(),
+        [
+            "Open Test Code",
+            "Show Test Error",
+            "Run Selected",
+            "Debug Selected",
+            "Discover Tests"
+        ]
+    );
+    rig.choose("Show Test Error");
+    rig.wait_until("the popup", Duration::from_secs(10), |rig| {
+        matches!(rig.app.state().popup(), Popup::PluginReadme(_))
+    });
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(140, 40)).unwrap();
+    let app = &mut rig.app;
+    terminal
+        .draw(|frame| crate::components::prepare_and_render(frame, app.state_mut()))
+        .unwrap();
+    let screen = terminal.backend().to_string();
+    assert!(
+        screen.contains("fx tests::fails_here") || screen.contains("tests::fails_here"),
+        "{screen}"
+    );
+    assert!(screen.contains("assertion"), "{screen}");
+    assert!(screen.contains("at src/lib.rs:14"), "{screen}");
+    rig.key(KeyCode::Esc);
+    assert!(matches!(rig.app.state().popup(), Popup::None));
+}
+
+#[test]
+#[ignore = "needs the modules built and cargo-nextest"]
+fn a_right_click_on_a_test_runs_it_under_the_debugger_as_the_adapter_built_it() {
+    if !nextest_is_installed() {
+        eprintln!("cargo-nextest is not installed: skipped");
+        return;
+    }
+    let launched: std::sync::Arc<std::sync::Mutex<Option<serde_json::Value>>> = Default::default();
+    let seen = std::sync::Arc::clone(&launched);
+    let adapter = super::debug_tests::scripted(move |adapter| {
+        adapter.answer_initialize(serde_json::json!({ "supportsConfigurationDoneRequest": true }));
+        let (_, launching) = adapter.expect_request("launch");
+        *seen.lock().unwrap() = Some(launching);
+        while adapter.next().is_some() {}
+    });
+    let mut rig = Rig::after_a_run();
+    rig.app =
+        std::mem::replace(&mut rig.app, App::new(AppState::default())).with_debug_adapter(adapter);
+
+    let row = rig.line_of("] panics_ok");
+    rig.right_click_on_line(row);
+    rig.wait_until("the menu", Duration::from_secs(10), |rig| {
+        matches!(rig.app.state().popup(), Popup::Menu(_))
+    });
+    assert!(
+        rig.menu_labels().contains(&"Debug Selected".to_owned()),
+        "{:?} for line {row} of {:?}",
+        rig.menu_labels(),
+        rig.pane()
+    );
+    rig.choose("Debug Selected");
+
+    rig.wait_until("the debugger to launch", Duration::from_secs(180), |rig| {
+        rig.pump_is_launched(&launched)
+    });
+    let launching = launched.lock().unwrap().clone().unwrap();
+    let program = launching["program"].as_str().unwrap();
+    assert!(Path::new(program).is_file(), "{program}");
+    assert_eq!(
+        launching["args"],
+        serde_json::json!(["--exact", "tests::panics_ok", "--nocapture"])
+    );
+    // The folder of the package, which is the project's own folder.
+    let root = fs::canonicalize(rig._dirs.0.path()).unwrap();
+    assert_eq!(launching["cwd"], root.display().to_string());
+    assert_eq!(launching["runInTerminal"], true);
+}
+
+impl Rig {
+    fn pump_is_launched(&self, launched: &std::sync::Mutex<Option<serde_json::Value>>) -> bool {
+        launched.lock().unwrap().is_some()
+    }
 }
