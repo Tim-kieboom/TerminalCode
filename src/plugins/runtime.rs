@@ -24,7 +24,8 @@ use super::view::node_of;
 use super::{CALLBACK_FUEL, FUEL_PER_BYTE, OWNED_FUEL_CEILING, Thread};
 use crate::git::Status;
 use crate::plugin_api::{
-    Capability, FromPlugin, MAX_MENU_ITEMS, Refusal, RunPattern, RunStream, ToPlugin, WireMenuItem,
+    Capability, FromPlugin, MAX_MENU_ITEMS, MAX_POPUP_TEXT, Refusal, RunPattern, RunStream,
+    ToPlugin, WireMenuItem,
 };
 use crate::ui::view::ViewNode;
 
@@ -64,6 +65,24 @@ pub(crate) enum Notice {
     /// A plugin asked to run a command in a folder the user does not trust (yet): the
     /// app asks the user, and tells the runtime ([`Runtime::set_workspace`]).
     NeedsTrust { plugin: Box<str> },
+    /// A plugin has text to show in a popup (`title` and `text`, cut to what a popup may
+    /// have).
+    Popup {
+        plugin: Box<str>,
+        title: String,
+        text: String,
+    },
+    /// A plugin with the capability asked to debug a program, in a folder that is trusted:
+    /// the app starts the session and answers the plugin with [`Runtime::send`].
+    Debug {
+        plugin: Box<str>,
+        request: u64,
+        program: String,
+        args: Vec<String>,
+        env: Vec<String>,
+        /// The folder the program runs in, whole.
+        cwd: PathBuf,
+    },
     /// A plugin with the capability asked to open a file. The app opens it and
     /// answers the plugin with [`Runtime::send`].
     OpenFile {
@@ -256,6 +275,11 @@ impl Routes {
 
     fn trusted(&self) -> bool {
         self.runs().trusted()
+    }
+
+    /// The folder a program is debugged in, when the folder is trusted and `cwd` is in it.
+    fn debug_folder(&self, cwd: &str) -> Result<PathBuf, Refusal> {
+        self.runs().debug_folder(cwd)
     }
 
     /// A call could not be delivered: its caller is told.
@@ -733,6 +757,11 @@ impl Host {
                     plugin: name.into(),
                     items: items.into_iter().take(MAX_MENU_ITEMS).collect(),
                 }),
+                FromPlugin::Popup { title, text } => (self.notify)(Notice::Popup {
+                    plugin: name.into(),
+                    title,
+                    text: cut_popup_text(text),
+                }),
                 // A message of a kind this version does not know (the plugin is
                 // newer than the editor) is ignored.
                 FromPlugin::Unknown => {}
@@ -763,6 +792,7 @@ impl Host {
                     | FromPlugin::CallCancel { .. }
                     | FromPlugin::Run { .. }
                     | FromPlugin::RunCancel { .. }
+                    | FromPlugin::Debug { .. }
             ) {
                 self.route(plugin, grants, request);
                 continue;
@@ -832,6 +862,13 @@ impl Host {
                 routes.reply(plugin, &to, request, payload, last);
             }
             FromPlugin::CallCancel { request } => routes.cancel(plugin, request),
+            FromPlugin::Debug {
+                request,
+                program,
+                args,
+                env,
+                cwd,
+            } => self.debug(&routes, plugin, grants, (request, program, args, env), &cwd),
             FromPlugin::Run {
                 request,
                 program,
@@ -850,6 +887,46 @@ impl Host {
                 routes.cancel_run(plugin, request);
             }
             _ => {}
+        }
+    }
+
+    /// A program a plugin asks to debug (needs `debug.start`): the app starts it, or the
+    /// plugin is told why not. A folder that is not trusted is also something to ask the
+    /// user.
+    fn debug(
+        &mut self,
+        routes: &Arc<Routes>,
+        plugin: &str,
+        grants: &HashSet<Capability>,
+        (request, program, args, env): (u64, String, Vec<String>, Vec<String>),
+        cwd: &str,
+    ) {
+        let outcome = match grants.contains(&Capability::DebugStart) {
+            true => routes.debug_folder(cwd),
+            false => Err(Refusal::Denied {
+                capability: Capability::DebugStart,
+            }),
+        };
+        match outcome {
+            Ok(cwd) => (self.notify)(Notice::Debug {
+                plugin: plugin.into(),
+                request,
+                program,
+                args,
+                env,
+                cwd,
+            }),
+            Err(reason) => {
+                if reason == Refusal::Untrusted {
+                    (self.notify)(Notice::NeedsTrust {
+                        plugin: plugin.into(),
+                    });
+                }
+                self.queue.push_back(Command::Send {
+                    plugin: plugin.into(),
+                    message: refusal(request, reason),
+                });
+            }
         }
     }
 
@@ -1014,4 +1091,18 @@ pub(crate) fn fuel_for(message: &ToPlugin, owned: bool, held: u64) -> u64 {
     CALLBACK_FUEL
         .saturating_add(FUEL_PER_BYTE.saturating_mul(bytes))
         .min(OWNED_FUEL_CEILING)
+}
+
+/// `text` cut to [`MAX_POPUP_TEXT`] bytes, at the end of a line when there is one to cut at
+/// (a character is never cut in two).
+pub(super) fn cut_popup_text(text: String) -> String {
+    if text.len() <= MAX_POPUP_TEXT {
+        return text;
+    }
+    let mut end = MAX_POPUP_TEXT;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let end = text[..end].rfind('\n').unwrap_or(end);
+    format!("{}\n[cut: the message is longer]", &text[..end])
 }

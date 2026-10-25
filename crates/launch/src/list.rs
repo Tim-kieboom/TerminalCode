@@ -65,6 +65,29 @@ pub struct RunConfig {
 }
 
 impl RunConfig {
+    /// A program that is already built, to be debugged for something that is not the project's
+    /// own list (a plugin's test): it is no entry of the list, and runs with `args` and `env`
+    /// in `cwd` (a whole path, or from the project's folder).
+    pub fn built_program(
+        id: ConfigId,
+        name: impl Into<String>,
+        program: impl Into<String>,
+        args: Vec<String>,
+        env: BTreeMap<String, String>,
+        cwd: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            name: name.into(),
+            what: What::Command(program.into()),
+            args,
+            env,
+            cwd,
+            release: false,
+            from_file: false,
+        }
+    }
+
     pub fn id(&self) -> &ConfigId {
         &self.id
     }

@@ -297,6 +297,31 @@ pub enum FromPlugin {
     /// action the manifest does not have is left out, and so are the items past
     /// [`crate::MAX_MENU_ITEMS`]. Plugin API 1.10.
     Menu { items: Vec<WireMenuItem> },
+    /// Shows `text` in a popup with `title`, to read and scroll (esc closes it). Plain text
+    /// that is not turned into anything: a message the plugin has, such as why a test failed.
+    /// At most [`crate::MAX_POPUP_TEXT`] bytes are shown (the rest is cut, on a line). It
+    /// needs no capability and has no answer, but a popup is not opened over another one.
+    /// Plugin API 1.11.
+    Popup { title: String, text: String },
+    /// Starts the program `program` under the debugger, in the editor's terminal tab for it
+    /// (needs [`Capability::DebugStart`]): the editor runs `lldb-dap` (or the adapter the user
+    /// named) as it does for its own Debug, with the arguments `args`, the variables `env`
+    /// (`NAME=value`) and in `cwd`, a folder of the project as a path from its root with `/`
+    /// (the root when empty; no `..`), and the breakpoints of the user. The program is a path
+    /// of an executable the plugin has built. The folder must be trusted
+    /// ([`Refusal::Untrusted`]); a session that is going is [`Refusal::Busy`]. The answer
+    /// is [`ToPlugin::Done`] when the session was started, or [`ToPlugin::Refused`] with
+    /// [`Refusal::Failed`] (no debug adapter, say). Plugin API 1.11.
+    Debug {
+        request: u64,
+        program: String,
+        #[serde(default)]
+        args: Vec<String>,
+        #[serde(default)]
+        env: Vec<String>,
+        #[serde(default)]
+        cwd: String,
+    },
     /// A kind of message a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -639,6 +664,10 @@ pub enum Capability {
     /// Plugin API 1.7.
     #[serde(rename = "process.run")]
     ProcessRun,
+    /// Start a program under the debugger ([`FromPlugin::Debug`]), in a folder the user
+    /// trusts. Plugin API 1.11.
+    #[serde(rename = "debug.start")]
+    DebugStart,
     /// A capability a later version of the plugin API has.
     #[serde(other)]
     Unknown,
@@ -646,7 +675,7 @@ pub enum Capability {
 
 impl Capability {
     /// Every capability this version has.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::GitRead,
         Self::GitWrite,
         Self::EditorOpen,
@@ -655,6 +684,7 @@ impl Capability {
         Self::PluginCall,
         Self::PluginServe,
         Self::ProcessRun,
+        Self::DebugStart,
     ];
 
     /// The name a manifest writes it by.
@@ -668,6 +698,7 @@ impl Capability {
             Self::PluginCall => "plugin.call",
             Self::PluginServe => "plugin.serve",
             Self::ProcessRun => "process.run",
+            Self::DebugStart => "debug.start",
             Self::Unknown => "unknown",
         }
     }

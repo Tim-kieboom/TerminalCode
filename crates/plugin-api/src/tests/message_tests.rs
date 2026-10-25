@@ -1259,3 +1259,53 @@ fn a_kind_of_menu_item_a_later_version_has_reads_as_unknown() {
         }
     );
 }
+
+// --- plugin API 1.11: a popup of text, and a program under the debugger ---
+
+#[test]
+fn the_messages_of_1_11_are_written_as_they_always_will_be() {
+    let popup = FromPlugin::Popup {
+        title: "tests::fails".to_owned(),
+        text: "left: 1\nright: 2".to_owned(),
+    };
+    let text = r#"{"type":"popup","title":"tests::fails","text":"left: 1\nright: 2"}"#;
+    assert_eq!(popup.to_bytes().unwrap(), text.as_bytes());
+    assert_eq!(FromPlugin::from_bytes(text.as_bytes()), Ok(popup));
+
+    let debug = FromPlugin::Debug {
+        request: 7,
+        program: "/p/target/debug/deps/fx-1".to_owned(),
+        args: vec!["--exact".to_owned(), "a::b".to_owned()],
+        env: vec!["K=v".to_owned()],
+        cwd: "crates/fx".to_owned(),
+    };
+    let text = r#"{"type":"debug","request":7,"program":"/p/target/debug/deps/fx-1","args":["--exact","a::b"],"env":["K=v"],"cwd":"crates/fx"}"#;
+    assert_eq!(debug.to_bytes().unwrap(), text.as_bytes());
+    assert_eq!(FromPlugin::from_bytes(text.as_bytes()), Ok(debug));
+}
+
+#[test]
+fn a_debug_request_may_leave_out_everything_but_the_program() {
+    let debug =
+        FromPlugin::from_bytes(br#"{"type":"debug","request":1,"program":"/bin/x"}"#).unwrap();
+
+    assert_eq!(
+        debug,
+        FromPlugin::Debug {
+            request: 1,
+            program: "/bin/x".to_owned(),
+            args: Vec::new(),
+            env: Vec::new(),
+            cwd: String::new(),
+        }
+    );
+}
+
+#[test]
+fn the_capability_of_the_debugger_is_named_debug_start() {
+    assert_eq!(
+        Capability::parse("debug.start"),
+        Some(Capability::DebugStart)
+    );
+    assert_eq!(Capability::DebugStart.name(), "debug.start");
+}

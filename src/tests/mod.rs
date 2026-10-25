@@ -47,6 +47,7 @@ mod paragraph_tests;
 mod paths_tests;
 mod perf_tests;
 mod plugin_column_tests;
+mod plugin_debug_tests;
 mod plugin_files_tests;
 mod plugin_git_tests;
 mod plugin_key_tests;

@@ -94,6 +94,9 @@ pub(super) fn describe(capability: Capability, file_types: &[String], run: &[Str
         Capability::GitRemote => {
             "fetch from, pull from and push to the remotes of the git repository (uses the network)"
         }
+        Capability::DebugStart => {
+            "start programs under the debugger, in a project folder you trust (this runs code of the project)"
+        }
         Capability::PluginCall => "ask other plugins to do things, and hear their answers",
         Capability::PluginServe => {
             "be asked by other plugins to do things, with everything this plugin is allowed to do"

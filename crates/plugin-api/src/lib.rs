@@ -62,3 +62,6 @@ pub const MAX_RUN_OUTPUT: usize = 32 * 1024 * 1024;
 
 /// The most items a menu a plugin shows may have ([`FromPlugin::Menu`]); the rest are left out.
 pub const MAX_MENU_ITEMS: usize = 24;
+
+/// The most bytes of text a popup a plugin shows has ([`FromPlugin::Popup`]); the rest is cut.
+pub const MAX_POPUP_TEXT: usize = 64 * 1024;

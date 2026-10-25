@@ -90,6 +90,19 @@ impl App {
                 .notify_error(format!("plugin {plugin} said something wrong: {reason}")),
             Notice::Menu { plugin, items } => self.plugin_menu(&plugin, &items),
             Notice::NeedsTrust { plugin } => self.plugin_needs_trust(&plugin),
+            Notice::Popup {
+                plugin,
+                title,
+                text,
+            } => self.plugin_text_popup(&plugin, title, text),
+            Notice::Debug {
+                plugin,
+                request,
+                program,
+                args,
+                env,
+                cwd,
+            } => self.plugin_debug(&plugin, request, (program, args, env), cwd),
             Notice::GitWrite {
                 plugin,
                 request,

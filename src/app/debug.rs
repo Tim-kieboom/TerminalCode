@@ -161,6 +161,10 @@ struct Active {
     ending: Option<String>,
 }
 
+/// What the id of a configuration a plugin made starts with: it is not in the list of the
+/// project, so what the Run key starts, a restart and the tab's title do not look for it there.
+pub(super) const PLUGIN_CONFIG: &str = "plugin:";
+
 impl App {
     /// Whether a debug session is going.
     pub(super) fn debug_active(&self) -> bool {
@@ -977,6 +981,11 @@ impl App {
         if self.debug.restart {
             return;
         }
+        if self.debug_of_plugin() {
+            self.state
+                .notify("this session was started by a plugin: start it again there");
+            return;
+        }
         self.debug.restart = true;
         self.stop_session();
     }
@@ -1039,6 +1048,15 @@ impl App {
         if let Some(active) = self.debug.session.take() {
             self.end_debug(active, &message);
         }
+    }
+
+    /// Whether the session that goes was started by a plugin (its configuration is none of the
+    /// project's list).
+    fn debug_of_plugin(&self) -> bool {
+        self.debug
+            .session
+            .as_ref()
+            .is_some_and(|active| active.config.as_str().starts_with(PLUGIN_CONFIG))
     }
 
     /// The name of the run configuration `id`, for the title of its tab.

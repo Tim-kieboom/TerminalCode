@@ -458,7 +458,7 @@ impl App {
 
     /// Puts `session` in the tab of the configuration: the tab it has, or a new one. Shows the
     /// pane and gives the tab the keyboard. Returns whether it could.
-    fn place_run_tab(&mut self, config: &RunConfig, session: Session) -> bool {
+    pub(super) fn place_run_tab(&mut self, config: &RunConfig, session: Session) -> bool {
         if !self.show_terminal_pane() {
             return false;
         }

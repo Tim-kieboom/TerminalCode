@@ -1013,6 +1013,14 @@ impl App {
         };
         self.needs_redraw = true;
         if command == plugin_readme::Command::Close {
+            if self
+                .state
+                .plugin_readme_mut()
+                .is_some_and(|readme| !readme.is_of_a_plugin())
+            {
+                self.state.close_plugin_readme();
+                return;
+            }
             let id = self
                 .state
                 .plugin_readme_mut()
