@@ -147,6 +147,3 @@ pub(crate) fn verify_module(dir: &Path, module: &[u8]) -> Result<(), TrustError>
 fn path(plugins_dir: &Path) -> PathBuf {
     plugins_dir.join(TRUST_FILE)
 }
-
-#[cfg(test)]
-mod tests;

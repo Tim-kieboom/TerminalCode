@@ -10,8 +10,8 @@ use unicode_width::UnicodeWidthStr;
 
 use super::model::{RowKind, Status, VarRow};
 use crate::app::state::{AppState, Focus};
-use crate::components::editor::render::fit;
-use crate::components::popups::definition_list::short_path;
+use crate::components::list_cursor::{ListCursor, Step};
+use crate::components::text::{fit, short_path};
 use crate::ui::layout::Placement;
 
 /// What the Debug pane can be asked to do with its rows. Going on and stepping are actions of
@@ -68,49 +68,26 @@ impl Counts {
     }
 }
 
-/// A selection and the first row shown, of one list.
-#[derive(Debug, Default, Clone, Copy)]
-struct Cursor {
-    selected: usize,
-    scroll: usize,
-}
-
-impl Cursor {
-    fn apply(&mut self, command: DebugCommand, count: usize, page: usize) {
-        let last = count.saturating_sub(1);
-        self.selected = match command {
-            DebugCommand::Up => self.selected.saturating_sub(1),
-            DebugCommand::Down => (self.selected + 1).min(last),
-            DebugCommand::PageUp => self.selected.saturating_sub(page),
-            DebugCommand::PageDown => (self.selected + page).min(last),
-            DebugCommand::First => 0,
-            DebugCommand::Last => last,
-            _ => self.selected.min(last),
-        };
-    }
-
-    /// Keeps the selection and the scroll sensible for `count` rows in `height` lines.
-    fn keep(&mut self, count: usize, height: usize, follow: bool) {
-        self.selected = self.selected.min(count.saturating_sub(1));
-        self.scroll = self.scroll.min(count.saturating_sub(height.max(1)));
-        if !follow || height == 0 {
-            return;
-        }
-        if self.selected < self.scroll {
-            self.scroll = self.selected;
-        } else if self.selected >= self.scroll + height {
-            self.scroll = self.selected + 1 - height;
-        }
-    }
+/// The move of the selection a command asks for, when it is one.
+fn step_of(command: DebugCommand) -> Option<Step> {
+    Some(match command {
+        DebugCommand::Up => Step::Up,
+        DebugCommand::Down => Step::Down,
+        DebugCommand::PageUp => Step::PageUp,
+        DebugCommand::PageDown => Step::PageDown,
+        DebugCommand::First => Step::First,
+        DebugCommand::Last => Step::Last,
+        _ => return None,
+    })
 }
 
 /// What the pane remembers of how it is used and drawn.
 #[derive(Debug, Default)]
 pub(crate) struct DebugView {
     section: Section,
-    stack: Cursor,
-    variables: Cursor,
-    watches: Cursor,
+    stack: ListCursor,
+    variables: ListCursor,
+    watches: ListCursor,
     /// Whether the next draw scrolls to keep the selections in view; the wheel turns it off.
     follow: bool,
     area: Rect,
@@ -134,22 +111,22 @@ impl DebugView {
 
     /// The frame (from 0) the stack's selection is on.
     pub(crate) fn selected_frame(&self) -> usize {
-        self.stack.selected
+        self.stack.selected()
     }
 
     /// The row of the variables the selection is on.
     pub(crate) fn selected_variable(&self) -> usize {
-        self.variables.selected
+        self.variables.selected()
     }
 
     /// The row of the watches the selection is on.
     pub(crate) fn selected_watch(&self) -> usize {
-        self.watches.selected
+        self.watches.selected()
     }
 
     /// Puts the selection of the stack on the frame the session chose.
     pub(crate) fn select_frame(&mut self, frame: usize) {
-        self.stack.selected = frame;
+        self.stack.select(frame, usize::MAX);
         self.follow = true;
     }
 
@@ -173,7 +150,10 @@ impl DebugView {
                     Section::Watches => (&mut self.watches, counts.watches, self.watches_body),
                 };
                 let page = usize::from(body.height).saturating_sub(1).max(1);
-                cursor.apply(command, count, page);
+                match step_of(command) {
+                    Some(step) => cursor.step(step, count, page),
+                    None => cursor.select(cursor.selected(), count),
+                }
             }
         }
         self.follow = true;
@@ -190,8 +170,7 @@ impl DebugView {
         } else {
             (&mut self.stack, counts.frames, self.stack_body)
         };
-        let most = count.saturating_sub(usize::from(body.height).max(1));
-        cursor.scroll = cursor.scroll.saturating_add_signed(rows).min(most);
+        cursor.scroll_by(rows, count, usize::from(body.height));
     }
 
     /// Selects the row under a screen cell, in the list it is in, and says which list and row.
@@ -226,14 +205,12 @@ impl DebugView {
         } else {
             return None;
         };
-        let index = cursor.scroll + usize::from(row - body.y);
-        if index >= count {
+        if !cursor.select_row(usize::from(row - body.y), count) {
             return None;
         }
-        cursor.selected = index;
         self.section = section;
         self.follow = true;
-        Some((section, index))
+        Some((section, cursor.selected()))
     }
 
     /// Takes where the pane is drawn and keeps its selections and scrolls sensible.
@@ -244,12 +221,17 @@ impl DebugView {
         self.variables_body = vars;
         self.watches_body = watches;
         let follow = self.follow;
-        self.stack
-            .keep(counts.frames, usize::from(stack.height), follow);
-        self.variables
-            .keep(counts.variables, usize::from(vars.height), follow);
-        self.watches
-            .keep(counts.watches, usize::from(watches.height), follow);
+        let lists = [
+            (&mut self.stack, counts.frames, stack),
+            (&mut self.variables, counts.variables, vars),
+            (&mut self.watches, counts.watches, watches),
+        ];
+        for (cursor, count, rect) in lists {
+            cursor.clamp(count, usize::from(rect.height));
+            if follow {
+                cursor.reveal(usize::from(rect.height));
+            }
+        }
     }
 
     /// Draws the frame and the two lists.
@@ -290,7 +272,7 @@ impl DebugView {
             .frames
             .iter()
             .enumerate()
-            .skip(self.stack.scroll)
+            .skip(self.stack.scroll())
             .take(usize::from(stack_area.height))
             .map(|(index, frame)| {
                 let place = match (&frame.path, project) {
@@ -306,7 +288,7 @@ impl DebugView {
                 };
                 let text = fit(&format!("{mark}{}{place}", frame.name), width);
                 let line = Line::from(Span::raw(text));
-                match index == self.stack.selected {
+                match index == self.stack.selected() {
                     true => line.style(selected_style(Section::Stack)),
                     false => line,
                 }
@@ -319,11 +301,11 @@ impl DebugView {
         let lines: Vec<Line> = rows
             .iter()
             .enumerate()
-            .skip(self.variables.scroll)
+            .skip(self.variables.scroll())
             .take(usize::from(vars_area.height))
             .map(|(index, row)| {
                 let line = variable_line(theme, row, width);
-                match index == self.variables.selected {
+                match index == self.variables.selected() {
                     true => line.style(selected_style(Section::Variables)),
                     false => line,
                 }
@@ -341,11 +323,11 @@ impl DebugView {
             false => rows
                 .iter()
                 .enumerate()
-                .skip(self.watches.scroll)
+                .skip(self.watches.scroll())
                 .take(usize::from(watch_area.height))
                 .map(|(index, row)| {
                     let line = variable_line(theme, row, width);
-                    match index == self.watches.selected {
+                    match index == self.watches.selected() {
                         true => line.style(selected_style(Section::Watches)),
                         false => line,
                     }

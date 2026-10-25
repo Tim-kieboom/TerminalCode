@@ -1,10 +1,11 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
 use crate::app::state::{AppState, Focus};
 use crate::components::editor::{EditorRef, display_name, render as editor_render};
+use crate::components::text::truncate;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 use crate::ui::pane_frame::PaneFrame;
@@ -290,19 +291,4 @@ pub(super) fn tab_bar_layout(labels: &[String], active: usize, bar: Rect) -> Tab
             ..bar
         },
     }
-}
-
-/// `text` cut to at most `width` display columns.
-pub(super) fn truncate(text: &str, width: usize) -> String {
-    let mut used = 0;
-    let mut out = String::new();
-    for c in text.chars() {
-        let w = c.width().unwrap_or(0);
-        if used + w > width {
-            break;
-        }
-        used += w;
-        out.push(c);
-    }
-    out
 }

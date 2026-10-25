@@ -12,9 +12,9 @@ use ratatui::layout::{Position, Rect};
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use unicode_width::UnicodeWidthChar;
 
 use crate::components::editor::render::slot_of;
+use crate::components::text::{place, wrap_text};
 use crate::lsp::{Diagnostic, Severity};
 use crate::ui::theme::Theme;
 
@@ -235,69 +235,4 @@ fn header_of(diagnostic: &Diagnostic) -> String {
         .map(|source| format!(" ({source})"))
         .unwrap_or_default();
     format!("{word}{code}{source}")
-}
-
-/// Where a box of `width` by `height` goes on `screen` for a cursor at `anchor`:
-/// under the cursor's line, above it when it would run off the bottom, and
-/// always inside the screen.
-pub(crate) fn place(screen: Rect, anchor: Position, width: u16, height: u16) -> Rect {
-    let x = anchor
-        .x
-        .min(screen.right().saturating_sub(width))
-        .max(screen.x);
-    let below = anchor.y.saturating_add(1);
-    let y = if below + height <= screen.bottom() {
-        below
-    } else if anchor.y >= screen.y + height {
-        anchor.y - height
-    } else {
-        screen.bottom().saturating_sub(height).max(screen.y)
-    };
-    Rect {
-        x,
-        y,
-        width: width.min(screen.width),
-        height: height.min(screen.height),
-    }
-}
-
-/// `text` broken into lines of at most `width` columns: at a space where there
-/// is one, and in the middle of a word that is longer than a line. Line breaks
-/// in `text` stay, and so do the spaces at the start of a line (a compiler
-/// indents what it quotes).
-pub(crate) fn wrap_text(text: &str, width: usize) -> Vec<String> {
-    let width = width.max(1);
-    let mut out = Vec::new();
-    for source in text.split('\n') {
-        let source = source.trim_end_matches('\r').trim_end();
-        let mut current = String::new();
-        let mut used = 0;
-        // Where the line can be broken: after the last space, and how wide the text before it is.
-        let mut space: Option<(usize, usize)> = None;
-        for character in source.chars() {
-            let columns = character.width().unwrap_or(0);
-            // A space may hang over the edge: it is trimmed where the line breaks.
-            if used + columns > width && used > 0 && character != ' ' {
-                match space.take() {
-                    Some((at, before)) => {
-                        let rest = current.split_off(at);
-                        out.push(current.trim_end().to_owned());
-                        current = rest;
-                        used -= before;
-                    }
-                    None => {
-                        out.push(std::mem::take(&mut current));
-                        used = 0;
-                    }
-                }
-            }
-            current.push(character);
-            used += columns;
-            if character == ' ' && !current.trim().is_empty() {
-                space = Some((current.len(), used));
-            }
-        }
-        out.push(current);
-    }
-    out
 }

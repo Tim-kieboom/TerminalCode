@@ -141,13 +141,19 @@ impl App {
         } else if !existing.ends_with('\n') {
             text.push('\n');
         }
-        text.push_str(&format!(
-            "\n[[binding]]\nkeys = \"{chord}\"\naction = {{ open_plugin = \"{id}\" }}\n"
-        ));
+        text.push_str(&binding_entry(id, chord));
         fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(path)?
             .write_all(text.as_bytes())
     }
+}
+
+/// The `[[binding]]` entry that opens the plugin `id` with `chord`. Both values go through
+/// the TOML writer, so a key such as `alt+\` or `alt+"` still makes a valid file.
+fn binding_entry(id: &str, chord: KeyChord) -> String {
+    let keys = toml::Value::String(chord.to_string());
+    let id = toml::Value::String(id.to_owned());
+    format!("\n[[binding]]\nkeys = {keys}\naction = {{ open_plugin = {id} }}\n")
 }

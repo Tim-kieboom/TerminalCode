@@ -5,6 +5,7 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::time::Instant;
 
 use super::App;
+use super::state::Popup;
 use crate::event::mouse::{ClickTracker, Clicks};
 
 /// Whether the mouse is on, and what counts as a double or triple click.
@@ -91,20 +92,7 @@ impl App {
     }
 
     pub(super) fn handle_mouse(&mut self, event: MouseEvent) {
-        // A click on a message takes that message away and goes no further.
-        if event.kind == MouseEventKind::Down(MouseButton::Left)
-            && self.state.click_notification(event.column, event.row)
-        {
-            self.needs_redraw = true;
-            return;
-        }
-
-        // The buttons of the debugger over the editor.
-        if self.handle_debug_toolbar_mouse(event) {
-            return;
-        }
-        // A click or the wheel on the box of the debugger is for the box.
-        if self.handle_debug_hover_mouse(event) {
+        if self.mouse_overlays(event) {
             return;
         }
 
@@ -119,34 +107,8 @@ impl App {
             self.state.set_find_focused(false);
         }
 
-        // The wheel over a box of text that is longer than it shows scrolls it.
-        let wheel = matches!(
-            event.kind,
-            MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
-        );
-        if wheel
-            && self.scroll_docs_under(
-                event.column,
-                event.row,
-                event.kind == MouseEventKind::ScrollDown,
-            )
-        {
-            return;
-        }
-
-        // The wheel over a plugin's pane is told to the plugin, which scrolls what it shows.
-        if wheel
-            && matches!(
-                self.state.popup(),
-                crate::app::state::Popup::None | crate::app::state::Popup::PluginView(_)
-            )
-            && let Some(view) = self.state.plugin_at(event.column, event.row)
-        {
-            let lines = match event.kind == MouseEventKind::ScrollDown {
-                true => WHEEL_LINES,
-                false => -WHEEL_LINES,
-            };
-            self.send_to_plugin(view.as_str(), crate::plugin_api::ToPlugin::Scroll { lines });
+        let wheel = is_wheel(event.kind);
+        if wheel && self.wheel_in_box(event) {
             return;
         }
 
@@ -164,82 +126,13 @@ impl App {
             return;
         }
 
-        if self.click_in_name_prompt(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        // The line between two panes is held until the button is let go, wherever the
-        // pointer goes meanwhile.
-        if self.handle_divider_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-
-        if self.handle_definitions_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        if self.handle_run_picker_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        if self.handle_actions_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        if self.handle_palette_mouse(event) {
-            return;
-        }
-        if self.handle_menu_bar_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        // The tabs of a bar come before what is inside it: they are in its frame.
-        if self.handle_bar_tab_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        // A click on a plugin's pane gives it the keyboard.
-        if event.kind == MouseEventKind::Down(MouseButton::Left)
-            && matches!(
-                self.state.popup(),
-                crate::app::state::Popup::None | crate::app::state::Popup::PluginView(_)
-            )
-            && self.click_in_plugin_pane(event.column, event.row)
-        {
-            self.needs_redraw = true;
-            return;
-        }
-        // A right click on a plugin's rows asks the plugin for a menu.
-        if event.kind == MouseEventKind::Down(MouseButton::Right)
-            && matches!(
-                self.state.popup(),
-                crate::app::state::Popup::None | crate::app::state::Popup::PluginView(_)
-            )
-            && self.right_click_in_plugin_pane(event.column, event.row)
-        {
-            self.needs_redraw = true;
-            return;
-        }
-        // A click outside the popup of a plugin closes it.
-        if event.kind == MouseEventKind::Down(MouseButton::Left)
-            && self.click_outside_plugin_popup(event.column, event.row)
-        {
-            self.needs_redraw = true;
-            return;
-        }
-
-        if self.handle_errors_mouse(event) || self.handle_debug_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        if self.handle_terminal_mouse(event) {
-            self.needs_redraw = true;
-            return;
-        }
-        if self.handle_menu_mouse(event) {
-            self.needs_redraw = true;
-            return;
+        // In this order: what is on top of something else comes first. A stage that took
+        // the event ends it.
+        for stage in PANE_STAGES {
+            if stage(self, event) {
+                self.needs_redraw = true;
+                return;
+            }
         }
 
         // A click anywhere closes the box with the diagnostics, like a key does.
@@ -259,55 +152,120 @@ impl App {
             return;
         }
 
-        // The pointer over a word waits, then asks the server about it.
-        if event.kind == MouseEventKind::Moved {
-            self.hover_pointer_moved(event.column, event.row);
+        if self.editor_pointer(event) {
             return;
         }
+        self.editor_pane_mouse(event);
+    }
 
-        // Ctrl and a left press on a word: where it is defined. The cursor stays.
+    /// What is drawn over everything: a message, the debugger's buttons and its box.
+    /// Returns whether one of them took the event.
+    fn mouse_overlays(&mut self, event: MouseEvent) -> bool {
+        // A click on a message takes that message away and goes no further.
         if event.kind == MouseEventKind::Down(MouseButton::Left)
-            && event.modifiers.contains(KeyModifiers::CONTROL)
-            && self
-                .state
-                .workspace()
-                .text_at_cell(event.column, event.row)
-                .is_some()
-        {
-            self.go_to_definition_at(event.column, event.row);
-            self.needs_redraw = true;
-            return;
-        }
-
-        // A right click on a tab opens the menu of the tab.
-        if event.kind == MouseEventKind::Down(MouseButton::Right)
-            && self.right_click_tab(event.column, event.row)
+            && self.state.click_notification(event.column, event.row)
         {
             self.needs_redraw = true;
-            return;
+            return true;
         }
-
-        // A right click on the text opens the editor's menu; elsewhere it does nothing.
-        if event.kind == MouseEventKind::Down(MouseButton::Right) {
-            self.right_click_editor(event.column, event.row);
-            self.needs_redraw = true;
-            return;
+        // The buttons of the debugger over the editor.
+        if self.handle_debug_toolbar_mouse(event) {
+            return true;
         }
+        // A click or the wheel on the box of the debugger is for the box.
+        self.handle_debug_hover_mouse(event)
+    }
 
-        // A click on the marker column of the gutter sets or takes away a breakpoint.
-        if event.kind == MouseEventKind::Down(MouseButton::Left)
-            && !adds_cursor(event.modifiers)
-            && let Some((document, line)) = self
-                .state
-                .workspace()
-                .gutter_marker_at(event.column, event.row)
-        {
-            self.toggle_breakpoint_in(document, line);
-            return;
+    /// The wheel over a box of text that is longer than it shows scrolls it, and over a
+    /// plugin's pane it is told to the plugin, which scrolls what it shows. Returns
+    /// whether it did.
+    fn wheel_in_box(&mut self, event: MouseEvent) -> bool {
+        let down = event.kind == MouseEventKind::ScrollDown;
+        if self.scroll_docs_under(event.column, event.row, down) {
+            return true;
         }
+        if !self.popup_allows_plugin_input() {
+            return false;
+        }
+        let Some(view) = self.state.plugin_at(event.column, event.row) else {
+            return false;
+        };
+        let lines = match down {
+            true => WHEEL_LINES,
+            false => -WHEEL_LINES,
+        };
+        self.send_to_plugin(view.as_str(), crate::plugin_api::ToPlugin::Scroll { lines });
+        true
+    }
 
+    /// Whether the mouse may reach a plugin's pane: no popup is open, or it is a plugin's.
+    fn popup_allows_plugin_input(&self) -> bool {
+        matches!(self.state.popup(), Popup::None | Popup::PluginView(_))
+    }
+
+    /// Clicks on a plugin's panes and popup. Returns whether one took the event.
+    fn handle_plugin_mouse(&mut self, event: MouseEvent) -> bool {
+        let (column, row) = (event.column, event.row);
+        let allowed = self.popup_allows_plugin_input();
+        match event.kind {
+            // A click on a plugin's pane gives it the keyboard.
+            MouseEventKind::Down(MouseButton::Left) => {
+                (allowed && self.click_in_plugin_pane(column, row))
+                    // A click outside the popup of a plugin closes it.
+                    || self.click_outside_plugin_popup(column, row)
+            }
+            // A right click on a plugin's rows asks the plugin for a menu.
+            MouseEventKind::Down(MouseButton::Right) => {
+                allowed && self.right_click_in_plugin_pane(column, row)
+            }
+            _ => false,
+        }
+    }
+
+    /// The pointer over a word, a click with `ctrl` on it, a right click and a click on the
+    /// gutter's markers. Returns whether one took the event.
+    fn editor_pointer(&mut self, event: MouseEvent) -> bool {
+        let (column, row) = (event.column, event.row);
+        match event.kind {
+            // The pointer over a word waits, then asks the server about it.
+            MouseEventKind::Moved => {
+                self.hover_pointer_moved(column, row);
+                true
+            }
+            // Ctrl and a left press on a word: where it is defined. The cursor stays.
+            MouseEventKind::Down(MouseButton::Left)
+                if event.modifiers.contains(KeyModifiers::CONTROL)
+                    && self.state.workspace().text_at_cell(column, row).is_some() =>
+            {
+                self.go_to_definition_at(column, row);
+                self.needs_redraw = true;
+                true
+            }
+            MouseEventKind::Down(MouseButton::Right) => {
+                // A right click on a tab opens the menu of the tab; on the text, the
+                // editor's menu; elsewhere it does nothing.
+                if !self.right_click_tab(column, row) {
+                    self.right_click_editor(column, row);
+                }
+                self.needs_redraw = true;
+                true
+            }
+            // A click on the marker column of the gutter sets or takes away a breakpoint.
+            MouseEventKind::Down(MouseButton::Left) if !adds_cursor(event.modifiers) => {
+                let marker = self.state.workspace().gutter_marker_at(column, row);
+                let Some((document, line)) = marker else {
+                    return false;
+                };
+                self.toggle_breakpoint_in(document, line);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Presses, drags and the wheel on the editor panes.
+    fn editor_pane_mouse(&mut self, event: MouseEvent) {
         let extend = event.modifiers.contains(KeyModifiers::SHIFT);
-        let sideways = extend;
         let (column, row) = (event.column, event.row);
         let workspace = self.state.workspace_mut();
         let mut closed = None;
@@ -336,11 +294,12 @@ impl App {
                 workspace.with_editor(|editor| editor.mouse_release());
                 Ok(())
             }
-            MouseEventKind::ScrollUp if sideways => {
+            // With `shift` the wheel scrolls sideways.
+            MouseEventKind::ScrollUp if extend => {
                 workspace.with_editor_at(column, row, |editor| editor.scroll_columns(-1));
                 Ok(())
             }
-            MouseEventKind::ScrollDown if sideways => {
+            MouseEventKind::ScrollDown if extend => {
                 workspace.with_editor_at(column, row, |editor| editor.scroll_columns(1));
                 Ok(())
             }
@@ -377,6 +336,30 @@ impl App {
 
         self.needs_redraw = true;
     }
+}
+
+/// The stages that look at an event over the panes, first to last: each is given the event
+/// and says whether it took it. The line between two panes is held until the button is let
+/// go, wherever the pointer goes meanwhile; the tabs of a bar come before what is inside it,
+/// as they are in its frame.
+const PANE_STAGES: [fn(&mut App, MouseEvent) -> bool; 13] = [
+    App::click_in_name_prompt,
+    App::handle_divider_mouse,
+    App::handle_definitions_mouse,
+    App::handle_run_picker_mouse,
+    App::handle_actions_mouse,
+    App::handle_palette_mouse,
+    App::handle_menu_bar_mouse,
+    App::handle_bar_tab_mouse,
+    App::handle_plugin_mouse,
+    App::handle_errors_mouse,
+    App::handle_debug_mouse,
+    App::handle_terminal_mouse,
+    App::handle_menu_mouse,
+];
+
+fn is_wheel(kind: MouseEventKind) -> bool {
+    matches!(kind, MouseEventKind::ScrollUp | MouseEventKind::ScrollDown)
 }
 
 #[cfg(test)]

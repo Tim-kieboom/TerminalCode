@@ -42,7 +42,7 @@ impl ErrorsView {
         let lines: Vec<Line> = rows
             .iter()
             .enumerate()
-            .skip(self.scroll)
+            .skip(self.scroll())
             .take(usize::from(inner.height))
             .map(|(index, row)| {
                 let place = format!("{:<width$}  ", row.place());
@@ -50,7 +50,7 @@ impl ErrorsView {
                     Span::styled(place, theme.style("errors.place")),
                     Span::styled(row.message.clone(), theme.style(slot_of(row.severity))),
                 ]);
-                if index != self.selected {
+                if index != self.selected() {
                     return line;
                 }
                 let slot = match live {

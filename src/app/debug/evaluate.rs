@@ -6,12 +6,12 @@
 
 use std::ops::Range;
 
-use super::{Active, Kind, Target, Waiting};
+use super::{Active, Kind, Target, Waiting, incoming_children};
 use crate::app::App;
 use crate::app::state::Popup;
 use crate::components::debug::DebugHoverBox;
 use crate::components::debug::model::{Incoming, Read, Status};
-use crate::dap::{DapError, EvaluateArguments, EvaluateResponse, VariablesArguments};
+use crate::dap::{DapError, EvaluateArguments, EvaluateResponse};
 use crate::ids::DocumentId;
 use ratatui::layout::Position;
 use std::time::Instant;
@@ -250,25 +250,11 @@ impl App {
     // --- the children of the rows of the box ---
 
     fn debug_ask_hover_variables(&mut self, active: &mut Active, read: Read) {
-        let arguments = match read.page {
-            Some((start, count)) => VariablesArguments::page(read.reference, start, count),
-            None => VariablesArguments::of(read.reference),
-        };
-        match active.client.variables(&arguments) {
-            Ok(reply) => active.waiting.push(Waiting {
-                at: Instant::now(),
-                kind: Kind::Variables {
-                    row: read.row,
-                    start: read.page.map_or(0, |(start, _)| start),
-                    target: Target::Hover,
-                    reply,
-                },
-            }),
-            Err(_) => {
-                if let Some(shown) = self.state.debug_hover_mut() {
-                    shown.tree_mut().failed(read.row);
-                }
-            }
+        if Self::debug_ask_children(active, &read, Target::Hover) {
+            return;
+        }
+        if let Some(shown) = self.state.debug_hover_mut() {
+            shown.tree_mut().failed(read.row);
         }
     }
 
@@ -283,20 +269,9 @@ impl App {
             return;
         };
         match result {
-            Ok(response) => {
-                let children = response
-                    .variables
-                    .into_iter()
-                    .map(|variable| Incoming {
-                        name: variable.name,
-                        value: variable.value,
-                        type_name: variable.type_name,
-                        reference: variable.variables_reference,
-                        total: variable.indexed_variables.or(variable.named_variables),
-                    })
-                    .collect();
-                shown.tree_mut().fill(row, start, children);
-            }
+            Ok(response) => shown
+                .tree_mut()
+                .fill(row, start, incoming_children(response)),
             Err(_) => shown.tree_mut().failed(row),
         }
         // The rows that were open before a stop open as they appear.

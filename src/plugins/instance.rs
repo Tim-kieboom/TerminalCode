@@ -39,10 +39,18 @@ pub(super) struct Delivered {
     pub fuel_used: u64,
 }
 
+/// The most messages one call may leave queued with the editor. The memory limit covers
+/// only the plugin's own memory, so what it sends is bounded here.
+pub(super) const MAX_QUEUED_MESSAGES: usize = 4096;
+/// The most bytes, all messages together, one call may leave queued.
+const MAX_QUEUED_BYTES: usize = 4 * MAX_MESSAGE;
+
 /// What host functions reach: the memory limit and what the plugin sent.
-struct Host {
+pub(super) struct Host {
     limits: StoreLimits,
     sent: Vec<Vec<u8>>,
+    /// The bytes in `sent`.
+    sent_bytes: usize,
 }
 
 /// A compiled module, which can be started again as often as needed.
@@ -72,6 +80,7 @@ impl Compiled {
             Host {
                 limits,
                 sent: Vec::new(),
+                sent_bytes: 0,
             },
         );
         store.limiter(|host| &mut host.limits);
@@ -118,6 +127,12 @@ fn send(mut caller: Caller<'_, Host>, ptr: i32, len: i32) -> Result<(), wasmi::E
             "a message of {len} bytes, more than the {MAX_MESSAGE} allowed"
         )));
     }
+    let queued = caller.data();
+    if queued.sent.len() >= MAX_QUEUED_MESSAGES || queued.sent_bytes + len > MAX_QUEUED_BYTES {
+        return Err(wasmi::Error::new(format!(
+            "more than {MAX_QUEUED_MESSAGES} messages or {MAX_QUEUED_BYTES} bytes sent in one call"
+        )));
+    }
     let ptr = usize::try_from(ptr).map_err(|_| wasmi::Error::new("a negative pointer"))?;
     let memory = caller
         .get_export("memory")
@@ -127,7 +142,9 @@ fn send(mut caller: Caller<'_, Host>, ptr: i32, len: i32) -> Result<(), wasmi::E
     memory
         .read(&caller, ptr, &mut bytes)
         .map_err(|_| wasmi::Error::new("a message outside its memory"))?;
-    caller.data_mut().sent.push(bytes);
+    let host = caller.data_mut();
+    host.sent_bytes += len;
+    host.sent.push(bytes);
     Ok(())
 }
 
@@ -150,6 +167,10 @@ impl Instance {
         self.store
             .set_fuel(fuel)
             .map_err(|error| Failure::Broken(error.to_string()))?;
+        // What an earlier call that trapped left behind is not this call's.
+        let host = self.store.data_mut();
+        host.sent.clear();
+        host.sent_bytes = 0;
 
         let ptr = self
             .alloc
@@ -168,6 +189,7 @@ impl Instance {
             fuel_used: fuel.saturating_sub(self.store.get_fuel().unwrap_or(0)),
             ..Delivered::default()
         };
+        self.store.data_mut().sent_bytes = 0;
         for bytes in std::mem::take(&mut self.store.data_mut().sent) {
             match FromPlugin::from_bytes(&bytes) {
                 Ok(message) => delivered.messages.push(message),

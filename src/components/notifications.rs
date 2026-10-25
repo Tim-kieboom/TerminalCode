@@ -11,8 +11,8 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use unicode_width::UnicodeWidthStr;
 
+use crate::components::text::wrap_words;
 use crate::ui::theme::Theme;
 
 /// How long an info message stays when the settings do not say.
@@ -249,7 +249,7 @@ impl Notifications {
         let mut fitting = Vec::new();
         let mut used = 0_u16;
         for (index, item) in newest_first(Level::Error).chain(newest_first(Level::Info)) {
-            let mut lines = wrap(&item.text, text_width);
+            let mut lines = wrap_words(&item.text, text_width);
             lines.truncate(MAX_TEXT_LINES);
             let height = lines.len() as u16 + 2;
             if used.saturating_add(height) > available {
@@ -286,54 +286,4 @@ fn draw_one(frame: &mut Frame, theme: &Theme, level: Level, lines: Vec<String>, 
     };
     let lines: Vec<Line> = lines.into_iter().map(Line::from).collect();
     frame.render_widget(Paragraph::new(lines), padded);
-}
-
-/// Breaks `text` into lines of at most `width` cells, at spaces where
-/// possible and in the middle of a word when a word is longer than a line.
-fn wrap(text: &str, width: usize) -> Vec<String> {
-    let mut lines = Vec::new();
-    for paragraph in text.lines() {
-        let mut line = String::new();
-        for word in paragraph.split_whitespace() {
-            let mut word = word;
-            while word.width() > width {
-                if !line.is_empty() {
-                    lines.push(std::mem::take(&mut line));
-                }
-                let (head, tail) = split_at_width(word, width);
-                lines.push(head.to_owned());
-                word = tail;
-            }
-            let needed = match line.is_empty() {
-                true => word.width(),
-                false => line.width() + 1 + word.width(),
-            };
-            if needed > width {
-                lines.push(std::mem::take(&mut line));
-            }
-            if !line.is_empty() {
-                line.push(' ');
-            }
-            line.push_str(word);
-        }
-        lines.push(line);
-    }
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
-}
-
-/// Splits `text` after as many characters as fit in `width` cells (at least
-/// one, so the caller always makes progress).
-fn split_at_width(text: &str, width: usize) -> (&str, &str) {
-    let mut used = 0;
-    for (index, c) in text.char_indices() {
-        let cell = unicode_width::UnicodeWidthChar::width(c).unwrap_or(0);
-        if used + cell > width && index > 0 {
-            return text.split_at(index);
-        }
-        used += cell;
-    }
-    (text, "")
 }

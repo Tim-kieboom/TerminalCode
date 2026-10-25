@@ -2,14 +2,16 @@
 
 use std::path::{Path, PathBuf};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthStr;
 
+use crate::components::popups::key_with_ctrl;
+use crate::components::text::head_fitting;
 use crate::files::entries::EntryKind;
 use crate::ui::theme::Theme;
 
@@ -35,11 +37,8 @@ pub(crate) enum Command {
 
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release || key.modifiers.contains(KeyModifiers::ALT) {
-            return None;
-        }
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        Some(match (key.code, ctrl) {
+        let (code, ctrl) = key_with_ctrl(key)?;
+        Some(match (code, ctrl) {
             (KeyCode::Esc, _) => Self::Cancel,
             (KeyCode::Enter, _) => Self::Submit,
             (KeyCode::Backspace, _) => Self::Backspace,
@@ -404,18 +403,6 @@ impl NamePrompt {
         // Nothing needs hiding when the whole name fits.
         if self.name.width() <= room { 0 } else { from }
     }
-}
-
-/// The start of `text` that fits in `width` cells.
-fn head_fitting(text: &str, width: usize) -> &str {
-    let mut used = 0;
-    for (index, c) in text.char_indices() {
-        used += c.width().unwrap_or(0);
-        if used > width {
-            return &text[..index];
-        }
-    }
-    text
 }
 
 fn is_word(c: char) -> bool {

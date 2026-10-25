@@ -14,8 +14,9 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::editor::render::slot_of;
-use crate::components::popups::diagnostic_popup::{Entry, place, wrap_text};
+use crate::components::popups::diagnostic_popup::Entry;
 use crate::components::scroll_text::TextScroll;
+use crate::components::text::{place, wrap_text};
 use crate::ids::DocumentId;
 use crate::lsp::Severity;
 use crate::ui::theme::Theme;

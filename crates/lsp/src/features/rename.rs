@@ -166,12 +166,17 @@ pub fn parse_workspace_edit(result: &Value) -> Result<WorkspaceEdit, LspError> {
         _ => return Err(unexpected(RENAME, "it is neither an edit nor null")),
     };
 
-    if let Some(Value::Object(changes)) = fields.get("changes") {
+    // The client declares `documentChanges`, so the spec has it win over `changes`: a server
+    // that sends both (for older clients) means the same edits twice.
+    let document_changes = fields.get("documentChanges").and_then(Value::as_array);
+    if document_changes.is_none()
+        && let Some(Value::Object(changes)) = fields.get("changes")
+    {
         for (uri, edits) in changes {
             add_edits(&mut edit, uri, edits)?;
         }
     }
-    if let Some(Value::Array(changes)) = fields.get("documentChanges") {
+    if let Some(changes) = document_changes {
         for change in changes {
             match change.get("kind").and_then(Value::as_str) {
                 Some("rename") => {

@@ -30,7 +30,7 @@ mod policy;
 mod runs;
 mod runtime;
 #[cfg(test)]
-mod tests;
+pub mod tests;
 pub(crate) mod trust;
 mod view;
 

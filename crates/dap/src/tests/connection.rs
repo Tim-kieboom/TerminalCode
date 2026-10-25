@@ -1,9 +1,10 @@
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use crate::test_support::{PATIENCE, fake_adapter, stopped};
-use crate::{DapError, Event, Update};
+use crate::test_support::{PATIENCE, fake_adapter, pipe, stopped};
+use crate::{Connection, DapError, Event, Update};
 
 #[test]
 fn an_answer_is_matched_to_its_request_whatever_the_order() {
@@ -260,4 +261,35 @@ fn the_numbers_of_the_requests_count_from_one() {
     a.wait(PATIENCE).unwrap();
     b.wait(PATIENCE).unwrap();
     fake.finish();
+}
+
+/// A stream to an adapter that never reads: a write waits until the test lets go of `release`.
+struct StuckWriter(mpsc::Receiver<()>);
+
+impl std::io::Write for StuckWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let _ = self.0.recv();
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn an_adapter_that_never_reads_does_not_block_the_caller() {
+    let (release, stuck) = mpsc::channel();
+    let (reader, _adapter_writer) = pipe();
+    let (connection, _incoming) = Connection::start(reader, StuckWriter(stuck), || {});
+    let started = Instant::now();
+
+    let big = json!({ "text": "x".repeat(200_000) });
+    let failure = (0..10_000)
+        .map(|_| connection.request::<Value>("evaluate", big.clone()))
+        .find_map(Result::err);
+
+    assert!(started.elapsed() < PATIENCE);
+    assert!(matches!(failure, Some(DapError::Closed(_))));
+    drop(release);
 }

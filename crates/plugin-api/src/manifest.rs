@@ -28,6 +28,10 @@ use serde::{Deserialize, Serialize};
 use crate::ActionDecl;
 
 /// Which thread the editor runs a plugin on.
+///
+/// Unlike the message enums this one has no `Unknown`, on purpose: the thread decides how
+/// much of the machine a plugin may take and what the user is asked, so a manifest that
+/// names a thread this version does not know is refused rather than run on the wrong one.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Thread {

@@ -630,6 +630,10 @@ impl FromPlugin {
 pub enum RunStream {
     Stdout,
     Stderr,
+    /// An output a newer editor has that this version does not know; read it as
+    /// output of no stream in particular.
+    #[serde(other)]
+    Unknown,
 }
 
 /// What a plugin may ask the editor for. The manifest lists what the plugin

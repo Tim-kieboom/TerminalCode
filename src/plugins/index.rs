@@ -21,7 +21,7 @@ pub(crate) const INDEX_URL: &str =
     "https://raw.githubusercontent.com/Tim-kieboom/trcode-plugins/main/index.json";
 
 /// The cache's name in the config folder.
-const CACHE_FILE: &str = "plugin-index.json";
+pub(super) const CACHE_FILE: &str = "plugin-index.json";
 
 /// Why an index cannot be used.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -272,6 +272,3 @@ pub(crate) fn store_cache(config_dir: &Path, text: &str) -> std::io::Result<()> 
 fn cache_path(config_dir: &Path) -> PathBuf {
     config_dir.join(CACHE_FILE)
 }
-
-#[cfg(test)]
-mod tests;

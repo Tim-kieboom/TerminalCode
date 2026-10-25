@@ -3,13 +3,14 @@
 //! It lists every modified document. Each one can be saved or discarded on
 //! its own, or all at once; the app quits when none are left to decide on.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 
 use crate::app::state::AppState;
+use crate::components::popups::key_with_ctrl;
 use crate::ids::DocumentId;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
@@ -47,11 +48,8 @@ impl Command {
     /// The command a key stands for, if any. Plain `s` and `d` act on every
     /// file, ctrl+s and ctrl+d on the selected one.
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release || key.modifiers.contains(KeyModifiers::ALT) {
-            return None;
-        }
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        Some(match (key.code, ctrl) {
+        let (code, ctrl) = key_with_ctrl(key)?;
+        Some(match (code, ctrl) {
             (KeyCode::Up, false) => Self::Previous,
             (KeyCode::Down, false) => Self::Next,
             (KeyCode::Esc, false) => Self::Cancel,

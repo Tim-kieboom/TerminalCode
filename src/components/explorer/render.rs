@@ -5,6 +5,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::{Explorer, NodeKind, Row};
 use crate::app::state::{AppState, Focus};
+use crate::components::list_cursor::revealed;
 use crate::files::paths::{canonical, without_verbatim_prefix};
 use crate::git::Mark;
 use crate::ui::Render;
@@ -24,13 +25,7 @@ impl Render<AppState> for Explorer {
             return;
         }
 
-        let height = usize::from(self.body.height);
-
-        if self.selected < self.scroll {
-            self.scroll = self.selected;
-        } else if height > 0 && self.selected >= self.scroll + height {
-            self.scroll = self.selected + 1 - height;
-        }
+        self.scroll = revealed(self.selected, self.scroll, usize::from(self.body.height));
     }
 
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {

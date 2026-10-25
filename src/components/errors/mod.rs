@@ -8,7 +8,8 @@ use ratatui::layout::Rect;
 use serde::Deserialize;
 
 use crate::buffer::Position;
-use crate::components::popups::definition_list::short_path;
+use crate::components::list_cursor::{ListCursor, Step};
+use crate::components::text::short_path;
 use crate::ids::DocumentId;
 use crate::lsp::Severity;
 
@@ -86,12 +87,24 @@ pub(crate) fn sort(rows: &mut [ErrorRow]) {
     rows.sort_by(|a, b| (a.severity, &a.file, a.position).cmp(&(b.severity, &b.file, b.position)));
 }
 
+/// The move of the selection a command asks for, when it is one.
+fn step_of(command: ErrorsCommand) -> Option<Step> {
+    Some(match command {
+        ErrorsCommand::Up => Step::Up,
+        ErrorsCommand::Down => Step::Down,
+        ErrorsCommand::PageUp => Step::PageUp,
+        ErrorsCommand::PageDown => Step::PageDown,
+        ErrorsCommand::First => Step::First,
+        ErrorsCommand::Last => Step::Last,
+        ErrorsCommand::Open | ErrorsCommand::Leave => return None,
+    })
+}
+
 /// The selection and the scroll of the list; the rows themselves are made from
 /// the diagnostics at every draw.
 #[derive(Debug, Default)]
 pub(crate) struct ErrorsView {
-    selected: usize,
-    scroll: usize,
+    cursor: ListCursor,
     /// Whether the next draw scrolls to keep the selection in view; the wheel
     /// turns it off so scrolling does not snap back.
     follow_selection: bool,
@@ -101,12 +114,11 @@ pub(crate) struct ErrorsView {
 
 impl ErrorsView {
     pub(crate) fn selected(&self) -> usize {
-        self.selected
+        self.cursor.selected()
     }
 
-    #[cfg(test)]
     pub(crate) fn scroll(&self) -> usize {
-        self.scroll
+        self.cursor.scroll()
     }
 
     pub(crate) fn area(&self) -> Rect {
@@ -127,25 +139,19 @@ impl ErrorsView {
 
     /// Moves the selection, keeping it among `count` rows.
     pub(crate) fn apply(&mut self, command: ErrorsCommand, count: usize) {
-        let last = count.saturating_sub(1);
         let page = usize::from(self.body.height).saturating_sub(1).max(1);
-        self.selected = match command {
-            ErrorsCommand::Up => self.selected.saturating_sub(1),
-            ErrorsCommand::Down => (self.selected + 1).min(last),
-            ErrorsCommand::PageUp => self.selected.saturating_sub(page),
-            ErrorsCommand::PageDown => (self.selected + page).min(last),
-            ErrorsCommand::First => 0,
-            ErrorsCommand::Last => last,
-            ErrorsCommand::Open | ErrorsCommand::Leave => self.selected.min(last),
-        };
+        match step_of(command) {
+            Some(step) => self.cursor.step(step, count, page),
+            None => self.cursor.select(self.cursor.selected(), count),
+        }
         self.follow_selection = true;
     }
 
     /// Scrolls by `rows` (negative is up) without moving the selection.
     pub(crate) fn scroll_by(&mut self, rows: isize, count: usize) {
         self.follow_selection = false;
-        let top = self.scroll.saturating_add_signed(rows);
-        self.scroll = top.min(self.max_scroll(count));
+        self.cursor
+            .scroll_by(rows, count, usize::from(self.body.height));
     }
 
     /// Selects the row at screen row `row`, if there is one. Returns whether it did.
@@ -153,11 +159,10 @@ impl ErrorsView {
         let inside = self
             .body
             .contains(ratatui::layout::Position::new(column, row));
-        let index = self.scroll + usize::from(row.saturating_sub(self.body.y));
-        if !inside || index >= count {
+        let offset = usize::from(row.saturating_sub(self.body.y));
+        if !inside || !self.cursor.select_row(offset, count) {
             return false;
         }
-        self.selected = index;
         self.follow_selection = true;
         true
     }
@@ -167,20 +172,9 @@ impl ErrorsView {
     pub(crate) fn prepare(&mut self, area: Rect, body: Rect, count: usize) {
         self.area = area;
         self.body = body;
-        self.selected = self.selected.min(count.saturating_sub(1));
-        self.scroll = self.scroll.min(self.max_scroll(count));
-        if !self.follow_selection {
-            return;
+        self.cursor.clamp(count, usize::from(body.height));
+        if self.follow_selection {
+            self.cursor.reveal(usize::from(body.height));
         }
-        let height = usize::from(body.height);
-        if self.selected < self.scroll {
-            self.scroll = self.selected;
-        } else if height > 0 && self.selected >= self.scroll + height {
-            self.scroll = self.selected + 1 - height;
-        }
-    }
-
-    fn max_scroll(&self, count: usize) -> usize {
-        count.saturating_sub(usize::from(self.body.height).max(1))
     }
 }

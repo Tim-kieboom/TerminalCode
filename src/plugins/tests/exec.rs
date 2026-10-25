@@ -6,8 +6,8 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use super::{Control, Sink, Spec, start};
 use crate::plugin_api::{MAX_RUN_CHUNK, MAX_RUN_OUTPUT, RunStream};
+use crate::plugins::exec::{Control, Sink, Spec, start};
 
 #[derive(Debug, PartialEq, Eq)]
 enum Heard {
@@ -211,6 +211,28 @@ fn a_cancel_reaches_what_the_command_started() {
         !alive(pid),
         "the process the command started is still there"
     );
+}
+
+#[test]
+fn a_cancel_kills_what_is_left_when_the_command_itself_ends_at_once() {
+    // The command ends on the first signal; what it started ignores that one.
+    let script = "sh -c 'trap \"\" TERM; sleep 60' & echo $!; \
+                  trap 'exit 0' TERM; while :; do sleep 0.1; done";
+    let (control, heard) = run(sh(script));
+    let Ok(Heard::Output(_, text)) = heard.recv_timeout(Duration::from_secs(10)) else {
+        panic!("it said nothing");
+    };
+    let pid: i32 = text.trim().parse().unwrap();
+    assert!(alive(pid));
+
+    control.cancel();
+    finish(&heard);
+
+    let until = Instant::now() + Duration::from_secs(5);
+    while alive(pid) && Instant::now() < until {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert!(!alive(pid), "what the command left behind is still there");
 }
 
 #[test]

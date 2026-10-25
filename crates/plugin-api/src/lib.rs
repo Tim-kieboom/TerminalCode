@@ -10,7 +10,8 @@
 //! every struct is `#[non_exhaustive]` (build it with its `new`), a field that is
 //! missing reads as its default, and a field that is not known is skipped. A
 //! change that breaks an old plugin bumps the major version, and the editor
-//! refuses a plugin built for another major (see [`Abi::check`]).
+//! refuses a plugin built for another major (see [`Abi::check`]). The one exception is
+//! [`Thread`] in the manifest, which is refused when unknown (see its doc).
 
 pub use abi::{Abi, AbiError};
 pub use manifest::{Manifest, Thread};

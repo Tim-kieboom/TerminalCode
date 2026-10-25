@@ -192,6 +192,3 @@ fn call_message(caller: &str, request: u64, to: &str, method: String, payload: S
         },
     }
 }
-
-#[cfg(test)]
-mod tests;

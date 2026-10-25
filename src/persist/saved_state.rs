@@ -324,8 +324,14 @@ pub(crate) fn empty_text(state: &SavedState) -> String {
     format!("{text}\n")
 }
 
+/// What the file holds, for the warning when it cannot be used.
+const STATE_WHAT: &str =
+    "saved state (breakpoints, watches, trusted folders, plugin grants, run configs)";
+
 /// The remembered state in `dir`. A missing file is normal; a file that cannot
-/// be read or is not valid gives the empty state and a warning.
+/// be read or is not valid gives the empty state and a warning. That file is kept
+/// aside as `state.json.corrupt` first, so the next save does not destroy what the
+/// user can still repair or copy out of it.
 pub(crate) fn load(dir: Option<&Path>) -> (SavedState, Option<ConfigWarning>) {
     let Some(dir) = dir else {
         return (SavedState::default(), None);
@@ -336,20 +342,41 @@ pub(crate) fn load(dir: Option<&Path>) -> (SavedState, Option<ConfigWarning>) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return (SavedState::default(), None);
         }
-        Err(error) => {
-            return (
-                SavedState::default(),
-                Some(ConfigWarning::unusable(&path, error, "pane visibility")),
-            );
-        }
+        Err(error) => return (SavedState::default(), Some(unusable(&path, error))),
     };
     match serde_json::from_str(&text) {
         Ok(state) => (state, None),
-        Err(error) => (
-            SavedState::default(),
-            Some(ConfigWarning::unusable(&path, error, "pane visibility")),
-        ),
+        Err(error) => (SavedState::default(), Some(unusable(&path, error))),
     }
+}
+
+/// The warning for a state file that cannot be used, after keeping the file.
+fn unusable(path: &Path, error: impl std::error::Error + Send + Sync + 'static) -> ConfigWarning {
+    let note = match keep_aside(path) {
+        Ok(kept) => format!("{error}; the file is kept as {}", kept.display()),
+        Err(failure) => format!("{error}; it could not be kept aside ({failure})"),
+    };
+    ConfigWarning::unusable(path, note, STATE_WHAT)
+}
+
+/// Renames the unusable file to `<name>.corrupt`, or `.corrupt.1`, `.corrupt.2`, ...
+/// when an earlier one is still there. Returns where it went.
+fn keep_aside(path: &Path) -> io::Result<PathBuf> {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    for attempt in 0..1000u32 {
+        let suffix = if attempt == 0 {
+            String::new()
+        } else {
+            format!(".{attempt}")
+        };
+        let kept = path.with_file_name(format!("{name}.corrupt{suffix}"));
+        if kept.exists() {
+            continue;
+        }
+        fs::rename(path, &kept)?;
+        return Ok(kept);
+    }
+    Err(io::Error::other("too many earlier backups"))
 }
 
 /// Writes the state to `dir`. The text goes to a file beside it first and is

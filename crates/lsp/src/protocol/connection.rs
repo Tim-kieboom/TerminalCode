@@ -4,7 +4,9 @@
 use std::collections::HashMap;
 use std::io::{self, BufReader, Read, Write};
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
+use std::sync::mpsc::{
+    self, Receiver, RecvTimeoutError, Sender, SyncSender, TryRecvError, TrySendError,
+};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -33,9 +35,13 @@ pub enum Incoming {
 }
 
 type Reply = Result<Value, RpcError>;
-/// Shared by the app and the reading thread, which answers the server's
-/// requests. `None` once the session is closed from our side.
-type Writer = Arc<Mutex<Option<Box<dyn Write + Send>>>>;
+/// How many encoded messages wait for the writing thread. A server that stops reading fills it
+/// and the session ends, instead of the app waiting on a full pipe.
+const OUTBOX_CAPACITY: usize = 256;
+
+/// The app and the reading thread hand encoded messages to the writing thread through this.
+/// `None` once the session is closed from our side; the lock is only held to enqueue.
+type Writer = Arc<Mutex<Option<SyncSender<Vec<u8>>>>>;
 
 /// The requests that have not been answered yet, and whether they ever will be.
 #[derive(Default)]
@@ -71,11 +77,16 @@ impl Connection {
     /// can look.
     pub fn start(
         reader: impl Read + Send + 'static,
-        writer: impl Write + Send + 'static,
+        stream: impl Write + Send + 'static,
         wake: impl Fn() + Send + 'static,
     ) -> (Self, Receiver<Incoming>) {
-        let writer: Writer = Arc::new(Mutex::new(Some(Box::new(writer))));
         let pending = SharedPending::default();
+        let (outbox, queued) = mpsc::sync_channel(OUTBOX_CAPACITY);
+        let writer: Writer = Arc::new(Mutex::new(Some(outbox)));
+        let writing = Writing {
+            pending: Arc::clone(&pending),
+        };
+        std::thread::spawn(move || writing.run(stream, queued));
         let (incoming, received) = mpsc::channel();
 
         let reading = Reading {
@@ -139,11 +150,11 @@ impl Connection {
         })
     }
 
-    /// A write that fails means the session is over (a server that exits at
-    /// once makes the first write fail before the reading thread has noticed the
-    /// end), so from then on every request fails at once.
+    /// A message that cannot be queued means the session is over (a server that exits at once
+    /// makes the first write fail before the reading thread has noticed the end, and one that
+    /// stops reading fills the queue), so from then on every request fails at once.
     fn send(&self, message: &Message) -> Result<(), LspError> {
-        write_to(&self.writer, message).map_err(|error| {
+        enqueue(&self.writer, message).map_err(|error| {
             let reason = format!("could not send to the language server: {error}");
             let mut pending = lock(&self.pending);
             let reason = pending.closed.get_or_insert(reason).clone();
@@ -158,14 +169,47 @@ impl Drop for Connection {
     }
 }
 
-/// Writes `message`, unless the session was closed from our side.
-fn write_to(writer: &Writer, message: &Message) -> io::Result<()> {
-    match lock(writer).as_mut() {
-        Some(writer) => write_message(writer, &message.to_value()),
+/// Encodes `message` and queues it for the writing thread, without ever waiting.
+fn enqueue(writer: &Writer, message: &Message) -> io::Result<()> {
+    let mut bytes = Vec::new();
+    write_message(&mut bytes, &message.to_value())?;
+    match lock(writer).as_ref() {
+        Some(outbox) => outbox.try_send(bytes).map_err(|error| match error {
+            TrySendError::Full(_) => io::Error::new(
+                io::ErrorKind::WouldBlock,
+                "it does not read what is sent to it",
+            ),
+            TrySendError::Disconnected(_) => {
+                io::Error::new(io::ErrorKind::BrokenPipe, "the session was closed")
+            }
+        }),
         None => Err(io::Error::new(
             io::ErrorKind::BrokenPipe,
             "the session was closed",
         )),
+    }
+}
+
+/// What the writing thread holds: it is the only one that touches the stream.
+struct Writing {
+    pending: SharedPending,
+}
+
+impl Writing {
+    /// Writes what is queued until the queue ends (the connection was dropped), which closes
+    /// the stream, or until a write fails, which ends the session.
+    fn run(self, mut stream: impl Write, queued: Receiver<Vec<u8>>) {
+        while let Ok(bytes) = queued.recv() {
+            if let Err(error) = stream.write_all(&bytes).and_then(|()| stream.flush()) {
+                let reason = format!("could not send to the language server: {error}");
+                let mut pending = lock(&self.pending);
+                let reason = pending.closed.get_or_insert(reason).clone();
+                for (_, sender) in pending.waiting.drain() {
+                    let _ = sender.send(Err(LspError::Closed(reason.clone())));
+                }
+                return;
+            }
+        }
     }
 }
 
@@ -259,7 +303,7 @@ impl Reading {
                 Message::Request { id, method, params } => {
                     let outcome = replies::answer(&method, &params);
                     let answer = Message::Response { id, outcome };
-                    if let Err(error) = write_to(&self.writer, &answer) {
+                    if let Err(error) = enqueue(&self.writer, &answer) {
                         break error.to_string();
                     }
                 }

@@ -38,15 +38,30 @@ pub(crate) struct TerminalPane {
     selection: Option<Selection>,
 }
 
+/// A cell of a shell's screen, counted from the screen's top left corner. Cells order in
+/// reading order (row first), which is what a selection needs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Cell {
+    pub(crate) row: u16,
+    pub(crate) column: u16,
+}
+
+/// The pair as `(row, column)`, the order a terminal screen is indexed in.
+impl From<(u16, u16)> for Cell {
+    fn from((row, column): (u16, u16)) -> Self {
+        Self { row, column }
+    }
+}
+
 /// Text selected on a tab's screen: from the cell the press was on to the cell the pointer
 /// is on, as the screen is drawn (so with the history offset it had). It is dropped when the
 /// text under it changes, the view moves or another tab is shown.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Selection {
     tab: usize,
-    /// (row, column) of the screen, where the press was and where the pointer is.
-    anchor: (u16, u16),
-    head: (u16, u16),
+    /// Where the press was and where the pointer is.
+    anchor: Cell,
+    head: Cell,
     offset: usize,
     /// Whether anything is selected: the pointer left the cell it pressed on, or a word or a
     /// line was taken. A press alone selects nothing.
@@ -235,25 +250,34 @@ impl TerminalPane {
         self.area.contains(Position::new(column, row))
     }
 
-    /// The cell of the shell's screen under a screen cell, counted from the
-    /// screen's top left corner; `None` outside the text (on the frame, say, or
-    /// the tab bar).
-    pub(crate) fn screen_cell(&self, column: u16, row: u16) -> Option<(u16, u16)> {
+    /// The cell of the shell's screen under a screen cell; `None` outside the text (on the
+    /// frame, say, or the tab bar).
+    pub(crate) fn cell_at(&self, column: u16, row: u16) -> Option<Cell> {
         self.text_area
             .contains(Position::new(column, row))
-            .then(|| (column - self.text_area.x, row - self.text_area.y))
+            .then(|| Cell {
+                row: row - self.text_area.y,
+                column: column - self.text_area.x,
+            })
+    }
+
+    /// [`Self::cell_at`] as `(column, row)`.
+    pub(crate) fn screen_cell(&self, column: u16, row: u16) -> Option<(u16, u16)> {
+        let cell = self.cell_at(column, row)?;
+        Some((cell.column, cell.row))
     }
 
     /// The cell of the shell's screen nearest to a screen cell, for a drag that went outside
     /// the text: the edge it left by.
-    pub(crate) fn clamped_cell(&self, column: u16, row: u16) -> Option<(u16, u16)> {
+    pub(crate) fn clamped_cell(&self, column: u16, row: u16) -> Option<Cell> {
         let area = self.text_area;
         if area.width == 0 || area.height == 0 {
             return None;
         }
-        let column = column.clamp(area.x, area.right() - 1) - area.x;
-        let row = row.clamp(area.y, area.bottom() - 1) - area.y;
-        Some((row, column))
+        Some(Cell {
+            row: row.clamp(area.y, area.bottom() - 1) - area.y,
+            column: column.clamp(area.x, area.right() - 1) - area.x,
+        })
     }
 
     /// The selected text as of now, if any characters are selected.
@@ -269,8 +293,10 @@ impl TerminalPane {
         self.selection.take().is_some()
     }
 
-    /// Starts a selection at `cell` (row, column): nothing is selected until it is extended.
-    pub(crate) fn begin_selection(&mut self, cell: (u16, u16)) {
+    /// Starts a selection at `cell`: nothing is selected until it is extended. A tuple is
+    /// `(row, column)`.
+    pub(crate) fn begin_selection(&mut self, cell: impl Into<Cell>) {
+        let cell = cell.into();
         let Some(session) = self.session() else {
             return;
         };
@@ -286,7 +312,8 @@ impl TerminalPane {
     }
 
     /// Moves the end of the selection to `cell`.
-    pub(crate) fn extend_selection(&mut self, cell: (u16, u16)) {
+    pub(crate) fn extend_selection(&mut self, cell: impl Into<Cell>) {
+        let cell = cell.into();
         let Some(selection) = self.selection.as_mut() else {
             return;
         };
@@ -296,11 +323,11 @@ impl TerminalPane {
     }
 
     /// Selects the word at `cell` (a double click).
-    pub(crate) fn select_word(&mut self, cell: (u16, u16)) {
+    pub(crate) fn select_word(&mut self, cell: impl Into<Cell>) {
+        let Cell { row, column } = cell.into();
         let Some(session) = self.session() else {
             return;
         };
-        let (row, column) = cell;
         let range = session.with_screen(|screen| {
             let at = |c: u16| {
                 screen
@@ -322,8 +349,14 @@ impl TerminalPane {
             }
             (start, end)
         });
-        self.begin_selection((row, range.0));
-        self.extend_selection((row, range.1));
+        self.begin_selection(Cell {
+            row,
+            column: range.0,
+        });
+        self.extend_selection(Cell {
+            row,
+            column: range.1,
+        });
         self.arm_selection();
     }
 
@@ -336,27 +369,31 @@ impl TerminalPane {
     }
 
     /// Selects the whole row at `cell` (a triple click).
-    pub(crate) fn select_line(&mut self, cell: (u16, u16)) {
+    pub(crate) fn select_line(&mut self, cell: impl Into<Cell>) {
+        let Cell { row, .. } = cell.into();
         let Some(columns) = self
             .session()
             .map(|s| s.with_screen(|screen| screen.size().1))
         else {
             return;
         };
-        self.begin_selection((cell.0, 0));
-        self.extend_selection((cell.0, columns.saturating_sub(1)));
+        self.begin_selection(Cell { row, column: 0 });
+        self.extend_selection(Cell {
+            row,
+            column: columns.saturating_sub(1),
+        });
         self.arm_selection();
     }
 
     /// The selection as (first, last) cells in reading order, both included.
-    fn selection_range(&self) -> Option<((u16, u16), (u16, u16))> {
+    fn selection_range(&self) -> Option<(Cell, Cell)> {
         let selection = self.selection.as_ref()?;
         let (a, b) = (selection.anchor, selection.head);
         Some(if a <= b { (a, b) } else { (b, a) })
     }
 
     fn refresh_selection_text(&mut self) {
-        let Some(((first_row, first_col), (last_row, last_col))) = self.selection_range() else {
+        let Some((first, last)) = self.selection_range() else {
             return;
         };
         if !self
@@ -370,10 +407,10 @@ impl TerminalPane {
             session.with_screen(|screen| {
                 let columns = screen.size().1;
                 screen.contents_between(
-                    first_row,
-                    first_col,
-                    last_row,
-                    last_col.saturating_add(1).min(columns),
+                    first.row,
+                    first.column,
+                    last.row,
+                    last.column.saturating_add(1).min(columns),
                 )
             })
         });

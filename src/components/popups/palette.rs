@@ -3,7 +3,7 @@
 //! Typing narrows the list with a fuzzy match on the action's title; enter
 //! runs the selected one. Each entry shows the keys it is bound to.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::style::Style;
@@ -11,6 +11,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
+use crate::components::popups::key_with_ctrl;
 use crate::event::action::Action;
 use crate::ui::fuzzy;
 use crate::ui::theme::Theme;
@@ -42,11 +43,8 @@ pub(crate) enum Command {
 
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
-        if key.kind == KeyEventKind::Release || key.modifiers.contains(KeyModifiers::ALT) {
-            return None;
-        }
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        Some(match (key.code, ctrl) {
+        let (code, ctrl) = key_with_ctrl(key)?;
+        Some(match (code, ctrl) {
             (KeyCode::Esc, _) => Self::Cancel,
             (KeyCode::Enter, _) => Self::Run,
             (KeyCode::Up, _) => Self::Previous,

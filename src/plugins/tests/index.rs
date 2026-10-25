@@ -1,4 +1,11 @@
-use super::*;
+use std::fs;
+
+use trcode_plugin_api::{Abi, AbiError};
+
+use crate::plugins::{
+    index::{Availability, CACHE_FILE, Entry, Index, IndexError, source_label, store_cache},
+    manifest::Host,
+};
 
 const HASH: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
