@@ -173,7 +173,7 @@ impl App {
 
     /// Puts the cursor of the file in front on `line` and `column` (from 1, held to what
     /// the file has) and gives the editor the keyboard.
-    fn show_place(&mut self, line: u32, column: u32) {
+    pub(super) fn show_place(&mut self, line: u32, column: u32) {
         let at = Position::new(
             (line as usize).saturating_sub(1),
             (column as usize).saturating_sub(1),

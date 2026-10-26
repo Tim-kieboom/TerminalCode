@@ -52,6 +52,8 @@ pub(super) fn draw(
     }
 
     let inner = pane.text_area;
+    // Read before the screen is locked: it asks the session where its history is.
+    let link = pane.link().cloned();
     if let Some(session) = pane.session() {
         let cursor = session.with_screen(|screen| {
             draw_screen(frame.buffer_mut(), inner, screen);
@@ -63,6 +65,16 @@ pub(super) fn draw(
                     range,
                     theme.style("editor.selection"),
                 );
+            }
+            if let Some(mark) = &link {
+                for cell in &mark.cells {
+                    if cell.row < inner.height && cell.column < inner.width {
+                        let at = (inner.x + cell.column, inner.y + cell.row);
+                        if let Some(target) = frame.buffer_mut().cell_mut(at) {
+                            target.modifier.insert(Modifier::UNDERLINED);
+                        }
+                    }
+                }
             }
             // The cursor belongs to the present; it is not where the history is.
             (!screen.hide_cursor() && screen.scrollback() == 0).then(|| screen.cursor_position())

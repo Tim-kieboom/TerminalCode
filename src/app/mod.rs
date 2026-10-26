@@ -74,6 +74,7 @@ mod reset;
 mod saved;
 pub(crate) mod state;
 mod terminal_keys;
+mod terminal_links;
 mod terminal_pane;
 mod watching;
 

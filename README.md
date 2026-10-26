@@ -136,6 +136,8 @@ returns to the editor, `ctrl+b x` to the explorer, `ctrl+b t` hides the pane, `c
 
 To copy from the terminal, drag over the text with the mouse: letting go copies it (a double click takes a word, a triple click a line), and `ctrl+shift+c` (or `ctrl+b y`, for a terminal that sends `ctrl+shift+c` as `ctrl+c`) copies it again; "Terminal: Copy Selection" in the palette does too. A press, typing, another tab or the history moving drops the selection. When a program in the pane has asked for the mouse (vim, htop, `less`), a plain drag belongs to it and `shift`+drag selects.
 
+To open a path in the output, hold `ctrl` over it (`src/main.rs`, `src/main.rs:12:5`, rustc's `--> src/lib.rs:3:9`, a `file:line` of a stack trace, an absolute path): it is underlined, and `ctrl+click` opens the file at that line and column (a folder is shown in the explorer). Only files and folders that are there are links, a relative path is the project's, and a path that wraps onto the next row of the screen is one link. A program that asked for the mouse keeps the click; `shift+ctrl+click` is for the editor.
+
 ## Configuration
 
 The files live in the `terminalcode` folder of your config directory (`~/.config/terminalcode` on Linux,

@@ -9,6 +9,7 @@ use crate::pty::Session;
 use crate::ui::Render;
 use crate::ui::layout::Placement;
 
+pub(crate) mod links;
 mod render;
 #[cfg(test)]
 mod tests;
@@ -16,6 +17,8 @@ mod tests;
 /// Tabs beyond this are refused, so a runaway script cannot start shells
 /// without end.
 pub(crate) const MAX_TABS: usize = 16;
+
+pub(crate) use links::{Link, LinkText};
 
 /// The pane and the shells running in it.
 #[derive(Debug, Default)]
@@ -36,6 +39,8 @@ pub(crate) struct TerminalPane {
     add_button: Rect,
     /// What the user selected with the mouse, to copy.
     selection: Option<Selection>,
+    /// The path the pointer is over with `ctrl` held, which is underlined.
+    link: Option<links::LinkMark>,
 }
 
 /// A cell of a shell's screen, counted from the screen's top left corner. Cells order in
