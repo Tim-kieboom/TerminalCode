@@ -44,7 +44,7 @@ fn rig_with(keymap: Keymap) -> Rig {
     state.set_layout(LayoutTree::from_ron(LAYOUT).unwrap());
     let (tx, events) = mpsc::channel(1024);
     Rig {
-        app: App::with_keymap(state, keymap).with_events(tx),
+        app: App::new(state).with_keymap(keymap).with_events(tx),
         events,
         terminal: Terminal::new(TestBackend::new(140, 20)).unwrap(),
     }

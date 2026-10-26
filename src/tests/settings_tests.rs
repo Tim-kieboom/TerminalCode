@@ -62,7 +62,8 @@ fn started_with(dir: &Path, settings_text: &str) -> App {
     write(dir, "settings.json", settings_text);
     let mut state = AppState::default();
     let user = startup::load_user_config(&mut state, Some(dir), KeyboardSupport::Enhanced);
-    App::with_keymap(state, user.keymap)
+    App::new(state)
+        .with_keymap(user.keymap)
         .with_config_dir(Some(dir.to_path_buf()))
         .with_settings(user.settings, user.theme)
 }
@@ -688,7 +689,8 @@ fn with_detection_off_the_settings_apply_to_every_document() {
     );
     let mut state = crate::initial_state(std::slice::from_ref(&file)).unwrap();
     let user = startup::load_user_config(&mut state, Some(dir.path()), KeyboardSupport::Enhanced);
-    let mut app = App::with_keymap(state, user.keymap)
+    let mut app = App::new(state)
+        .with_keymap(user.keymap)
         .with_config_dir(Some(dir.path().to_path_buf()))
         .with_settings(user.settings, user.theme);
 
@@ -709,7 +711,8 @@ fn with_detection_on_a_file_opened_with_two_space_indentation_keeps_two() {
     write(dir.path(), "settings.json", r#"{ "tab_size": 8 }"#);
     let mut state = crate::initial_state(std::slice::from_ref(&file)).unwrap();
     let user = startup::load_user_config(&mut state, Some(dir.path()), KeyboardSupport::Enhanced);
-    let mut app = App::with_keymap(state, user.keymap)
+    let mut app = App::new(state)
+        .with_keymap(user.keymap)
         .with_config_dir(Some(dir.path().to_path_buf()))
         .with_settings(user.settings, user.theme);
 
@@ -732,7 +735,8 @@ fn saving_a_bigger_tab_size_leaves_an_open_document_with_its_own_indentation_alo
     write(dir.path(), "settings.json", "{}");
     let mut state = crate::initial_state(std::slice::from_ref(&file)).unwrap();
     let user = startup::load_user_config(&mut state, Some(dir.path()), KeyboardSupport::Enhanced);
-    let mut app = App::with_keymap(state, user.keymap)
+    let mut app = App::new(state)
+        .with_keymap(user.keymap)
         .with_config_dir(Some(dir.path().to_path_buf()))
         .with_settings(user.settings, user.theme);
 

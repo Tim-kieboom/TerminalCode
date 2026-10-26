@@ -44,7 +44,6 @@ impl Command {
 pub(crate) struct RootPrompt {
     /// The file that is to be saved.
     path: String,
-    document: DocumentId,
     password: Secret,
     /// Said under the password after a try that did not work.
     error: Option<String>,
@@ -53,18 +52,13 @@ pub(crate) struct RootPrompt {
 }
 
 impl RootPrompt {
-    pub(crate) fn new(path: &std::path::Path, document: DocumentId) -> Self {
+    pub(crate) fn new(path: &std::path::Path, _document: DocumentId) -> Self {
         Self {
             path: path.display().to_string(),
-            document,
             password: Secret::default(),
             error: None,
             waiting: false,
         }
-    }
-
-    pub(crate) fn document(&self) -> DocumentId {
-        self.document
     }
 
     pub(crate) fn is_waiting(&self) -> bool {

@@ -538,7 +538,7 @@ action = { explorer = "down" }
     .unwrap();
     let mut state = AppState::default();
     state.open_project(dir.path()).unwrap();
-    let mut app = App::with_keymap(state, keymap);
+    let mut app = App::new(state).with_keymap(keymap);
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     app.handle_input(InputEvent::Key(KeyEvent::new(
         KeyCode::Char('b'),

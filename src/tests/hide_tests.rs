@@ -248,7 +248,7 @@ action = { toggle_plugin_view = "no.such.view" }"#,
         .unwrap();
     let mut state = AppState::default();
     state.set_layout(LayoutTree::from_ron(PLUGIN_LAYOUT).unwrap());
-    let mut app = App::with_keymap(state, keymap);
+    let mut app = App::new(state).with_keymap(keymap);
     app.handle_event(plugin_text("plugin says hi"));
     app
 }

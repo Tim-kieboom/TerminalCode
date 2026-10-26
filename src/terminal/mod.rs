@@ -16,6 +16,18 @@ use crossterm::execute;
 use crossterm::terminal::supports_keyboard_enhancement;
 use ratatui::DefaultTerminal;
 
+/// Set while the kitty keyboard flags are pushed, so [`restore`] (also called
+/// from the panic hook) knows whether to pop them.
+static KEYBOARD_ENHANCED: AtomicBool = AtomicBool::new(false);
+static BRACKETED_PASTE: AtomicBool = AtomicBool::new(false);
+static MOUSE_CAPTURED: AtomicBool = AtomicBool::new(false);
+static FOCUS_REPORTED: AtomicBool = AtomicBool::new(false);
+
+/// How long to wait for the terminal to answer a color query. Terminals that
+/// cannot be asked usually say so well before this; the wait is for slow
+/// links such as SSH.
+const COLOR_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
+
 /// Whether the terminal reports modifier keys unambiguously.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum KeyboardSupport {
@@ -32,13 +44,6 @@ pub enum KeyboardSupport {
 pub struct Capabilities {
     pub keyboard: KeyboardSupport,
 }
-
-/// Set while the kitty keyboard flags are pushed, so [`restore`] (also called
-/// from the panic hook) knows whether to pop them.
-static KEYBOARD_ENHANCED: AtomicBool = AtomicBool::new(false);
-static BRACKETED_PASTE: AtomicBool = AtomicBool::new(false);
-static MOUSE_CAPTURED: AtomicBool = AtomicBool::new(false);
-static FOCUS_REPORTED: AtomicBool = AtomicBool::new(false);
 
 /// Enters raw mode and the alternate screen, and enables the kitty keyboard
 /// protocol when the terminal supports it.
@@ -82,18 +87,6 @@ pub fn restore() {
     ratatui::restore();
 }
 
-fn probe_keyboard() -> KeyboardSupport {
-    if !supports_keyboard_enhancement().unwrap_or(false) {
-        return KeyboardSupport::Legacy;
-    }
-    let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
-    if execute!(stdout(), PushKeyboardEnhancementFlags(flags)).is_err() {
-        return KeyboardSupport::Legacy;
-    }
-    KEYBOARD_ENHANCED.store(true, Ordering::SeqCst);
-    KeyboardSupport::Enhanced
-}
-
 /// Turns mouse reporting on or off. With it on, clicks, drags and the wheel
 /// reach the editor; the terminal's own text selection then needs a modifier
 /// (usually Shift).
@@ -105,11 +98,6 @@ pub fn set_mouse_capture(enabled: bool) {
     MOUSE_CAPTURED.store(enabled && result.is_ok(), Ordering::SeqCst);
 }
 
-/// How long to wait for the terminal to answer a color query. Terminals that
-/// cannot be asked usually say so well before this; the wait is for slow
-/// links such as SSH.
-const COLOR_QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
-
 /// The terminal's own background color, asked with an OSC 11 query. Call it
 /// after [`init`] and before input is being read. `None` if the terminal does
 /// not answer.
@@ -119,4 +107,16 @@ pub(crate) fn query_background() -> Option<crate::ui::theme::Rgb> {
     let color = terminal_colorsaurus::background_color(options).ok()?;
     let (r, g, b) = color.scale_to_8bit();
     Some(crate::ui::theme::Rgb { r, g, b })
+}
+
+fn probe_keyboard() -> KeyboardSupport {
+    if !supports_keyboard_enhancement().unwrap_or(false) {
+        return KeyboardSupport::Legacy;
+    }
+    let flags = KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
+    if execute!(stdout(), PushKeyboardEnhancementFlags(flags)).is_err() {
+        return KeyboardSupport::Legacy;
+    }
+    KEYBOARD_ENHANCED.store(true, Ordering::SeqCst);
+    KeyboardSupport::Enhanced
 }

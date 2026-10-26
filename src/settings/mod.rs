@@ -76,17 +76,27 @@ impl Default for Settings {
             theme: None,
             shell: None,
             mouse: true,
+            hide_ignored: false,
+            detect_indent: true,
+            plugin_sources: Vec::new(),
             tab_size: TabWidth::default(),
             indent_style: IndentKind::Spaces,
-            detect_indent: true,
             sequence_timeout: Some(SEQUENCE_TIMEOUT_DEFAULT),
-            notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
-            hide_ignored: false,
-            plugin_sources: Vec::new(),
-            plugin_file_types: std::collections::BTreeMap::new(),
             language_servers: default_language_servers().clone(),
+            plugin_file_types: std::collections::BTreeMap::new(),
+            notification_lifetime: NOTIFICATION_LIFETIME_DEFAULT,
         }
     }
+}
+
+/// The names of the settings a settings file has, in file order.
+pub(crate) fn keys_of(source: &str) -> Result<Vec<String>, SettingsError> {
+    let cleaned = strip_jsonc(source);
+    if cleaned.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let Pairs(pairs) = serde_json::from_str(&cleaned)?;
+    Ok(pairs.into_iter().map(|(key, _)| key).collect())
 }
 
 /// Settings read from a file, with the names in it that need a remark.
@@ -251,16 +261,6 @@ fn default_language_servers() -> &'static LanguageServers {
     })
 }
 
-/// The names of the settings a settings file has, in file order.
-pub(crate) fn keys_of(source: &str) -> Result<Vec<String>, SettingsError> {
-    let cleaned = strip_jsonc(source);
-    if cleaned.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-    let Pairs(pairs) = serde_json::from_str(&cleaned)?;
-    Ok(pairs.into_iter().map(|(key, _)| key).collect())
-}
-
 /// The members of a JSON object in file order, repeats included (a map would
 /// quietly keep the last of a repeated name).
 struct Pairs(Vec<(String, Value)>);
@@ -347,41 +347,57 @@ fn take_sequence_timeout(
 /// into spaces, so what is left is plain JSON whose line and column numbers
 /// still match the file.
 fn strip_jsonc(source: &str) -> String {
+    type Chars<'a> = std::iter::Peekable<std::str::Chars<'a>>;
+
+    fn in_string(c: char, out: &mut Vec<char>, chars: &mut Chars<'_>, is_in_string: &mut bool) {
+        out.push(c);
+        match c {
+            '\\' => out.extend(chars.next()),
+            '"' => *is_in_string = false,
+            _ => {}
+        }
+    }
+
+    fn skip_comment(out: &mut Vec<char>, chars: &mut Chars<'_>) {
+        while let Some(next) = chars.next_if(|next| *next != '\n') {
+            out.push(blank(next));
+        }
+    }
+
+    fn skip_multi_comment(out: &mut Vec<char>, chars: &mut Chars<'_>) {
+        let mut last = ' ';
+        for next in chars.by_ref() {
+            out.push(blank(next));
+            if last == '*' && next == '/' {
+                break;
+            }
+            last = next;
+        }
+    }
+
     let mut out: Vec<char> = Vec::with_capacity(source.len());
     let mut chars = source.chars().peekable();
-    let mut in_string = false;
+    let mut is_in_string = false;
+
     while let Some(c) = chars.next() {
-        if in_string {
-            out.push(c);
-            match c {
-                '\\' => out.extend(chars.next()),
-                '"' => in_string = false,
-                _ => {}
-            }
+        if is_in_string {
+            in_string(c, &mut out, &mut chars, &mut is_in_string);
             continue;
         }
+
         match (c, chars.peek()) {
             ('"', _) => {
-                in_string = true;
+                is_in_string = true;
                 out.push(c);
             }
             ('/', Some('/')) => {
                 out.push(' ');
-                while let Some(next) = chars.next_if(|next| *next != '\n') {
-                    out.push(blank(next));
-                }
+                skip_comment(&mut out, &mut chars);
             }
             ('/', Some('*')) => {
                 out.extend([' ', ' ']);
                 chars.next();
-                let mut last = ' ';
-                for next in chars.by_ref() {
-                    out.push(blank(next));
-                    if last == '*' && next == '/' {
-                        break;
-                    }
-                    last = next;
-                }
+                skip_multi_comment(&mut out, &mut chars);
             }
             _ => out.push(c),
         }
