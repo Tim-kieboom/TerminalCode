@@ -169,10 +169,11 @@ fn a_whole_path_of_a_folder_inside_the_project_is_the_folder_and_one_outside_is_
     std::fs::create_dir(folder.path().join("sub")).unwrap();
     rig.runtime.set_workspace(folder.path().to_path_buf(), true);
     let inside = folder.path().canonicalize().unwrap().join("sub");
-    let inside = format!(
-        r#"{{"type":"debug","request":5,"program":"/p/fx-1","cwd":"{}"}}"#,
-        inside.display()
-    );
+    // Built as JSON: a Windows path has backslashes, which text pasted in would leave unescaped.
+    let inside = serde_json::json!({
+        "type": "debug", "request": 5, "program": "/p/fx-1", "cwd": inside.display().to_string(),
+    })
+    .to_string();
     load(&rig, &inside, &[Capability::DebugStart]);
 
     act(&rig, "tests", "d");
