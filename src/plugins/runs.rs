@@ -82,6 +82,35 @@ impl Runs {
         Ok(Spec { program, args, cwd })
     }
 
+    /// The folder a program is to be debugged in, when the open folder is trusted and `cwd`
+    /// (from the root of the project, with `/`) is a folder inside it.
+    pub(super) fn debug_folder(&self, cwd: &str) -> Result<PathBuf, Refusal> {
+        if !self.trusted {
+            return Err(Refusal::Untrusted);
+        }
+        let Some(root) = &self.root else {
+            return Err(Refusal::Failed {
+                detail: "there is no project folder".to_owned(),
+            });
+        };
+        // A test binary says where it runs by a whole path (nextest does): one inside the
+        // project is the same as the path from its root.
+        let from_root = match Path::new(cwd).is_absolute() {
+            true => root
+                .canonicalize()
+                .ok()
+                .into_iter()
+                .chain(Some(root.clone()))
+                .find_map(|root| Path::new(cwd).strip_prefix(&root).ok().map(Path::to_owned))
+                .map(|path| path.to_string_lossy().into_owned())
+                .ok_or_else(|| Refusal::BadArgument {
+                    detail: format!("`{cwd}` is not a folder inside the project"),
+                })?,
+            false => cwd.to_owned(),
+        };
+        folder_in(root, &from_root).map_err(|detail| Refusal::BadArgument { detail })
+    }
+
     /// The command is running. `false` when the plugin is not one that may run commands
     /// (it was turned off while the command was being started): the command is not kept.
     pub(super) fn begin(&mut self, plugin: &str, request: u64, control: Arc<Control>) -> bool {

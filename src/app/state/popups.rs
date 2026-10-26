@@ -258,6 +258,14 @@ impl AppState {
         }
     }
 
+    /// Closes the text a plugin showed; the page of a plugin in the manager stays open (it
+    /// goes back to the list).
+    pub(crate) fn close_plugin_readme(&mut self) {
+        if matches!(&self.popup, Popup::PluginReadme(readme) if !readme.is_of_a_plugin()) {
+            self.popup = Popup::None;
+        }
+    }
+
     /// Closes the plugin manager; any other popup stays open.
     pub(crate) fn close_plugin_list(&mut self) {
         if matches!(self.popup, Popup::PluginList(_)) {
