@@ -953,6 +953,7 @@ fn a_right_click_on_a_failed_test_offers_its_error_which_is_shown_in_a_popup() {
     assert!(matches!(rig.app.state().popup(), Popup::None));
 }
 
+#[cfg(unix)]
 #[test]
 #[ignore = "needs the modules built and cargo-nextest"]
 fn a_right_click_on_a_test_runs_it_under_the_debugger_as_the_adapter_built_it() {
