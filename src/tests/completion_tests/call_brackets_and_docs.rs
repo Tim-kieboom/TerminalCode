@@ -9,7 +9,7 @@ fn a_call_with_an_argument_is_written_with_the_placeholder_selected() {
     rig.press(KeyCode::Tab);
 
     assert_eq!(rig.text(), "push(value)");
-    let selection = rig.app.state().editor().selections().primary().clone();
+    let selection = *rig.app.state().editor().selections().primary();
     assert_eq!(
         (selection.anchor().column, selection.head().column),
         (5, 10)

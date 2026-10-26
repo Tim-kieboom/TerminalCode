@@ -508,14 +508,16 @@ impl App {
         }
         if shown.is_pinned() && key.modifiers == KeyModifiers::NONE {
             let scroll = shown.scroll();
-            let scrolled = match key.code {
-                KeyCode::Up => Some(scroll.lines(-1)),
-                KeyCode::Down => Some(scroll.lines(1)),
-                KeyCode::PageUp => Some(scroll.pages(-1)),
-                KeyCode::PageDown => Some(scroll.pages(1)),
-                _ => None,
+            let mut is_scrolled = true;
+            match key.code {
+                KeyCode::Up => scroll.lines(-1),
+                KeyCode::Down => scroll.lines(1),
+                KeyCode::PageUp => scroll.pages(-1),
+                KeyCode::PageDown => scroll.pages(1),
+                _ => is_scrolled = false,
             };
-            if scrolled.is_some() {
+
+            if is_scrolled {
                 self.needs_redraw = true;
                 return true;
             }

@@ -281,7 +281,6 @@ impl App {
             Err(ActionError::NeedsAuthentication(detail)) => {
                 refused(request, Refusal::AuthRequired { detail })
             }
-            Err(ActionError::Busy) => refused(request, Refusal::Busy),
             Err(ActionError::Git(GitError::Cancelled)) => refused(request, Refusal::Cancelled),
             Err(ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))) => {
                 refused(request, Refusal::NoRepository)
@@ -307,8 +306,7 @@ impl App {
             ActionError::Git(GitError::Cancelled)
             | ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))
             | ActionError::BadArgument(_)
-            | ActionError::NothingStaged
-            | ActionError::Busy => return,
+            | ActionError::NothingStaged => return,
             ActionError::Git(error) => error.to_string(),
         };
         self.state.notify_error(message);
@@ -591,11 +589,12 @@ impl App {
                     };
                     entries.push(entry);
                 }
-                WireMenuItem::Separator => {
-                    // A rule is between items: not first, not twice.
-                    if !matches!(entries.last(), None | Some(Entry::Separator)) {
-                        entries.push(Entry::Separator);
-                    }
+
+                // A rule is between items: not first, not twice.
+                WireMenuItem::Separator
+                    if !matches!(entries.last(), None | Some(Entry::Separator)) =>
+                {
+                    entries.push(Entry::Separator);
                 }
                 _ => {}
             }

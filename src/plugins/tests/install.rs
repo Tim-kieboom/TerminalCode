@@ -25,7 +25,6 @@ const LOCAL: Policy = Policy::local(&["127.0.0.1"]);
 pub(crate) enum Reply {
     Body(Vec<u8>),
     Redirect(String),
-    Status(u16),
     /// Takes the request and never answers.
     Hang,
 }
@@ -62,9 +61,6 @@ pub(crate) fn serve(routes: HashMap<&'static str, Reply>) -> String {
                 Some(Reply::Hang) => {
                     std::thread::sleep(Duration::from_secs(5));
                     continue;
-                }
-                Some(Reply::Status(code)) => {
-                    format!("HTTP/1.1 {code} X\r\nContent-Length: 0\r\n\r\n").into_bytes()
                 }
                 None => b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec(),
             };
@@ -542,10 +538,10 @@ fn a_module_and_marker_swapped_together_still_meet_the_pin() {
     )
     .unwrap();
 
-    assert!(match installed.module() {
-        Err(ManifestError::ModuleChanged(_)) => true,
-        _ => false,
-    });
+    assert!(matches!(
+        installed.module(),
+        Err(ManifestError::ModuleChanged(_))
+    ));
 }
 
 #[test]

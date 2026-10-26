@@ -116,7 +116,7 @@ fn a_program_a_plugin_asks_to_debug_is_launched_with_its_arguments_in_its_folder
         *seen.lock().unwrap() = Some(launching);
         while adapter.next().is_some() {}
     });
-    let mut rig = rig(&String::new(), Some(adapter));
+    let mut rig = rig("", Some(adapter));
     let message = debug_message("");
     let module = Echo::new(First::Echo)
         .asks_on_byte(ON_REFRESH, b'r', &message)
@@ -150,7 +150,7 @@ fn a_session_a_plugin_started_is_not_restarted_as_a_run_of_the_project() {
     let mut rig = rig(&message, Some(adapter));
 
     ask_and_trust(&mut rig);
-    rig.wait_for("the session", |rig| session_goes(rig));
+    rig.wait_for("the session", session_goes);
     rig.app.run_action(Action::DebugRestart);
     settle(&mut rig);
 
