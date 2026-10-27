@@ -800,7 +800,7 @@ fn a_test_is_gone_to_in_the_editor_by_its_panic_when_it_failed_and_by_grep_when_
             .any(|line| line.contains("assertion")),
         "{pane:?}"
     );
-    rig.press("goto");
+    rig.press("goto_failure");
     rig.wait_until("the file", Duration::from_secs(10), |rig| {
         rig.cursor().0.ends_with("src/lib.rs")
     });
@@ -926,7 +926,8 @@ fn a_right_click_on_a_failed_test_offers_its_error_which_is_shown_in_a_popup() {
     assert_eq!(
         rig.menu_labels(),
         [
-            "Open Test Code",
+            "Go to Test",
+            "Go to Failure",
             "Show Test Error",
             "Run Selected",
             "Debug Selected",
