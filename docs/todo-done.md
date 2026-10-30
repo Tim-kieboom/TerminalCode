@@ -418,3 +418,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Terminal: `ctrl+click` a path in the output (decided after a grill): `src/main.rs`, `src/main.rs:12:5`, rustc's `--> src/lib.rs:3:9`, a stack trace's `file:line`, absolute and Windows paths; underlined while `ctrl` is held, opens the file at the line and column (a folder is shown in the explorer); only files and folders of the project that are there are links; wrapped rows of the visible screen are joined; a program that asked for the mouse keeps the click (`shift+ctrl+click` for the editor). Tests: 10 for the text and the screen in `components/terminal/tests/links_tests.rs`, 6 in `terminal_tests/links.rs`
 
 - [x] The project's `.envrc` through `direnv` (decided without a grill; `docs/design.md`, "The project's `.envrc` through direnv"): at startup `trcode` loads `direnv export json` for a project with an `.envrc` into its own environment, so tests, the debugger and the terminal of a Nix project see the dev shell; the status bar says it loaded or why not (not installed, blocked: `direnv allow`)
+
+## Release 0.10.2
+- [x] Version 0.10.2 (after 0.10.1: the project's `.envrc` is loaded through `direnv` at startup, so tests, the debugger and the terminal of a Nix project see its dev shell; the real test plugin 0.0.12 menu and jump names)
