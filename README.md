@@ -74,6 +74,12 @@ On NixOS, add it as an input and put `inputs.terminal_code.packages.${pkgs.stden
 clipboard; `rust-analyzer` is not included, install it yourself for the language server. `nix develop` gives a shell
 with the Rust toolchain to work on the code.
 
+**`.envrc` and `direnv`:** when the project folder (or a folder above it) has an `.envrc` and `direnv` is installed,
+`trcode` loads its environment (`direnv export json`) before it starts, so test runs, the debugger, the terminal and the
+plugins see the tools of the project's dev shell (`use flake` and the like). It says `direnv: loading ...` while it
+works (the first load of a flake can take a while) and tells you in the status bar when it loaded or why it did not;
+an `.envrc` that `direnv` has not been told to trust needs `direnv allow` in the folder first.
+
 ## Keys
 
 Press `f1` for the command palette, which lists every action with its key. The defaults:

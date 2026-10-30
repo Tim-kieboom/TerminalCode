@@ -28,6 +28,7 @@ use trcode_ui as ui;
 mod cli;
 mod components;
 mod config;
+mod direnv;
 pub mod error;
 mod event;
 mod git;
@@ -130,6 +131,26 @@ pub fn recent_project() -> (Option<PathBuf>, Option<String>) {
             None,
             Some("--recent: no recent project folder is there; opened the current folder".into()),
         ),
+    }
+}
+
+/// Loads the environment of the project's `.envrc` through `direnv` into this process,
+/// so that what the editor starts sees it. Call it before anything else is started.
+/// It returns what to tell the user, if anything: that it loaded, or why it did not.
+pub fn load_project_environment(paths: &[PathBuf]) -> Option<String> {
+    let project = project_and_files(paths)
+        .0
+        .or_else(|| std::env::current_dir().ok())?;
+    let envrc = direnv::find_envrc(&project)?;
+
+    // Nix can take a while the first time, and the screen is still the shell's.
+    eprintln!("trcode: loading {} with direnv...", envrc.display());
+    match direnv::load(&envrc, &project) {
+        Ok(changes) => {
+            direnv::apply(&changes);
+            Some(format!("loaded the environment of {}", envrc.display()))
+        }
+        Err(message) => Some(message),
     }
 }
 

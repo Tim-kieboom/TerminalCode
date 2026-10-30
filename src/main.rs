@@ -29,6 +29,12 @@ fn start() -> IdeResult {
         Invocation::Open { paths, .. } => (paths, None),
     };
 
+    let environment = terminal_code::load_project_environment(&paths);
+    let note = match (note, environment) {
+        (Some(note), Some(environment)) => Some(format!("{note}; {environment}")),
+        (note, environment) => note.or(environment),
+    };
+
     set_restore_on_panic();
     let (terminal, capabilities) = terminal::init();
     let result = terminal_code::run(terminal, &paths, capabilities, note);
