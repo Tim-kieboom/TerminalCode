@@ -60,8 +60,16 @@ impl std::fmt::Debug for Highlighter {
 impl Highlighter {
     pub fn new(language: Language, theme: &impl CaptureStyles) -> Result<Self, SyntaxError> {
         let name = language.name();
-        let grammar = language.grammar();
+        let (grammar, store) = language.grammar()?;
         let mut parser = Parser::new();
+        if let Some(store) = store {
+            parser
+                .set_wasm_store(store)
+                .map_err(|source| SyntaxError::Grammar {
+                    language: name,
+                    source,
+                })?;
+        }
         parser
             .set_language(&grammar)
             .map_err(|source| SyntaxError::Grammar {

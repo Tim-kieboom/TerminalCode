@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use tree_sitter::Language as Grammar;
+use tree_sitter::{Language as Grammar, WasmStore};
+
+use crate::SyntaxError;
+use crate::plugin::{self, PluginSlot};
 
 /// Rust: control flow apart from the other keywords, numbers as numbers (the
 /// grammar calls them constants), and a called method as a method: the grammar
@@ -41,6 +44,8 @@ pub enum Language {
     Json,
     Markdown,
     Nix,
+    /// A language a plugin added (see [`crate::register_language`]).
+    Plugin(PluginSlot),
 }
 
 impl Language {
@@ -51,18 +56,20 @@ impl Language {
             Self::Json => "JSON",
             Self::Markdown => "Markdown",
             Self::Nix => "Nix",
+            Self::Plugin(slot) => plugin::get(slot).map_or("a language that is gone", |e| e.name),
         }
     }
 
     /// How the language writes a comment, for toggling one on a line. JSON takes `//`
     /// because the JSON files of the tools that read comments (and the language
     /// server's JSONC) do.
-    pub fn comment(self) -> Comment {
-        match self {
+    pub fn comment(self) -> Option<Comment> {
+        Some(match self {
             Self::Rust | Self::Json => Comment::Line("//"),
             Self::Toml | Self::Nix => Comment::Line("#"),
             Self::Markdown => Comment::Around("<!--", "-->"),
-        }
+            Self::Plugin(slot) => Comment::Line(plugin::get(slot)?.comment?),
+        })
     }
 
     /// The language of the file at `path`, going by its extension.
@@ -73,24 +80,36 @@ impl Language {
             "json" | "jsonc" => Some(Self::Json),
             "md" | "markdown" => Some(Self::Markdown),
             "nix" => Some(Self::Nix),
-            _ => None,
+            other => plugin::by_extension(other).map(Self::Plugin),
         }
     }
 
-    pub(super) fn grammar(self) -> Grammar {
-        match self {
-            Self::Rust => tree_sitter_rust::LANGUAGE.into(),
-            Self::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
-            Self::Json => tree_sitter_json::LANGUAGE.into(),
-            Self::Markdown => tree_sitter_md::LANGUAGE.into(),
-            Self::Nix => tree_sitter_nix::LANGUAGE.into(),
-        }
+    /// The grammar, and for a language a plugin added the store it lives in, which the parser
+    /// has to be given first.
+    pub(super) fn grammar(self) -> Result<(Grammar, Option<WasmStore>), SyntaxError> {
+        Ok((
+            match self {
+                Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+                Self::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
+                Self::Json => tree_sitter_json::LANGUAGE.into(),
+                Self::Markdown => tree_sitter_md::LANGUAGE.into(),
+                Self::Nix => tree_sitter_nix::LANGUAGE.into(),
+                Self::Plugin(slot) => {
+                    let (grammar, store) = plugin::load(&*Self::plugin_entry(slot)?)?;
+                    return Ok((grammar, Some(store)));
+                }
+            },
+            None,
+        ))
     }
 
     /// The tree-sitter query that names the highlightable parts of the tree: the
     /// grammar's own, with the editor's patterns before and after it.
     pub(super) fn highlights(self) -> String {
         let grammar = match self {
+            Self::Plugin(slot) => {
+                return plugin::get(slot).map_or_else(String::new, |e| e.highlights.clone());
+            }
             Self::Rust => tree_sitter_rust::HIGHLIGHTS_QUERY,
             Self::Toml => tree_sitter_toml_ng::HIGHLIGHTS_QUERY,
             Self::Json => tree_sitter_json::HIGHLIGHTS_QUERY,

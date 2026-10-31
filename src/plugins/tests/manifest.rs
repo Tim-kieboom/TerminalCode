@@ -142,7 +142,7 @@ fn an_id_that_would_confuse_a_name_is_refused() {
 
 #[test]
 fn a_module_path_that_leaves_the_folder_is_refused() {
-    for path in ["../x.wasm", "/etc/passwd", "a/../../x.wasm", ""] {
+    for path in ["../x.wasm", "/etc/passwd", "a/../../x.wasm"] {
         let text = manifest_text("").replace("viewer.wasm", path);
         assert_eq!(
             read_text(&text),
@@ -355,4 +355,81 @@ fn a_command_that_is_not_a_pattern_names_itself_and_says_why() {
 #[test]
 fn a_plugin_without_commands_has_none() {
     assert!(read_text(&manifest_text("")).unwrap().run.is_empty());
+}
+
+// --- plugins that are a language (plugin API 1.12) ---
+
+const LANGUAGE: &str = r#"id = "viewer"
+name = "Sol"
+version = "0.0.1"
+abi = "1.2"
+
+[language]
+name = "Sol"
+grammar = "viewer.wasm"
+extensions = ["sol", "solc"]
+comment = "//"
+highlights = "(keyword) @keyword"
+"#;
+
+#[test]
+fn a_language_has_no_module_of_its_own_no_pane_and_its_grammar_is_its_file() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = plugin(root.path(), "viewer", LANGUAGE);
+    let installed = read(&dir, HOST).unwrap();
+
+    assert_eq!(installed.manifest.module_file(), "viewer.wasm");
+    assert!(!installed.manifest.view, "there is no pane to place");
+    assert!(installed.capabilities.is_empty());
+    assert_eq!(
+        installed.module().unwrap(),
+        b"\0asm",
+        "the grammar is what is read"
+    );
+}
+
+#[test]
+fn a_manifest_with_neither_a_module_nor_a_language_is_nothing() {
+    let text = "id = \"viewer\"\nversion = \"0.1.0\"\nabi = \"1.2\"\n";
+
+    assert_eq!(read_text(text), Err(ManifestError::NothingInIt));
+}
+
+#[test]
+fn a_manifest_with_a_module_and_a_language_is_refused_for_now() {
+    let text = format!("{LANGUAGE}\n").replace("version", "wasm = \"viewer.wasm\"\nversion");
+
+    assert_eq!(read_text(&text), Err(ManifestError::LanguageAndModule));
+}
+
+#[test]
+fn a_language_that_cannot_work_is_refused_with_why() {
+    let bad = |from: &str, to: &str| {
+        let text = LANGUAGE.replace(from, to);
+        match read_text(&text) {
+            Err(ManifestError::BadLanguage(reason)) => reason,
+            other => panic!("{other:?} for {to}"),
+        }
+    };
+
+    assert!(bad("name = \"Sol\"\ngrammar", "name = \"\"\ngrammar").contains("no name"));
+    assert!(bad("grammar = \"viewer.wasm\"", "grammar = \"g.so\"").contains(".wasm"));
+    assert!(bad("extensions = [\"sol\", \"solc\"]", "extensions = []").contains("no extensions"));
+    assert!(bad("highlights = \"(keyword) @keyword\"", "highlights = \"  \"").contains("query"));
+    assert!(bad("comment = \"//\"", "comment = \"\"").contains("comment"));
+    assert!(
+        bad(
+            "name = \"Sol\"\ngrammar",
+            "name = \"Sol\"\ngrammar_name = \"a-b\"\ngrammar"
+        )
+        .contains("grammar name")
+    );
+    assert_eq!(
+        read_text(&LANGUAGE.replace("[\"sol\", \"solc\"]", "[\".sol\"]")),
+        Err(ManifestError::BadFileType(".sol".to_owned()))
+    );
+    assert_eq!(
+        read_text(&LANGUAGE.replace("\"viewer.wasm\"", "\"../x.wasm\"")),
+        Err(ManifestError::BadModulePath("../x.wasm".to_owned()))
+    );
 }

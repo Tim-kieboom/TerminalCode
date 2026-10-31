@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use crate::buffer::Buffer;
-use crate::syntax::Language;
+use crate::syntax::{Comment, Language};
 
 /// Brackets that open a level, with the one that closes it.
 const PAIRS: [(char, char); 3] = [('{', '}'), ('(', ')'), ('[', ']')];
@@ -27,6 +27,11 @@ impl Dialect {
             Language::Rust | Language::Json => "//",
             Language::Toml | Language::Nix => "#",
             Language::Markdown => return None,
+            // A language a plugin added: its own marker, or one no text has when it has none.
+            language @ Language::Plugin(_) => match language.comment() {
+                Some(Comment::Line(marker)) => marker,
+                _ => "\u{0}",
+            },
         };
         Some(Self { line_comment })
     }

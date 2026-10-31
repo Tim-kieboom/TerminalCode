@@ -414,7 +414,13 @@ impl App {
         let manager = &self.plugins.manager;
         if manager.is_running(id) {
             return match self.saved_plugin_record(id).and_then(|record| record.place) {
-                _ if !manager.has_view(id) => "on · no pane".to_owned(),
+                _ if !manager.has_view(id) => match manager
+                    .installed(id)
+                    .and_then(|installed| installed.manifest.language.as_ref())
+                {
+                    Some(language) => format!("on · colors {}", dotted(&language.extensions)),
+                    None => "on · no pane".to_owned(),
+                },
                 _ if self.layout_places(id) => "on".to_owned(),
                 Some(Place::Side) if self.state.screen().width < RIGHT_BAR_MIN_WIDTH => {
                     format!("on · side pane (hidden: needs {RIGHT_BAR_MIN_WIDTH} columns)")
@@ -456,6 +462,13 @@ impl App {
         match (manager.is_running(id), update) {
             (_, true) => Next::Update,
             (false, false) => Next::TurnOn,
+            (true, false) if installed.manifest.language.is_some() => {
+                let language = installed.manifest.language.as_ref();
+                Next::Say(format!(
+                    "plugin {id} is a language: it colors {} files (space turns it off)",
+                    dotted(language.map_or(&[][..], |language| &language.extensions))
+                ))
+            }
             (true, false) if !manager.has_view(id) => Next::Say(format!(
                 "plugin {id} has no pane to open: it works for other plugins"
             )),
@@ -1112,4 +1125,13 @@ impl App {
         };
         self.place_plugin(id, place);
     }
+}
+
+/// Extensions as a person writes them: `.sol, .solc`.
+fn dotted(extensions: &[String]) -> String {
+    extensions
+        .iter()
+        .map(|extension| format!(".{extension}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }

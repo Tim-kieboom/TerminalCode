@@ -14,7 +14,7 @@
 //! [`Thread`] in the manifest, which is refused when unknown (see its doc).
 
 pub use abi::{Abi, AbiError};
-pub use manifest::{Manifest, Thread};
+pub use manifest::{LanguageDecl, Manifest, Thread};
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
     Refusal, RunStream, ToPlugin, WireButton, WireLine, WireMenuItem, WireSpan, WireView,

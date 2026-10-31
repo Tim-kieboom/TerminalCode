@@ -398,10 +398,11 @@ fn build_and_swap(
             .map_err(|error| ManifestError::Invalid(error.to_string()))?
     };
     // `read` also refuses a module path that leaves the folder, so check it first.
-    if !super::manifest::inside_folder(&described.wasm) {
-        return Err(ManifestError::BadModulePath(described.wasm).into());
+    let module_file = described.module_file().to_owned();
+    if !super::manifest::inside_folder(&module_file) {
+        return Err(ManifestError::BadModulePath(module_file).into());
     }
-    fs::write(staged.join(&described.wasm), module)?;
+    fs::write(staged.join(&module_file), module)?;
     if let Some(description) = description {
         fs::write(staged.join(DESCRIPTION_FILE), description)?;
     }

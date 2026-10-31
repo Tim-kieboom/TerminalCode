@@ -6,7 +6,7 @@ use std::path::{Component, Path, PathBuf};
 
 use thiserror::Error;
 
-use crate::plugin_api::{Abi, AbiError, Capability, Manifest, RunPattern, parse_all};
+use crate::plugin_api::{Abi, AbiError, Capability, LanguageDecl, Manifest, RunPattern, parse_all};
 
 /// The manifest's name in a plugin's folder.
 pub(crate) const MANIFEST_FILE: &str = "manifest.toml";
@@ -27,6 +27,12 @@ pub(crate) enum ManifestError {
     BadId(String),
     #[error("its module `{0}` is not a file inside its folder")]
     BadModulePath(String),
+    #[error("it has no module (`wasm`) and no `[language]`: there is nothing to run or to add")]
+    NothingInIt,
+    #[error("it has a module and a `[language]`: a language is a plugin of its own, with no code")]
+    LanguageAndModule,
+    #[error("its `[language]` is not good: {0}")]
+    BadLanguage(String),
     #[error(transparent)]
     Abi(#[from] AbiError),
     #[error("it needs TerminalCode {required} or later, and this is {have}")]
@@ -71,7 +77,7 @@ impl Installed {
 
     /// The module, read from the plugin's folder.
     pub(crate) fn module(&self) -> Result<Vec<u8>, ManifestError> {
-        let path = self.dir.join(&self.manifest.wasm);
+        let path = self.dir.join(self.manifest.module_file());
         let unreadable = |error: std::io::Error| ManifestError::ModuleUnreadable(error.to_string());
         let size = fs::metadata(&path).map_err(unreadable)?.len();
         if size > MAX_MODULE {
@@ -138,8 +144,12 @@ pub(crate) fn scan(plugins_dir: &Path, host: Host<'_>) -> Vec<Found> {
 pub(crate) fn read(dir: &Path, host: Host<'_>) -> Result<Installed, ManifestError> {
     let text = fs::read_to_string(dir.join(MANIFEST_FILE))
         .map_err(|error| ManifestError::Unreadable(error.to_string()))?;
-    let manifest: Manifest =
+    let mut manifest: Manifest =
         toml::from_str(&text).map_err(|error| ManifestError::Invalid(error.to_string()))?;
+    // A language has no code, so no pane to place.
+    if manifest.wasm.is_empty() && manifest.language.is_some() {
+        manifest.view = false;
+    }
     let capabilities = judge(&manifest, dir, host)?;
     let run = judge_run(&manifest, &capabilities)?;
     Ok(Installed {
@@ -170,8 +180,19 @@ fn judge(
             folder,
         });
     }
-    if !inside_folder(&manifest.wasm) {
-        return Err(ManifestError::BadModulePath(manifest.wasm.clone()));
+    match (manifest.wasm.is_empty(), &manifest.language) {
+        (true, None) => return Err(ManifestError::NothingInIt),
+        (false, Some(_)) => return Err(ManifestError::LanguageAndModule),
+        (_, language) => {
+            if let Some(language) = language {
+                judge_language(language)?;
+            }
+        }
+    }
+    if !inside_folder(manifest.module_file()) {
+        return Err(ManifestError::BadModulePath(
+            manifest.module_file().to_owned(),
+        ));
     }
     let abi: Abi = manifest.abi.parse()?;
     host.abi.check(abi)?;
@@ -212,6 +233,45 @@ fn judge(
         }
     }
     Ok(asked)
+}
+
+/// Whether the language a plugin adds is one the editor can set up: it has a name, files and a
+/// query, and its grammar is a `.wasm` file whose entry has a name a C function can have.
+fn judge_language(language: &LanguageDecl) -> Result<(), ManifestError> {
+    let bad = |reason: &str| Err(ManifestError::BadLanguage(reason.to_owned()));
+    if language.name.trim().is_empty() {
+        return bad("it has no name");
+    }
+    if !language.grammar.ends_with(".wasm") {
+        return bad("the grammar is a `.wasm` file, built with `tree-sitter build --wasm`");
+    }
+    if language.extensions.is_empty() {
+        return bad("it names no extensions, so no file would be highlighted");
+    }
+    for kind in &language.extensions {
+        let good = !kind.is_empty()
+            && kind
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '+');
+        if !good {
+            return Err(ManifestError::BadFileType(kind.clone()));
+        }
+    }
+    let entry = language.entry_name();
+    if entry.is_empty() || !entry.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return bad("the grammar name is letters, digits and `_`");
+    }
+    if language.highlights.trim().is_empty() {
+        return bad("it has no highlight query");
+    }
+    if language
+        .comment
+        .as_ref()
+        .is_some_and(|marker| marker.is_empty() || marker.contains('\n'))
+    {
+        return bad("the comment is a marker on one line, such as `//`");
+    }
+    Ok(())
 }
 
 /// The commands a manifest lists, which only a plugin that asks for `process.run` may

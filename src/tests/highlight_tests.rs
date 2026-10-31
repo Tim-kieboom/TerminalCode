@@ -14,13 +14,13 @@ use crate::event::Event;
 use crate::initial_state;
 
 /// The default theme's keyword color.
-const KEYWORD: Color = Color::Rgb(0x56, 0x9c, 0xd6);
+pub(super) const KEYWORD: Color = Color::Rgb(0x56, 0x9c, 0xd6);
 
 /// An app wired to an event channel, as in the real app, so that the syntax
 /// worker has somewhere to send its answers.
-struct Rig {
-    app: App,
-    events: mpsc::Receiver<Event>,
+pub(super) struct Rig {
+    pub(super) app: App,
+    pub(super) events: mpsc::Receiver<Event>,
 }
 
 fn app_with(dir: &Path, name: &str, text: &str) -> Rig {
@@ -33,7 +33,7 @@ fn app_with(dir: &Path, name: &str, text: &str) -> Rig {
 
 /// Draws, then keeps taking the worker's answers and drawing until it owes
 /// none, and returns the last frame.
-fn draw(rig: &mut Rig) -> Terminal<TestBackend> {
+pub(super) fn draw(rig: &mut Rig) -> Terminal<TestBackend> {
     let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
@@ -66,7 +66,7 @@ fn key(rig: &mut Rig, code: KeyCode, modifiers: KeyModifiers) {
 }
 
 /// The color of the first character of the first `text` found on screen.
-fn color_of(terminal: &Terminal<TestBackend>, text: &str) -> Option<Color> {
+pub(super) fn color_of(terminal: &Terminal<TestBackend>, text: &str) -> Option<Color> {
     let buffer = terminal.backend().buffer();
     let width = usize::from(buffer.area.width);
     let cells = &buffer.content;

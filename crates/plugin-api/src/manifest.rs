@@ -20,6 +20,25 @@
 //! keys = "s"
 //! ```
 //!
+//! A plugin may instead be only a language (plugin API 1.12): no `wasm`, no pane, no code,
+//! and the grammar is its module (what the installer downloads and checks):
+//!
+//! ```toml
+//! id = "sol-syntax"
+//! name = "Sol"
+//! version = "0.0.1"
+//! abi = "1.12"
+//!
+//! [language]
+//! name = "Sol"
+//! grammar = "sol.wasm"          # a tree-sitter grammar built for WebAssembly
+//! extensions = ["sol", "solc"]
+//! comment = "//"                # how a line is commented (optional)
+//! highlights = """
+//! (line_comment) @comment
+//! """
+//! ```
+//!
 //! This is only the shape of the file; reading it and judging it (does the
 //! editor have that version of the API, is the id good) is the editor's.
 
@@ -60,8 +79,14 @@ pub struct Manifest {
     /// The oldest version of the editor it works with, as `major.minor.patch`.
     #[serde(default)]
     pub requires: Option<String>,
-    /// The module, a path in the plugin's folder.
+    /// The module, a path in the plugin's folder. Left out by a plugin that is only a
+    /// [`LanguageDecl`] (plugin API 1.12), whose module is its grammar.
+    #[serde(default)]
     pub wasm: String,
+    /// The language the plugin adds to the editor: its grammar and how to color it. Plugin
+    /// API 1.12.
+    #[serde(default)]
+    pub language: Option<LanguageDecl>,
     /// What it needs to be allowed to do, by name (see [`crate::Capability`]).
     #[serde(default)]
     pub capabilities: Vec<String>,
@@ -90,11 +115,63 @@ pub struct Manifest {
     pub actions: Vec<ActionDecl>,
 }
 
+/// A language a plugin adds: files with its extensions are highlighted by its tree-sitter
+/// grammar, which is a module of WebAssembly (`tree-sitter build --wasm`, the same file a Zed
+/// extension has) that runs inside the editor's sandbox, with the capture names of
+/// `highlights` turned into colors by the theme. Plugin API 1.12.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub struct LanguageDecl {
+    /// What a person calls the language.
+    pub name: String,
+    /// The grammar, a path in the plugin's folder.
+    pub grammar: String,
+    /// The name the grammar was generated with, which names its entry in the module
+    /// (`tree_sitter_<name>`); the language's name in lower case when left out.
+    #[serde(default)]
+    pub grammar_name: String,
+    /// The files it is for, as extensions without the dot. The editor's own languages come first.
+    pub extensions: Vec<String>,
+    /// How a line is commented, such as `//`; without one `ctrl+/` has nothing to put.
+    #[serde(default)]
+    pub comment: Option<String>,
+    /// The tree-sitter query that names the parts to color (`@keyword`, `@string`, ...), as
+    /// text.
+    pub highlights: String,
+}
+
+impl LanguageDecl {
+    /// The name the module's entry has: `grammar_name`, or the language's name in lower case with
+    /// anything but letters and digits as `_`.
+    pub fn entry_name(&self) -> String {
+        match self.grammar_name.is_empty() {
+            false => self.grammar_name.clone(),
+            true => self
+                .name
+                .chars()
+                .map(|c| match c.is_ascii_alphanumeric() {
+                    true => c.to_ascii_lowercase(),
+                    false => '_',
+                })
+                .collect(),
+        }
+    }
+}
+
 fn has_view_by_default() -> bool {
     true
 }
 
 impl Manifest {
+    /// The file the plugin is installed with and that its hash is of: its module, or the grammar
+    /// of a plugin that is only a language.
+    pub fn module_file(&self) -> &str {
+        match (self.wasm.is_empty(), &self.language) {
+            (true, Some(language)) => &language.grammar,
+            _ => &self.wasm,
+        }
+    }
+
     /// What a person calls the plugin.
     pub fn display_name(&self) -> &str {
         match self.name.is_empty() {

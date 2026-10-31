@@ -574,10 +574,11 @@ fn a_manifest_without_what_it_needs_does_not_read() {
         "version = \"1\"\nabi = \"1.0\"\nwasm = \"x.wasm\"",
         "id = \"x\"\nabi = \"1.0\"\nwasm = \"x.wasm\"",
         "id = \"x\"\nversion = \"1\"\nwasm = \"x.wasm\"",
-        "id = \"x\"\nversion = \"1\"\nabi = \"1.0\"",
     ] {
         assert!(toml::from_str::<Manifest>(text).is_err(), "{text}");
     }
+    // Without a module it reads (a language has none); the editor judges whether that is a plugin.
+    assert!(toml::from_str::<Manifest>("id = \"x\"\nversion = \"1\"\nabi = \"1.0\"").is_ok());
 }
 
 #[test]
@@ -1322,4 +1323,71 @@ fn a_kind_of_output_that_is_not_known_yet_is_still_a_message() {
             ..
         }
     ));
+}
+
+// --- plugin API 1.12: a plugin that is a language ---
+
+const SOL: &str = r#"
+id = "sol-syntax"
+name = "Sol"
+version = "0.0.1"
+abi = "1.12"
+
+[language]
+name = "Sol"
+grammar = "sol.wasm"
+extensions = ["sol", "solc"]
+comment = "//"
+highlights = """
+(line_comment) @comment
+(keyword) @keyword
+"""
+"#;
+
+#[test]
+fn a_manifest_may_be_a_language_with_no_module_and_the_grammar_is_what_is_installed() {
+    let manifest: Manifest = toml::from_str(SOL).unwrap();
+
+    assert_eq!(manifest.wasm, "");
+    assert_eq!(manifest.module_file(), "sol.wasm");
+    let language = manifest.language.as_ref().unwrap();
+    assert_eq!(language.name, "Sol");
+    assert_eq!(language.extensions, ["sol", "solc"]);
+    assert_eq!(language.comment.as_deref(), Some("//"));
+    assert!(language.highlights.contains("(keyword) @keyword"));
+    assert_eq!(language.entry_name(), "sol");
+}
+
+#[test]
+fn a_plugin_with_a_module_has_the_module_as_its_file_and_a_grammar_name_can_be_given() {
+    let manifest: Manifest = toml::from_str(
+        r#"id = "a"
+version = "1"
+abi = "1.0"
+wasm = "a.wasm"
+"#,
+    )
+    .unwrap();
+    assert_eq!(manifest.module_file(), "a.wasm");
+    assert!(manifest.language.is_none());
+
+    let language: crate::LanguageDecl = toml::from_str(
+        r#"name = "C Sharp"
+grammar = "c.wasm"
+extensions = ["cs"]
+highlights = "(x) @y"
+"#,
+    )
+    .unwrap();
+    assert_eq!(language.entry_name(), "c_sharp");
+    let named: crate::LanguageDecl = toml::from_str(
+        r#"name = "C Sharp"
+grammar_name = "c_sharp_x"
+grammar = "c.wasm"
+extensions = ["cs"]
+highlights = "(x) @y"
+"#,
+    )
+    .unwrap();
+    assert_eq!(named.entry_name(), "c_sharp_x");
 }
