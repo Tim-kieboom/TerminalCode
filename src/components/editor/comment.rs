@@ -72,7 +72,7 @@ impl Editor {
             .buffer
             .path()
             .and_then(Language::from_path)
-            .map(Language::comment)
+            .and_then(Language::comment)
         else {
             return Ok(Toggled::NoLanguage);
         };

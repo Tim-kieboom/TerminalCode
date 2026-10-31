@@ -70,7 +70,7 @@ fn real_rust_analyzer_writes_the_brackets_of_a_call_and_shows_its_documentation(
     let text = rig.text();
     // rust-analyzer adds the `;` itself when the call is a statement.
     assert!(text.ends_with("v.push(value);"), "{text}");
-    let selection = rig.app.state().editor().selections().primary().clone();
+    let selection = *rig.app.state().editor().selections().primary();
     assert_eq!(
         (selection.anchor().column, selection.head().column),
         ("    v.push(".len(), "    v.push(value".len())

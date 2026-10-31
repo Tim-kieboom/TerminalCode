@@ -28,6 +28,7 @@ use trcode_ui as ui;
 mod cli;
 mod components;
 mod config;
+mod direnv;
 pub mod error;
 mod event;
 mod git;
@@ -56,13 +57,7 @@ where
     B: Backend,
     B::Error: Into<IdeError>,
 {
-    let (project, files) = project_and_files(paths);
-    let mut state = initial_state(&files)?;
-    let root = project.or_else(|| std::env::current_dir().ok());
-    if let Some(error) = root.and_then(|root| state.open_project(&root).err()) {
-        state.notify_error(error.to_string());
-    }
-
+    let mut state = new_state(paths)?;
     if let Some(note) = note {
         state.notify(note);
     }
@@ -76,13 +71,14 @@ where
     }
 
     let clipboard = Clipboard::new(System::detect());
-    let mut app = App::with_keymap(state, user.keymap)
+    let mut app = App::new(state)
+        .with_keymap(user.keymap)
+        .with_recent(user.recent)
         .with_clipboard(clipboard)
-        .with_keyboard_support(capabilities.keyboard)
         .with_config_dir(config_dir)
-        .with_settings(user.settings, user.theme)
         .with_saved_state(user.saved)
-        .with_recent(user.recent);
+        .with_settings(user.settings, user.theme)
+        .with_keyboard_support(capabilities.keyboard);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -99,6 +95,19 @@ where
 
         app.run(&mut terminal, sources).await
     })
+}
+
+fn new_state(paths: &[PathBuf]) -> Result<AppState, IdeError> {
+    let (project, files) = project_and_files(paths);
+    let mut state = initial_state(&files)?;
+    let Some(root) = project.or_else(|| std::env::current_dir().ok()) else {
+        return Ok(state);
+    };
+
+    if let Some(error) = state.open_project(&root).err() {
+        state.notify_error(error.to_string());
+    }
+    Ok(state)
 }
 
 pub use cli::{Invocation, help_text, version_text};
@@ -122,6 +131,26 @@ pub fn recent_project() -> (Option<PathBuf>, Option<String>) {
             None,
             Some("--recent: no recent project folder is there; opened the current folder".into()),
         ),
+    }
+}
+
+/// Loads the environment of the project's `.envrc` through `direnv` into this process,
+/// so that what the editor starts sees it. Call it before anything else is started.
+/// It returns what to tell the user, if anything: that it loaded, or why it did not.
+pub fn load_project_environment(paths: &[PathBuf]) -> Option<String> {
+    let project = project_and_files(paths)
+        .0
+        .or_else(|| std::env::current_dir().ok())?;
+    let envrc = direnv::find_envrc(&project)?;
+
+    // Nix can take a while the first time, and the screen is still the shell's.
+    eprintln!("trcode: loading {} with direnv...", envrc.display());
+    match direnv::load(&envrc, &project) {
+        Ok(changes) => {
+            direnv::apply(&changes);
+            Some(format!("loaded the environment of {}", envrc.display()))
+        }
+        Err(message) => Some(message),
     }
 }
 

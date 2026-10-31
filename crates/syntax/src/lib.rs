@@ -7,6 +7,9 @@ pub use document::DocumentSyntax;
 pub use error::SyntaxError;
 pub use highlighter::{Highlighter, Span};
 pub use language::{Comment, Language};
+pub use plugin::{
+    LanguageSpec, PluginSlot, register as register_language, unregister as unregister_language,
+};
 pub use ranges::{MAX_RANGES, merge as merge_ranges};
 pub use worker::{Output, SyntaxWorker};
 
@@ -16,6 +19,7 @@ mod error;
 mod highlighter;
 mod language;
 mod mapping;
+mod plugin;
 mod ranges;
 #[cfg(test)]
 mod tests;

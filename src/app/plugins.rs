@@ -90,6 +90,19 @@ impl App {
                 .notify_error(format!("plugin {plugin} said something wrong: {reason}")),
             Notice::Menu { plugin, items } => self.plugin_menu(&plugin, &items),
             Notice::NeedsTrust { plugin } => self.plugin_needs_trust(&plugin),
+            Notice::Popup {
+                plugin,
+                title,
+                text,
+            } => self.plugin_text_popup(&plugin, title, text),
+            Notice::Debug {
+                plugin,
+                request,
+                program,
+                args,
+                env,
+                cwd,
+            } => self.plugin_debug(&plugin, request, (program, args, env), cwd),
             Notice::GitWrite {
                 plugin,
                 request,
@@ -173,7 +186,7 @@ impl App {
 
     /// Puts the cursor of the file in front on `line` and `column` (from 1, held to what
     /// the file has) and gives the editor the keyboard.
-    fn show_place(&mut self, line: u32, column: u32) {
+    pub(super) fn show_place(&mut self, line: u32, column: u32) {
         let at = Position::new(
             (line as usize).saturating_sub(1),
             (column as usize).saturating_sub(1),
@@ -268,7 +281,6 @@ impl App {
             Err(ActionError::NeedsAuthentication(detail)) => {
                 refused(request, Refusal::AuthRequired { detail })
             }
-            Err(ActionError::Busy) => refused(request, Refusal::Busy),
             Err(ActionError::Git(GitError::Cancelled)) => refused(request, Refusal::Cancelled),
             Err(ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))) => {
                 refused(request, Refusal::NoRepository)
@@ -294,8 +306,7 @@ impl App {
             ActionError::Git(GitError::Cancelled)
             | ActionError::Git(GitError::NotInstalled | GitError::NoRepository(_))
             | ActionError::BadArgument(_)
-            | ActionError::NothingStaged
-            | ActionError::Busy => return,
+            | ActionError::NothingStaged => return,
             ActionError::Git(error) => error.to_string(),
         };
         self.state.notify_error(message);
@@ -578,11 +589,12 @@ impl App {
                     };
                     entries.push(entry);
                 }
-                WireMenuItem::Separator => {
-                    // A rule is between items: not first, not twice.
-                    if !matches!(entries.last(), None | Some(Entry::Separator)) {
-                        entries.push(Entry::Separator);
-                    }
+
+                // A rule is between items: not first, not twice.
+                WireMenuItem::Separator
+                    if !matches!(entries.last(), None | Some(Entry::Separator)) =>
+                {
+                    entries.push(Entry::Separator);
                 }
                 _ => {}
             }

@@ -247,6 +247,10 @@ impl App {
             || !self.state.is_showing(&ComponentKind::Terminal)
             || !self.state.terminal().contains(event.column, event.row)
         {
+            // The pointer left: nothing there is underlined any more.
+            if self.state.terminal_mut().set_link(None) {
+                self.needs_redraw = true;
+            }
             return false;
         }
         if self.state.terminal().is_add_button(event.column, event.row) {
@@ -271,6 +275,9 @@ impl App {
         if matches!(event.kind, MouseEventKind::Down(MouseButton::Left)) {
             self.state.set_focus(Focus::Terminal);
             self.needs_redraw = true;
+        }
+        if self.terminal_link_mouse(event) {
+            return true;
         }
         if self.report_mouse_to_shell(event) {
             return true;

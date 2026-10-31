@@ -19,9 +19,6 @@ pub(crate) enum ActionError {
     /// or an ssh agent), it works from then on.
     #[error("{0}")]
     NeedsAuthentication(String),
-    /// Another fetch, pull or push is running.
-    #[error("another remote command is running")]
-    Busy,
     /// A commit was asked for and nothing is staged.
     #[error("nothing is staged: stage a file first")]
     NothingStaged,

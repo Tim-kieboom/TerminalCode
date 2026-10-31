@@ -94,6 +94,9 @@ pub(super) fn describe(capability: Capability, file_types: &[String], run: &[Str
         Capability::GitRemote => {
             "fetch from, pull from and push to the remotes of the git repository (uses the network)"
         }
+        Capability::DebugStart => {
+            "start programs under the debugger, in a project folder you trust (this runs code of the project)"
+        }
         Capability::PluginCall => "ask other plugins to do things, and hear their answers",
         Capability::PluginServe => {
             "be asked by other plugins to do things, with everything this plugin is allowed to do"
@@ -137,13 +140,26 @@ pub(super) fn covers(record: &PluginRecord, installed: &Installed) -> bool {
 
 /// What a plugin asks that is not a capability, for the question: a thread of its own.
 pub(super) fn extra_asks(installed: &Installed) -> Vec<String> {
-    match installed.manifest.thread {
-        Thread::Own => vec![
+    let mut asks = Vec::new();
+    if let Some(language) = &installed.manifest.language {
+        let files: Vec<String> = language
+            .extensions
+            .iter()
+            .map(|extension| format!(".{extension}"))
+            .collect();
+        asks.push(format!(
+            "color files ending in {} as {} (its grammar is a module that runs in a sandbox)",
+            files.join(", "),
+            language.name
+        ));
+    }
+    if installed.manifest.thread == Thread::Own {
+        asks.push(
             "run on a thread of its own, and use a lot of processor time when it has a lot to do"
                 .to_owned(),
-        ],
-        Thread::Shared => Vec::new(),
+        );
     }
+    asks
 }
 
 /// The commands of `installed` as the user is shown them, as the manifest writes them.
@@ -226,6 +242,10 @@ impl App {
                 return;
             }
         };
+        if let Some(language) = &installed.manifest.language {
+            self.start_language(id, language, wasm);
+            return;
+        }
         self.plugins
             .actions
             .insert(id.into(), installed.manifest.actions.clone());
@@ -247,6 +267,32 @@ impl App {
         self.needs_redraw = true;
     }
 
+    /// Adds the language of a plugin that is only that: the files of its kind are colored by its
+    /// grammar from now on (the documents set themselves up again when they are next drawn).
+    fn start_language(
+        &mut self,
+        id: &str,
+        language: &crate::plugin_api::LanguageDecl,
+        grammar: Vec<u8>,
+    ) {
+        let spec = crate::syntax::LanguageSpec {
+            name: language.name.clone(),
+            extensions: language.extensions.clone(),
+            comment: language.comment.clone(),
+            entry: language.entry_name(),
+            grammar,
+            highlights: language.highlights.clone(),
+        };
+        if let Err(error) = crate::syntax::register_language(id, spec) {
+            self.state
+                .notify_error(format!("plugin {id} cannot run: {error}"));
+            return;
+        }
+        self.plugins.manager.running.insert(id.into());
+        self.plugins.manager.stopped.remove(id);
+        self.needs_redraw = true;
+    }
+
     /// Stops the plugin and takes its pane and actions away.
     pub(super) fn stop_plugin(&mut self, id: &str) {
         if let Some(runtime) = &self.plugins.runtime {
@@ -257,6 +303,7 @@ impl App {
 
     /// What of a plugin is in the editor: its actions, its pane, its keys.
     pub(super) fn forget_plugin(&mut self, id: &str) {
+        crate::syntax::unregister_language(id);
         self.plugins.actions.remove(id);
         self.plugins.manager.running.remove(id);
         if self

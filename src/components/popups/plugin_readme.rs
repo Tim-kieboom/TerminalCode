@@ -16,12 +16,15 @@ use crate::ui::backdrop;
 use crate::ui::theme::Theme;
 
 const HELP: &str = " up/down, pgup/pgdn: scroll | esc: back ";
+const HELP_TEXT: &str = " up/down, pgup/pgdn: scroll | esc: close ";
 
 /// The README, as far as it is known.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Body {
     Loading,
     Text(String),
+    /// Text a plugin shows, kept as it is (nothing in it is Markdown).
+    Plain(String),
     /// There is none, or it could not be fetched: why.
     Missing(String),
 }
@@ -89,6 +92,18 @@ impl Readme {
         }
     }
 
+    /// A popup of `text` that a plugin shows, which is not about a plugin of the manager:
+    /// `esc` closes it.
+    pub(crate) fn plain(title: String, text: String) -> Self {
+        Self::new("", None, title, Vec::new(), Body::Plain(text))
+    }
+
+    /// Whether the popup is the manager's page of a plugin, which `esc` goes back from, and
+    /// not a text that a plugin showed.
+    pub(crate) fn is_of_a_plugin(&self) -> bool {
+        !self.id.is_empty()
+    }
+
     pub(crate) fn id(&self) -> &str {
         &self.id
     }
@@ -136,7 +151,14 @@ impl Readme {
                 format!(" {} ", self.title),
                 theme.style("pane.title"),
             ))
-            .title_bottom(Line::styled(HELP, theme.style("tab.inactive")));
+            .title_bottom(Line::styled(
+                if self.is_of_a_plugin() {
+                    HELP
+                } else {
+                    HELP_TEXT
+                },
+                theme.style("tab.inactive"),
+            ));
         let inner = block.inner(area);
         backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
@@ -183,6 +205,11 @@ impl Readme {
         match &self.body {
             Body::Loading => push(&mut lines, "Fetching the description...", hint),
             Body::Missing(why) => push(&mut lines, why, hint),
+            Body::Plain(shown) => {
+                for line in shown.lines() {
+                    push(&mut lines, &line.replace('\t', "    "), text);
+                }
+            }
             Body::Text(markdown) => {
                 let mut fenced = false;
                 for line in markdown.lines() {

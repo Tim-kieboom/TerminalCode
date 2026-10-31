@@ -11,27 +11,16 @@ use crate::ui::view::ViewNode;
 /// so that it is never queued behind these.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Event {
-    SetPluginView {
-        id: PluginViewId,
-        content: ViewNode,
-    },
+    #[allow(unused)]
+    SetPluginView { id: PluginViewId, content: ViewNode },
     /// Files or directories changed outside the editor.
     FilesChanged(Vec<PathBuf>),
     /// Files the file finder's walk found, as paths from the project root.
-    FinderBatch {
-        scan: u64,
-        files: Vec<PathBuf>,
-    },
+    FinderBatch { scan: u64, files: Vec<PathBuf> },
     /// The file finder's walk is over.
-    FinderDone {
-        scan: u64,
-        unreadable: usize,
-    },
+    FinderDone { scan: u64, unreadable: usize },
     /// Matching lines the project search found.
-    SearchBatch {
-        search: u64,
-        hits: Vec<Hit>,
-    },
+    SearchBatch { search: u64, hits: Vec<Hit> },
     /// The project search is over.
     SearchDone {
         search: u64,

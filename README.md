@@ -17,7 +17,7 @@ A lightweight, keyboard-driven IDE for the terminal, built with Rust and [Ratatu
 
 ## Status
 
-**This is version 0.10.0.** The command is `trcode` (it was `terminal_code` before 0.2.1). Release builds for Linux and Windows (and macOS, best effort) are on the
+**This is version 0.10.2.** The command is `trcode` (it was `terminal_code` before 0.2.1). Release builds for Linux and Windows (and macOS, best effort) are on the
 [releases page](https://github.com/Tim-kieboom/TerminalCode/releases) with their checksums, or you can build from
 source (see below). What is planned next is tracked in [docs/todo.md](docs/todo.md); the design is in
 [docs/design.md](docs/design.md).
@@ -73,6 +73,12 @@ On NixOS, add it as an input and put `inputs.terminal_code.packages.${pkgs.stden
 `environment.systemPackages`. On Linux the package puts `wl-clipboard` and `xclip` on the program's `PATH` for the
 clipboard; `rust-analyzer` is not included, install it yourself for the language server. `nix develop` gives a shell
 with the Rust toolchain to work on the code.
+
+**`.envrc` and `direnv`:** when the project folder (or a folder above it) has an `.envrc` and `direnv` is installed,
+`trcode` loads its environment (`direnv export json`) before it starts, so test runs, the debugger, the terminal and the
+plugins see the tools of the project's dev shell (`use flake` and the like). It says `direnv: loading ...` while it
+works (the first load of a flake can take a while) and tells you in the status bar when it loaded or why it did not;
+an `.envrc` that `direnv` has not been told to trust needs `direnv allow` in the folder first.
 
 ## Keys
 
@@ -135,6 +141,8 @@ returns to the editor, `ctrl+b x` to the explorer, `ctrl+b t` hides the pane, `c
 `ctrl+b ctrl+b` sends a real `ctrl+b` to the shell. `shift+page up` and `shift+page down` scroll its history.
 
 To copy from the terminal, drag over the text with the mouse: letting go copies it (a double click takes a word, a triple click a line), and `ctrl+shift+c` (or `ctrl+b y`, for a terminal that sends `ctrl+shift+c` as `ctrl+c`) copies it again; "Terminal: Copy Selection" in the palette does too. A press, typing, another tab or the history moving drops the selection. When a program in the pane has asked for the mouse (vim, htop, `less`), a plain drag belongs to it and `shift`+drag selects.
+
+To open a path in the output, hold `ctrl` over it (`src/main.rs`, `src/main.rs:12:5`, rustc's `--> src/lib.rs:3:9`, a `file:line` of a stack trace, an absolute path): it is underlined, and `ctrl+click` opens the file at that line and column (a folder is shown in the explorer). Only files and folders that are there are links, a relative path is the project's, and a path that wraps onto the next row of the screen is one link. A program that asked for the mouse keeps the click; `shift+ctrl+click` is for the editor.
 
 ## Configuration
 

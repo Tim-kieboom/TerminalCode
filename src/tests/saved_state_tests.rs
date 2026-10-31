@@ -29,7 +29,8 @@ fn chord(app: &mut App, key: char) {
 fn started_in(dir: &Path) -> App {
     let mut state = AppState::default();
     let user = startup::load_user_config(&mut state, Some(dir), KeyboardSupport::Enhanced);
-    App::with_keymap(state, user.keymap)
+    App::new(state)
+        .with_keymap(user.keymap)
         .with_config_dir(Some(dir.to_path_buf()))
         .with_settings(user.settings, user.theme)
         .with_saved_state(user.saved)

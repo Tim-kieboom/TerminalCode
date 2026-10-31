@@ -174,7 +174,8 @@ fn a_theme_that_was_removed_cannot_be_chosen() {
     keymap
         .apply_toml("[[binding]]\nkeys = \"f11\"\naction = { use_installed_theme = \"ghost\" }")
         .unwrap();
-    let mut app = App::with_keymap(crate::app::state::AppState::default(), keymap)
+    let mut app = App::default()
+        .with_keymap(keymap)
         .with_config_dir(Some(dir.path().to_path_buf()));
 
     press(&mut app, KeyCode::F(11));

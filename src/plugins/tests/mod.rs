@@ -5,6 +5,7 @@ pub mod install;
 pub mod instance;
 pub mod manifest;
 pub mod menu;
+pub mod popup;
 pub mod runs;
 pub mod trust;
 

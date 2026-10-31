@@ -299,7 +299,7 @@ fn ctrl_arrows_move_by_word_and_ctrl_backspace_deletes_a_word() {
 
 fn app_with_keymap(source: &str) -> App {
     let keymap = crate::keymap::Keymap::from_toml(source).unwrap();
-    App::with_keymap(AppState::default(), keymap)
+    App::default().with_keymap(keymap)
 }
 
 const SEQUENCE_KEYMAP: &str = r#"
@@ -426,7 +426,8 @@ fn expiring_a_pure_prefix_discards_it_silently() {
 #[tokio::test]
 async fn the_loop_fires_a_pending_sequence_when_its_timeout_passes() {
     let keymap = crate::keymap::Keymap::from_toml(SEQUENCE_KEYMAP).unwrap();
-    let app = App::with_keymap(AppState::default(), keymap)
+    let app = App::default()
+        .with_keymap(keymap)
         .with_sequence_timeout(std::time::Duration::from_millis(20));
     let mut terminal = Terminal::new(TestBackend::new(100, 40)).unwrap();
     let (sources, input_tx, _events_tx) = test_sources();

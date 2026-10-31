@@ -57,10 +57,10 @@ impl Keyboard {
     pub(super) fn new(keymap: Keymap) -> Self {
         Self {
             keymap,
-            resolver: Resolver::default(),
-            sequence_timeout: Settings::default().sequence_timeout,
             pending: false,
             pending_deadline: None,
+            resolver: Resolver::default(),
+            sequence_timeout: Settings::default().sequence_timeout,
         }
     }
 

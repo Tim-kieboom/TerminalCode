@@ -1,7 +1,7 @@
 //! The explorer and the other panels that can be shown, hidden or given the
 //! keyboard.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
@@ -57,6 +57,12 @@ impl App {
             self.state.notify("this file has no path yet");
             return;
         };
+        self.reveal_in_explorer(path);
+    }
+
+    /// Shows `path` (a file or a folder) in the explorer, selects it and gives the explorer
+    /// the keyboard.
+    pub(super) fn reveal_in_explorer(&mut self, path: PathBuf) {
         if !self.state.layout().contains(&ComponentKind::Explorer) {
             self.state.notify("the layout has no explorer");
             return;

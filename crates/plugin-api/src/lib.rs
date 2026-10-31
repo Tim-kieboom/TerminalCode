@@ -14,7 +14,7 @@
 //! [`Thread`] in the manifest, which is refused when unknown (see its doc).
 
 pub use abi::{Abi, AbiError};
-pub use manifest::{Manifest, Thread};
+pub use manifest::{LanguageDecl, Manifest, Thread};
 pub use message::{
     ActionDecl, Capability, FromPlugin, GitEntry, GitKind, GitSection, GitSummary, MessageError,
     Refusal, RunStream, ToPlugin, WireButton, WireLine, WireMenuItem, WireSpan, WireView,
@@ -63,3 +63,6 @@ pub const MAX_RUN_OUTPUT: usize = 32 * 1024 * 1024;
 
 /// The most items a menu a plugin shows may have ([`FromPlugin::Menu`]); the rest are left out.
 pub const MAX_MENU_ITEMS: usize = 24;
+
+/// The most bytes of text a popup a plugin shows has ([`FromPlugin::Popup`]); the rest is cut.
+pub const MAX_POPUP_TEXT: usize = 64 * 1024;

@@ -43,6 +43,7 @@ mod git;
 mod hover;
 mod lightbulb;
 mod open;
+mod plugin_debug;
 mod plugin_files;
 mod plugin_keys;
 mod plugin_list;
@@ -74,6 +75,7 @@ mod reset;
 mod saved;
 pub(crate) mod state;
 mod terminal_keys;
+mod terminal_links;
 mod terminal_pane;
 mod watching;
 
@@ -174,8 +176,9 @@ async fn read_terminal_input(tx: mpsc::Sender<InputResult>) {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq)]
 enum Flow {
+    #[default]
     Continue,
     Quit,
 }
@@ -188,7 +191,39 @@ impl Default for App {
 
 impl App {
     pub(crate) fn new(state: AppState) -> Self {
-        Self::with_keymap(state, Keymap::defaults(KeyboardSupport::Enhanced))
+        let keyboard = Keyboard::new(Keymap::defaults(KeyboardSupport::Enhanced));
+        Self {
+            state,
+            keyboard,
+            flow: Flow::Continue,
+            restart_in: None,
+            needs_redraw: true,
+            mouse: MouseInput::default(),
+            jumps: jumps::Jumps::default(),
+            clipboard: Clipboard::internal_only(),
+            watching: Watching::default(),
+            background: Background::default(),
+            remembered: Remembered::default(),
+            removal: Removal::default(),
+            root: popups::Root::default(),
+            terminal_shell: Shell::detect(),
+            fallback_shell: Shell::from_setting(None),
+            terminal_prefix: None,
+            config_dir: None,
+            keyboard_support: KeyboardSupport::Enhanced,
+            theme_choice: ThemeChoice::default(),
+            settings: Settings::default(),
+            config_applied: None,
+            front_view: None,
+            dragging: None,
+            lsp: lsp::Lsp::default(),
+            git: git::Tracking::default(),
+            plugins: plugins::Plugins::default(),
+            runs: run::Runs::default(),
+            debug: debug::Debugging::default(),
+            saved: Saved::new([true, false, true, true]),
+            recent: recent::Recents::default(),
+        }
     }
 
     /// Runs the app loop until the user quits or terminal input fails.
@@ -284,39 +319,9 @@ impl App {
         }
     }
 
-    pub(crate) fn with_keymap(state: AppState, keymap: Keymap) -> Self {
-        Self {
-            state,
-            flow: Flow::Continue,
-            restart_in: None,
-            needs_redraw: true,
-            keyboard: Keyboard::new(keymap),
-            mouse: MouseInput::default(),
-            jumps: jumps::Jumps::default(),
-            clipboard: Clipboard::internal_only(),
-            watching: Watching::default(),
-            background: Background::default(),
-            remembered: Remembered::default(),
-            removal: Removal::default(),
-            root: popups::Root::default(),
-            terminal_shell: Shell::detect(),
-            fallback_shell: Shell::from_setting(None),
-            terminal_prefix: None,
-            config_dir: None,
-            keyboard_support: KeyboardSupport::Enhanced,
-            theme_choice: ThemeChoice::default(),
-            settings: Settings::default(),
-            config_applied: None,
-            front_view: None,
-            dragging: None,
-            lsp: lsp::Lsp::default(),
-            git: git::Tracking::default(),
-            plugins: plugins::Plugins::default(),
-            runs: run::Runs::default(),
-            debug: debug::Debugging::default(),
-            saved: Saved::new([true, false, true, true]),
-            recent: recent::Recents::default(),
-        }
+    pub(crate) fn with_keymap(mut self, keymap: Keymap) -> Self {
+        self.keyboard = Keyboard::new(keymap);
+        self
     }
 
     /// The settings, for a test to change one.

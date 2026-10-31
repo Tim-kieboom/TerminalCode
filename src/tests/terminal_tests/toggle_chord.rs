@@ -53,7 +53,8 @@ fn a_rebound_toggle_chord_closes_the_pane_too() {
         .apply_toml("[[binding]]\nkeys = \"f11\"\naction = \"toggle_terminal\"\n")
         .unwrap();
     let (tx, events) = mpsc::channel(1024);
-    let app = App::with_keymap(state, keymap)
+    let app = App::new(state)
+        .with_keymap(keymap)
         .with_events(tx)
         .with_terminal_shell(Shell::script("sleep 30"));
     let mut rig = Rig {
