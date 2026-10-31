@@ -45,7 +45,9 @@ needs a recent glibc; on an older system build from source.
 
 ## Build and run
 
-You need a recent stable Rust toolchain (the project uses the 2024 edition).
+You need a recent stable Rust toolchain (the project uses the 2024 edition) and `cmake` (plugins can bring a
+language, and the WebAssembly support for their grammars builds a library that runs it; it is only used to copy
+headers). On NixOS or with Nix, `nix develop` has both.
 
 ```bash
 cargo build --release

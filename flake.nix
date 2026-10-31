@@ -22,7 +22,11 @@
           src = self;
           cargoLock.lockFile = ./Cargo.lock;
 
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+          # cmake: tree-sitter's WebAssembly support (grammars from plugins) builds wasmtime's
+          # C API, which runs it to install its headers.
+          nativeBuildInputs = [ pkgs.makeWrapper pkgs.cmake ];
+          # It is only for that script: the project is built by cargo.
+          dontUseCmakeConfigure = true;
 
           # The tests start shells and time frames, which the build sandbox
           # does not suit; CI runs them.
@@ -60,6 +64,7 @@
             clippy
             rustfmt
             rust-analyzer
+            cmake
           ];
         };
       });
