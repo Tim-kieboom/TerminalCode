@@ -2824,7 +2824,7 @@ dependencies = [
 
 [[package]]
 name = "terminal_code"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "arboard",
  "base64 0.23.1",
@@ -3113,14 +3113,14 @@ dependencies = [
 
 [[package]]
 name = "trcode-breakpoints"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "trcode-ids",
 ]
 
 [[package]]
 name = "trcode-buffer"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "proptest",
  "ropey",
@@ -3131,7 +3131,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-clipboard"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "arboard",
  "base64 0.23.1",
@@ -3140,7 +3140,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-dap"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3150,7 +3150,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-files"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "notify-debouncer-mini",
  "renamore",
@@ -3162,18 +3162,18 @@ dependencies = [
 
 [[package]]
 name = "trcode-ids"
-version = "0.10.2"
+version = "0.11.0"
 
 [[package]]
 name = "trcode-jumplist"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "trcode-ids",
 ]
 
 [[package]]
 name = "trcode-launch"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3184,7 +3184,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-lsp"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "ropey",
  "serde",
@@ -3198,7 +3198,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-plugin-api"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -3208,7 +3208,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-pty"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "crossterm",
  "portable-pty",
@@ -3220,7 +3220,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-syntax"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "ratatui",
  "ropey",
@@ -3239,7 +3239,7 @@ dependencies = [
 
 [[package]]
 name = "trcode-ui"
-version = "0.10.2"
+version = "0.11.0"
 dependencies = [
  "ratatui",
  "ron",

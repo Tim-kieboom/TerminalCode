@@ -421,3 +421,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.10.2
 - [x] Version 0.10.2 (after 0.10.1: the project's `.envrc` is loaded through `direnv` at startup, so tests, the debugger and the terminal of a Nix project see its dev shell; the real test plugin 0.0.12 menu and jump names)
+
+## Release 0.11.0
+- [x] Version 0.11.0 (after 0.10.2: plugin API 1.12, a plugin can be a language: a tree-sitter grammar built for WebAssembly and a query, loaded with tree-sitter's wasm support, so building needs `cmake`; JavaScript highlighting (`js`, `mjs`, `cjs`, `jsx`) and a default `typescript-language-server` entry; the Sol plugin is the first language plugin)
