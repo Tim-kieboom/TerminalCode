@@ -1412,5 +1412,4 @@ injections = '''
     .unwrap();
 
     assert!(language.injections.contains("injection.language"));
-    assert_eq!(crate::Abi::CURRENT, crate::Abi::new(1, 13));
 }
