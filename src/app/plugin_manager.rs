@@ -282,6 +282,7 @@ impl App {
             entry: language.entry_name(),
             grammar,
             highlights: language.highlights.clone(),
+            injections: language.injections.clone(),
         };
         if let Err(error) = crate::syntax::register_language(id, spec) {
             self.state

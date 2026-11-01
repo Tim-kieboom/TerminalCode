@@ -13,6 +13,11 @@ pub enum SyntaxError {
         language: &'static str,
         source: QueryError,
     },
+    #[error("the {language} injection query is not valid: {source}")]
+    Injections {
+        language: &'static str,
+        source: QueryError,
+    },
     #[error("the {language} grammar could not be loaded: {}", .source.message)]
     Wasm {
         language: &'static str,

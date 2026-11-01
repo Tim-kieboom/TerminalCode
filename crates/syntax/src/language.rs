@@ -76,7 +76,29 @@ impl Language {
 
     /// The language of the file at `path`, going by its extension.
     pub fn from_path(path: &Path) -> Option<Self> {
-        match path.extension()?.to_str()? {
+        Self::from_extension(path.extension()?.to_str()?)
+    }
+
+    /// The language a name or an extension stands for (`"javascript"`, `"js"`), in any case: what
+    /// an injection query names.
+    pub fn by_name(name: &str) -> Option<Self> {
+        let name = name.trim();
+        [
+            Self::Rust,
+            Self::Toml,
+            Self::Json,
+            Self::JavaScript,
+            Self::Markdown,
+            Self::Nix,
+        ]
+        .into_iter()
+        .find(|language| language.name().eq_ignore_ascii_case(name))
+        .or_else(|| plugin::by_name(name).map(Self::Plugin))
+        .or_else(|| Self::from_extension(&name.to_ascii_lowercase()))
+    }
+
+    fn from_extension(extension: &str) -> Option<Self> {
+        match extension {
             "rs" => Some(Self::Rust),
             "toml" => Some(Self::Toml),
             "json" | "jsonc" => Some(Self::Json),
@@ -84,6 +106,16 @@ impl Language {
             "md" | "markdown" => Some(Self::Markdown),
             "nix" => Some(Self::Nix),
             other => plugin::by_extension(other).map(Self::Plugin),
+        }
+    }
+
+    /// The query that says where other languages are inside this one, if it has one.
+    pub(super) fn injections(self) -> Option<String> {
+        match self {
+            Self::Plugin(slot) => plugin::get(slot)
+                .map(|e| e.injections.clone())
+                .filter(|query| !query.trim().is_empty()),
+            _ => None,
         }
     }
 

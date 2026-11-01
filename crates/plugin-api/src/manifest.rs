@@ -138,6 +138,13 @@ pub struct LanguageDecl {
     /// The tree-sitter query that names the parts to color (`@keyword`, `@string`, ...), as
     /// text.
     pub highlights: String,
+    /// The tree-sitter query that says where another language is inside this one (plugin API
+    /// 1.13): a pattern with `@injection.content` on the text and `(#set! injection.language
+    /// "javascript")` for what it is, such as the text of a `<script>`. The language is one the
+    /// editor has by name or extension (its own, or another plugin's that is on); without one the
+    /// text keeps this language's colors.
+    #[serde(default)]
+    pub injections: String,
 }
 
 impl LanguageDecl {
