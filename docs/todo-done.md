@@ -425,3 +425,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 ## Release 0.11.0
 - [x] Version 0.11.0 (after 0.10.2: plugin API 1.12, a plugin can be a language: a tree-sitter grammar built for WebAssembly and a query, loaded with tree-sitter's wasm support, so building needs `cmake`; JavaScript highlighting (`js`, `mjs`, `cjs`, `jsx`) and a default `typescript-language-server` entry; the Sol plugin is the first language plugin)
 - [x] Tag `v0.11.0` (tagged on 4475eb5; CI green on Linux, macOS and Windows; the release run built the archives and SHA256SUMS; the draft is to be published by hand)
+
+## Release 0.12.0
+- [x] Version 0.12.0 (after 0.11.0: plugin API 1.13, a language plugin can say where other languages are inside it with an injection query, so the text of a `<script>` is colored as JavaScript and of a `<style>` as CSS; the HTML, CSS and Bash plugins)
