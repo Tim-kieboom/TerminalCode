@@ -107,6 +107,8 @@ pub(super) struct Runs {
     generation: u64,
     /// The program that is cargo; tests use a stand-in.
     cargo: Option<String>,
+    /// The program that opens files; tests use a stand-in.
+    opener: Option<String>,
     /// The files changed while the list was being worked out: it is worked out again.
     stale: bool,
     /// The picker was asked for while the list was being worked out: it opens when it is there.
@@ -439,7 +441,7 @@ impl App {
                 }
                 self.start_build(config, feeder, events, purpose);
             }
-            What::Command(_) if purpose == Purpose::Debug => {
+            What::Command(_) | What::Open(_) if purpose == Purpose::Debug => {
                 self.state
                     .notify("only a binary or an example of cargo can be debugged");
             }
@@ -452,7 +454,33 @@ impl App {
                     Err(error) => self.state.notify_error(error),
                 }
             }
+            What::Open(target) => self.open_file(target),
             What::Missing(_) => {}
+        }
+    }
+
+    /// Opens what an `open` entry names with the system's program: `${file}` is the file of
+    /// the active tab, a path is from the project. No tab, no waiting for the program.
+    fn open_file(&mut self, target: &str) {
+        let file = self
+            .state
+            .editor()
+            .buffer()
+            .path()
+            .map(|path| path.display().to_string());
+        let Ok(text) = crate::launch::expand_file(target, file.as_deref()) else {
+            self.state
+                .notify_error("not running: the open file is untitled; save it first");
+            return;
+        };
+        let path = self.project_root().join(&text);
+        let (system, front) = super::opener::system_opener();
+        let program = self.runs.opener.as_deref().unwrap_or(system);
+        match super::opener::open(program, front, &path) {
+            Ok(()) => self.state.notify(format!("opened {text}")),
+            Err(error) => self
+                .state
+                .notify_error(format!("could not open {text}: {program}: {error}")),
         }
     }
 
@@ -651,6 +679,13 @@ impl App {
             .unwrap_or_else(|| "cargo".to_owned())
     }
 
+    /// Opens files with this program instead of the system's, for tests.
+    #[cfg(test)]
+    pub(crate) fn with_opener(mut self, program: &str) -> Self {
+        self.runs.opener = Some(program.to_owned());
+        self
+    }
+
     /// Runs `cargo` as this program, for tests.
     #[cfg(test)]
     pub(crate) fn with_cargo(mut self, program: &str) -> Self {
@@ -662,6 +697,12 @@ impl App {
     #[cfg(test)]
     pub(crate) fn run_list_len(&self) -> Option<usize> {
         self.runs.list.as_ref().map(RunList::len)
+    }
+
+    /// Makes `id` the configuration the Run key starts, for tests.
+    #[cfg(test)]
+    pub(crate) fn set_active_run_for_test(&mut self, id: &str) {
+        self.set_active_run(&ConfigId::from(id));
     }
 
     /// The configuration the Run key starts, for tests.

@@ -285,3 +285,15 @@ fn an_entry_that_names_only_a_target_still_counts_as_the_file_deciding() {
 
     assert!(config(&list, "tool:bin:tool").from_file());
 }
+
+#[test]
+fn an_open_entry_is_a_configuration_of_the_file_that_runs_nothing_else() {
+    let file = LaunchFile::parse("[[run]]\nname = \"Preview\"\nopen = \"${file}\"\n");
+
+    let list = RunList::build(Ok(&Targets::default()), &file);
+
+    let open = config(&list, "command:Preview");
+    assert!(matches!(open.what(), What::Open(text) if text == "${file}"));
+    assert_eq!(open.package(), None);
+    assert!(open.is_available() && open.from_file());
+}

@@ -259,3 +259,103 @@ fn a_file_that_cannot_be_read_is_a_problem_and_not_a_failure() {
     };
     assert!(problem.message().contains("could not be read"), "{problem}");
 }
+
+#[test]
+fn an_open_entry_has_a_name_and_the_text_to_open() {
+    let file = LaunchFile::parse("[[run]]\nname = \"Preview\"\nopen = \"${file}\"\n");
+
+    assert!(file.problems().is_empty(), "{:?}", problems(&file));
+    assert_eq!(
+        file.entries(),
+        [(
+            1,
+            FileEntry::Open {
+                name: "Preview".to_owned(),
+                target: "${file}".to_owned()
+            }
+        )]
+    );
+}
+
+#[test]
+fn an_open_entry_that_is_not_right_is_a_problem_and_the_others_still_count() {
+    let file = LaunchFile::parse(
+        r#"
+[[run]]
+open = "${file}"
+
+[[run]]
+name = "a"
+open = ""
+
+[[run]]
+name = "b"
+open = "${dir}/x.html"
+
+[[run]]
+name = "c"
+open = "x.html"
+command = "xdg-open"
+
+[[run]]
+name = "d"
+open = "x.html"
+args = ["y"]
+
+[[run]]
+name = "fine"
+open = "docs/index.html"
+"#,
+    );
+
+    assert_eq!(
+        problems(&file),
+        [
+            "entry 1: an `open` entry needs a `name`",
+            "entry 2: `open` is empty",
+            "entry 3: `${dir}` is not known in `open`; only `${file}` is",
+            "entry 4: an entry with `open` has no `command`",
+            "entry 5: an entry with `open` has no `args`",
+        ]
+    );
+    assert_eq!(file.entries().len(), 1);
+}
+
+#[test]
+fn the_file_is_put_in_the_text_and_a_missing_file_is_told() {
+    use crate::{NoFile, expand_file};
+
+    assert_eq!(
+        expand_file("${file}", Some("/p/a.html")),
+        Ok("/p/a.html".to_owned())
+    );
+    assert_eq!(expand_file("${file}", None), Err(NoFile));
+    assert_eq!(
+        expand_file("docs/index.html", None),
+        Ok("docs/index.html".to_owned())
+    );
+}
+
+#[test]
+fn the_template_for_a_new_file_is_valid_and_changes_nothing() {
+    let file = LaunchFile::parse(crate::TEMPLATE);
+
+    assert!(file.problems().is_empty(), "{:?}", problems(&file));
+    assert!(file.entries().is_empty());
+}
+
+#[test]
+fn each_example_of_the_template_is_valid_once_it_is_not_commented() {
+    // An example line is a table header or a `key = value`; the rest is prose.
+    let uncommented: Vec<&str> = crate::TEMPLATE
+        .lines()
+        .map(|line| match line.strip_prefix("# ") {
+            Some(rest) if rest.starts_with("[[") || rest.contains(" = ") => rest,
+            _ => line,
+        })
+        .collect();
+    let file = LaunchFile::parse(&uncommented.join("\n"));
+
+    assert!(file.problems().is_empty(), "{:?}", problems(&file));
+    assert_eq!(file.entries().len(), 3);
+}

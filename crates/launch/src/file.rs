@@ -13,6 +13,10 @@
 //! name = "Dev server"
 //! command = "npm"
 //! args = ["run", "dev"]
+//!
+//! [[run]]                      # opens a file with the system's program for it, no terminal
+//! name = "Preview"
+//! open = "${file}"             # the file of the active tab; a path is from the project
 //! ```
 //!
 //! A problem in one entry is said and the entry is left out; the rest still count.
@@ -28,6 +32,33 @@ use crate::target::TargetId;
 
 /// Where the file is, from the root of the project.
 pub const FILE: &str = ".trcode/launch.toml";
+
+/// What a new `.trcode/launch.toml` starts with: examples, all commented out, so a file that
+/// was only made changes nothing.
+pub const TEMPLATE: &str = r#"# Run configurations of this project: what F5 starts (ctrl+k r chooses).
+# The entries of cargo's binaries and examples need nothing here; this file changes them
+# and adds others. Nothing goes through a shell.
+
+# Opens the file of the active tab with the system's program for it (a browser for .html),
+# without a terminal tab. `${file}` is the only placeholder; a path is from the project.
+# [[run]]
+# name = "Preview"
+# open = "${file}"
+
+# Changes a binary or an example cargo found (only what is named changes).
+# [[run]]
+# target = "package:bin:name"
+# args = ["--flag"]
+# env = { RUST_LOG = "debug" }
+# release = true
+
+# A command of its own.
+# [[run]]
+# name = "Dev server"
+# command = "npm"
+# args = ["run", "dev"]
+# cwd = "web"
+"#;
 
 /// Something wrong in the file, and where.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +116,8 @@ pub(crate) struct Patch {
 pub(crate) enum FileEntry {
     /// Changes the detected target.
     Override { target: TargetId, patch: Patch },
+    /// A file or a path opened with the system's program for it.
+    Open { name: String, target: String },
     /// A command of its own.
     Command {
         name: String,
@@ -173,6 +206,7 @@ struct RawEntry {
     env: Option<BTreeMap<String, String>>,
     cwd: Option<String>,
     release: Option<bool>,
+    open: Option<String>,
 }
 
 fn read_entry(item: &toml::Value) -> Result<FileEntry, String> {
@@ -180,6 +214,20 @@ fn read_entry(item: &toml::Value) -> Result<FileEntry, String> {
         .clone()
         .try_into()
         .map_err(|error: toml::de::Error| error.message().to_owned())?;
+    if let Some(target) = raw.open {
+        let others = [
+            ("target", raw.target.is_some()),
+            ("command", raw.command.is_some()),
+            ("args", raw.args.is_some()),
+            ("env", raw.env.is_some()),
+            ("cwd", raw.cwd.is_some()),
+            ("release", raw.release.is_some()),
+        ];
+        if let Some((key, _)) = others.iter().find(|(_, given)| *given) {
+            return Err(format!("an entry with `open` has no `{key}`"));
+        }
+        return open_of(raw.name, target);
+    }
     match (raw.target, raw.command) {
         (Some(_), Some(_)) => Err("an entry has a `target` or a `command`, not both".to_owned()),
         (Some(target), None) => override_of(
@@ -195,10 +243,9 @@ fn read_entry(item: &toml::Value) -> Result<FileEntry, String> {
         (None, Some(program)) => {
             command_of(raw.name, program, raw.args, raw.env, raw.cwd, raw.release)
         }
-        (None, None) => Err(
-            "an entry needs a `target` (to change a detected one) or a `command` (to add one)"
-                .to_owned(),
-        ),
+        (None, None) => Err("an entry needs a `target` (to change a detected one), a \
+             `command` (to add one) or an `open` (to open a file)"
+            .to_owned()),
     }
 }
 
@@ -234,4 +281,50 @@ fn command_of(
         env: env.unwrap_or_default(),
         cwd,
     })
+}
+
+fn open_of(name: Option<String>, target: String) -> Result<FileEntry, String> {
+    let Some(name) = name.filter(|name| !name.is_empty()) else {
+        return Err("an `open` entry needs a `name`".to_owned());
+    };
+    if target.is_empty() {
+        return Err("`open` is empty".to_owned());
+    }
+    if let Some(unknown) = unknown_placeholder(&target) {
+        return Err(format!(
+            "`{unknown}` is not known in `open`; only `${{file}}` is"
+        ));
+    }
+    Ok(FileEntry::Open { name, target })
+}
+
+/// The first `${...}` in `text` that is not `${file}`.
+fn unknown_placeholder(text: &str) -> Option<&str> {
+    let mut rest = text;
+    while let Some(start) = rest.find("${") {
+        let after = &rest[start..];
+        let end = after.find('}').map_or(after.len(), |at| at + 1);
+        if &after[..end] != FILE_PLACEHOLDER {
+            return Some(&after[..end]);
+        }
+        rest = &after[end..];
+    }
+    None
+}
+
+/// What `open` of an entry says for the file of the active tab.
+pub const FILE_PLACEHOLDER: &str = "${file}";
+
+/// Why `${file}` could not be filled in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NoFile;
+
+/// `target` with `${file}` replaced by `file`; `NoFile` when it has the placeholder and
+/// there is no file.
+pub fn expand_file(target: &str, file: Option<&str>) -> Result<String, NoFile> {
+    if !target.contains(FILE_PLACEHOLDER) {
+        return Ok(target.to_owned());
+    }
+    let file = file.ok_or(NoFile)?;
+    Ok(target.replace(FILE_PLACEHOLDER, file))
 }

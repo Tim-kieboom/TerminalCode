@@ -43,6 +43,7 @@ mod git;
 mod hover;
 mod lightbulb;
 mod open;
+mod opener;
 mod plugin_debug;
 mod plugin_files;
 mod plugin_keys;

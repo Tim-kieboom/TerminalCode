@@ -12,7 +12,7 @@ mod list;
 mod target;
 
 pub use build::{ArtifactFinder, build_args, run_env};
-pub use file::{FILE, LaunchFile, Problem};
+pub use file::{FILE, LaunchFile, NoFile, Problem, TEMPLATE, expand_file};
 pub use list::{ConfigId, RunConfig, RunList, What};
 pub use target::{IdError, Kind, MetadataError, Target, TargetId, Targets};
 

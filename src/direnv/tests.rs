@@ -57,11 +57,20 @@ mod with_a_program {
     fn load(body: &str) -> Result<Vec<super::super::Change>, String> {
         let folder = tempfile::tempdir().unwrap();
         let program = fake_direnv(folder.path(), body);
-        load_with(
-            program.as_os_str(),
-            &folder.path().join(".envrc"),
-            folder.path(),
-        )
+        let envrc = folder.path().join(".envrc");
+        // A thread of another test may fork while the script is still open for writing,
+        // and then it cannot be run ("Text file busy") for a moment.
+        let mut result = load_with(program.as_os_str(), &envrc, folder.path());
+        for _ in 0..50 {
+            match &result {
+                Err(message) if message.contains("Text file busy") => {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                    result = load_with(program.as_os_str(), &envrc, folder.path());
+                }
+                _ => break,
+            }
+        }
+        result
     }
 
     #[test]

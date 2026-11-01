@@ -441,6 +441,7 @@ impl App {
             Action::SaveAll => self.save_all(),
             Action::Run => self.run_active(),
             Action::ChooseRun => self.choose_run(),
+            Action::OpenLaunchFile => self.open_launch_file(),
             Action::Debug => self.debug_start(),
             Action::DebugContinue => self.debug_continue(),
             Action::DebugStepOver => self.debug_step_over(),

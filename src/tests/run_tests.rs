@@ -935,3 +935,124 @@ async fn a_tab_wakes_the_app_from_inside_the_runtime_without_blocking() {
     assert!(rx.recv().await.is_some());
     assert!(rx.recv().await.is_some());
 }
+
+const OPEN_ENTRIES: &str = r#"
+[[run]]
+name = "Preview"
+open = "${file}"
+
+[[run]]
+name = "Docs"
+open = "docs/index.html"
+"#;
+
+/// A rig whose opener is a script that writes what it was asked to open to `opened.txt`
+/// (in the project's folder), with `Preview` or `Docs` as the active configuration.
+fn rig_that_opens(active: &str) -> Rig {
+    let mut rig = rig(Setup {
+        has_target: false,
+        launch_file: Some(OPEN_ENTRIES),
+        ..Setup::default()
+    });
+    let script = rig.root.join("opener.sh");
+    executable(
+        &script,
+        &format!(
+            "#!/bin/sh\necho \"$@\" >> {}/opened.txt\n",
+            rig.root.display()
+        ),
+    );
+    let app = rig.app;
+    rig.app = app.with_opener(&script.display().to_string());
+    rig.app
+        .set_active_run_for_test(&format!("command:{active}"));
+    rig
+}
+
+#[test]
+fn an_open_entry_opens_the_file_of_the_active_tab_without_a_tab() {
+    let mut rig = rig_that_opens("Preview");
+    let page = rig.root.join("page.html");
+    fs::write(&page, "<p>hi</p>").unwrap();
+    rig.app
+        .state_mut()
+        .workspace_mut()
+        .open_path(&page)
+        .unwrap();
+
+    rig.run();
+    rig.wait_for("the opener to run", |rig| {
+        !rig.read("opened.txt").is_empty()
+    });
+
+    assert_eq!(rig.read("opened.txt").trim(), page.display().to_string());
+    assert_eq!(rig.tabs(), 0, "no terminal tab");
+    assert!(rig.said_has("opened"), "{:?}", rig.said());
+}
+
+#[test]
+fn an_open_entry_with_a_path_opens_it_from_the_project() {
+    let mut rig = rig_that_opens("Docs");
+
+    rig.run();
+    rig.wait_for("the opener to run", |rig| {
+        !rig.read("opened.txt").is_empty()
+    });
+
+    let wanted = rig.root.join("docs/index.html");
+    assert_eq!(rig.read("opened.txt").trim(), wanted.display().to_string());
+}
+
+#[test]
+fn an_untitled_buffer_is_not_opened_and_the_user_is_told_to_save() {
+    let mut rig = rig_that_opens("Preview");
+
+    rig.run();
+    rig.wait_for("the refusal", |rig| rig.said_has("save it first"));
+
+    assert_eq!(rig.read("opened.txt"), "");
+}
+
+#[test]
+fn an_open_entry_cannot_be_debugged() {
+    let mut rig = rig_that_opens("Docs");
+
+    rig.app.run_action(Action::Debug);
+    rig.wait_for("the refusal", |rig| rig.said_has("can be debugged"));
+
+    assert_eq!(rig.read("opened.txt"), "");
+}
+
+#[test]
+fn open_launch_file_makes_the_file_from_the_template_and_opens_it() {
+    let mut rig = rig(Setup::default());
+    let path = rig.root.join(".trcode/launch.toml");
+    assert!(!path.exists());
+
+    rig.app.run_action(Action::OpenLaunchFile);
+
+    assert_eq!(fs::read_to_string(&path).unwrap(), crate::launch::TEMPLATE);
+    assert_eq!(
+        rig.app.state().editor().buffer().path(),
+        Some(path.as_path())
+    );
+    assert!(rig.said_has("made .trcode/launch.toml"), "{:?}", rig.said());
+}
+
+#[test]
+fn open_launch_file_leaves_a_file_that_is_there_as_it_is() {
+    let mut rig = rig(Setup {
+        launch_file: Some("[[run]]\nname = \"Mine\"\nopen = \"a.html\"\n"),
+        ..Setup::default()
+    });
+    let path = rig.root.join(".trcode/launch.toml");
+
+    rig.app.run_action(Action::OpenLaunchFile);
+
+    assert!(fs::read_to_string(&path).unwrap().contains("Mine"));
+    assert_eq!(
+        rig.app.state().editor().buffer().path(),
+        Some(path.as_path())
+    );
+    assert!(!rig.said_has("made"), "{:?}", rig.said());
+}

@@ -92,6 +92,8 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `ctrl+s` / `ctrl+k a` | Save / save all |
 | `f5` | Run: save all, build the active binary or example (or a command of `.trcode/launch.toml`) and start it in its terminal tab; in the explorer `f5` refreshes the tree |
 | `f9` | Set a breakpoint on the line of the cursor or take it away (a click on the last column of the gutter does the same); they are remembered for the project |
+| palette: "Run: Open Launch File" | Opens `.trcode/launch.toml` for editing, made from a template of commented examples when the project has none |
+| (`open` in `launch.toml`) | `[[run]]` with `name = "Preview"` and `open = "${file}"` opens the file of the active tab with the system's program for it (a browser for `.html`), without a terminal tab; `open = "docs/index.html"` opens a fixed path from the project. An untitled buffer is refused: save it first |
 | `ctrl+k r` | Choose which binary, example or command `f5` runs (and run it); it is remembered for the project and shown in the status bar |
 | `ctrl+k g` | Debug: build and start the active binary or example under `lldb-dap` (or the adapter named by `TRCODE_DEBUG_ADAPTER`), stopping at the breakpoints; `f5` goes on while a session runs |
 | `f10`, `f11`, `shift+f11`, `shift+f5`, `ctrl+shift+f5` | Debug, as in VS Code: step over, step into, step out, stop, restart |

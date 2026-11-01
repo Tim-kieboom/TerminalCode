@@ -170,6 +170,7 @@ fn entry_of(config: &RunConfig, active: bool) -> Entry {
     let kind = match config.what() {
         What::Cargo(target) => target.id().package().to_owned(),
         What::Command(_) => "command".to_owned(),
+        What::Open(_) => "open".to_owned(),
         What::Missing(id) => id.package().to_owned(),
     };
     Entry {
@@ -177,4 +178,43 @@ fn entry_of(config: &RunConfig, active: bool) -> Entry {
         kind,
         disabled: config.unavailable().map(str::to_owned),
     }
+}
+
+impl App {
+    /// Opens `.trcode/launch.toml` of the project in a tab. A project without it gets one
+    /// made from the template first (and the folder `.trcode`); one that is there is left as
+    /// it is.
+    pub(super) fn open_launch_file(&mut self) {
+        let path = self.project_root().join(crate::launch::FILE);
+        let created = match make_launch_file(&path) {
+            Ok(created) => created,
+            Err(error) => {
+                self.state
+                    .notify_error(format!("could not make {}: {error}", path.display()));
+                return;
+            }
+        };
+        if let Err(error) = self.state.workspace_mut().open_path(&path) {
+            self.state.notify_error(error.to_string());
+            return;
+        }
+        if created {
+            self.state.notify(format!(
+                "made {} from a template; the examples are commented out",
+                crate::launch::FILE
+            ));
+        }
+    }
+}
+
+/// Makes the file from the template unless it is there. Whether it was made.
+fn make_launch_file(path: &std::path::Path) -> std::io::Result<bool> {
+    if path.exists() {
+        return Ok(false);
+    }
+    if let Some(folder) = path.parent() {
+        std::fs::create_dir_all(folder)?;
+    }
+    std::fs::write(path, crate::launch::TEMPLATE)?;
+    Ok(true)
 }

@@ -46,6 +46,8 @@ pub enum What {
     Cargo(Target),
     /// A command of the file: the program, started as it is.
     Command(String),
+    /// A file (the text may have `${file}`) opened with the system's program for it.
+    Open(String),
     /// An entry of the file for a target that is not there (any more).
     Missing(TargetId),
 }
@@ -130,7 +132,7 @@ impl RunConfig {
         match &self.what {
             What::Cargo(target) => Some(target.id().package()),
             What::Missing(id) => Some(id.package()),
-            What::Command(_) => None,
+            What::Command(_) | What::Open(_) => None,
         }
     }
 
@@ -234,6 +236,23 @@ impl RunList {
                         Some(config) => config.apply(patch),
                         None => missing.push(RunConfig::missing(target, patch)),
                     }
+                }
+                FileEntry::Open { name, target } => {
+                    if !named.insert(name.clone()) {
+                        let message = format!("there is a command called `{name}` already");
+                        list.problems.push(Problem::of_entry(*number, message));
+                        continue;
+                    }
+                    commands.push(RunConfig {
+                        id: ConfigId::of_command(name),
+                        name: name.clone(),
+                        what: What::Open(target.clone()),
+                        args: Vec::new(),
+                        env: BTreeMap::new(),
+                        cwd: None,
+                        release: false,
+                        from_file: true,
+                    });
                 }
                 FileEntry::Command {
                     name,

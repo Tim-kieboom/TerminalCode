@@ -212,6 +212,9 @@ pub(crate) enum Action {
     /// Opens the picker of run configurations; the one chosen is run, and becomes the one
     /// the Run key starts.
     ChooseRun,
+    /// Opens `.trcode/launch.toml` of the project for editing, made from a template with
+    /// examples when it is not there yet.
+    OpenLaunchFile,
     /// Builds the active run configuration and runs it under the debugger.
     Debug,
     /// Goes on from where the program stopped (`F5` does it too while a program is stopped).
@@ -297,6 +300,7 @@ impl Action {
                 | Self::TrustFolder
                 | Self::Run
                 | Self::ChooseRun
+                | Self::OpenLaunchFile
                 | Self::ClearBreakpoints
                 | Self::Debug
                 | Self::DebugContinue
@@ -437,6 +441,7 @@ impl Action {
             Self::SaveAll => "File: Save All",
             Self::Run => "Run: Run",
             Self::ChooseRun => "Run: Choose Configuration...",
+            Self::OpenLaunchFile => "Run: Open Launch File",
             Self::Debug => "Debug: Start",
             Self::DebugContinue => "Debug: Continue",
             Self::DebugStepOver => "Debug: Step Over",
@@ -583,6 +588,7 @@ impl Action {
             Self::SaveAll,
             Self::Run,
             Self::ChooseRun,
+            Self::OpenLaunchFile,
             Self::Debug,
             Self::DebugContinue,
             Self::DebugStepOver,

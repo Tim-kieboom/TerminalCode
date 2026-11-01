@@ -429,3 +429,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 ## Release 0.12.0
 - [x] Version 0.12.0 (after 0.11.0: plugin API 1.13, a language plugin can say where other languages are inside it with an injection query, so the text of a `<script>` is colored as JavaScript and of a `<style>` as CSS; the HTML, CSS and Bash plugins)
 - [x] Tag `v0.12.0` (tagged on 4450918; CI green on Linux, macOS and Windows; the release run built the archives and SHA256SUMS; the draft is to be published by hand)
+
+- [x] Run an HTML file: `open = "${file}"` in `.trcode/launch.toml` (decided after a grill; `docs/design.md`, "Run configurations"): opens the active tab's file (or a path from the project) with the system's program, no terminal tab, started counts as success, an untitled buffer is refused with "save it first"; `${file}` is the only placeholder
+- [x] "Run: Open Launch File" in the palette: opens `.trcode/launch.toml`, made from a template of commented examples when it is not there
