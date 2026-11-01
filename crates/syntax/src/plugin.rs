@@ -29,6 +29,8 @@ pub struct LanguageSpec {
     pub grammar: Vec<u8>,
     /// The highlight query.
     pub highlights: String,
+    /// The query that says where other languages are inside this one; empty for none.
+    pub injections: String,
 }
 
 /// Which language of the table, and which time it was put there.
@@ -47,6 +49,7 @@ pub(super) struct Entry {
     entry: String,
     grammar: Vec<u8>,
     pub(super) highlights: String,
+    pub(super) injections: String,
 }
 
 struct Slot {
@@ -83,12 +86,19 @@ pub fn register(owner: &str, spec: LanguageSpec) -> Result<(), SyntaxError> {
         entry: spec.entry,
         grammar: spec.grammar,
         highlights: spec.highlights,
+        injections: spec.injections,
     };
     let (grammar, _store) = load(&entry)?;
     Query::new(&grammar, &entry.highlights).map_err(|source| SyntaxError::Query {
         language: name,
         source,
     })?;
+    if !entry.injections.trim().is_empty() {
+        Query::new(&grammar, &entry.injections).map_err(|source| SyntaxError::Injections {
+            language: name,
+            source,
+        })?;
+    }
     let mut table = table()
         .write()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -134,6 +144,20 @@ pub(super) fn by_extension(extension: &str) -> Option<PluginSlot> {
                 index,
                 generation: slot.generation,
             })
+    })
+}
+
+/// The language a plugin added that has this name, in any case.
+pub(super) fn by_name(name: &str) -> Option<PluginSlot> {
+    let table = table()
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    table.slots.iter().enumerate().find_map(|(index, slot)| {
+        let entry = slot.entry.as_ref()?;
+        entry.name.eq_ignore_ascii_case(name).then_some(PluginSlot {
+            index,
+            generation: slot.generation,
+        })
     })
 }
 

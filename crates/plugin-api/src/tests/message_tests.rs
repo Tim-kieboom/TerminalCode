@@ -1391,3 +1391,25 @@ highlights = "(x) @y"
     .unwrap();
     assert_eq!(named.entry_name(), "c_sharp_x");
 }
+
+// --- plugin API 1.13: a language inside a language ---
+
+#[test]
+fn a_language_may_say_where_other_languages_are_in_it_and_has_none_otherwise() {
+    let manifest: Manifest = toml::from_str(SOL).unwrap();
+    assert_eq!(manifest.language.unwrap().injections, "");
+
+    let language: crate::LanguageDecl = toml::from_str(
+        r#"name = "HTML"
+grammar = "html.wasm"
+extensions = ["html"]
+highlights = "(tag_name) @type"
+injections = '''
+(script_element (raw_text) @injection.content (#set! injection.language "javascript"))
+'''
+"#,
+    )
+    .unwrap();
+
+    assert!(language.injections.contains("injection.language"));
+}

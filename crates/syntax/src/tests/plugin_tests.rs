@@ -24,6 +24,7 @@ fn spec(extension: &str) -> LanguageSpec {
         entry: "sol".to_owned(),
         grammar: GRAMMAR.to_vec(),
         highlights: HIGHLIGHTS.to_owned(),
+        injections: String::new(),
     }
 }
 
@@ -194,4 +195,109 @@ fn where_two_patterns_capture_the_same_text_the_first_in_the_query_wins() {
         "{found:?}"
     );
     unregister_language("test-i");
+}
+
+const HTML: &[u8] = include_bytes!("fixtures/html.wasm");
+const HTML_HIGHLIGHTS: &str = "(tag_name) @type\n(comment) @comment\n";
+const HTML_INJECTIONS: &str = r#"
+(script_element (raw_text) @injection.content (#set! injection.language "javascript"))
+(style_element (raw_text) @injection.content (#set! injection.language "sol"))
+"#;
+
+fn html(extension: &str, injections: &str) -> LanguageSpec {
+    LanguageSpec {
+        name: "HTML".to_owned(),
+        extensions: vec![extension.to_owned()],
+        comment: None,
+        entry: "html".to_owned(),
+        grammar: HTML.to_vec(),
+        highlights: HTML_HIGHLIGHTS.to_owned(),
+        injections: injections.to_owned(),
+    }
+}
+
+fn has(found: &[(String, Option<Color>)], text: &str, color: Option<Color>) -> bool {
+    found.contains(&(text.to_owned(), color))
+}
+
+#[test]
+fn text_of_another_language_inside_a_plugins_language_is_colored_by_that_language() {
+    register_language("test-j", html("htmj1", HTML_INJECTIONS)).unwrap();
+
+    let found = colors(
+        language("a.htmj1").unwrap(),
+        "<p>x</p>\n<script>function f() { return \"hi\"; }</script>\n",
+    );
+
+    assert!(has(&found, "p", Some(Color::Cyan)), "{found:?}");
+    assert!(
+        has(&found, "function", Some(Color::Red)),
+        "JavaScript's keyword: {found:?}"
+    );
+    assert!(has(&found, "\"hi\"", Some(Color::Green)), "{found:?}");
+    unregister_language("test-j");
+}
+
+#[test]
+fn the_language_inside_can_be_another_plugins() {
+    register_language("test-k", spec("solc9")).unwrap();
+    register_language("test-l", html("htmj2", HTML_INJECTIONS)).unwrap();
+
+    let found = colors(
+        language("a.htmj2").unwrap(),
+        "<style>pub struct P { x: i32 }</style>\n",
+    );
+
+    assert!(has(&found, "struct", Some(Color::Red)), "{found:?}");
+    assert!(has(&found, "i32", Some(Color::Cyan)), "{found:?}");
+    unregister_language("test-k");
+    unregister_language("test-l");
+}
+
+#[test]
+fn text_of_a_language_that_is_not_there_keeps_the_outer_colors() {
+    // No plugin has the language `sol` named by the `<style>` pattern when this one is made: the
+    // tags are still colored and nothing fails.
+    register_language("test-m", html("htmj3", HTML_INJECTIONS)).unwrap();
+
+    let found = colors(language("a.htmj3").unwrap(), "<p>x</p><b>y</b>\n");
+
+    assert!(has(&found, "p", Some(Color::Cyan)), "{found:?}");
+    assert!(has(&found, "b", Some(Color::Cyan)), "{found:?}");
+    unregister_language("test-m");
+}
+
+#[test]
+fn only_the_asked_range_of_the_inner_text_is_colored() {
+    register_language("test-n", html("htmj4", HTML_INJECTIONS)).unwrap();
+    let source = "<script>var a = 1;\nvar b = 2;</script>\n";
+    let mut highlighter =
+        Highlighter::new(language("a.htmj4").unwrap(), &TestTheme::ordinary()).unwrap();
+    let text = Rope::from_str(source);
+    highlighter.parse(&text).unwrap();
+    let second_line = source.find("var b").unwrap();
+
+    let spans = highlighter.spans(&text, second_line..source.len());
+
+    assert!(
+        spans
+            .iter()
+            .all(|span| span.range.start >= second_line && span.range.end <= source.len()),
+        "{spans:?}"
+    );
+    assert!(
+        spans
+            .iter()
+            .any(|span| &source[span.range.clone()] == "var"),
+        "{spans:?}"
+    );
+    unregister_language("test-n");
+}
+
+#[test]
+fn an_injection_query_that_is_not_valid_refuses_the_language() {
+    let refused = register_language("test-o", html("htmj5", "(not_a_node) @injection.content"));
+
+    assert!(matches!(refused, Err(SyntaxError::Injections { .. })));
+    assert_eq!(language("a.htmj5"), None);
 }

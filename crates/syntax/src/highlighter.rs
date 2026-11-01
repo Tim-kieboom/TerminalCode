@@ -1,5 +1,6 @@
 use std::cmp::Reverse;
 use std::ops::Range;
+use std::sync::Mutex;
 
 use ratatui::style::Style;
 use ropey::Rope;
@@ -36,7 +37,29 @@ pub struct Highlighter {
     styles: Vec<Option<Style>>,
     /// For a language that holds another one (Markdown paragraphs).
     inner: Option<InnerHighlights>,
+    /// For a language that has others in its text (HTML's `<script>`).
+    injections: Option<Injections>,
     tree: Option<Tree>,
+}
+
+/// Where other languages are in a language, and how to color each: the plugin's injection
+/// query, with the languages it names ready to parse.
+struct Injections {
+    query: Query,
+    /// The capture that holds the text of the other language.
+    content: u32,
+    /// By pattern of `query`: which of `languages` it is, or `None` when that language is not
+    /// there (a plugin that is off) or the pattern names none.
+    targets: Vec<Option<usize>>,
+    languages: Vec<Injected>,
+}
+
+/// A language inside another one: its parser, which is told which stretch of text to read each
+/// time, and its query.
+struct Injected {
+    parser: Mutex<Parser>,
+    query: Query,
+    styles: Vec<Option<Style>>,
 }
 
 /// What highlights the language inside a language: the node kind of the outer
@@ -60,22 +83,7 @@ impl std::fmt::Debug for Highlighter {
 impl Highlighter {
     pub fn new(language: Language, theme: &impl CaptureStyles) -> Result<Self, SyntaxError> {
         let name = language.name();
-        let (grammar, store) = language.grammar()?;
-        let mut parser = Parser::new();
-        if let Some(store) = store {
-            parser
-                .set_wasm_store(store)
-                .map_err(|source| SyntaxError::Grammar {
-                    language: name,
-                    source,
-                })?;
-        }
-        parser
-            .set_language(&grammar)
-            .map_err(|source| SyntaxError::Grammar {
-                language: name,
-                source,
-            })?;
+        let (parser, grammar) = make_parser(language)?;
 
         let query =
             Query::new(&grammar, &language.highlights()).map_err(|source| SyntaxError::Query {
@@ -102,12 +110,15 @@ impl Highlighter {
             })
             .transpose()?;
 
+        let injections = injections_of(language, &grammar, theme)?;
+
         Ok(Self {
             language,
             parser,
             query,
             styles,
             inner,
+            injections,
             tree: None,
         })
     }
@@ -175,6 +186,9 @@ impl Highlighter {
         );
         if let Some(inner) = &self.inner {
             inner.collect_into(tree.root_node(), text, &range, &mut found);
+        }
+        if let Some(injections) = &self.injections {
+            injections.collect_into(tree.root_node(), text, &range, &mut found);
         }
         flatten(found, &range)
     }
@@ -378,5 +392,138 @@ fn nodes_of_kind<'t>(root: Node<'t>, kind: &str, range: &Range<usize>, out: &mut
         pending.extend(node.children(&mut cursor));
         // Popped from the end, so reverse to visit the children in order.
         pending[before..].reverse();
+    }
+}
+
+/// A parser for `language`, set to its grammar, and the grammar.
+fn make_parser(language: Language) -> Result<(Parser, Grammar), SyntaxError> {
+    let name = language.name();
+    let (grammar, store) = language.grammar()?;
+    let mut parser = Parser::new();
+    if let Some(store) = store {
+        parser
+            .set_wasm_store(store)
+            .map_err(|source| SyntaxError::Grammar {
+                language: name,
+                source,
+            })?;
+    }
+    parser
+        .set_language(&grammar)
+        .map_err(|source| SyntaxError::Grammar {
+            language: name,
+            source,
+        })?;
+    Ok((parser, grammar))
+}
+
+/// Reads the injection query of `language`, if it has one, and gets the languages it names
+/// ready. A language that is not there is skipped: its text keeps the outer colors.
+fn injections_of(
+    language: Language,
+    grammar: &Grammar,
+    theme: &impl CaptureStyles,
+) -> Result<Option<Injections>, SyntaxError> {
+    let Some(text) = language.injections() else {
+        return Ok(None);
+    };
+    let query = Query::new(grammar, &text).map_err(|source| SyntaxError::Injections {
+        language: language.name(),
+        source,
+    })?;
+    let Some(content) = query.capture_index_for_name("injection.content") else {
+        return Ok(None);
+    };
+    let mut named: Vec<(Language, usize)> = Vec::new();
+    let mut languages = Vec::new();
+    let mut targets = Vec::with_capacity(query.pattern_count());
+    for pattern in 0..query.pattern_count() {
+        let wanted = query
+            .property_settings(pattern)
+            .iter()
+            .find(|setting| &*setting.key == "injection.language")
+            .and_then(|setting| setting.value.as_deref())
+            .and_then(Language::by_name)
+            // A language cannot hold itself: that would parse its own text again, forever.
+            .filter(|other| *other != language);
+        let Some(other) = wanted else {
+            targets.push(None);
+            continue;
+        };
+        if let Some((_, at)) = named.iter().find(|(known, _)| *known == other) {
+            targets.push(Some(*at));
+            continue;
+        }
+        let Ok((parser, grammar)) = make_parser(other) else {
+            targets.push(None);
+            continue;
+        };
+        let Ok(inner) = Query::new(&grammar, &other.highlights()) else {
+            targets.push(None);
+            continue;
+        };
+        named.push((other, languages.len()));
+        targets.push(Some(languages.len()));
+        languages.push(Injected {
+            parser: Mutex::new(parser),
+            styles: styles_of(&inner, theme),
+            query: inner,
+        });
+    }
+    Ok(Some(Injections {
+        query,
+        content,
+        targets,
+        languages,
+    }))
+}
+
+impl Injections {
+    /// Parses every stretch of text of another language that touches `range` with that
+    /// language's grammar and adds what its query finds. Like the inner language of Markdown,
+    /// nothing is kept between calls but the parsers.
+    fn collect_into(
+        &self,
+        outer: Node<'_>,
+        text: &Rope,
+        range: &Range<usize>,
+        found: &mut Vec<Found>,
+    ) {
+        let mut cursor = QueryCursor::new();
+        cursor.set_byte_range(range.clone());
+        let mut matches = cursor.matches(&self.query, outer, RopeText(text));
+        while let Some(matched) = matches.next() {
+            let Some(target) = self.targets[matched.pattern_index] else {
+                continue;
+            };
+            let injected = &self.languages[target];
+            for capture in matched
+                .captures()
+                .iter()
+                .filter(|c| c.index == self.content)
+            {
+                let node = capture.node;
+                let mut parser = injected
+                    .parser
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                if parser.set_included_ranges(&[node.range()]).is_err() {
+                    continue;
+                }
+                let Some(tree) = parse_rope(&mut parser, text, None) else {
+                    continue;
+                };
+                let within = range.start.max(node.start_byte())..range.end.min(node.end_byte());
+                collect(
+                    &injected.query,
+                    &injected.styles,
+                    tree.root_node(),
+                    text,
+                    &within,
+                    INNER_PATTERN_OFFSET,
+                    found,
+                );
+            }
+        }
     }
 }

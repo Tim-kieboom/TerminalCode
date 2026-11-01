@@ -1063,7 +1063,22 @@ A plugin may be nothing but a language: files of its kind are colored by a tree-
 - **Queries.** Where two patterns capture the same text the editor takes the first in the query (Zed takes the last), so a query written for Zed puts what is specific before the generic `(identifier) @variable`: the Sol plugin's has the call patterns first. A capture the theme has no style for is left out, so a query may use names a theme does not know.
 - **Cost.** The `wasm` feature brings wasmtime (about 30 s more on a clean build, and a larger binary) and builds `wasmtime-c-api-impl`, which runs `cmake` for the headers: **building the editor needs `cmake`** (the CI runners have it; on NixOS `nix shell nixpkgs#cmake`). A grammar is compiled each time a highlighter is made (a document opened), which is milliseconds for a small one; sharing the compiled module is the next step if a big grammar is slow.
 - **Tests.** The API (`message_tests`), the syntax crate (`plugin_tests`: the grammar of the Sol extension for Zed as a fixture, colors by its query, built-ins first, a bad grammar or query refused and the table unchanged, a language registered again or removed is not the one a document had, the first pattern wins), the manifests (`plugins/tests/manifest.rs`), and in the editor (`language_plugin_tests`: turned on in the manager and off again, on at start; one ignored test runs the plugin as its repository ships it, `TRCODE_PLUGIN_SOL_DIR`).
-- **Not built.** A language server from a plugin (a language server is the `language_servers` setting), icons, several languages in one plugin (the installer fetches one file), a language inside another (Markdown's injections).
+- **Not built.** A language server from a plugin (a language server is the `language_servers` setting), icons, several languages in one plugin (the installer fetches one file).
+
+### A language inside a language (plugin API 1.13, built)
+
+HTML has JavaScript in `<script>` and CSS in `<style>`, and the grammar parses both as `raw_text`. The manifest's `[language]` has an optional `injections`: a query in the form tree-sitter, Zed and Neovim use, written next to `highlights`.
+
+```
+(script_element (raw_text) @injection.content (#set! injection.language "javascript"))
+(style_element  (raw_text) @injection.content (#set! injection.language "css"))
+```
+
+- **What counts.** `@injection.content` is the text, and `(#set! injection.language "name")` says what it is: a name or an extension, in any case (`Language::by_name`: the editor's own languages, then plugins by name, then extensions, so `"js"` and `"JavaScript"` both do). The language is looked at when the highlighter is made, so a name is fixed in the query: `@injection.language` (the language is a word in the text, as in a Markdown fence) and `injection.combined` are not read. The content node's own range is the text (children included).
+- **Highlighting.** `spans` runs the injection query over the range asked for; each match is parsed with the other grammar, told to read only that range (`Parser::set_included_ranges`), and the other language's query colors it, with the other language's captures after the outer ones when two tie. Only matches that touch the range are parsed (as for Markdown's inline text), nothing is kept between calls but the parsers, and a stretch is parsed whole, so a very long `<script>` costs a parse of itself for each screenful asked.
+- **Where it stops.** One level: an injected language's own injections are not followed. A language does not hold itself (a pattern that names it is ignored). A language that is not there when the highlighter is made (the CSS plugin is off) is skipped and its text keeps the outer colors; turning the plugin on later is noticed by a document when it is next set up (reopened, or its language changes), not at once.
+- **Checked.** `register_language` compiles the injection query with the grammar, so one that is not valid refuses the plugin (`SyntaxError::Injections`) like a bad highlight query. A manifest may have `injections` without a level of the API check: an editor older than 1.13 ignores the key (and only misses the colors).
+- **Tests.** `plugin_tests`: the text in `<script>` has JavaScript's colors, a plugin's language inside a plugin's, a language that is not there changes nothing, only the range asked for is colored, a bad query refuses the language (the HTML grammar is a fixture, `fixtures/html.wasm`).
 
 ## Run configurations and a debugger (decided after a grill; all six steps built)
 
