@@ -432,3 +432,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 - [x] Run an HTML file: `open = "${file}"` in `.trcode/launch.toml` (decided after a grill; `docs/design.md`, "Run configurations"): opens the active tab's file (or a path from the project) with the system's program, no terminal tab, started counts as success, an untitled buffer is refused with "save it first"; `${file}` is the only placeholder
 - [x] "Run: Open Launch File" in the palette: opens `.trcode/launch.toml`, made from a template of commented examples when it is not there
+
+## Release 0.12.1
+- [x] Version 0.12.1 (after 0.12.0: `open = "${file}"` entries in `.trcode/launch.toml` open the active file with the system's program (an HTML file in the browser) without a terminal tab; "Run: Open Launch File" makes and opens the launch file from a template; the project's `.envrc` is loaded through `direnv` at startup)
