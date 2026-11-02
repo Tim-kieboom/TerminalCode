@@ -442,3 +442,4 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.12.3
 - [x] Version 0.12.3 (after 0.12.2: JavaScript functions, methods, calls and constructors are colored as such and not as variables)
+- [x] Tag `v0.12.3` (tagged on a90bd6d; CI green on Linux, macOS and Windows; the release run built the archives and SHA256SUMS; the draft is to be published by hand)
