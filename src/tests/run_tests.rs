@@ -1056,3 +1056,53 @@ fn open_launch_file_leaves_a_file_that_is_there_as_it_is() {
     );
     assert!(!rig.said_has("made"), "{:?}", rig.said());
 }
+
+const PLACEHOLDER_COMMAND: &str = r#"
+[[run]]
+name = "Serve"
+command = "sh"
+args = ["-c", "echo ARGS[$1][$2] ROOT[$ROOT] in $(pwd)", "x", "${file}", "${workspaceFolder}"]
+env = { ROOT = "${workspaceFolder}" }
+cwd = "${workspaceFolder}/sub"
+"#;
+
+#[test]
+fn a_command_gets_the_file_and_the_project_folder_in_its_arguments_variables_and_folder() {
+    let mut rig = rig(Setup {
+        has_target: false,
+        launch_file: Some(PLACEHOLDER_COMMAND),
+        ..Setup::default()
+    });
+    fs::create_dir(rig.root.join("sub")).unwrap();
+    let page = rig.root.join("page.html");
+    fs::write(&page, "<p>hi</p>").unwrap();
+    rig.app
+        .state_mut()
+        .workspace_mut()
+        .open_path(&page)
+        .unwrap();
+    let root = rig.root.display().to_string();
+
+    rig.run();
+    let wanted = format!(
+        "ARGS[{}][{root}] ROOT[{root}] in {root}/sub",
+        page.display()
+    );
+    // The line is long: it wraps on the screen, and the tab's text joins it again.
+    rig.wait_for(&wanted, |rig| rig.tab_text().contains(&wanted));
+}
+
+#[test]
+fn a_command_that_uses_the_file_is_not_started_for_an_untitled_buffer() {
+    let mut rig = rig(Setup {
+        has_target: false,
+        launch_file: Some(PLACEHOLDER_COMMAND),
+        ..Setup::default()
+    });
+    fs::create_dir(rig.root.join("sub")).unwrap();
+
+    rig.run();
+    rig.wait_for("the refusal", |rig| rig.said_has("save it first"));
+
+    assert_eq!(rig.tabs(), 0);
+}

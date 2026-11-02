@@ -313,7 +313,7 @@ open = "docs/index.html"
         [
             "entry 1: an `open` entry needs a `name`",
             "entry 2: `open` is empty",
-            "entry 3: `${dir}` is not known in `open`; only `${file}` is",
+            "entry 3: `${dir}` is not known; only `${file}` and `${workspaceFolder}` are",
             "entry 4: an entry with `open` has no `command`",
             "entry 5: an entry with `open` has no `args`",
         ]
@@ -322,17 +322,59 @@ open = "docs/index.html"
 }
 
 #[test]
-fn the_file_is_put_in_the_text_and_a_missing_file_is_told() {
-    use crate::{NoFile, expand_file};
+fn the_placeholders_are_put_in_the_text_and_a_missing_file_is_told() {
+    use crate::{NoFile, Places, expand};
+    let with_file = Places {
+        file: Some("/p/a.html"),
+        workspace_folder: "/p",
+    };
+    let untitled = Places {
+        file: None,
+        workspace_folder: "/p",
+    };
 
+    assert_eq!(expand("${file}", &with_file), Ok("/p/a.html".to_owned()));
     assert_eq!(
-        expand_file("${file}", Some("/p/a.html")),
-        Ok("/p/a.html".to_owned())
+        expand("${workspaceFolder}/web:${file}", &with_file),
+        Ok("/p/web:/p/a.html".to_owned())
     );
-    assert_eq!(expand_file("${file}", None), Err(NoFile));
+    assert_eq!(expand("${file}", &untitled), Err(NoFile));
     assert_eq!(
-        expand_file("docs/index.html", None),
-        Ok("docs/index.html".to_owned())
+        expand("${workspaceFolder}/web", &untitled),
+        Ok("/p/web".to_owned()),
+        "the folder is there without a file"
+    );
+}
+
+#[test]
+fn a_command_may_use_the_placeholders_in_its_arguments_variables_and_folder() {
+    let file = LaunchFile::parse(
+        r#"
+[[run]]
+name = "Serve"
+command = "python"
+args = ["serve.py", "${file}"]
+env = { ROOT = "${workspaceFolder}" }
+cwd = "${workspaceFolder}/web"
+
+[[run]]
+name = "Bad"
+command = "python"
+args = ["${nope}"]
+
+[[run]]
+target = "a:bin:a"
+cwd = "${home}"
+"#,
+    );
+
+    assert_eq!(file.entries().len(), 1);
+    assert_eq!(
+        problems(&file),
+        [
+            "entry 2: `${nope}` is not known; only `${file}` and `${workspaceFolder}` are",
+            "entry 3: `${home}` is not known; only `${file}` and `${workspaceFolder}` are",
+        ]
     );
 }
 

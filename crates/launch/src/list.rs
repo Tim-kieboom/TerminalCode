@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
-use crate::file::{FileEntry, LaunchFile, Patch, Problem};
+use crate::file::{FileEntry, LaunchFile, NoFile, Patch, Places, Problem, expand};
 use crate::target::{MetadataError, Target, TargetId, Targets};
 
 /// Which configuration; it is what the editor remembers as the active one. It does not
@@ -88,6 +88,28 @@ impl RunConfig {
             release: false,
             from_file: false,
         }
+    }
+
+    /// The arguments, variables and folder with `${file}` and `${workspaceFolder}` replaced.
+    /// `NoFile` when one of them has `${file}` and there is no file.
+    pub fn expand(&self, places: &Places<'_>) -> Result<Expanded, NoFile> {
+        Ok(Expanded {
+            args: self
+                .args
+                .iter()
+                .map(|arg| expand(arg, places))
+                .collect::<Result<_, _>>()?,
+            env: self
+                .env
+                .iter()
+                .map(|(name, value)| Ok((name.clone(), expand(value, places)?)))
+                .collect::<Result<_, _>>()?,
+            cwd: self
+                .cwd
+                .as_deref()
+                .map(|folder| expand(folder, places))
+                .transpose()?,
+        })
     }
 
     pub fn id(&self) -> &ConfigId {
@@ -196,6 +218,14 @@ impl RunConfig {
             self.release = release;
         }
     }
+}
+
+/// What a configuration is run with, once the placeholders are filled in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Expanded {
+    pub args: Vec<String>,
+    pub env: BTreeMap<String, String>,
+    pub cwd: Option<String>,
 }
 
 /// The run configurations, and what to tell the user about how they were made.

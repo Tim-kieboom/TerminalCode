@@ -435,3 +435,4 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.12.1
 - [x] Version 0.12.1 (after 0.12.0: `open = "${file}"` entries in `.trcode/launch.toml` open the active file with the system's program (an HTML file in the browser) without a terminal tab; "Run: Open Launch File" makes and opens the launch file from a template; the project's `.envrc` is loaded through `direnv` at startup)
+- [x] `${file}` and `${workspaceFolder}` in the `args`, `env` values and `cwd` of launch entries (commands, overrides, `open`) and the debugger's launch

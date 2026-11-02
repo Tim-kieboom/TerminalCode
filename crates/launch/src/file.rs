@@ -17,6 +17,7 @@
 //! [[run]]                      # opens a file with the system's program for it, no terminal
 //! name = "Preview"
 //! open = "${file}"             # the file of the active tab; a path is from the project
+//!                              # (${file} and ${workspaceFolder} also work in args, env, cwd)
 //! ```
 //!
 //! A problem in one entry is said and the entry is left out; the rest still count.
@@ -40,7 +41,7 @@ pub const TEMPLATE: &str = r#"# Run configurations of this project: what F5 star
 # and adds others. Nothing goes through a shell.
 
 # Opens the file of the active tab with the system's program for it (a browser for .html),
-# without a terminal tab. `${file}` is the only placeholder; a path is from the project.
+# without a terminal tab. `${file}` and `${workspaceFolder}` stand for the file of the active tab and the project folder.
 # [[run]]
 # name = "Preview"
 # open = "${file}"
@@ -254,6 +255,11 @@ fn override_of(target: &str, patch: Patch) -> Result<FileEntry, String> {
     if patch.name.as_deref() == Some("") {
         return Err("`name` is empty".to_owned());
     }
+    check_placeholders(texts_of(
+        patch.args.as_deref(),
+        patch.env.as_ref(),
+        patch.cwd.as_deref(),
+    ))?;
     Ok(FileEntry::Override { target, patch })
 }
 
@@ -274,6 +280,7 @@ fn command_of(
     if release.is_some() {
         return Err("`release` is for a target, not a command".to_owned());
     }
+    check_placeholders(texts_of(args.as_deref(), env.as_ref(), cwd.as_deref()))?;
     Ok(FileEntry::Command {
         name,
         program,
@@ -290,21 +297,20 @@ fn open_of(name: Option<String>, target: String) -> Result<FileEntry, String> {
     if target.is_empty() {
         return Err("`open` is empty".to_owned());
     }
-    if let Some(unknown) = unknown_placeholder(&target) {
-        return Err(format!(
-            "`{unknown}` is not known in `open`; only `${{file}}` is"
-        ));
-    }
+    check_placeholders([target.as_str()])?;
     Ok(FileEntry::Open { name, target })
 }
 
-/// The first `${...}` in `text` that is not `${file}`.
+/// The placeholders a value of the file may have.
+pub const PLACEHOLDERS: [&str; 2] = ["${file}", "${workspaceFolder}"];
+
+/// The first `${...}` in `text` that is not one of the `PLACEHOLDERS`.
 fn unknown_placeholder(text: &str) -> Option<&str> {
     let mut rest = text;
     while let Some(start) = rest.find("${") {
         let after = &rest[start..];
         let end = after.find('}').map_or(after.len(), |at| at + 1);
-        if &after[..end] != FILE_PLACEHOLDER {
+        if !PLACEHOLDERS.contains(&&after[..end]) {
             return Some(&after[..end]);
         }
         rest = &after[end..];
@@ -312,19 +318,51 @@ fn unknown_placeholder(text: &str) -> Option<&str> {
     None
 }
 
-/// What `open` of an entry says for the file of the active tab.
-pub const FILE_PLACEHOLDER: &str = "${file}";
+/// Why a value of the entry cannot be used: it has a `${...}` that is not known.
+fn check_placeholders<'a>(texts: impl IntoIterator<Item = &'a str>) -> Result<(), String> {
+    for text in texts {
+        if let Some(unknown) = unknown_placeholder(text) {
+            return Err(format!(
+                "`{unknown}` is not known; only `${{file}}` and `${{workspaceFolder}}` are"
+            ));
+        }
+    }
+    Ok(())
+}
 
-/// Why `${file}` could not be filled in.
+/// Every text of an entry that may have placeholders: arguments, variable values, folder.
+fn texts_of<'a>(
+    args: Option<&'a [String]>,
+    env: Option<&'a BTreeMap<String, String>>,
+    cwd: Option<&'a str>,
+) -> impl Iterator<Item = &'a str> {
+    let args = args.into_iter().flatten().map(String::as_str);
+    let env = env
+        .into_iter()
+        .flat_map(|env| env.values().map(String::as_str));
+    args.chain(env).chain(cwd)
+}
+
+/// What the placeholders stand for when something is run.
+#[derive(Debug, Clone, Copy)]
+pub struct Places<'a> {
+    /// The file of the active tab; none when it is untitled.
+    pub file: Option<&'a str>,
+    /// The project's folder.
+    pub workspace_folder: &'a str,
+}
+
+/// `${file}` was used and there is no file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NoFile;
 
-/// `target` with `${file}` replaced by `file`; `NoFile` when it has the placeholder and
-/// there is no file.
-pub fn expand_file(target: &str, file: Option<&str>) -> Result<String, NoFile> {
-    if !target.contains(FILE_PLACEHOLDER) {
-        return Ok(target.to_owned());
+/// `text` with the placeholders replaced; `NoFile` when it has `${file}` and there is no
+/// file.
+pub fn expand(text: &str, places: &Places<'_>) -> Result<String, NoFile> {
+    let text = text.replace("${workspaceFolder}", places.workspace_folder);
+    if !text.contains("${file}") {
+        return Ok(text);
     }
-    let file = file.ok_or(NoFile)?;
-    Ok(target.replace(FILE_PLACEHOLDER, file))
+    let file = places.file.ok_or(NoFile)?;
+    Ok(text.replace("${file}", file))
 }

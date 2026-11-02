@@ -285,7 +285,15 @@ impl App {
         };
         // Nothing is known to be at the adapter yet.
         self.state.breakpoints_mut().forget_sent();
-        let launch = self.launch_arguments(config, &program);
+        let launch = match self.launch_arguments(config, &program) {
+            Ok(launch) => launch,
+            Err(why) => {
+                feeder.text(format!("\n[{why}]\n").as_bytes());
+                feeder.finish(1);
+                self.state.notify_error(why);
+                return;
+            }
+        };
         feeder.text(b"\n[starting the debugger]\n");
         self.debug.session = Some(Active {
             client,
@@ -310,9 +318,14 @@ impl App {
 
     /// The arguments of `launch` for `lldb-dap`: the program, how it is run, and that the client
     /// starts it in a terminal.
-    fn launch_arguments(&self, config: &RunConfig, program: &std::path::Path) -> Value {
+    fn launch_arguments(
+        &self,
+        config: &RunConfig,
+        program: &std::path::Path,
+    ) -> Result<Value, &'static str> {
+        let expanded = self.expand_config(config)?;
         let root = self.project_root();
-        let cwd = match config.cwd() {
+        let cwd = match &expanded.cwd {
             Some(folder) => root.join(folder),
             None => root,
         };
@@ -324,19 +337,19 @@ impl App {
             _ => Vec::new(),
         };
         env.extend(
-            config
-                .env()
+            expanded
+                .env
                 .iter()
                 .map(|(name, value)| format!("{name}={value}")),
         );
-        json!({
+        Ok(json!({
             "program": program,
-            "args": config.args(),
+            "args": expanded.args,
             "cwd": cwd,
             "env": env,
             "stopOnEntry": false,
             "runInTerminal": true,
-        })
+        }))
     }
 
     /// What the adapter did, or answered: looked at when the app is told of it.

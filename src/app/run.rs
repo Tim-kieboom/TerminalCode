@@ -32,7 +32,8 @@ use crate::components::popups::confirm::Confirm;
 use crate::components::terminal::{MAX_TABS, TabExit};
 use crate::event::Event;
 use crate::launch::{
-    ArtifactFinder, ConfigId, LaunchFile, RunConfig, RunList, Targets, What, build_args, run_env,
+    ArtifactFinder, ConfigId, Expanded, LaunchFile, Places, RunConfig, RunList, Targets, What,
+    build_args, run_env,
 };
 use crate::pty::{Feeder, Session, Shell, SpawnConfig};
 
@@ -462,16 +463,12 @@ impl App {
     /// Opens what an `open` entry names with the system's program: `${file}` is the file of
     /// the active tab, a path is from the project. No tab, no waiting for the program.
     fn open_file(&mut self, target: &str) {
-        let file = self
-            .state
-            .editor()
-            .buffer()
-            .path()
-            .map(|path| path.display().to_string());
-        let Ok(text) = crate::launch::expand_file(target, file.as_deref()) else {
-            self.state
-                .notify_error("not running: the open file is untitled; save it first");
-            return;
+        let text = match self.expand_text(target) {
+            Ok(text) => text,
+            Err(why) => {
+                self.state.notify_error(why);
+                return;
+            }
         };
         let path = self.project_root().join(&text);
         let (system, front) = super::opener::system_opener();
@@ -482,6 +479,34 @@ impl App {
                 .state
                 .notify_error(format!("could not open {text}: {program}: {error}")),
         }
+    }
+
+    /// `text` with `${file}` (the file of the active tab) and `${workspaceFolder}` (the
+    /// project's folder) filled in. Says why not when there is no file.
+    pub(super) fn expand_text(&self, text: &str) -> Result<String, &'static str> {
+        let file = self.active_file_text();
+        let root = self.project_root().display().to_string();
+        let places = Places {
+            file: file.as_deref(),
+            workspace_folder: &root,
+        };
+        crate::launch::expand(text, &places).map_err(|_| UNTITLED)
+    }
+
+    /// The arguments, variables and folder of `config`, with the placeholders filled in.
+    pub(super) fn expand_config(&self, config: &RunConfig) -> Result<Expanded, &'static str> {
+        let file = self.active_file_text();
+        let root = self.project_root().display().to_string();
+        let places = Places {
+            file: file.as_deref(),
+            workspace_folder: &root,
+        };
+        config.expand(&places).map_err(|_| UNTITLED)
+    }
+
+    fn active_file_text(&self) -> Option<String> {
+        let buffer = self.state.editor().buffer();
+        buffer.path().map(|path| path.display().to_string())
     }
 
     /// Puts `session` in the tab of the configuration: the tab it has, or a new one. Shows the
@@ -631,17 +656,18 @@ impl App {
         let Some(events) = self.background.sender() else {
             return Err("running needs the event loop, which is not running".to_owned());
         };
+        let expanded = self.expand_config(config).map_err(str::to_owned)?;
         let root = self.project_root();
-        let directory = match config.cwd() {
+        let directory = match &expanded.cwd {
             Some(folder) => root.join(folder),
             None => root,
         };
         let mut env = extra;
-        env.extend(config.env().iter().map(|(k, v)| (k.clone(), v.clone())));
+        env.extend(expanded.env);
         let spawn = SpawnConfig {
             shell: Shell {
                 program: program.to_owned(),
-                args: config.args().to_vec(),
+                args: expanded.args,
             },
             directory,
             env,
@@ -711,6 +737,9 @@ impl App {
         self.active_run_id()
     }
 }
+
+/// Said when `${file}` is used and the active tab has no file.
+const UNTITLED: &str = "not running: the open file is untitled; save it first";
 
 /// What the program of a target is told that `cargo run` would tell it.
 fn run_env_of(config: &RunConfig) -> Vec<(String, String)> {
