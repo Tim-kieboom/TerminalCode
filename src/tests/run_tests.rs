@@ -1061,7 +1061,7 @@ const PLACEHOLDER_COMMAND: &str = r#"
 [[run]]
 name = "Serve"
 command = "sh"
-args = ["-c", "echo ARGS[$1][$2] ROOT[$ROOT] in $(pwd)", "x", "${file}", "${workspaceFolder}"]
+args = ["-c", "echo FILE[$1]; echo DIR[$2]; echo ROOT[$ROOT]; echo IN[$(pwd)]", "x", "${file}", "${workspaceFolder}"]
 env = { ROOT = "${workspaceFolder}" }
 cwd = "${workspaceFolder}/sub"
 "#;
@@ -1084,12 +1084,17 @@ fn a_command_gets_the_file_and_the_project_folder_in_its_arguments_variables_and
     let root = rig.root.display().to_string();
 
     rig.run();
-    let wanted = format!(
-        "ARGS[{}][{root}] ROOT[{root}] in {root}/sub",
-        page.display()
-    );
-    // The line is long: it wraps on the screen, and the tab's text joins it again.
-    rig.wait_for(&wanted, |rig| rig.tab_text().contains(&wanted));
+    // One short line for each, so that none wraps on the screen.
+    rig.wait_for_text(&format!("IN[{root}/sub]"));
+
+    let text = rig.tab_text();
+    for wanted in [
+        format!("FILE[{}]", page.display()),
+        format!("DIR[{root}]"),
+        format!("ROOT[{root}]"),
+    ] {
+        assert!(text.contains(&wanted), "{wanted} is not in:\n{text}");
+    }
 }
 
 #[test]
