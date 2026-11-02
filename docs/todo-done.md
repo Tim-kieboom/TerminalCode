@@ -439,3 +439,6 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 
 ## Release 0.12.2
 - [x] Version 0.12.2 (after 0.12.1: `${file}` and `${workspaceFolder}` in the `args`, `env` values and `cwd` of launch entries and of the debugger's launch)
+
+## Release 0.12.3
+- [x] Version 0.12.3 (after 0.12.2: JavaScript functions, methods, calls and constructors are colored as such and not as variables)
