@@ -27,6 +27,29 @@ const RUST_AFTER: &str = r#"
 (identifier) @variable
 "#;
 
+/// JavaScript: the grammar's query is written for a highlighter where the last of two patterns
+/// on the same text wins, and starts with `(identifier) @variable`, so here every function, call,
+/// constructor, constant and built-in would be a variable. The patterns that are more specific
+/// than that come first (the earlier one wins), and a tag of JSX is a keyword (themes have no `tag`).
+const JAVASCRIPT_BEFORE: &str = r#"
+(function_expression name: (identifier) @function)
+(function_declaration name: (identifier) @function)
+(method_definition name: (property_identifier) @function.method)
+(pair key: (property_identifier) @function.method value: [(function_expression) (arrow_function)])
+(assignment_expression left: (member_expression property: (property_identifier) @function.method) right: [(function_expression) (arrow_function)])
+(variable_declarator name: (identifier) @function value: [(function_expression) (arrow_function)])
+(assignment_expression left: (identifier) @function right: [(function_expression) (arrow_function)])
+(call_expression function: (identifier) @function)
+(call_expression function: (member_expression property: (property_identifier) @function.method))
+((identifier) @function.builtin (#eq? @function.builtin "require") (#is-not? local))
+((identifier) @variable.builtin (#match? @variable.builtin "^(arguments|module|console|window|document)$") (#is-not? local))
+([(identifier) (shorthand_property_identifier) (shorthand_property_identifier_pattern)] @constant (#match? @constant "^[A-Z_][A-Z\\d_]+$"))
+((identifier) @constructor (#match? @constructor "^[A-Z]"))
+(jsx_opening_element (identifier) @keyword (#match? @keyword "^[a-z][^.]*$"))
+(jsx_closing_element (identifier) @keyword (#match? @keyword "^[a-z][^.]*$"))
+(jsx_self_closing_element (identifier) @keyword (#match? @keyword "^[a-z][^.]*$"))
+"#;
+
 /// How a language writes a comment on one line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Comment {
@@ -169,6 +192,7 @@ impl Language {
     fn extra_highlights(self) -> (&'static str, &'static str) {
         match self {
             Self::Rust => (RUST_BEFORE, RUST_AFTER),
+            Self::JavaScript => (JAVASCRIPT_BEFORE, ""),
             _ => ("", ""),
         }
     }

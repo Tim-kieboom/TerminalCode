@@ -204,3 +204,28 @@ fn markdown_spans_never_overlap() {
         assert!(pair[0].range.end <= pair[1].range.start, "{pair:?}");
     }
 }
+
+#[test]
+fn javascript_functions_methods_and_constructors_are_not_taken_for_variables() {
+    let theme = Theme::from_toml(
+        "[\"syntax.function\"]\ntext = \"yellow\"\n[\"syntax.variable\"]\ntext = \"white\"\n[\"syntax.constructor\"]\ntext = \"cyan\"\n",
+    );
+    let source = "function go() {}\nconst run = () => 1;\nlet x = new Map();\ngo();\nx.size();\nclass A { m() {} }\n";
+    let mut highlighter = Highlighter::new(Language::JavaScript, &theme).unwrap();
+    let rope = Rope::from_str(source);
+    highlighter.parse(&rope).unwrap();
+    let found: Vec<(String, Color)> = highlighter
+        .spans(&rope, 0..source.len())
+        .into_iter()
+        .filter_map(|span| Some((source[span.range].to_owned(), span.style.fg?)))
+        .collect();
+
+    for function in ["go", "run", "size", "m"] {
+        assert!(
+            has(&found, function, Color::Yellow),
+            "{function}: {found:?}"
+        );
+    }
+    assert!(has(&found, "Map", Color::Cyan), "a constructor: {found:?}");
+    assert!(has(&found, "x", Color::White), "a variable: {found:?}");
+}
