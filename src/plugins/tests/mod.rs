@@ -922,6 +922,30 @@ fn a_file_to_open_is_handed_to_the_app_when_the_plugin_may() {
 }
 
 #[test]
+fn a_diff_to_show_is_handed_to_the_app_when_the_plugin_may_open_files() {
+    let rig = rig();
+    rig.runtime.load(
+        "opener",
+        asking(r#"{"type":"open_diff","request":4,"path":"src/a.rs"}"#),
+        [Capability::EditorOpen],
+    );
+    rig.next();
+    rig.runtime.send("opener", ToPlugin::action("go"));
+    rig.next();
+
+    let notice = rig.next();
+
+    assert_eq!(
+        notice,
+        Notice::OpenDiff {
+            plugin: "opener".into(),
+            request: 4,
+            path: "src/a.rs".into(),
+        }
+    );
+}
+
+#[test]
 fn a_file_to_open_needs_its_own_capability_and_no_repository() {
     let rig = rig();
     rig.load(

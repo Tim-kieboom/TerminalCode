@@ -250,6 +250,24 @@ impl App {
                 self.needs_redraw = true;
                 true
             }
+            // A click with `ctrl` on the marker column of the gutter, where the bar of a change
+            // is, shows the file next to the file as it is in `HEAD`. (A plain click there
+            // sets a breakpoint, and the changed lines are where breakpoints go.)
+            MouseEventKind::Down(MouseButton::Left)
+                if event.modifiers.contains(KeyModifiers::CONTROL)
+                    && self
+                        .state
+                        .workspace()
+                        .gutter_marker_at(column, row)
+                        .is_some() =>
+            {
+                let marker = self.state.workspace().gutter_marker_at(column, row);
+                if let Some((document, _)) = marker {
+                    self.open_diff_of(document);
+                }
+                self.needs_redraw = true;
+                true
+            }
             // A click on the marker column of the gutter sets or takes away a breakpoint.
             MouseEventKind::Down(MouseButton::Left) if !adds_cursor(event.modifiers) => {
                 let marker = self.state.workspace().gutter_marker_at(column, row);

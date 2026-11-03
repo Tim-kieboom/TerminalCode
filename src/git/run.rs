@@ -121,6 +121,34 @@ impl Git {
         }
     }
 
+    /// The text of the file `relative` (a path from the root of the repository) in `HEAD`.
+    pub(crate) fn head_text(&self, root: &Path, relative: &Path) -> Result<HeadText, GitError> {
+        let object = format!("HEAD:{}", slashed(relative));
+        let size = self.run(root, &["cat-file", "-s", &object])?;
+        if !size.success {
+            // 128: the file is not in `HEAD` (or there is no commit yet).
+            return match size.code {
+                Some(128) => Ok(HeadText::NotInHead),
+                _ => Err(failed("cat-file", first_line(&size.stderr))),
+            };
+        }
+        let bytes: usize = String::from_utf8_lossy(&size.stdout)
+            .trim()
+            .parse()
+            .map_err(|_| GitError::Unreadable("the size of a file in HEAD".to_owned()))?;
+        if bytes > super::MAX_DIFF_BYTES {
+            return Ok(HeadText::TooLarge);
+        }
+        let shown = self.run(root, &["show", &object])?;
+        if !shown.success {
+            return Err(failed("show", first_line(&shown.stderr)));
+        }
+        Ok(match String::from_utf8(shown.stdout) {
+            Ok(text) if !text.contains('\0') => HeadText::Text(text),
+            _ => HeadText::NotText,
+        })
+    }
+
     /// Runs a call that only reads and is expected to succeed.
     fn read(&self, dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
         let name = args.first().copied().unwrap_or_default();
@@ -218,6 +246,18 @@ impl Git {
             RunError::Cancelled => GitError::Cancelled,
         })
     }
+}
+
+/// What `HEAD` has of a file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum HeadText {
+    Text(String),
+    /// The file is new: `HEAD` does not have it.
+    NotInHead,
+    /// Not text (binary, or not valid UTF-8): nothing to compare line by line.
+    NotText,
+    /// Bigger than [`MAX_DIFF_BYTES`](super::MAX_DIFF_BYTES).
+    TooLarge,
 }
 
 /// `path` with `/` between its parts, which is how git names a path on every platform.

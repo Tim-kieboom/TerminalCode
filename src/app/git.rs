@@ -23,6 +23,8 @@ pub(super) struct Tracking {
     generation: u64,
     /// The status and the open documents the index texts were last asked for.
     bases_for: Option<(u64, u64)>,
+    /// The commit the diff tabs were last asked to take their `HEAD` text from again.
+    pub(super) diff_heads_asked: Option<Option<String>>,
 }
 
 impl App {
@@ -93,6 +95,7 @@ impl App {
                     self.needs_redraw = true;
                 }
                 self.git_bases_step();
+                self.diff_heads_step();
             }
             Err(error) if error.is_final() => {
                 self.git.off = true;

@@ -103,7 +103,8 @@ impl Lines {
     }
 }
 
-fn line_hashes(buffer: &Buffer) -> Vec<u64> {
+/// The hash of each line of the buffer, as the base of the marks is hashed.
+pub(crate) fn line_hashes(buffer: &Buffer) -> Vec<u64> {
     (0..buffer.len_lines())
         .map(|line| match buffer.line_content(line) {
             Ok(content) => hash_line(&content),

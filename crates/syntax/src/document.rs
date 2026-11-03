@@ -38,6 +38,9 @@ pub struct DocumentSyntax {
     /// Whether the newest question has not been answered yet.
     awaiting: bool,
     parses: Parses,
+    /// The file whose name gives the language when the buffer has no path of its own (the
+    /// old side of a diff).
+    language_path: Option<std::path::PathBuf>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -60,7 +63,15 @@ impl DocumentSyntax {
             submitted: None,
             awaiting: false,
             parses: Parses::default(),
+            language_path: None,
         }
+    }
+
+    /// Takes the language from the name of `path` for a buffer that has no path of its
+    /// own (a copy of a file as it was). A buffer with a path uses its own.
+    pub fn with_language_of(mut self, path: &std::path::Path) -> Self {
+        self.language_path = Some(path.to_path_buf());
+        self
     }
 
     pub fn key(&self) -> Key {
@@ -87,7 +98,10 @@ impl DocumentSyntax {
     /// if what it was last asked for is not that. The language comes from the
     /// buffer's path, so a rename that changes the extension changes it here.
     pub fn update(&mut self, buffer: &Buffer, ranges: &[Range<usize>], worker: &SyntaxWorker) {
-        let language = buffer.path().and_then(Language::from_path);
+        let language = buffer
+            .path()
+            .or(self.language_path.as_deref())
+            .and_then(Language::from_path);
         if self.language != language {
             if self.language.is_some() {
                 worker.forget(self.key);

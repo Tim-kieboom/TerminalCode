@@ -42,6 +42,7 @@ impl Workspace {
                 }
             }
         }
+        errors.extend(self.refresh_diff_highlights(worker));
         errors
     }
 
@@ -51,6 +52,7 @@ impl Workspace {
         for document in self.documents.values_mut() {
             document.syntax.start_over();
         }
+        self.restart_diff_highlights();
     }
 
     /// How the focused document's text has been parsed so far.
@@ -72,9 +74,13 @@ impl Workspace {
     /// Takes what the syntax worker found. Returns whether the screen has to
     /// be drawn again.
     pub(crate) fn accept_highlights(&mut self, output: Output) -> bool {
-        self.documents
+        match self
+            .documents
             .values_mut()
             .find(|document| document.syntax.key() == output.key)
-            .is_some_and(|document| document.syntax.accept(output))
+        {
+            Some(document) => document.syntax.accept(output),
+            None => self.accept_diff_highlights(output).unwrap_or(false),
+        }
     }
 }

@@ -40,6 +40,7 @@ mod editing;
 mod errors_view;
 mod formatting;
 mod git;
+mod git_diff;
 mod hover;
 mod lightbulb;
 mod open;
@@ -536,6 +537,14 @@ impl App {
                 request,
                 result,
             } => self.git_base_answer(document, request, result),
+            Event::GitHead {
+                document,
+                relative,
+                head,
+                open,
+                reply,
+                result,
+            } => self.git_head_answer(document, relative, head, open, reply, result),
             Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
             Event::DebugChanged => self.debug_changed(),

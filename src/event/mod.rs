@@ -55,6 +55,18 @@ pub(crate) enum Event {
         request: u64,
         result: Result<Option<Vec<u64>>, crate::git::GitError>,
     },
+    /// The text of a file in `HEAD`, asked for to show a diff of it (see `app/git_diff.rs`).
+    /// `open` is whether the diff is to be shown, or its tab only gets a new base.
+    GitHead {
+        /// The document of the file; `None` for a file that is gone from the disk.
+        document: Option<crate::ids::DocumentId>,
+        relative: std::path::PathBuf,
+        head: Option<String>,
+        open: bool,
+        /// The plugin and the request that asked for the diff, to be answered.
+        reply: Option<(Box<str>, u64)>,
+        result: Result<crate::git::HeadText, crate::git::GitError>,
+    },
     /// The index was fetched or an install moved on (see the plugin manager).
     PluginJob(crate::plugins::install::JobEvent),
     /// A save as root is over: it worked, or why not.

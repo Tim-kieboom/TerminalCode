@@ -33,6 +33,11 @@ gold        = "#d7ba7d"   # escapes
 comment     = "#6a9955"
 punctuation = "#d4d4d4"   # operators and punctuation
 
+# The rows of a diff: what was added, what was removed, and the padding
+diff_added   = "#1b3326"
+diff_removed = "#3b1d24"
+diff_filler  = "#26262d"
+
 ["pane.border"]
 text = "@muted"
 
@@ -162,6 +167,15 @@ modifiers = ["bold"]
 
 ["git.untracked"]
 text = "@teal"
+
+["diff.added"]
+background = "@diff_added"
+
+["diff.removed"]
+background = "@diff_removed"
+
+["diff.filler"]
+background = "@diff_filler"
 
 ["explorer.hint"]
 text = "@muted"

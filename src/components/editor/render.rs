@@ -12,7 +12,7 @@ use ratatui::widgets::Paragraph;
 
 use crate::buffer::{Buffer, Position, Selection};
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
-use crate::components::editor::{EditorRef, ViewState, display_name};
+use crate::components::editor::{EditorRef, Row, ViewState, display_name};
 use crate::components::popups::find::Find;
 use crate::components::text::fit;
 use crate::git::HunkKind;
@@ -51,6 +51,22 @@ pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect, frame: 
     if view.take_view_change(buffer.version()) {
         keep_cursor_visible(buffer, view, &geometry);
     }
+    view.sync_aligned_start();
+}
+
+/// Like [`prepare`] for the side of a diff that follows the other one: it only notes where
+/// its text goes, the rows being the ones the other side is at (`start`).
+pub(crate) fn prepare_following(
+    buffer: &Buffer,
+    view: &mut ViewState,
+    area: Rect,
+    frame: &PaneFrame,
+    start: usize,
+) {
+    let geometry = Geometry::new(frame.inner(area), buffer.len_lines());
+    view.set_viewport(geometry.text);
+    view.set_gutter(geometry.gutter);
+    view.set_aligned_start(start);
 }
 
 /// What one editor shows besides its frame.
@@ -75,6 +91,10 @@ pub(crate) struct Content<'a> {
     pub(crate) breakpoints: &'a [crate::breakpoints::Shown],
     /// The line the program is stopped on (in the debugger): an arrow and a colored line.
     pub(crate) stop_line: Option<usize>,
+    /// What stands in the frame's title, when it is not the name of the file.
+    pub(crate) title: Option<&'a str>,
+    /// Whether the cursor is drawn: not for the side of a diff that cannot be typed in.
+    pub(crate) cursor: bool,
 }
 
 /// Draws the editor into `area` inside `pane_frame`.
@@ -96,9 +116,11 @@ pub(crate) fn draw(
         action_line,
         breakpoints,
         stop_line,
+        title,
+        cursor,
     } = content;
     let (buffer, view) = (editor.buffer(), editor.view());
-    let name = display_name(buffer);
+    let name = title.map_or_else(|| display_name(buffer), str::to_owned);
     let block = pane_frame.block(theme, pane_frame.title_text(&name), focused);
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -114,6 +136,9 @@ pub(crate) fn draw(
         stop_line,
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
+    if !cursor {
+        return;
+    }
     for selection in view.selections().iter() {
         if std::ptr::eq(selection, view.selections().primary()) {
             continue;
@@ -192,16 +217,33 @@ fn draw_lines(
         overlays,
         geometry,
     };
-    let top = view.scroll().top;
-    let visible = top..top + usize::from(geometry.text.height);
-
     let mut numbers = Vec::new();
     let mut texts = Vec::new();
-    for line in visible.take_while(|line| *line < buffer.len_lines()) {
-        numbers.push(drawer.gutter(line));
-        if let Some(text) = drawer.text(line) {
-            texts.push(text);
-        }
+    let changed_slot = match view.diff_side() {
+        Some(crate::git::Side::Old) => "diff.removed",
+        _ => "diff.added",
+    };
+    for offset in 0..usize::from(geometry.text.height) {
+        let (number, text) = match view.row_at(offset, buffer.len_lines()) {
+            Row::End => break,
+            Row::Filler => {
+                let filler = theme.style("diff.filler");
+                (Line::from(" ").style(filler), Line::default().style(filler))
+            }
+            Row::Line(line) => {
+                let number = drawer.gutter(line);
+                let text = drawer.text(line).unwrap_or_default();
+                match view.row_is_changed(offset) {
+                    true => {
+                        let style = theme.style(changed_slot);
+                        (number.style(style), text.style(style))
+                    }
+                    false => (number, text),
+                }
+            }
+        };
+        numbers.push(number);
+        texts.push(text);
     }
 
     frame.render_widget(Paragraph::new(numbers), geometry.gutter);
@@ -437,7 +479,7 @@ fn cell_of(
     let column = text_layout::display_column(&content, head.column, view.tab_width());
 
     let (Some(row), Some(col)) = (
-        head.line.checked_sub(scroll.top),
+        view.offset_of_line(head.line),
         column.checked_sub(scroll.left),
     ) else {
         return None;

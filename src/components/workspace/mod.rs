@@ -25,12 +25,14 @@ use crate::syntax::worker::Key as SyntaxKey;
 
 use bulk::ClosedTab;
 pub(crate) use bulk::{CloseMany, CloseScope, SaveAll};
+pub(crate) use diff::too_large;
 pub(crate) use disk::{DiskEvent, LspDocument, SaveOutcome};
 pub(crate) use panes::neighbor_score;
 pub(crate) use tree::Divider;
 use tree::Node;
 
 mod bulk;
+mod diff;
 mod disk;
 mod documents;
 mod editing;
@@ -93,6 +95,9 @@ struct Tab {
     /// Pinned tabs sit at the left of the strip, are left alone by the close-many
     /// items and need an explicit close.
     pinned: bool,
+    /// Set when the tab shows the file next to the file as it is in `HEAD`: the left side.
+    /// `document` and `view` are the right side then.
+    diff: Option<Box<diff::DiffTab>>,
 }
 
 #[derive(Debug)]

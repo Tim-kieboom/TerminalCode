@@ -12,15 +12,23 @@ use std::time::Duration;
 use thiserror::Error;
 
 pub(crate) use actions::{ActionError, repository_path};
+pub(crate) use align::{Alignment, Side};
 pub(crate) use diff::{HunkKind, hash_lines};
-pub(crate) use lines::Lines;
+pub(crate) use lines::{Lines, line_hashes};
 pub(crate) use marks::{Mark, Marks};
 pub(crate) use parse::parse_status;
 pub(crate) use remote::AUTH_HINT;
-pub(crate) use run::Git;
+pub(crate) use run::{Git, HeadText};
 pub(crate) use schedule::Schedule;
 
+/// The most lines either side of a diff may have; a bigger file is not compared, because the
+/// comparison is worked out again after every edit.
+pub(crate) const MAX_DIFF_LINES: usize = 20_000;
+/// The most bytes either side of a diff may have, for the same reason.
+pub(crate) const MAX_DIFF_BYTES: usize = 2 * 1024 * 1024;
+
 mod actions;
+mod align;
 mod diff;
 mod lines;
 mod marks;

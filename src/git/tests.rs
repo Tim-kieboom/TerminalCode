@@ -1959,3 +1959,99 @@ fn discarding_refuses_a_path_that_is_not_right_and_a_section_that_cannot_be_disc
         Err(ActionError::BadArgument(_))
     ));
 }
+
+#[test]
+fn head_text_is_the_file_as_committed_whatever_the_working_copy_says() {
+    let dir = repository();
+    std::fs::write(dir.path().join("kept.txt"), "changed\nlocally\n").unwrap();
+    let root = canonical(dir.path());
+
+    let head = Git::default()
+        .head_text(&root, Path::new("kept.txt"))
+        .unwrap();
+
+    assert_eq!(head, HeadText::Text("one\n".to_owned()));
+}
+
+#[test]
+fn head_text_ignores_what_is_staged() {
+    let dir = repository();
+    std::fs::write(dir.path().join("kept.txt"), "staged\n").unwrap();
+    git(dir.path(), &["add", "kept.txt"]);
+    let root = canonical(dir.path());
+
+    let head = Git::default()
+        .head_text(&root, Path::new("kept.txt"))
+        .unwrap();
+
+    assert_eq!(head, HeadText::Text("one\n".to_owned()));
+}
+
+#[test]
+fn head_text_of_a_file_git_does_not_have_is_not_in_head() {
+    let dir = repository();
+    std::fs::write(dir.path().join("new.txt"), "x\n").unwrap();
+    git(dir.path(), &["add", "new.txt"]);
+    let root = canonical(dir.path());
+
+    let head = Git::default()
+        .head_text(&root, Path::new("new.txt"))
+        .unwrap();
+
+    assert_eq!(head, HeadText::NotInHead);
+}
+
+#[test]
+fn head_text_before_the_first_commit_is_not_in_head() {
+    let dir = tempfile::tempdir().unwrap();
+    git(dir.path(), &["init", "-q", "-b", "main"]);
+    std::fs::write(dir.path().join("a.txt"), "x\n").unwrap();
+    let root = canonical(dir.path());
+
+    let head = Git::default().head_text(&root, Path::new("a.txt")).unwrap();
+
+    assert_eq!(head, HeadText::NotInHead);
+}
+
+#[test]
+fn head_text_of_a_binary_file_is_not_text() {
+    let dir = repository();
+    std::fs::write(dir.path().join("data.bin"), [0u8, 159, 146, 150, 0]).unwrap();
+    git(dir.path(), &["add", "data.bin"]);
+    git(dir.path(), &["commit", "-q", "-m", "binary"]);
+    let root = canonical(dir.path());
+
+    let head = Git::default()
+        .head_text(&root, Path::new("data.bin"))
+        .unwrap();
+
+    assert_eq!(head, HeadText::NotText);
+}
+
+#[test]
+fn head_text_of_a_big_file_is_too_large() {
+    let dir = repository();
+    let big = "x".repeat(crate::git::MAX_DIFF_BYTES + 1);
+    commit_file(dir.path(), "big.txt", &big, "big");
+    let root = canonical(dir.path());
+
+    let head = Git::default()
+        .head_text(&root, Path::new("big.txt"))
+        .unwrap();
+
+    assert_eq!(head, HeadText::TooLarge);
+}
+
+#[test]
+fn head_text_names_a_path_with_a_space_and_a_folder() {
+    let dir = repository();
+    std::fs::create_dir(dir.path().join("my dir")).unwrap();
+    commit_file(dir.path(), "my dir/a b.txt", "spaced\n", "spaced");
+    let root = canonical(dir.path());
+
+    let head = Git::default()
+        .head_text(&root, Path::new("my dir").join("a b.txt").as_path())
+        .unwrap();
+
+    assert_eq!(head, HeadText::Text("spaced\n".to_owned()));
+}

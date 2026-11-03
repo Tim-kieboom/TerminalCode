@@ -443,3 +443,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 ## Release 0.12.3
 - [x] Version 0.12.3 (after 0.12.2: JavaScript functions, methods, calls and constructors are colored as such and not as variables)
 - [x] Tag `v0.12.3` (tagged on a90bd6d; CI green on Linux, macOS and Windows; the release run built the archives and SHA256SUMS; the draft is to be published by hand)
+
+- [x] A diff tab (decided after a grill; `docs/design.md`, "A diff of a file against HEAD"): the file in front next to the file as it is in `HEAD`, the real document on the right (edited and saved as usual) and a locked copy of `HEAD` on the left, changes lined up with filler rows, live while you type and when `HEAD` moves, limited to 20 000 lines / 2 MB; `git_open_diff` (`ctrl+k c`), `ctrl+click` on the gutter's bars, `alt+f5` / `shift+alt+f5` for the next and previous change; plugin API 1.15 `open_diff` (the Git plugin's list still has to use it)

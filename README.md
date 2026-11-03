@@ -95,6 +95,8 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | (`${file}`, `${workspaceFolder}`) | In `.trcode/launch.toml`, `args`, the values of `env`, `cwd` and `open` may use `${file}` (the active tab's file, whole path) and `${workspaceFolder}` (the project folder), as in VS Code. With `${file}` and an untitled buffer nothing runs |
 | palette: "Run: Open Launch File" | Opens `.trcode/launch.toml` for editing, made from a template of commented examples when the project has none |
 | (`open` in `launch.toml`) | `[[run]]` with `name = "Preview"` and `open = "${file}"` opens the file of the active tab with the system's program for it (a browser for `.html`), without a terminal tab; `open = "docs/index.html"` opens a fixed path from the project. An untitled buffer is refused: save it first |
+| `ctrl+k c` | Git: open a diff of the file in front: a tab with the file as it is in `HEAD` on the left and the file itself on the right, which you edit as usual. Changes line up row for row (blank rows pad the shorter side), and the comparison follows what you type. `ctrl+click` on the bar of a changed line in the gutter does the same (a plain click there sets a breakpoint) |
+| `alt+f5`, `shift+alt+f5` | In a diff tab: go to the next change, the previous change |
 | `ctrl+k r` | Choose which binary, example or command `f5` runs (and run it); it is remembered for the project and shown in the status bar |
 | `ctrl+k g` | Debug: build and start the active binary or example under `lldb-dap` (or the adapter named by `TRCODE_DEBUG_ADAPTER`), stopping at the breakpoints; `f5` goes on while a session runs |
 | `f10`, `f11`, `shift+f11`, `shift+f5`, `ctrl+shift+f5` | Debug, as in VS Code: step over, step into, step out, stop, restart |

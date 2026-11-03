@@ -95,6 +95,13 @@ pub(crate) enum Notice {
         line: Option<u32>,
         column: Option<u32>,
     },
+    /// A plugin with the capability asked to show a file next to the file as it is in
+    /// `HEAD`. The app shows it and answers the plugin with [`Runtime::send`].
+    OpenDiff {
+        plugin: Box<str>,
+        request: u64,
+        path: String,
+    },
     /// A plugin with the capability asked to change the repository. The app does
     /// it and answers the plugin with [`Runtime::send`].
     GitWrite {
@@ -811,7 +818,9 @@ impl Host {
                 | FromPlugin::GitPull { request }
                 | FromPlugin::GitPush { request }
                 | FromPlugin::GitCancel { request } => (*request, Capability::GitRemote, true),
-                FromPlugin::OpenFile { request, .. } => (*request, Capability::EditorOpen, false),
+                FromPlugin::OpenFile { request, .. } | FromPlugin::OpenDiff { request, .. } => {
+                    (*request, Capability::EditorOpen, false)
+                }
                 _ => continue,
             };
             let reply = if !grants.contains(&needs) {
@@ -984,6 +993,14 @@ impl Host {
                 path,
                 line,
                 column,
+            });
+            return None;
+        }
+        if let FromPlugin::OpenDiff { request, path } = request {
+            (self.notify)(Notice::OpenDiff {
+                plugin: plugin.into(),
+                request,
+                path,
             });
             return None;
         }

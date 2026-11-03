@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use ratatui::layout::Rect;
 
 use crate::buffer::{Position, Selections};
+use crate::git::{Alignment, Side};
 
 use super::{EditKind, IndentStyle, Scroll, TabWidth};
 
@@ -25,6 +28,28 @@ pub(crate) struct ViewState {
     /// How wide a tab character draws.
     pub(super) tab_width: TabWidth,
     pub(super) last_edit: Option<EditKind>,
+    /// Set when the rows are those of a diff, where a line may have filler rows around it.
+    pub(super) aligned: Option<AlignedRows>,
+}
+
+/// How one side of a diff is laid out: a row of the screen is a row of the alignment, so
+/// the rows of the two sides match.
+#[derive(Debug, Clone)]
+pub(crate) struct AlignedRows {
+    alignment: Arc<Alignment>,
+    side: Side,
+    /// The row of the alignment at the top of the text.
+    start: usize,
+}
+
+/// What stands in one row of the text area.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Row {
+    Line(usize),
+    /// Padding that keeps the other side of a diff in step: no line.
+    Filler,
+    /// Past the end of the text.
+    End,
 }
 
 impl ViewState {
@@ -69,6 +94,100 @@ impl ViewState {
         self.tab_width = tab_width;
     }
 
+    /// Lays the view out in the rows of `alignment`, as `side` of it.
+    pub(crate) fn set_aligned(&mut self, alignment: Arc<Alignment>, side: Side) {
+        let start = alignment.row_of(side, self.scroll.top);
+        self.aligned = Some(AlignedRows {
+            alignment,
+            side,
+            start,
+        });
+    }
+
+    /// Lays the view out in rows of its own again.
+    pub(crate) fn clear_aligned(&mut self) {
+        self.aligned = None;
+    }
+
+    /// The row of the alignment at the top of the text, when the view is part of a diff.
+    pub(crate) fn aligned_start(&self) -> Option<usize> {
+        self.aligned.as_ref().map(|aligned| aligned.start)
+    }
+
+    /// Starts the rows at `row`, for a view that follows another one.
+    pub(crate) fn set_aligned_start(&mut self, row: usize) {
+        if let Some(aligned) = &mut self.aligned {
+            aligned.start = row;
+        }
+    }
+
+    /// Takes the top of the rows from the scroll, after the scroll was set.
+    pub(crate) fn sync_aligned_start(&mut self) {
+        let top = self.scroll.top;
+        if let Some(aligned) = &mut self.aligned {
+            aligned.start = aligned.alignment.row_of(aligned.side, top);
+        }
+    }
+
+    /// What is in the row `offset` rows below the top of the text, of a text with `lines`
+    /// lines.
+    pub(crate) fn row_at(&self, offset: usize, lines: usize) -> Row {
+        match &self.aligned {
+            None => {
+                let line = self.scroll.top + offset;
+                match line < lines {
+                    true => Row::Line(line),
+                    false => Row::End,
+                }
+            }
+            Some(aligned) => {
+                let row = aligned.start + offset;
+                if row >= aligned.alignment.rows() {
+                    return Row::End;
+                }
+                match aligned.alignment.line_at(aligned.side, row) {
+                    Some(line) => Row::Line(line),
+                    None => Row::Filler,
+                }
+            }
+        }
+    }
+
+    /// Whether the row `offset` rows below the top is in a changed stretch of a diff.
+    pub(crate) fn row_is_changed(&self, offset: usize) -> bool {
+        self.aligned
+            .as_ref()
+            .is_some_and(|aligned| aligned.alignment.is_changed(aligned.start + offset))
+    }
+
+    /// Which side of a diff the view is, if it is part of one.
+    pub(crate) fn diff_side(&self) -> Option<Side> {
+        self.aligned.as_ref().map(|aligned| aligned.side)
+    }
+
+    /// How many rows below the top of the text `line` is, when it is not above the top.
+    pub(crate) fn offset_of_line(&self, line: usize) -> Option<usize> {
+        match &self.aligned {
+            None => line.checked_sub(self.scroll.top),
+            Some(aligned) => aligned
+                .alignment
+                .row_of(aligned.side, line)
+                .checked_sub(aligned.start),
+        }
+    }
+
+    /// The line a click `offset` rows below the top of the text means: the line in the row,
+    /// and for a filler row the line above it. Without diff rows it is the line that many
+    /// below the top, which may be past the end of the text.
+    pub(crate) fn line_for_offset(&self, offset: usize) -> usize {
+        match &self.aligned {
+            None => self.scroll.top + offset,
+            Some(aligned) => aligned
+                .alignment
+                .nearest_line(aligned.side, aligned.start + offset),
+        }
+    }
+
     /// A copy for a new pane showing the same document: same cursor and
     /// scroll, but nothing tied to the old pane's screen area.
     pub(crate) fn duplicate(&self) -> Self {
@@ -80,6 +199,7 @@ impl ViewState {
             drag_lines: None,
             seen_view: None,
             last_edit: None,
+            aligned: None,
             ..self.clone()
         }
     }
@@ -131,8 +251,11 @@ impl ViewState {
         let marker = gutter.right().checked_sub(1)?;
         let on_marker =
             gutter.width >= 2 && column == marker && row >= text.y && row < text.bottom();
-        let line = self.scroll.top + usize::from(row.checked_sub(text.y)?);
-        (on_marker && line < lines).then_some(line)
+        let offset = usize::from(row.checked_sub(text.y)?);
+        match self.row_at(offset, lines) {
+            Row::Line(line) if on_marker => Some(line),
+            _ => None,
+        }
     }
 
     /// Where the line numbers are on screen, as last drawn.
@@ -163,7 +286,30 @@ impl ViewState {
         width: usize,
     ) {
         self.viewport_height = height;
-        self.scroll.top = super::scroll_axis(self.scroll.top, line, height);
+        self.scroll.top = match &self.aligned {
+            None => super::scroll_axis(self.scroll.top, line, height),
+            Some(aligned) => aligned_top(aligned, self.scroll.top, line, height),
+        };
         self.scroll.left = super::scroll_axis(self.scroll.left, display_column, width);
     }
+}
+
+/// The top line that keeps `line` in view in a text of rows with filler in them: the rows,
+/// not the lines, have to fit in `height`.
+fn aligned_top(aligned: &AlignedRows, top: usize, line: usize, height: usize) -> usize {
+    let alignment = &aligned.alignment;
+    if height == 0 || line < top {
+        return line.min(top);
+    }
+    let row = alignment.row_of(aligned.side, line);
+    let top_row = alignment.row_of(aligned.side, top);
+    if row < top_row + height {
+        return top;
+    }
+    let wanted = row + 1 - height;
+    let mut first = alignment.nearest_line(aligned.side, wanted);
+    if alignment.row_of(aligned.side, first) < wanted {
+        first += 1;
+    }
+    first.min(line)
 }

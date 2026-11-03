@@ -116,6 +116,11 @@ impl App {
                 line,
                 column,
             } => self.plugin_open_file(&plugin, request, &path, line.zip(column.or(Some(1)))),
+            Notice::OpenDiff {
+                plugin,
+                request,
+                path,
+            } => self.plugin_open_diff(&plugin, request, &path),
         }
         self.needs_redraw = true;
     }

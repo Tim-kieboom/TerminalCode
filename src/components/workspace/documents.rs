@@ -174,7 +174,7 @@ impl Workspace {
             let Some(tab) = self.panes[index]
                 .tabs
                 .iter()
-                .position(|tab| tab.document == document)
+                .position(|tab| tab.document == document && tab.diff.is_none())
             else {
                 continue;
             };

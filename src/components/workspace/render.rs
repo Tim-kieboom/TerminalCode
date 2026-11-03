@@ -11,7 +11,7 @@ use crate::ui::layout::Placement;
 use crate::ui::pane_frame::PaneFrame;
 use crate::ui::theme::Theme;
 
-use super::Workspace;
+use super::{Tab, Workspace, diff};
 
 impl Render<AppState> for Workspace {
     /// Lays the panes out inside the placement, then lets each pane's active
@@ -53,7 +53,7 @@ impl Render<AppState> for Workspace {
 
                 let pin = if tab.pinned { PIN } else { "" };
                 let label = truncate(
-                    &format!(" {pin}{} ", self.tab_title(tab.document)),
+                    &format!(" {pin}{} ", self.tab_title(tab)),
                     usize::from(rect.width),
                 );
                 let slot = if index == pane.active {
@@ -78,6 +78,32 @@ impl Render<AppState> for Workspace {
             };
 
             let document = &self.documents[&tab.document];
+            let mut editor_area = pane.editor_area;
+            if let Some(side) = tab.diff_side() {
+                let (header, body) = diff::header_and_body(pane.editor_area);
+                let ((head_left, head_right), (left, right)) =
+                    (diff::sides_of(header), diff::sides_of(body));
+                editor_area = right;
+                let style = theme.style("tab.inactive");
+                frame.render_widget(Paragraph::new(side.heading).style(style), head_left);
+                frame.render_widget(Paragraph::new(" Working copy").style(style), head_right);
+                let no_marks = crate::git::Lines::default();
+                let old_side = editor_render::Content {
+                    editor: EditorRef::new(side.buffer, side.view),
+                    syntax: side.syntax.spans(),
+                    focused: false,
+                    live: false,
+                    find: None,
+                    diagnostics: &[],
+                    git: &no_marks,
+                    action_line: None,
+                    breakpoints: &[],
+                    stop_line: None,
+                    title: Some(side.title),
+                    cursor: false,
+                };
+                editor_render::draw(frame, theme, old_side, left, &placement.frame);
+            }
             let editor = EditorRef::new(&document.buffer, &tab.view);
             let shown_breakpoints = state.breakpoints().shown(tab.document);
             let content = editor_render::Content {
@@ -91,8 +117,10 @@ impl Render<AppState> for Workspace {
                 action_line: state.action_mark_in(tab.document),
                 breakpoints: &shown_breakpoints,
                 stop_line: state.debug().stop_line(document.buffer.path()),
+                title: None,
+                cursor: true,
             };
-            editor_render::draw(frame, theme, content, pane.editor_area, &placement.frame);
+            editor_render::draw(frame, theme, content, editor_area, &placement.frame);
 
             if let Some(find) = state.find().filter(|_| focused) {
                 find.render(frame, theme, pane.find_bar, state.find_focused());
@@ -107,11 +135,13 @@ const PIN: &str = "◆ ";
 impl Workspace {
     /// What a tab says: the file name, a mark for unsaved changes and a note
     /// when the file changed on disk under them.
-    fn tab_title(&self, document: super::DocumentId) -> String {
+    fn tab_title(&self, tab: &Tab) -> String {
+        let document = tab.document;
         let doc = &self.documents[&document];
         let read_only = if doc.read_only { " [read-only]" } else { "" };
+        let diff = if tab.diff.is_some() { " (diff)" } else { "" };
         format!(
-            "{}{read_only}{}",
+            "{}{diff}{read_only}{}",
             display_name(&doc.buffer),
             self.disk_note(document)
         )
@@ -123,7 +153,7 @@ impl Workspace {
             .iter()
             .map(|tab| {
                 let pin = if tab.pinned { PIN } else { "" };
-                format!(" {pin}{} ", self.tab_title(tab.document))
+                format!(" {pin}{} ", self.tab_title(tab))
             })
             .collect();
 
@@ -163,6 +193,10 @@ impl Workspace {
         pane.overflow = (bar.before, bar.after);
         pane.hidden = (bar.hidden_before, bar.hidden_after);
 
+        if self.layout_diff(index, frame) {
+            return;
+        }
+        let pane = &mut self.panes[index];
         let Some(tab) = pane.tabs.get_mut(pane.active) else {
             return;
         };

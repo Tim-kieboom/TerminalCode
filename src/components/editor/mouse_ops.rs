@@ -8,9 +8,9 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::buffer::{BufferError, Position, Selection, Selections};
 use crate::event::mouse::Clicks;
 
-use super::Editor;
 use super::motion::classify;
 use super::text_layout::{column_at_display, display_column};
+use super::{Editor, Row};
 
 /// Lines one wheel notch scrolls.
 const WHEEL_LINES: isize = 3;
@@ -109,8 +109,13 @@ impl Editor {
         if !gutter.contains(ScreenPosition::new(column, row)) {
             return None;
         }
-        let line = self.view.scroll.top + usize::from(row - text.y);
-        (line < self.buffer.len_lines()).then_some(line)
+        match self
+            .view
+            .row_at(usize::from(row - text.y), self.buffer.len_lines())
+        {
+            Row::Line(line) => Some(line),
+            _ => None,
+        }
     }
 
     fn press_line_number(&mut self, line: usize, extend: bool) -> Result<(), BufferError> {
@@ -242,7 +247,7 @@ impl Editor {
 
         let row = row.clamp(area.y, area.y + area.height - 1);
         let column = column.max(area.x);
-        let line = self.view.scroll.top + usize::from(row - area.y);
+        let line = self.view.line_for_offset(usize::from(row - area.y));
 
         let last_line = self.buffer.len_lines() - 1;
         if line > last_line {

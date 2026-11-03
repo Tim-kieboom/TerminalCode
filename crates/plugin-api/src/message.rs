@@ -200,6 +200,16 @@ pub enum FromPlugin {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         column: Option<u32>,
     },
+    /// Shows a file next to the file as it is in `HEAD`, in a tab of its own (needs
+    /// [`Capability::EditorOpen`]): `path` is from the root of the repository, as for
+    /// [`FromPlugin::OpenFile`]. The right side is the file itself, which the user can edit; a
+    /// file that is gone from the disk (a deleted one) has an empty right side that cannot be
+    /// edited, and one that `HEAD` does not have has an empty left side. The answer is
+    /// [`ToPlugin::Done`] when the tab is shown, [`Refusal::BadArgument`] for a path that
+    /// cannot be one, and [`Refusal::Failed`] with the reason when there is nothing to compare
+    /// (the file is not text, or is too large to compare, or is not in the repository).
+    /// Plugin API 1.15.
+    OpenDiff { request: u64, path: String },
     /// Stages the file (needs [`Capability::GitWrite`]): `path` is from the root
     /// of the repository, as in [`GitEntry::path`]. The answer is
     /// [`ToPlugin::Done`] or [`ToPlugin::Refused`].

@@ -27,6 +27,7 @@ mod finder_tests;
 mod focus_tests;
 mod format_tests;
 mod frame_tests;
+mod git_diff_tests;
 mod git_tests;
 mod hide_tests;
 mod highlight_tests;

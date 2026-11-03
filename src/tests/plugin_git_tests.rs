@@ -542,6 +542,112 @@ fn a_file_is_opened_from_the_project_when_there_is_no_repository() {
     assert_eq!(open_file_name(&rig).as_deref(), Some("a.txt"));
 }
 
+// --- showing a file next to its text in HEAD ---
+
+const DIFF_A: &str = r#"{"type":"open_diff","request":9,"path":"a.txt"}"#;
+
+fn in_diff(rig: &Rig) -> bool {
+    rig.app.state().workspace().active_is_diff()
+}
+
+#[test]
+fn a_plugin_that_may_shows_a_file_against_head_and_is_told_when_it_is_there() {
+    let mut rig = rig();
+    std::fs::write(rig.root().join("a.txt"), "alpha\nchanged\n").unwrap();
+    rig.load(asking(DIFF_A), OPEN);
+
+    let answer = rig.ask(r#"{"type":"done","request":9}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":9}"#);
+    assert!(in_diff(&rig));
+    assert_eq!(open_file_name(&rig).as_deref(), Some("a.txt"));
+}
+
+#[test]
+fn a_file_that_is_gone_from_the_disk_is_shown_against_head_with_an_empty_right_side() {
+    let mut rig = rig();
+    std::fs::remove_file(rig.root().join("a.txt")).unwrap();
+    rig.load(asking(DIFF_A), OPEN);
+
+    let answer = rig.ask(r#"{"type":"done","request":9}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":9}"#);
+    assert!(in_diff(&rig));
+    // The right side has no file, and cannot be typed in.
+    assert_eq!(open_file_name(&rig), None);
+    assert!(rig.app.state().editor().buffer().is_read_only());
+}
+
+#[test]
+fn a_file_that_is_neither_there_nor_in_head_has_nothing_to_show() {
+    let mut rig = rig();
+    rig.load(
+        asking(r#"{"type":"open_diff","request":9,"path":"nothing-here.txt"}"#),
+        OPEN,
+    );
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert!(answer.contains(r#""type":"failed""#), "{answer}");
+    assert!(
+        answer.contains("neither on the disk nor in HEAD"),
+        "{answer}"
+    );
+    assert!(!in_diff(&rig));
+}
+
+#[test]
+fn a_diff_without_the_capability_is_refused_and_nothing_opens() {
+    let mut rig = rig();
+    rig.load(asking(DIFF_A), READ);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":9,"reason":{"type":"denied","capability":"editor.open"}}"#
+    );
+    assert!(!in_diff(&rig));
+}
+
+#[test]
+fn a_diff_of_a_path_outside_the_repository_is_refused() {
+    let mut rig = rig();
+    rig.load(
+        asking(r#"{"type":"open_diff","request":9,"path":"../outside.txt"}"#),
+        OPEN,
+    );
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert!(answer.contains(r#""type":"bad_argument""#), "{answer}");
+}
+
+#[test]
+fn a_diff_in_a_folder_that_is_no_repository_is_refused() {
+    let mut rig = rig_in(false);
+    rig.load(asking(DIFF_A), OPEN);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert!(answer.contains(r#""type":"no_repository""#), "{answer}");
+}
+
+#[test]
+fn an_untracked_file_is_shown_with_nothing_on_the_left() {
+    let mut rig = rig();
+    rig.load(
+        asking(r#"{"type":"open_diff","request":9,"path":"b.txt"}"#),
+        OPEN,
+    );
+
+    let answer = rig.ask(r#"{"type":"done","request":9}"#);
+
+    assert_eq!(answer, r#"{"type":"done","request":9}"#);
+    assert!(in_diff(&rig));
+    assert_eq!(open_file_name(&rig).as_deref(), Some("b.txt"));
+}
+
 // --- stage all, unstage all, commit ---
 
 const STAGE_ALL: &str = r#"{"type":"git_stage_all","request":11}"#;

@@ -1429,3 +1429,17 @@ fn the_request_to_discard_the_changes_to_a_file_is_written_as_pinned() {
     assert_eq!(message.to_bytes().unwrap(), DISCARD.as_bytes());
     assert_eq!(FromPlugin::from_bytes(DISCARD.as_bytes()), Ok(message));
 }
+
+// --- plugin API 1.15: a file next to the file as it is in HEAD ---
+
+#[test]
+fn a_diff_is_asked_for_by_the_path_of_the_file() {
+    let wire = r#"{"type":"open_diff","request":8,"path":"src/a.rs"}"#;
+    let message = FromPlugin::OpenDiff {
+        request: 8,
+        path: "src/a.rs".into(),
+    };
+
+    assert_eq!(message.to_bytes().unwrap(), wire.as_bytes());
+    assert_eq!(FromPlugin::from_bytes(wire.as_bytes()), Ok(message));
+}

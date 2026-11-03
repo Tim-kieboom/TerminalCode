@@ -215,6 +215,11 @@ pub(crate) enum Action {
     /// Opens `.trcode/launch.toml` of the project for editing, made from a template with
     /// examples when it is not there yet.
     OpenLaunchFile,
+    /// Shows the file of the active tab next to the file as it is in `HEAD`, in a tab of its own.
+    GitOpenDiff,
+    /// In a diff tab: moves the cursor to the next change (or the one before).
+    DiffNextChange,
+    DiffPreviousChange,
     /// Builds the active run configuration and runs it under the debugger.
     Debug,
     /// Goes on from where the program stopped (`F5` does it too while a program is stopped).
@@ -442,6 +447,9 @@ impl Action {
             Self::Run => "Run: Run",
             Self::ChooseRun => "Run: Choose Configuration...",
             Self::OpenLaunchFile => "Run: Open Launch File",
+            Self::GitOpenDiff => "Git: Open Diff",
+            Self::DiffNextChange => "Git: Next Change in Diff",
+            Self::DiffPreviousChange => "Git: Previous Change in Diff",
             Self::Debug => "Debug: Start",
             Self::DebugContinue => "Debug: Continue",
             Self::DebugStepOver => "Debug: Step Over",
@@ -589,6 +597,9 @@ impl Action {
             Self::Run,
             Self::ChooseRun,
             Self::OpenLaunchFile,
+            Self::GitOpenDiff,
+            Self::DiffNextChange,
+            Self::DiffPreviousChange,
             Self::Debug,
             Self::DebugContinue,
             Self::DebugStepOver,

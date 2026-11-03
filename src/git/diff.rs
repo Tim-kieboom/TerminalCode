@@ -46,6 +46,15 @@ pub(crate) fn hash_lines(text: &str) -> Vec<u64> {
 
 /// The changes that make `old` into `new`, in order of line.
 pub(crate) fn diff(old: &[u64], new: &[u64]) -> Vec<Hunk> {
+    blocks(old, new)
+        .into_iter()
+        .flat_map(|block| hunks_of(block, 0))
+        .collect()
+}
+
+/// The stretches of `old` that are replaced by stretches of `new` (either may be empty,
+/// not both), in order, in the numbering of the whole texts.
+pub(crate) fn blocks(old: &[u64], new: &[u64]) -> Vec<Block> {
     let prefix = old.iter().zip(new).take_while(|(a, b)| a == b).count();
     let (old, new) = (&old[prefix..], &new[prefix..]);
     let suffix = old
@@ -64,16 +73,20 @@ pub(crate) fn diff(old: &[u64], new: &[u64]) -> Vec<Hunk> {
     });
     blocks
         .into_iter()
-        .flat_map(|block| hunks_of(block, prefix))
+        .filter(|block| !block.old.is_empty() || !block.new.is_empty())
+        .map(|block| Block {
+            old: block.old.start + prefix..block.old.end + prefix,
+            new: block.new.start + prefix..block.new.end + prefix,
+        })
         .collect()
 }
 
 /// A stretch of `old` that is replaced by a stretch of `new` (either may be
 /// empty).
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Block {
-    old: Range<usize>,
-    new: Range<usize>,
+pub(crate) struct Block {
+    pub old: Range<usize>,
+    pub new: Range<usize>,
 }
 
 /// The hunks of one block, `prefix` lines further down.

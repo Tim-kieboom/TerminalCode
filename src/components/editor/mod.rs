@@ -10,7 +10,7 @@ pub(crate) use indent::{IndentKind, IndentPrefs, IndentStyle};
 pub(crate) use motion::Motion;
 pub(crate) use replace::Replacement;
 pub(crate) use text_layout::TabWidth;
-pub(crate) use view_state::ViewState;
+pub(crate) use view_state::{Row, ViewState};
 
 mod clipboard_ops;
 mod comment;
@@ -75,7 +75,7 @@ impl<'a> EditorRef<'a> {
         let content = self.buffer.line_content(head.line).ok()?;
         let column = text_layout::display_column(&content, head.column, self.view.tab_width());
         let scroll = self.view.scroll();
-        let row = head.line.checked_sub(scroll.top)?;
+        let row = self.view.offset_of_line(head.line)?;
         let column = column.checked_sub(scroll.left)?;
         if row >= usize::from(area.height) || column >= usize::from(area.width) {
             return None;
@@ -95,7 +95,12 @@ impl<'a> EditorRef<'a> {
             return None;
         }
         let scroll = self.view.scroll();
-        let line = scroll.top + usize::from(row - area.y);
+        let Row::Line(line) = self
+            .view
+            .row_at(usize::from(row - area.y), self.buffer.len_lines())
+        else {
+            return None;
+        };
         let content = self.buffer.line_content(line).ok()?;
         let display = scroll.left + usize::from(column - area.x);
         let tab_width = self.view.tab_width();

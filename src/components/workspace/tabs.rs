@@ -153,7 +153,11 @@ impl Workspace {
         let shared = self.views_of(document) > 1;
         self.reset_confirmations();
         let pane = &mut self.panes[index];
-        pane.tabs.remove(tab_index);
+        let removed = pane.tabs.remove(tab_index);
+        if let Some(diff) = removed.diff.as_deref() {
+            self.forgotten.push(diff.key());
+        }
+        let pane = &mut self.panes[index];
         pane.active = if tab_index < pane.active {
             pane.active - 1
         } else {
@@ -209,6 +213,7 @@ impl Workspace {
             document,
             view,
             pinned: false,
+            diff: None,
         }
     }
 
