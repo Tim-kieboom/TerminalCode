@@ -461,7 +461,7 @@ fn a_right_click_on_a_file_opens_its_menu_and_stage_file_stages_that_file() {
     });
 
     // The editor's menu, with the titles and the keys of the plugin's actions.
-    assert_eq!(rig.menu(), ["Open File", "Stage File"]);
+    assert_eq!(rig.menu(), ["Open File", "Stage File", "Discard Changes"]);
     let screen = rig.screen();
     assert!(
         screen.contains("Open File") && screen.contains("Stage File"),
@@ -485,7 +485,7 @@ fn a_right_click_on_a_staged_file_offers_to_unstage_it_and_on_a_heading_the_whol
     rig.wait_until("the menu", |rig| {
         matches!(rig.app.state().popup(), Popup::Menu(_))
     });
-    assert_eq!(rig.menu(), ["Open File", "Unstage File"]);
+    assert_eq!(rig.menu(), ["Open File", "Unstage File", "Discard Changes"]);
     rig.press(KeyCode::Down);
     rig.press(KeyCode::Enter);
     rig.wait_until("b.txt to be unstaged", |rig| rig.cached() == "a.txt");
@@ -497,4 +497,51 @@ fn a_right_click_on_a_staged_file_offers_to_unstage_it_and_on_a_heading_the_whol
     assert_eq!(rig.menu(), ["Unstage All"]);
     rig.press(KeyCode::Enter);
     rig.wait_until("everything unstaged", |rig| rig.cached().is_empty());
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn d_asks_and_only_a_yes_throws_the_changes_of_the_file_away() {
+    let mut rig = started();
+    rig.wait_until("the file", |rig| rig.has_row("M a.txt"));
+
+    rig.press(KeyCode::Char('d'));
+    rig.wait_until("the question", |rig| rig.app.state().confirm().is_some());
+    assert_eq!(
+        fs::read_to_string(rig.root.join("a.txt")).unwrap(),
+        "alpha changed\n",
+        "asked, not done"
+    );
+    rig.press(KeyCode::Char('n'));
+    rig.wait_until("the pane to say so", |rig| rig.has_row("not discarded"));
+    assert_eq!(
+        fs::read_to_string(rig.root.join("a.txt")).unwrap(),
+        "alpha changed\n"
+    );
+
+    rig.press(KeyCode::Char('d'));
+    rig.wait_until("the question again", |rig| {
+        rig.app.state().confirm().is_some()
+    });
+    rig.press(KeyCode::Char('y'));
+    rig.wait_until("the file to be as committed", |rig| {
+        fs::read_to_string(rig.root.join("a.txt")).unwrap() == "alpha\n"
+    });
+    rig.wait_until("the pane to follow", |rig| !rig.has_row("M a.txt"));
+}
+
+#[test]
+#[ignore = "needs the module built for wasm32"]
+fn d_on_an_untracked_file_deletes_it_after_a_yes() {
+    let mut rig = started();
+    rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Down);
+
+    rig.press(KeyCode::Char('d'));
+    rig.wait_until("the question", |rig| rig.app.state().confirm().is_some());
+    rig.press(KeyCode::Char('y'));
+
+    rig.wait_until("the file to go", |rig| !rig.root.join("b.txt").exists());
+    rig.wait_until("the pane to follow", |rig| !rig.has_row("U b.txt"));
 }
