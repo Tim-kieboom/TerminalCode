@@ -206,6 +206,18 @@ pub enum FromPlugin {
     GitStage { request: u64, path: String },
     /// Takes the file out of the staged changes (needs [`Capability::GitWrite`]).
     GitUnstage { request: u64, path: String },
+    /// Throws away the changes to the file in `section` (needs [`Capability::GitWrite`]), which
+    /// cannot be undone, so the editor asks the user first and the answer waits for it:
+    /// [`GitSection::Changes`] puts the file back as it is staged (or as it was committed),
+    /// [`GitSection::Staged`] puts it back as it was committed (a file that was added is
+    /// removed), and [`GitSection::Untracked`] deletes the file or folder. Any other section is
+    /// [`Refusal::BadArgument`], a user who says no is [`Refusal::Cancelled`], and the answer
+    /// for a done change is [`ToPlugin::Done`]. Plugin API 1.14.
+    GitDiscard {
+        request: u64,
+        path: String,
+        section: GitSection,
+    },
     /// Stages every change in the working folder (needs [`Capability::GitWrite`]).
     /// Plugin API 1.4.
     GitStageAll { request: u64 },

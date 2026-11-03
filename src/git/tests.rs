@@ -1840,3 +1840,122 @@ fn a_remote_command_that_never_ends_is_given_up_on_at_the_limit() {
     );
     assert!(started.elapsed() < Duration::from_secs(5));
 }
+
+// --- discarding changes ---
+
+use crate::plugin_api::GitSection;
+
+fn read(root: &Path, name: &str) -> String {
+    std::fs::read_to_string(root.join(name)).unwrap()
+}
+
+#[test]
+fn discarding_changes_puts_the_file_back_as_staged_and_keeps_what_is_staged() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    let git = Git::default();
+    std::fs::write(root.join("kept.txt"), "two\n").unwrap();
+    git.stage(&root, "kept.txt").unwrap();
+    std::fs::write(root.join("kept.txt"), "three\n").unwrap();
+
+    git.discard(&root, "kept.txt", GitSection::Changes).unwrap();
+
+    assert_eq!(read(&root, "kept.txt"), "two\n");
+    assert_eq!(
+        staged_and_unstaged(&git.status(&root).unwrap(), "kept.txt"),
+        Some(tracked(Some(Kind::Modified), None))
+    );
+}
+
+#[test]
+fn discarding_a_deleted_file_brings_it_back() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::remove_file(root.join("kept.txt")).unwrap();
+
+    Git::default()
+        .discard(&root, "kept.txt", GitSection::Changes)
+        .unwrap();
+
+    assert_eq!(read(&root, "kept.txt"), "one\n");
+}
+
+#[test]
+fn discarding_staged_changes_puts_the_file_back_as_committed() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    let git = Git::default();
+    std::fs::write(root.join("kept.txt"), "two\n").unwrap();
+    git.stage(&root, "kept.txt").unwrap();
+    std::fs::write(root.join("kept.txt"), "three\n").unwrap();
+
+    git.discard(&root, "kept.txt", GitSection::Staged).unwrap();
+
+    assert_eq!(read(&root, "kept.txt"), "one\n");
+    assert_eq!(git.status(&root).unwrap().entries, vec![]);
+}
+
+#[test]
+fn discarding_a_staged_new_file_removes_it() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    let git = Git::default();
+    std::fs::write(root.join("new.txt"), "x\n").unwrap();
+    git.stage(&root, "new.txt").unwrap();
+
+    git.discard(&root, "new.txt", GitSection::Staged).unwrap();
+
+    assert!(!root.join("new.txt").exists());
+    assert_eq!(git.status(&root).unwrap().entries, vec![]);
+}
+
+#[test]
+fn discarding_an_untracked_file_or_folder_deletes_it_and_only_it() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::create_dir(root.join("loose")).unwrap();
+    std::fs::write(root.join("loose/a.txt"), "a\n").unwrap();
+    std::fs::write(root.join("other.txt"), "o\n").unwrap();
+    std::fs::write(root.join("keep.txt"), "k\n").unwrap();
+    let git = Git::default();
+
+    git.discard(&root, "loose/", GitSection::Untracked).unwrap();
+    git.discard(&root, "other.txt", GitSection::Untracked)
+        .unwrap();
+
+    assert!(!root.join("loose").exists());
+    assert!(!root.join("other.txt").exists());
+    assert!(root.join("keep.txt").exists(), "another file is left");
+    assert_eq!(read(&root, "kept.txt"), "one\n");
+}
+
+#[test]
+fn a_path_is_never_a_pattern_when_discarding() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    std::fs::write(root.join("a.txt"), "a\n").unwrap();
+    std::fs::write(root.join("b.txt"), "b\n").unwrap();
+
+    Git::default()
+        .discard(&root, "*.txt", GitSection::Untracked)
+        .unwrap();
+
+    assert!(root.join("a.txt").exists() && root.join("b.txt").exists());
+    assert_eq!(read(&root, "kept.txt"), "one\n");
+}
+
+#[test]
+fn discarding_refuses_a_path_that_is_not_right_and_a_section_that_cannot_be_discarded() {
+    let dir = repository();
+    let root = canonical(dir.path());
+    let git = Git::default();
+
+    assert!(matches!(
+        git.discard(&root, "../outside", GitSection::Changes),
+        Err(ActionError::BadArgument(_))
+    ));
+    assert!(matches!(
+        git.discard(&root, "kept.txt", GitSection::Conflicts),
+        Err(ActionError::BadArgument(_))
+    ));
+}

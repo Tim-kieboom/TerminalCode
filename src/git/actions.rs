@@ -7,6 +7,7 @@ use thiserror::Error;
 
 use super::GitError;
 use super::run::{Git, Outcome, failed, first_line};
+use crate::plugin_api::GitSection;
 
 /// Why an action was not done.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -66,6 +67,40 @@ impl Git {
     /// working folder. (`reset` also works before the first commit.)
     pub(crate) fn unstage(&self, root: &Path, path: &str) -> Result<(), ActionError> {
         self.change_index(root, "reset", &["reset", "-q", "--"], path)
+    }
+
+    /// Throws away the changes to the file at `path` in `section`, for good: `Changes` puts it
+    /// back as it is staged, `Staged` as it was committed (a file that was added is removed
+    /// from the index and the working folder), `Untracked` deletes it (a folder with all in it).
+    /// The path is taken as it is, never as a pattern (`run_write` makes git read them literally).
+    pub(crate) fn discard(
+        &self,
+        root: &Path,
+        path: &str,
+        section: GitSection,
+    ) -> Result<(), ActionError> {
+        let path = repository_path(path)?;
+        let (name, args): (&str, Vec<&str>) = match section {
+            GitSection::Changes => ("checkout", vec!["checkout", "--", &path]),
+            GitSection::Untracked => ("clean", vec!["clean", "-f", "-d", "-q", "--", &path]),
+            GitSection::Staged => {
+                let committed = self.run(root, &["cat-file", "-e", &format!("HEAD:{path}")])?;
+                match committed.success {
+                    true => ("checkout", vec!["checkout", "HEAD", "--", &path]),
+                    false => ("rm", vec!["rm", "-f", "-q", "--", &path]),
+                }
+            }
+            _ => {
+                return Err(ActionError::BadArgument(
+                    "only changes, staged changes and untracked files can be discarded".to_owned(),
+                ));
+            }
+        };
+        let outcome = self.run_write(root, &args)?;
+        match outcome.success {
+            true => Ok(()),
+            false => Err(failed(name, first_line(&outcome.stderr)).into()),
+        }
     }
 
     /// Stages every change in the working folder: new files, changes and deletions.

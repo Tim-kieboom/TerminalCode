@@ -915,3 +915,100 @@ fn the_plugin_can_stop_the_command_itself() {
             .any(|text| text.contains(r#"{"type":"done","request":24}"#))
     });
 }
+
+// --- throwing changes away ---
+
+const DISCARD_B: &str =
+    r#"{"type":"git_discard","request":8,"path":"b.txt","section":"untracked"}"#;
+
+impl Rig {
+    /// Makes the plugin ask and waits until the question to the user is on the screen.
+    fn ask_the_user(&mut self) {
+        self.app.run_action(Action::Plugin("hello:go".into()));
+        self.wait_until("the question", |rig| rig.app.state().confirm().is_some());
+    }
+
+    fn say(&mut self, key: char) {
+        self.app.handle_input(crossterm::event::Event::Key(
+            crossterm::event::KeyEvent::new(
+                crossterm::event::KeyCode::Char(key),
+                crossterm::event::KeyModifiers::NONE,
+            ),
+        ));
+    }
+}
+
+#[test]
+fn nothing_is_thrown_away_until_the_user_says_yes() {
+    let mut rig = rig();
+    rig.load(asking(DISCARD_B), WRITE);
+
+    rig.ask_the_user();
+
+    assert!(rig.root().join("b.txt").exists(), "asked, not done");
+    rig.say('y');
+    rig.wait_until("the file to go", |rig| !rig.root().join("b.txt").exists());
+}
+
+#[test]
+fn a_yes_throws_the_changes_away_and_the_plugin_is_told_it_is_done() {
+    let mut rig = rig();
+    rig.load(asking(DISCARD_B), WRITE);
+    rig.ask_the_user();
+    let before = rig.seen.len();
+
+    rig.say('y');
+    rig.wait_until("done", |rig| {
+        rig.seen[before.min(rig.seen.len())..]
+            .iter()
+            .any(|text| text == r#"{"type":"done","request":8}"#)
+    });
+
+    assert!(!rig.root().join("b.txt").exists());
+}
+
+#[test]
+fn a_no_keeps_the_file_and_tells_the_plugin_it_was_cancelled() {
+    let mut rig = rig();
+    rig.load(asking(DISCARD_B), WRITE);
+    rig.ask_the_user();
+    let before = rig.seen.len();
+
+    rig.say('n');
+    rig.wait_until("the cancel", |rig| {
+        rig.seen[before.min(rig.seen.len())..]
+            .iter()
+            .any(|text| text == r#"{"type":"refused","request":8,"reason":{"type":"cancelled"}}"#)
+    });
+
+    assert!(rig.root().join("b.txt").exists());
+}
+
+#[test]
+fn discarding_without_the_capability_is_refused_and_the_user_is_not_asked() {
+    let mut rig = rig();
+    rig.load(asking(DISCARD_B), READ);
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert_eq!(
+        answer,
+        r#"{"type":"refused","request":8,"reason":{"type":"denied","capability":"git.write"}}"#
+    );
+    assert!(rig.app.state().confirm().is_none());
+    assert!(rig.root().join("b.txt").exists());
+}
+
+#[test]
+fn a_section_that_cannot_be_discarded_is_refused_without_asking() {
+    let mut rig = rig();
+    rig.load(
+        asking(r#"{"type":"git_discard","request":9,"path":"b.txt","section":"conflicts"}"#),
+        WRITE,
+    );
+
+    let answer = rig.ask(r#""type":"refused""#);
+
+    assert!(answer.contains(r#""type":"bad_argument""#), "{answer}");
+    assert!(rig.app.state().confirm().is_none());
+}

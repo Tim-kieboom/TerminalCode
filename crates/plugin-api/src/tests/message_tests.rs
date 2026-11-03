@@ -1413,3 +1413,19 @@ injections = '''
 
     assert!(language.injections.contains("injection.language"));
 }
+
+// --- plugin API 1.14: throwing away the changes to a file ---
+
+const DISCARD: &str = r#"{"type":"git_discard","request":4,"path":"src/a.rs","section":"changes"}"#;
+
+#[test]
+fn the_request_to_discard_the_changes_to_a_file_is_written_as_pinned() {
+    let message = FromPlugin::GitDiscard {
+        request: 4,
+        path: "src/a.rs".into(),
+        section: crate::GitSection::Changes,
+    };
+
+    assert_eq!(message.to_bytes().unwrap(), DISCARD.as_bytes());
+    assert_eq!(FromPlugin::from_bytes(DISCARD.as_bytes()), Ok(message));
+}

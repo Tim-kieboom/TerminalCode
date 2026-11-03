@@ -24,8 +24,8 @@ use super::view::node_of;
 use super::{CALLBACK_FUEL, FUEL_PER_BYTE, OWNED_FUEL_CEILING, Thread};
 use crate::git::Status;
 use crate::plugin_api::{
-    Capability, FromPlugin, MAX_MENU_ITEMS, MAX_POPUP_TEXT, Refusal, RunPattern, RunStream,
-    ToPlugin, WireMenuItem,
+    Capability, FromPlugin, GitSection, MAX_MENU_ITEMS, MAX_POPUP_TEXT, Refusal, RunPattern,
+    RunStream, ToPlugin, WireMenuItem,
 };
 use crate::ui::view::ViewNode;
 
@@ -34,6 +34,8 @@ use crate::ui::view::ViewNode;
 pub(crate) enum WriteOp {
     Stage(String),
     Unstage(String),
+    /// Throw away the changes to a file in a section (the user is asked first).
+    Discard(String, GitSection),
     StageAll,
     UnstageAll,
     Commit(String),
@@ -801,6 +803,7 @@ impl Host {
                 FromPlugin::GitEntries { request, .. } => (*request, Capability::GitRead, true),
                 FromPlugin::GitStage { request, .. }
                 | FromPlugin::GitUnstage { request, .. }
+                | FromPlugin::GitDiscard { request, .. }
                 | FromPlugin::GitStageAll { request }
                 | FromPlugin::GitUnstageAll { request }
                 | FromPlugin::GitCommit { request, .. } => (*request, Capability::GitWrite, true),
@@ -998,6 +1001,14 @@ impl Host {
             }
             FromPlugin::GitUnstage { request, path } => {
                 self.to_app(plugin, request, WriteOp::Unstage(path));
+                None
+            }
+            FromPlugin::GitDiscard {
+                request,
+                path,
+                section,
+            } => {
+                self.to_app(plugin, request, WriteOp::Discard(path, section));
                 None
             }
             FromPlugin::GitStageAll { request } => {

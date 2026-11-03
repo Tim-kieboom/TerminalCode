@@ -5,8 +5,11 @@ use crossterm::event::KeyEvent;
 use std::path::{Path, PathBuf};
 
 use crate::app::App;
+use crate::app::plugins::refused;
 use crate::components::popups::confirm::{Answer, Confirm, Purpose};
 use crate::files::removal::{self, TrashFn};
+use crate::plugin_api::Refusal;
+use crate::plugins::WriteOp;
 
 /// How the app takes files away; tests swap the trash for a stand-in.
 #[derive(Debug)]
@@ -76,6 +79,9 @@ impl App {
                 }
                 Purpose::UpdateAll => self.show_plugin_list(None),
                 Purpose::RunAgain(_) | Purpose::TrustFolder => self.run_declined(),
+                Purpose::DiscardChanges {
+                    plugin, request, ..
+                } => self.send_to_plugin(plugin, refused(*request, Refusal::Cancelled)),
                 _ => {}
             }
             self.ask_about_next_plugin();
@@ -96,6 +102,12 @@ impl App {
                 self.run_trusted();
             }
             Purpose::RunAgain(id) => self.run_confirmed(id),
+            Purpose::DiscardChanges {
+                plugin,
+                request,
+                path,
+                section,
+            } => self.run_git_write(plugin, *request, WriteOp::Discard(path.clone(), *section)),
         }
         self.ask_about_next_plugin();
     }

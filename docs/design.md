@@ -1080,6 +1080,14 @@ HTML has JavaScript in `<script>` and CSS in `<style>`, and the grammar parses b
 - **Checked.** `register_language` compiles the injection query with the grammar, so one that is not valid refuses the plugin (`SyntaxError::Injections`) like a bad highlight query. A manifest may have `injections` without a level of the API check: an editor older than 1.13 ignores the key (and only misses the colors).
 - **Tests.** `plugin_tests`: the text in `<script>` has JavaScript's colors, a plugin's language inside a plugin's, a language that is not there changes nothing, only the range asked for is colored, a bad query refuses the language (the HTML grammar is a fixture, `fixtures/html.wasm`).
 
+## Throwing away the changes to a file for plugins (plugin API 1.14, built)
+
+The Git pane can stage and unstage; this adds the third thing a changed file needs, "revert", as `FromPlugin::GitDiscard { request, path, section }` (needs `git.write`, no new capability).
+
+- **The host asks, not the plugin.** Nothing can bring the changes back, so the editor opens a yes/no question (`Confirm::discard_changes`, only `y` says yes, as for every confirm) and the plugin's answer waits for it: a yes is `done` (or the refusal of git), a no is `refused: cancelled`. A plugin cannot skip the question, whatever it is. A section that cannot be discarded (`conflicts`, an unknown one) is `bad_argument` at once, with no question.
+- **What each section means** (`Git::discard`): `changes` puts the file back as it is staged (`git checkout -- path`, which also brings a deleted file back) and keeps what is staged; `staged` puts it back as it was committed (`git checkout HEAD -- path`, so what was changed since is lost too; a file that is not in `HEAD`, an added one, is removed with `git rm -f`); `untracked` deletes the file or folder (`git clean -f -d`, never ignored files). The path goes through `repository_path` and git reads paths literally, so `*.txt` is a file with that name. A renamed file is its new path: discarding it removes the new file and leaves the old one's staged deletion, which is its own entry.
+- **Tests.** `git/tests.rs` (a real repository: each section, a deleted file, a new file, a folder, a pattern, bad arguments), `plugin_git_tests` (no change before the yes, done after it, cancelled after a no, denied without `git.write` with no question, a bad section), `message_tests` (the pinned JSON).
+
 ## Run configurations and a debugger (decided after a grill; all six steps built)
 
 Goal: run the program of the project from the editor, then debug it with breakpoints. Built in, not a plugin: a plugin cannot write to the stdin of a process, which a debug adapter needs, and the program needs a terminal.

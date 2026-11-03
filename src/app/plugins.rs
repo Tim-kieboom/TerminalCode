@@ -9,12 +9,13 @@ use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 
 use super::App;
 use crate::buffer::Position;
+use crate::components::popups::confirm::Confirm;
 use crate::components::popups::menu::{Entry, Menu};
 use crate::event::Event;
 use crate::event::action::Action;
 use crate::git::ActionError;
 use crate::git::GitError;
-use crate::plugin_api::{ActionDecl, Refusal, ToPlugin, WireMenuItem};
+use crate::plugin_api::{ActionDecl, GitSection, Refusal, ToPlugin, WireMenuItem};
 use crate::plugins::{Notice, Runtime, WriteOp};
 use crate::ui::view::{ViewNode, button_at, input_column_at, rows_scroll};
 use crate::ui::{ComponentKind, PluginViewId};
@@ -201,6 +202,28 @@ impl App {
     /// A plugin with the capability asked to change the repository: it is done
     /// in the background, and the plugin hears how it went.
     fn plugin_git_write(&mut self, plugin: &str, request: u64, op: WriteOp) {
+        // Nothing is thrown away without the user saying yes to it, here, whatever the plugin is.
+        if let WriteOp::Discard(path, section) = &op {
+            if !matches!(
+                section,
+                GitSection::Changes | GitSection::Staged | GitSection::Untracked
+            ) {
+                let detail = "only changes, staged changes and untracked files can be discarded";
+                let reason = Refusal::BadArgument {
+                    detail: detail.to_owned(),
+                };
+                self.send_to_plugin(plugin, refused(request, reason));
+                return;
+            }
+            let confirm = Confirm::discard_changes(plugin, request, path, *section);
+            self.state.open_confirm(confirm);
+            return;
+        }
+        self.run_git_write(plugin, request, op);
+    }
+
+    /// Does the change to the repository a plugin asked for, in the background.
+    pub(super) fn run_git_write(&mut self, plugin: &str, request: u64, op: WriteOp) {
         let (git, root) = self.git_tool();
         let (Some(events), Some(root)) = (self.background.sender(), root) else {
             self.send_to_plugin(plugin, refused(request, Refusal::NoRepository));
@@ -239,6 +262,7 @@ impl App {
                 WriteOp::Cancel => Ok(()),
                 WriteOp::Stage(path) => git.stage(&root, path),
                 WriteOp::Unstage(path) => git.unstage(&root, path),
+                WriteOp::Discard(path, section) => git.discard(&root, path, *section),
                 WriteOp::StageAll => git.stage_all(&root),
                 WriteOp::UnstageAll => git.unstage_all(&root),
                 WriteOp::Commit(message) => git.commit(&root, message),
@@ -648,7 +672,7 @@ impl App {
     }
 }
 
-fn refused(request: u64, reason: Refusal) -> ToPlugin {
+pub(super) fn refused(request: u64, reason: Refusal) -> ToPlugin {
     ToPlugin::Refused { request, reason }
 }
 

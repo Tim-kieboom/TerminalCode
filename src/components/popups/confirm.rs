@@ -10,6 +10,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 
 use crate::config::ConfigFile;
+use crate::plugin_api::GitSection;
 use crate::ui::theme::Theme;
 
 const HELP: &str = "y: yes | esc, enter: cancel";
@@ -39,6 +40,14 @@ pub(crate) enum Purpose {
     RemovePlugin(Box<str>),
     /// Let plugins run commands in this project folder.
     TrustFolder,
+    /// Throw away the changes to a file for a plugin that asked (its name, its request, the path
+    /// and the section the file was in); a no is told to the plugin.
+    DiscardChanges {
+        plugin: Box<str>,
+        request: u64,
+        path: String,
+        section: GitSection,
+    },
     /// Stop what runs in the tab of this run configuration (its id) and run it again.
     RunAgain(Box<str>),
 }
@@ -269,6 +278,46 @@ impl Confirm {
                 "Its folder is deleted. What you decided about it is kept, so installing it again brings it back as it was.".to_owned(),
             ],
             purpose: Purpose::RemovePlugin(id.into()),
+        }
+    }
+
+    /// Asks whether to throw away the changes to `path` (in `section`) that `plugin` was asked
+    /// to by its user. Nothing can bring them back.
+    pub(crate) fn discard_changes(
+        plugin: &str,
+        request: u64,
+        path: &str,
+        section: GitSection,
+    ) -> Self {
+        let (title, what) = match section {
+            GitSection::Staged => (
+                " Discard staged changes ",
+                "Throw away the staged changes to",
+            ),
+            GitSection::Untracked => (" Delete file ", "Delete the file that git does not know:"),
+            _ => (" Discard changes ", "Throw away the changes to"),
+        };
+        let more = match section {
+            GitSection::Staged => {
+                "The file goes back to the last commit, and what you changed in it since is lost too (a file that was added is deleted)."
+            }
+            GitSection::Untracked => "It is deleted, not moved to the trash.",
+            _ => "The file goes back to what is staged (or committed).",
+        };
+        Self {
+            title: title.to_owned(),
+            lines: vec![
+                format!("{what} {path}?"),
+                String::new(),
+                more.to_owned(),
+                "This cannot be undone.".to_owned(),
+            ],
+            purpose: Purpose::DiscardChanges {
+                plugin: plugin.into(),
+                request,
+                path: path.to_owned(),
+                section,
+            },
         }
     }
 
