@@ -61,4 +61,11 @@ jobs:
           rustup target add wasm32-unknown-unknown
           git clone --depth 1 https://github.com/Tim-kieboom/trcode-plugin-git ../trcode-plugin-git
           (cd ../trcode-plugin-git && cargo build --target wasm32-unknown-unknown --release)
-          TRCODE_PLUGIN_GIT_DIR="$PWD/../trcode-plugin-git" cargo test -p terminal_code real_plugin -- --ignored
+          # Four tests need a Git plugin that has Discard and the right-click menus, which is not
+          # released yet: they are skipped until it is (see "3d" in docs/todo.md), and run by hand
+          # with TRCODE_PLUGIN_GIT_DIR set to a build of the plugin that has them.
+          TRCODE_PLUGIN_GIT_DIR="$PWD/../trcode-plugin-git" cargo test -p terminal_code real_plugin -- --ignored \
+            --skip a_right_click_on_a_file_opens_its_menu \
+            --skip a_right_click_on_a_staged_file_offers_to_unstage \
+            --skip d_asks_and_only_a_yes_throws \
+            --skip d_on_an_untracked_file_deletes

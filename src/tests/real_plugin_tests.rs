@@ -450,7 +450,7 @@ fn shift_p_pushes_and_the_count_on_the_button_goes_away() {
 }
 
 #[test]
-#[ignore = "needs the module built for wasm32"]
+#[ignore = "needs the module built for wasm32, with the Git plugin that has Discard and the menus (not released yet; CI skips it)"]
 fn a_right_click_on_a_file_opens_its_menu_and_stage_file_stages_that_file() {
     let mut rig = started();
     rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
@@ -473,7 +473,7 @@ fn a_right_click_on_a_file_opens_its_menu_and_stage_file_stages_that_file() {
 }
 
 #[test]
-#[ignore = "needs the module built for wasm32"]
+#[ignore = "needs the module built for wasm32, with the Git plugin that has Discard and the menus (not released yet; CI skips it)"]
 fn a_right_click_on_a_staged_file_offers_to_unstage_it_and_on_a_heading_the_whole_group() {
     let mut rig = started();
     rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
@@ -500,7 +500,7 @@ fn a_right_click_on_a_staged_file_offers_to_unstage_it_and_on_a_heading_the_whol
 }
 
 #[test]
-#[ignore = "needs the module built for wasm32"]
+#[ignore = "needs the module built for wasm32, with the Git plugin that has Discard and the menus (not released yet; CI skips it)"]
 fn d_asks_and_only_a_yes_throws_the_changes_of_the_file_away() {
     let mut rig = started();
     rig.wait_until("the file", |rig| rig.has_row("M a.txt"));
@@ -531,7 +531,7 @@ fn d_asks_and_only_a_yes_throws_the_changes_of_the_file_away() {
 }
 
 #[test]
-#[ignore = "needs the module built for wasm32"]
+#[ignore = "needs the module built for wasm32, with the Git plugin that has Discard and the menus (not released yet; CI skips it)"]
 fn d_on_an_untracked_file_deletes_it_after_a_yes() {
     let mut rig = started();
     rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
