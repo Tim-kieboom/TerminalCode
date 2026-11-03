@@ -313,6 +313,10 @@ fn git(dir: &Path, args: &[&str]) {
 fn repository() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     git(dir.path(), &["init", "-q", "-b", "main"]);
+    // What the code under test runs is the user's `git` with the repository's configuration, so
+    // a Windows runner that converts line endings by default would write `\r\n` when a file is
+    // put back.
+    git(dir.path(), &["config", "core.autocrlf", "false"]);
     std::fs::write(dir.path().join("kept.txt"), "one\n").unwrap();
     git(dir.path(), &["add", "."]);
     git(dir.path(), &["commit", "-q", "-m", "first"]);
