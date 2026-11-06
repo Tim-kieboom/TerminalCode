@@ -95,7 +95,8 @@ impl Rig {
     pub(super) fn row_of(&self, text: &str) -> u16 {
         self.cells()
             .iter()
-            .position(|row| row.contains(text))
+            // The menu bar names the file in front too.
+            .position(|row| row.contains(text) && !row.contains('≡'))
             .map(|row| row as u16)
             .unwrap_or_else(|| panic!("{text} is not on the screen"))
     }

@@ -94,6 +94,9 @@ text = "@dim"
 text = "@accent_text"
 modifiers = ["bold"]
 
+["menubar.path"]
+text = "@text"
+
 ["bar.tab.active"]
 text = "@on_accent"
 background = "@accent_bg"

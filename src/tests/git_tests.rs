@@ -364,7 +364,8 @@ impl Rig {
                 })
                 .collect();
             let line: String = cells.iter().map(|(_, symbol, _)| symbol.as_str()).collect();
-            if line.contains(text) {
+            // The menu bar names the file in front too.
+            if line.contains(text) && !line.contains('≡') {
                 return cells;
             }
         }

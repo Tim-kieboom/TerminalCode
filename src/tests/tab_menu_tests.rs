@@ -57,6 +57,10 @@ impl Rig {
         let screen = self.screen();
         for (row, line) in screen.lines().enumerate() {
             let line = line.trim_matches('"');
+            // The menu bar names the file in front too.
+            if line.contains('≡') {
+                continue;
+            }
             if let Some(byte) = line.find(needle) {
                 return (line[..byte].chars().count() as u16, row as u16);
             }

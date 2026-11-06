@@ -454,3 +454,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Terminal paths and copy path (`docs/design.md`, "Paths in the terminal output" and "Copy path"): a relative path in the terminal output is also tried from the folder the shell is in (Linux, `/proc/<pid>/cwd`, `Session::working_folder`); a right click on a path opens a menu with Open and Copy Path; "File: Copy Path" and "File: Copy Relative Path" (palette, the explorer's right-click menu, the tab menu)
 
 - [x] Open in file manager, in a terminal tab and in an external terminal (`docs/design.md`, "Open in file manager and terminal"): three actions in the explorer's menu, the tab menu and the palette; the `terminal` setting names the external terminal program (with `${folder}`), else `$TERMINAL` and the usual ones of the platform are tried
+
+- [x] The menu bar shows the path of the open file (`docs/design.md`, "The path in the menu bar"): from the project folder, whole when the file is outside it, `[untitled]` for a tab with no file, centered, cut from the left with `…`; theme slot `menubar.path` in the four themes

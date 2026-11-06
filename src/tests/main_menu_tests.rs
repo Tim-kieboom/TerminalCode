@@ -280,3 +280,61 @@ fn the_view_menu_toggles_the_side_pane_and_shows_its_key() {
     assert!(screen.contains("Toggle Side Pane"), "{screen}");
     assert!(screen.contains("ctrl+k p"), "{screen}");
 }
+
+fn top_row(app: &mut App) -> String {
+    draw(app).lines().next().unwrap().to_owned()
+}
+
+#[test]
+fn the_top_row_names_the_open_file_from_the_project_folder_in_the_middle() {
+    let mut app = app();
+    let root = app.state().explorer().root_path().unwrap().to_path_buf();
+    std::fs::create_dir(root.join("src")).unwrap();
+    std::fs::write(root.join("src/main.rs"), "x").unwrap();
+    assert!(top_row(&mut app).contains("[untitled]"), "the first tab");
+
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&root.join("src/main.rs"))
+        .unwrap();
+    let row = top_row(&mut app);
+
+    let name = std::path::Path::new("src/main.rs").display().to_string();
+    let at = row.find(&name).unwrap_or_else(|| panic!("{row}"));
+    let middle = row[..at].chars().count() + name.len() / 2;
+    assert!(middle.abs_diff(50) <= 2, "centered in 100 columns: {row}");
+}
+
+#[test]
+fn the_name_follows_the_tab_in_front() {
+    let mut app = app();
+    let root = app.state().explorer().root_path().unwrap().to_path_buf();
+    std::fs::write(root.join("b.txt"), "b").unwrap();
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&root.join("a.txt"))
+        .unwrap();
+    app.state_mut()
+        .workspace_mut()
+        .open_path(&root.join("b.txt"))
+        .unwrap();
+    assert!(top_row(&mut app).contains("b.txt"));
+
+    app.do_action(Action::PreviousTab);
+
+    let row = top_row(&mut app);
+    assert!(row.contains("a.txt") && !row.contains("b.txt"), "{row}");
+}
+
+#[test]
+fn a_file_outside_the_project_is_named_whole() {
+    let mut app = app();
+    let outside = tempfile::tempdir().unwrap();
+    let file = outside.path().join("elsewhere.txt");
+    std::fs::write(&file, "x").unwrap();
+    app.state_mut().workspace_mut().open_path(&file).unwrap();
+
+    let row = top_row(&mut app);
+
+    assert!(row.contains(&file.display().to_string()), "{row}");
+}
