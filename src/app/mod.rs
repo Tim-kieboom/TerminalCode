@@ -68,6 +68,7 @@ pub(crate) use formatting::whole_lines_for_tests;
 pub(crate) use open::expand_path;
 pub(crate) use plugin_files::ActiveFile;
 mod copy_path;
+mod file_clipboard;
 mod jumps;
 mod keys;
 mod lsp;
@@ -118,6 +119,8 @@ pub(crate) struct App {
     removal: Removal,
     /// What saving as root needs: the password prompt's state and how to run sudo.
     root: popups::Root,
+    /// The file or folder the explorer copied or cut, waiting for a paste.
+    file_clipboard: Option<file_clipboard::Held>,
     /// What the terminal pane runs.
     terminal_shell: Shell,
     /// What runs when `terminal_shell` cannot start: the platform's own.
@@ -210,6 +213,7 @@ impl App {
             remembered: Remembered::default(),
             removal: Removal::default(),
             root: popups::Root::default(),
+            file_clipboard: None,
             terminal_shell: Shell::detect(),
             fallback_shell: Shell::from_setting(None),
             terminal_prefix: None,
@@ -549,6 +553,7 @@ impl App {
             } => self.git_head_answer(document, relative, head, open, reply, result),
             Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
+            Event::FilePasted { from, result } => self.file_pasted(&from, result),
             Event::DebugChanged => self.debug_changed(),
             Event::RunList(list) => self.run_list_ready(list),
             Event::RunBuilt {

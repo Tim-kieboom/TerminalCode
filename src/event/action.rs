@@ -97,6 +97,13 @@ pub(crate) enum Action {
     CreateFolder,
     /// Asks for a new name for the explorer's selected file or folder.
     Rename,
+    /// Remembers the explorer's selected file or folder to be pasted as a copy.
+    FileCopy,
+    /// Remembers the explorer's selected file or folder to be moved by a paste.
+    FileCut,
+    /// Pastes what was copied or cut into the explorer's selected folder (or the folder of the
+    /// selected file).
+    FilePaste,
     /// Copies the full path of the explorer's selected entry, or of the open file when the
     /// keyboard is not in the explorer, to the clipboard.
     CopyPath,
@@ -367,6 +374,9 @@ impl Action {
                 | Self::Rename
                 | Self::CopyPath
                 | Self::CopyRelativePath
+                | Self::FileCopy
+                | Self::FileCut
+                | Self::FilePaste
                 | Self::OpenInFileManager
                 | Self::OpenInTerminal
                 | Self::OpenInExternalTerminal
@@ -455,6 +465,9 @@ impl Action {
             Self::CreateFile => "Explorer: New File",
             Self::CreateFolder => "Explorer: New Folder",
             Self::Rename => "Explorer: Rename",
+            Self::FileCopy => "Explorer: Copy",
+            Self::FileCut => "Explorer: Cut",
+            Self::FilePaste => "Explorer: Paste",
             Self::CopyPath => "File: Copy Path",
             Self::CopyRelativePath => "File: Copy Relative Path",
             Self::OpenInFileManager => "File: Open in File Manager",
@@ -616,6 +629,9 @@ impl Action {
             Self::CreateFile,
             Self::CreateFolder,
             Self::Rename,
+            Self::FileCopy,
+            Self::FileCut,
+            Self::FilePaste,
             Self::CopyPath,
             Self::CopyRelativePath,
             Self::OpenInFileManager,

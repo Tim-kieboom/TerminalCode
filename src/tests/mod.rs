@@ -22,6 +22,7 @@ mod drag_tests;
 mod editor_mouse_tests;
 mod errors_view_tests;
 mod explorer_tests;
+mod file_clipboard_tests;
 mod find_tests;
 mod finder_tests;
 mod focus_tests;

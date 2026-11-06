@@ -71,6 +71,12 @@ pub(crate) enum Event {
     PluginJob(crate::plugins::install::JobEvent),
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
+    /// A paste of a copied file or folder is over (see `app/file_clipboard.rs`): the copy's path,
+    /// or what went wrong.
+    FilePasted {
+        from: std::path::PathBuf,
+        result: Result<std::path::PathBuf, String>,
+    },
     /// The debug adapter said something, or answered (see `app/debug.rs`).
     DebugChanged,
     /// The run configurations were worked out (see `app/run.rs`).

@@ -199,7 +199,13 @@ impl App {
         if !is_root {
             entries.push(item("Rename", Action::Rename));
         }
+        entries.push(Entry::Separator);
+        // The project folder can be pasted into, but not cut or copied.
+        if !is_root {
+            entries.extend([item("Cut", Action::FileCut), item("Copy", Action::FileCopy)]);
+        }
         entries.extend([
+            item("Paste", Action::FilePaste),
             Entry::Separator,
             item("Copy Path", Action::CopyPath),
             item("Copy Relative Path", Action::CopyRelativePath),
