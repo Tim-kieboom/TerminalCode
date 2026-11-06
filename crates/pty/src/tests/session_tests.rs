@@ -289,3 +289,23 @@ fn a_session_can_be_told_something_the_shell_did_not_print() {
 
     assert!(rig.text().contains("[exited with code 3]"));
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn the_working_folder_is_where_the_shell_is_now() {
+    let rig = start("cd /tmp && sleep 30");
+
+    rig.wait_until("the shell to change folder", |rig| {
+        rig.session.working_folder() == Some(std::path::PathBuf::from("/tmp"))
+    });
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_shell_that_is_gone_has_no_working_folder() {
+    let rig = start("true");
+
+    rig.wait_until("the shell to end", |rig| rig.session.exit_code().is_some());
+
+    assert_eq!(rig.session.working_folder(), None);
+}

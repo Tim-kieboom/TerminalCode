@@ -18,7 +18,7 @@ mod tests;
 /// without end.
 pub(crate) const MAX_TABS: usize = 16;
 
-pub(crate) use links::{Link, LinkText};
+pub(crate) use links::{Link, LinkText, split_place};
 
 /// The pane and the shells running in it.
 #[derive(Debug, Default)]

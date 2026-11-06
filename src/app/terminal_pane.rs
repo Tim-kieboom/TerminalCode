@@ -276,6 +276,11 @@ impl App {
             self.state.set_focus(Focus::Terminal);
             self.needs_redraw = true;
         }
+        if matches!(event.kind, MouseEventKind::Down(MouseButton::Right))
+            && self.terminal_link_menu(event)
+        {
+            return true;
+        }
         if self.terminal_link_mouse(event) {
             return true;
         }

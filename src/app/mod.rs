@@ -67,6 +67,7 @@ pub(crate) use formatting::whole_lines_for_tests;
 #[cfg(test)]
 pub(crate) use open::expand_path;
 pub(crate) use plugin_files::ActiveFile;
+mod copy_path;
 mod jumps;
 mod keys;
 mod lsp;

@@ -72,7 +72,7 @@ pub(crate) fn find_link(chars: &[char], at: usize) -> Option<LinkText> {
 }
 
 /// `src/main.rs:12:5` as the path, the line and the column; a drive (`C:\code`) is left alone.
-fn split_place(token: &str) -> (&str, Option<usize>, Option<usize>) {
+pub(crate) fn split_place(token: &str) -> (&str, Option<usize>, Option<usize>) {
     let number_after = |text: &str| -> Option<(usize, usize)> {
         let colon = text.rfind(':')?;
         let digits = &text[colon + 1..];

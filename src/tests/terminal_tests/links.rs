@@ -5,6 +5,7 @@
 #![cfg(unix)]
 
 use crossterm::event::MouseButton::Left;
+use crossterm::event::MouseButton::Right;
 use crossterm::event::MouseEventKind::{Down, Moved, Up};
 use ratatui::style::Modifier;
 
@@ -196,4 +197,96 @@ fn a_program_that_asked_for_the_mouse_keeps_the_click_unless_shift_is_held() {
 
     rig.press_at(on_the_path, KeyModifiers::CONTROL | KeyModifiers::SHIFT);
     assert_eq!(rig.editor_file().as_deref(), Some("main.rs"));
+}
+
+fn menu_labels(rig: &Rig) -> Option<Vec<String>> {
+    use crate::components::popups::menu::Entry;
+    let menu = rig.app.state().menu()?;
+    Some(
+        menu.entries()
+            .iter()
+            .filter_map(|entry| match entry {
+                Entry::Item { label, .. } => Some(label.to_string()),
+                _ => None,
+            })
+            .collect(),
+    )
+}
+
+fn right_click(rig: &mut Rig, cell: (u16, u16)) {
+    rig.app
+        .handle_input(mouse(Down(Right), cell.0, cell.1, KeyModifiers::NONE));
+    rig.draw();
+}
+
+#[test]
+fn a_right_click_on_a_path_offers_to_open_or_copy_it() {
+    let dir = project_with_a_file();
+    let mut rig = shown_in(&dir, OUTPUT);
+
+    let cell = rig.cell_of("src/main.rs:3:5", 5);
+    right_click(&mut rig, cell);
+
+    assert_eq!(
+        menu_labels(&rig),
+        Some(vec!["Open src/main.rs".to_owned(), "Copy Path".to_owned()])
+    );
+}
+
+#[test]
+fn open_in_the_menu_of_a_path_opens_it_at_its_line_and_column() {
+    let dir = project_with_a_file();
+    let mut rig = shown_in(&dir, OUTPUT);
+    let cell = rig.cell_of("src/main.rs:3:5", 5);
+    right_click(&mut rig, cell);
+
+    rig.app.handle_input(crossterm::event::Event::Key(
+        crossterm::event::KeyEvent::new(crossterm::event::KeyCode::Enter, KeyModifiers::NONE),
+    ));
+
+    assert_eq!(rig.editor_file().as_deref(), Some("main.rs"));
+    let head = rig.app.state().editor().selections().primary().head();
+    assert_eq!((head.line, head.column), (2, 4));
+}
+
+#[test]
+fn a_right_click_on_text_that_is_not_a_path_opens_no_menu() {
+    let dir = project_with_a_file();
+    let mut rig = shown_in(&dir, OUTPUT);
+
+    let cell = rig.cell_of("error: bad", 1);
+    right_click(&mut rig, cell);
+    assert_eq!(menu_labels(&rig), None);
+
+    let cell = rig.cell_of("missing.rs:9", 3);
+    right_click(&mut rig, cell);
+    assert_eq!(menu_labels(&rig), None, "a path that is not there");
+}
+
+/// A shell that goes into a folder of the project and names a file there.
+const OUTPUT_FROM_SUBFOLDER: &str = "cd sub && printf 'at only_here.rs:2\\n'; sleep 30";
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_relative_path_is_also_tried_from_the_folder_the_shell_is_in() {
+    let dir = project_with_a_file();
+    fs::create_dir(dir.path().join("sub")).unwrap();
+    fs::write(dir.path().join("sub/only_here.rs"), "a\nb\n").unwrap();
+    let mut rig = rig_in(dir.path(), OUTPUT_FROM_SUBFOLDER);
+    rig.toggle();
+    rig.wait_for_text("only_here.rs:2");
+    rig.wait_for("the shell to be in sub", |rig| {
+        rig.app
+            .state()
+            .terminal()
+            .session()
+            .and_then(|session| session.working_folder())
+            .is_some_and(|folder| folder.ends_with("sub"))
+    });
+    std::thread::sleep(Duration::from_millis(200));
+    rig.draw();
+
+    rig.press_at(rig.cell_of("only_here.rs:2", 3), KeyModifiers::CONTROL);
+
+    assert_eq!(rig.editor_file().as_deref(), Some("only_here.rs"));
 }

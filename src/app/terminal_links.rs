@@ -6,8 +6,12 @@ use std::path::PathBuf;
 
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
+use ratatui::layout::Position;
+
 use super::App;
-use crate::components::terminal::{Link, LinkText};
+use crate::components::popups::menu::{Entry, Menu};
+use crate::components::terminal::{Link, LinkText, split_place};
+use crate::event::action::Action;
 
 impl App {
     /// The pointer moves over the terminal's text, or presses: with `ctrl` the path under it is
@@ -55,14 +59,79 @@ impl App {
     }
 
     /// The file or folder a path of the terminal's output is: as it is when it is whole, else
-    /// from the project folder. `None` when nothing is there.
+    /// from the project folder, else from the folder the shell is in (where the platform says).
+    /// `None` when nothing is there.
     fn resolve_terminal_path(&self, path: &str) -> Option<PathBuf> {
-        let given = PathBuf::from(path);
-        let full = match given.is_absolute() {
-            true => given,
-            false => self.project_root().join(given),
+        let shell_folder = self
+            .state
+            .terminal()
+            .session()
+            .and_then(|session| session.working_folder());
+        let bases = [Some(self.project_root()), shell_folder];
+        first_that_exists(path, bases.into_iter().flatten())
+    }
+
+    /// A right click on a path of the output: a menu to open it or copy it. Returns whether
+    /// there was a path under the pointer. A program that asked for the mouse keeps the click,
+    /// unless `shift` is held.
+    pub(super) fn terminal_link_menu(&mut self, event: MouseEvent) -> bool {
+        if self.program_has_the_mouse(event.modifiers) {
+            return false;
+        }
+        let Some((link, _)) = self.terminal_link_under(event.column, event.row) else {
+            return false;
         };
-        full.exists().then_some(full)
+        let written = written_text(&link.text);
+        let item = |label: String, action: Action| Entry::Item {
+            label: label.into(),
+            action,
+            keys: None,
+        };
+        let entries = vec![
+            item(
+                format!("Open {}", link.text.path),
+                Action::OpenTerminalPath(written.clone().into()),
+            ),
+            item(
+                "Copy Path".to_owned(),
+                Action::CopyTerminalPath(written.into()),
+            ),
+        ];
+        self.state.open_menu(Menu::on_app(
+            entries,
+            Position::new(event.column, event.row),
+        ));
+        self.needs_redraw = true;
+        true
+    }
+
+    /// Opens the path of the menu, written as the output had it (`src/main.rs:3:5`).
+    pub(super) fn open_terminal_path(&mut self, written: &str) {
+        let (path, line, column) = split_place(written);
+        let Some(target) = self.resolve_terminal_path(path) else {
+            self.state
+                .notify_error(format!("{path} is no longer there"));
+            return;
+        };
+        let text = LinkText {
+            path: path.to_owned(),
+            line,
+            column,
+            start: 0,
+            end: 0,
+        };
+        self.open_terminal_link(&text, target);
+    }
+
+    /// Copies the whole path of the menu.
+    pub(super) fn copy_terminal_path(&mut self, written: &str) {
+        let (path, _, _) = split_place(written);
+        let Some(target) = self.resolve_terminal_path(path) else {
+            self.state
+                .notify_error(format!("{path} is no longer there"));
+            return;
+        };
+        self.copy_path_text(&target, false);
     }
 
     /// Opens the file at the line and column of the link, or shows the folder in the explorer.
@@ -87,3 +156,28 @@ impl App {
         self.needs_redraw = true;
     }
 }
+
+/// The path from the first of `bases` it is there from (a whole path is its own): the file or
+/// folder, when there is one.
+fn first_that_exists(path: &str, bases: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
+    let given = PathBuf::from(path);
+    if given.is_absolute() {
+        return given.exists().then_some(given);
+    }
+    bases
+        .into_iter()
+        .map(|base| base.join(&given))
+        .find(|full| full.exists())
+}
+
+/// The link as the output had it: the path, then the line and the column.
+fn written_text(link: &LinkText) -> String {
+    match (link.line, link.column) {
+        (Some(line), Some(column)) => format!("{}:{line}:{column}", link.path),
+        (Some(line), None) => format!("{}:{line}", link.path),
+        _ => link.path.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests;

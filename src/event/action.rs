@@ -97,6 +97,16 @@ pub(crate) enum Action {
     CreateFolder,
     /// Asks for a new name for the explorer's selected file or folder.
     Rename,
+    /// Copies the full path of the explorer's selected entry, or of the open file when the
+    /// keyboard is not in the explorer, to the clipboard.
+    CopyPath,
+    /// Copies the path relative to the project folder, as [`Action::CopyPath`] finds it.
+    CopyRelativePath,
+    /// Opens a path of the terminal's output (as written there, with its line and column),
+    /// from the menu on it.
+    OpenTerminalPath(Box<str>),
+    /// Copies the full path of one of the terminal's output, from the menu on it.
+    CopyTerminalPath(Box<str>),
     /// Asks where to move the explorer's selected file or folder to.
     MoveEntry,
     /// Opens the context menu on the explorer's selected row.
@@ -341,6 +351,10 @@ impl Action {
                 | Self::CreateFile
                 | Self::CreateFolder
                 | Self::Rename
+                | Self::CopyPath
+                | Self::CopyRelativePath
+                | Self::OpenTerminalPath(_)
+                | Self::CopyTerminalPath(_)
                 | Self::MoveEntry
                 | Self::OpenConfig(_)
                 | Self::ResetConfig(_)
@@ -422,6 +436,8 @@ impl Action {
             Self::CreateFile => "Explorer: New File",
             Self::CreateFolder => "Explorer: New Folder",
             Self::Rename => "Explorer: Rename",
+            Self::CopyPath => "File: Copy Path",
+            Self::CopyRelativePath => "File: Copy Relative Path",
             Self::MoveEntry => "Explorer: Move",
             Self::ContextMenu => "Explorer: Context Menu",
             Self::GoToLine => "Cursor: Go to Line",
@@ -516,6 +532,7 @@ impl Action {
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
             Self::Explorer(_) | Self::Errors(_) | Self::DebugPane(_) => return None,
             Self::OpenRecentFile(_) | Self::OpenRecentFolder(_) => return None,
+            Self::OpenTerminalPath(_) | Self::CopyTerminalPath(_) => return None,
             Self::TogglePluginView(_)
             | Self::FocusPluginView(_)
             | Self::OpenPluginPopup(_)
@@ -575,6 +592,8 @@ impl Action {
             Self::CreateFile,
             Self::CreateFolder,
             Self::Rename,
+            Self::CopyPath,
+            Self::CopyRelativePath,
             Self::MoveEntry,
             Self::ContextMenu,
             Self::GoToLine,

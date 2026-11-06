@@ -197,11 +197,15 @@ impl App {
             item("New Folder", Action::CreateFolder),
         ];
         if !is_root {
-            entries.extend([
-                item("Rename", Action::Rename),
-                Entry::Separator,
-                item("Delete", Action::DeleteSelected),
-            ]);
+            entries.push(item("Rename", Action::Rename));
+        }
+        entries.extend([
+            Entry::Separator,
+            item("Copy Path", Action::CopyPath),
+            item("Copy Relative Path", Action::CopyRelativePath),
+        ]);
+        if !is_root {
+            entries.extend([Entry::Separator, item("Delete", Action::DeleteSelected)]);
         }
         entries
     }
@@ -238,6 +242,9 @@ impl App {
             item("Close All", Action::CloseAllTabs),
             Entry::Separator,
             pin,
+            Entry::Separator,
+            item("Copy Path", Action::CopyPath),
+            item("Copy Relative Path", Action::CopyRelativePath),
         ]
     }
 

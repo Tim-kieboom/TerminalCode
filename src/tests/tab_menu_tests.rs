@@ -116,6 +116,8 @@ fn a_right_click_on_a_tab_brings_it_to_the_front_and_opens_the_menu() {
             "Close to the Right",
             "Close All",
             "Pin Tab",
+            "Copy Path",
+            "Copy Relative Path",
         ]
     );
 }

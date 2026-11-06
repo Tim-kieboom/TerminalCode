@@ -380,6 +380,12 @@ impl Session {
         self.process_id
     }
 
+    /// The folder the shell is in now (after its `cd`s), where the platform tells it
+    /// cheaply: Linux, through `/proc`. `None` elsewhere, or when the shell is gone.
+    pub fn working_folder(&self) -> Option<std::path::PathBuf> {
+        folder_of_process(self.process_id?)
+    }
+
     fn lock_screen(&self) -> MutexGuard<'_, vt100::Parser> {
         self.shared
             .screen
@@ -540,4 +546,14 @@ fn working_directory(directory: &std::path::Path) -> PathBuf {
         true => trcode_files::paths::without_verbatim_prefix(directory),
         false => directory.to_path_buf(),
     }
+}
+
+#[cfg(target_os = "linux")]
+fn folder_of_process(process: u32) -> Option<std::path::PathBuf> {
+    std::fs::read_link(format!("/proc/{process}/cwd")).ok()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn folder_of_process(_process: u32) -> Option<std::path::PathBuf> {
+    None
 }

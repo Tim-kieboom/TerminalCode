@@ -69,6 +69,17 @@ fn select(app: &mut App, name: &str) {
     panic!("no row called {name}");
 }
 
+/// Moves down from the selected row to the one called `name`.
+fn select_below(app: &mut App, name: &str) {
+    for _ in 0..50 {
+        if app.state().explorer().selected_row().unwrap().name == name {
+            return;
+        }
+        press(app, KeyCode::Down);
+    }
+    panic!("no row called {name}");
+}
+
 fn labels(app: &App) -> Vec<&str> {
     app.state()
         .menu()
@@ -102,19 +113,37 @@ fn shift_f10_opens_a_menu_on_the_selected_row() {
     assert_eq!(menu.target(), Some(dir.path().join("a.txt").as_path()));
     assert_eq!(
         labels(&app),
-        ["New File", "New Folder", "Rename", "---", "Delete"]
+        [
+            "New File",
+            "New Folder",
+            "Rename",
+            "---",
+            "Copy Path",
+            "Copy Relative Path",
+            "---",
+            "Delete"
+        ]
     );
 }
 
 #[test]
-fn the_project_folder_only_offers_to_add_things() {
+fn the_project_folder_only_offers_to_add_things_and_to_copy_its_path() {
     let dir = project();
     let (mut app, _terminal) = app_in(dir.path());
     select(&mut app, &app_root_name(dir.path()));
 
     open_menu(&mut app);
 
-    assert_eq!(labels(&app), ["New File", "New Folder"]);
+    assert_eq!(
+        labels(&app),
+        [
+            "New File",
+            "New Folder",
+            "---",
+            "Copy Path",
+            "Copy Relative Path"
+        ]
+    );
 }
 
 fn app_root_name(root: &Path) -> String {
@@ -130,7 +159,7 @@ fn the_selection_skips_the_separator_and_stops_at_both_ends() {
 
     press(&mut app, KeyCode::Up);
     assert_eq!(selected_label(&app), "New File");
-    for _ in 0..3 {
+    for _ in 0..5 {
         press(&mut app, KeyCode::Down);
     }
     assert_eq!(selected_label(&app), "Delete");
@@ -188,9 +217,9 @@ fn enter_on_delete_deletes_the_row_the_menu_was_opened_on() {
     let (mut app, _terminal) = app_in(dir.path());
     select(&mut app, "a.txt");
     open_menu(&mut app);
-    press(&mut app, KeyCode::Down);
-    press(&mut app, KeyCode::Down);
-    press(&mut app, KeyCode::Down);
+    for _ in 0..5 {
+        press(&mut app, KeyCode::Down);
+    }
     assert_eq!(selected_label(&app), "Delete");
 
     press(&mut app, KeyCode::Enter);
@@ -322,7 +351,7 @@ fn a_right_click_selects_the_row_and_opens_the_menu_on_it() {
 
     assert_eq!(target_name(&app), "b.txt");
     assert_eq!(app.state().explorer().selected_row().unwrap().name, "b.txt");
-    assert_eq!(labels(&app).len(), 5);
+    assert_eq!(labels(&app).len(), 8);
 }
 
 #[test]
@@ -335,7 +364,16 @@ fn a_right_click_on_empty_space_opens_the_menu_on_the_project_folder() {
     draw(&mut app, &mut terminal);
 
     assert_eq!(app.state().menu().unwrap().target(), Some(dir.path()));
-    assert_eq!(labels(&app), ["New File", "New Folder"]);
+    assert_eq!(
+        labels(&app),
+        [
+            "New File",
+            "New Folder",
+            "---",
+            "Copy Path",
+            "Copy Relative Path"
+        ]
+    );
 }
 
 #[test]
@@ -674,4 +712,65 @@ mod groups {
 
         assert_eq!(menu.selected_action(), Some(&Action::Quit));
     }
+}
+
+/// What the clipboard holds, by pasting it into a new, empty editor tab.
+fn clipboard_of(app: &mut App) -> String {
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('n'),
+        KeyModifiers::CONTROL,
+    )));
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('v'),
+        KeyModifiers::CONTROL,
+    )));
+    app.state().editor().buffer().text()
+}
+
+fn with_working_clipboard(app: App) -> App {
+    app.with_clipboard(crate::clipboard::Clipboard::new(
+        crate::clipboard::System::Memory(crate::clipboard::Memory::default()),
+    ))
+}
+
+#[test]
+fn copy_path_in_the_menu_copies_the_whole_path_of_the_row_it_was_opened_on() {
+    let dir = project();
+    let (app, _terminal) = app_in(dir.path());
+    let mut app = with_working_clipboard(app);
+    select(&mut app, "a.txt");
+    open_menu(&mut app);
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Down);
+    }
+    assert_eq!(selected_label(&app), "Copy Path");
+
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(
+        clipboard_of(&mut app),
+        dir.path().join("a.txt").display().to_string()
+    );
+}
+
+#[test]
+fn copy_relative_path_in_the_menu_copies_the_path_from_the_project_folder() {
+    let dir = project();
+    let (app, _terminal) = app_in(dir.path());
+    let mut app = with_working_clipboard(app);
+    select(&mut app, "src");
+    press(&mut app, KeyCode::Right);
+    select_below(&mut app, "main.rs");
+    open_menu(&mut app);
+    for _ in 0..4 {
+        press(&mut app, KeyCode::Down);
+    }
+    assert_eq!(selected_label(&app), "Copy Relative Path");
+
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(
+        clipboard_of(&mut app),
+        Path::new("src/main.rs").display().to_string()
+    );
 }
