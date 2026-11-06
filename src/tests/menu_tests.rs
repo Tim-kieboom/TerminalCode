@@ -783,6 +783,7 @@ fn copy_relative_path_in_the_menu_copies_the_path_from_the_project_folder() {
 
     assert_eq!(
         clipboard_of(&mut app),
-        Path::new("src/main.rs").display().to_string()
+        // The path of the file on disk, so with the separator of the platform.
+        Path::new("src").join("main.rs").display().to_string()
     );
 }
