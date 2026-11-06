@@ -18,6 +18,8 @@ use crate::ui::theme::Theme;
 const WIDTH: u16 = 60;
 const PROMPT: &str = "> ";
 
+mod picker;
+
 /// What a key press asks the prompt to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Command {
@@ -31,6 +33,12 @@ pub(crate) enum Command {
     WordLeft,
     WordRight,
     ClearName,
+    /// `tab`: completes the name from the list.
+    Complete,
+    Up,
+    Down,
+    /// `ctrl+enter`: what is typed is what is meant, whatever the list has highlighted.
+    SubmitTyped,
     Submit,
     Cancel,
 }
@@ -40,7 +48,11 @@ impl Command {
         let (code, ctrl) = key_with_ctrl(key)?;
         Some(match (code, ctrl) {
             (KeyCode::Esc, _) => Self::Cancel,
-            (KeyCode::Enter, _) => Self::Submit,
+            (KeyCode::Enter, true) => Self::SubmitTyped,
+            (KeyCode::Enter, false) => Self::Submit,
+            (KeyCode::Tab, _) => Self::Complete,
+            (KeyCode::Up, _) => Self::Up,
+            (KeyCode::Down, _) => Self::Down,
             (KeyCode::Backspace, _) => Self::Backspace,
             (KeyCode::Delete, _) => Self::Delete,
             (KeyCode::Left, true) => Self::WordLeft,
@@ -94,6 +106,8 @@ pub(crate) struct NamePrompt {
     scroll: usize,
     /// Where the box is on the screen, set by [`NamePrompt::place`] before each draw.
     layout: Layout,
+    /// The list of the folder under the text, for the prompts that ask for a path.
+    picker: Option<picker::Picker>,
 }
 
 /// Where the box and its text are on the screen.
@@ -104,11 +118,14 @@ struct Layout {
     text_x: u16,
     text_y: u16,
     text_width: u16,
+    /// The rows of the list under the text.
+    list: Rect,
 }
 
 impl NamePrompt {
     fn with(purpose: Purpose, dir: PathBuf, name: String) -> Self {
         Self {
+            picker: Self::picker_for(&purpose),
             purpose,
             dir,
             cursor: name.len(),
@@ -200,6 +217,10 @@ impl NamePrompt {
 
     /// Deletes the character (grapheme) before the cursor.
     pub(crate) fn backspace(&mut self) {
+        // After a folder's separator the name of the folder goes with it: one step up.
+        if self.step_up() {
+            return;
+        }
         let start = self.previous_boundary(self.cursor);
         self.name.replace_range(start..self.cursor, "");
         self.cursor = start;
@@ -327,7 +348,7 @@ impl NamePrompt {
     /// that the cursor is in view. Call it before each draw.
     pub(crate) fn place(&mut self, screen: Rect) {
         let width = WIDTH.min(screen.width);
-        let height = 3.min(screen.height);
+        let height = (3 + self.list_height()).min(screen.height);
         let area = Rect {
             x: screen.x + (screen.width - width) / 2,
             y: screen.y + (screen.height / 8).min(screen.height - height),
@@ -343,6 +364,11 @@ impl NamePrompt {
             text_x,
             text_y: inner.y,
             text_width: inner.right().saturating_sub(text_x),
+            list: Rect {
+                y: inner.y + 1,
+                height: inner.height.saturating_sub(1),
+                ..inner
+            },
         };
     }
 
@@ -360,9 +386,12 @@ impl NamePrompt {
             Purpose::GoToLine { lines } => format!(" Go to line (1-{lines}, or line:column) "),
             Purpose::NewTheme { template } => format!(" New theme from {template}: name "),
             Purpose::RenameSymbol { old } => format!(" Rename {old} to "),
-            Purpose::OpenFile => " Open file (a path, ~ is your home folder) ".to_owned(),
+            Purpose::OpenFile => {
+                " Open file (a path; tab completes, ~ is your home folder) ".to_owned()
+            }
             Purpose::OpenFolder => {
-                " Open folder (a path; starts the editor again there) ".to_owned()
+                " Open folder (a path; enter twice, or ctrl+enter, starts the editor again there) "
+                    .to_owned()
             }
         };
         let block = Block::new()
@@ -388,6 +417,7 @@ impl NamePrompt {
             .text_x
             .saturating_add(before_cursor.min(usize::from(u16::MAX)) as u16);
         frame.set_cursor_position(Position::new(cursor_x.min(inner.right()), inner.y));
+        self.render_list(frame, theme, self.layout.list);
     }
 }
 

@@ -413,6 +413,12 @@ impl App {
         let Some(mut prompt) = self.state.take_name_prompt() else {
             return false;
         };
+        // A click on a row of the list does what `enter` does on it.
+        if let Some(row) = prompt.row_at(event.column, event.row) {
+            prompt.select_row(row);
+            self.finish_name(prompt, false);
+            return true;
+        }
         let placed = prompt.click(event.column, event.row);
         self.state.open_name_prompt(prompt);
         placed

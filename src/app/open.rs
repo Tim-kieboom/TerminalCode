@@ -32,13 +32,13 @@ impl App {
     /// Asks for the path of a file to open.
     pub(super) fn ask_for_file(&mut self) {
         let prompt = NamePrompt::open_file(self.project_root());
-        self.state.open_name_prompt(prompt);
+        self.open_path_prompt(prompt);
     }
 
     /// Asks for the path of a folder to open.
     pub(super) fn ask_for_folder(&mut self) {
         let prompt = NamePrompt::open_folder(self.project_root());
-        self.state.open_name_prompt(prompt);
+        self.open_path_prompt(prompt);
     }
 
     /// Opens the file at the typed path as a tab.

@@ -116,8 +116,9 @@ fn a_folder_is_not_a_file_and_an_empty_path_is_refused() {
     press(&mut rig.app, KeyCode::Enter, KeyModifiers::NONE);
     assert!(popup_is_name_prompt(rig.app.state()));
 
+    // `ctrl+enter` takes what is typed as it is (`enter` would go into the folder).
     type_str(&mut rig.app, "sub");
-    press(&mut rig.app, KeyCode::Enter, KeyModifiers::NONE);
+    press(&mut rig.app, KeyCode::Enter, KeyModifiers::CONTROL);
     let told = rig.app.state().notifications().texts().join("|");
     assert!(told.contains("is not a file"), "{told}");
 }

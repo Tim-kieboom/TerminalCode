@@ -71,6 +71,13 @@ pub(crate) enum Event {
     PluginJob(crate::plugins::install::JobEvent),
     /// A save as root is over: it worked, or why not.
     RootSaved(Result<(), crate::files::rootsave::RootError>),
+    /// A folder was read for the list under the Open File or Open Folder prompt (see
+    /// `app/path_prompt.rs`): the read it answers, and the entries or why not.
+    PathListing {
+        request: u64,
+        dir: std::path::PathBuf,
+        result: Result<Vec<crate::components::popups::path_list::Entry>, String>,
+    },
     /// A paste of a copied file or folder is over (see `app/file_clipboard.rs`): the copy's path,
     /// or what went wrong.
     FilePasted {

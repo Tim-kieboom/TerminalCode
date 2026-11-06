@@ -75,6 +75,7 @@ mod lsp;
 mod mouse;
 mod open_in;
 mod panels;
+mod path_prompt;
 mod popups;
 mod reset;
 mod saved;
@@ -554,6 +555,11 @@ impl App {
             Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
             Event::FilePasted { from, result } => self.file_pasted(&from, result),
+            Event::PathListing {
+                request,
+                dir,
+                result,
+            } => self.path_listing_ready(request, dir, result),
             Event::DebugChanged => self.debug_changed(),
             Event::RunList(list) => self.run_list_ready(list),
             Event::RunBuilt {

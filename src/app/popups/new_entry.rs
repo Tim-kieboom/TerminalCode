@@ -74,10 +74,22 @@ impl App {
             return;
         };
         self.needs_redraw = true;
+        // What changes the name changes the folder the list is of, or what it is matched against.
+        let edits = matches!(
+            command,
+            name_prompt::Command::Insert(_)
+                | name_prompt::Command::Backspace
+                | name_prompt::Command::Delete
+                | name_prompt::Command::ClearName
+                | name_prompt::Command::Complete
+        );
         match command {
             name_prompt::Command::Insert(c) => prompt.insert(c),
             name_prompt::Command::Backspace => prompt.backspace(),
             name_prompt::Command::Delete => prompt.delete(),
+            name_prompt::Command::Complete => prompt.complete(),
+            name_prompt::Command::Up => prompt.select_previous(),
+            name_prompt::Command::Down => prompt.select_next(),
             name_prompt::Command::Left => prompt.move_left(),
             name_prompt::Command::Right => prompt.move_right(),
             name_prompt::Command::Home => prompt.move_home(),
@@ -86,12 +98,28 @@ impl App {
             name_prompt::Command::WordRight => prompt.move_word_right(),
             name_prompt::Command::ClearName => prompt.clear(),
             name_prompt::Command::Cancel => return,
-            name_prompt::Command::Submit => match self.submit_name(&prompt) {
-                Ok(()) => return,
-                Err(error) => self.state.notify_error(error.to_string()),
-            },
+            name_prompt::Command::Submit => return self.finish_name(prompt, false),
+            name_prompt::Command::SubmitTyped => return self.finish_name(prompt, true),
+        }
+        if edits {
+            self.sync_path_prompt(&mut prompt);
         }
         self.state.open_name_prompt(prompt);
+    }
+
+    /// `enter`: with a list under the name the highlighted entry is taken first (a folder is
+    /// gone into, and the prompt stays); `typed` leaves the list out. Then the name is used,
+    /// and the prompt stays when that did not work.
+    pub(in crate::app) fn finish_name(&mut self, mut prompt: NamePrompt, typed: bool) {
+        if !typed && prompt.has_list() && !prompt.enter() {
+            self.sync_path_prompt(&mut prompt);
+            self.state.open_name_prompt(prompt);
+            return;
+        }
+        if let Err(error) = self.submit_name(&prompt) {
+            self.state.notify_error(error.to_string());
+            self.state.open_name_prompt(prompt);
+        }
     }
 
     fn submit_name(&mut self, prompt: &NamePrompt) -> Result<(), EntryError> {

@@ -467,3 +467,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Completion: `enter` picks the suggestion once the highlight was moved with `up` or `down` (`Completion::has_moved`); untouched it is still a newline; the choice is kept while typing on as long as the item is listed, and starts over when a letter drops it (decided: that reset counts as untouched)
 
 - [x] `ctrl+space` shows the suggestions at the cursor ("Language: Show Completions"): an invoked completion request that opens the box with nothing typed; says so when the file's server has no completion
+
+- [x] Open File and Open Folder path prompt (`docs/design.md`, "The path prompt"): the entries of the folder typed so far listed under the text, matched by the letters in order, folders first; `tab`, `up`/`down`, `enter` into a folder, `ctrl+enter` as typed, backspace after a `/` steps up, `~` and `..`, the folder read on a thread with an error row when it cannot be read; shown for Open Folder as folders only

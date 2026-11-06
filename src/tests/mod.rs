@@ -47,6 +47,7 @@ mod notification_tests;
 mod open_tests;
 mod palette_tests;
 mod paragraph_tests;
+mod path_prompt_tests;
 mod paths_tests;
 mod perf_tests;
 mod plugin_column_tests;

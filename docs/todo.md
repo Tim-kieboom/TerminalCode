@@ -16,7 +16,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 - [ ] The other text inputs (the find box, the finder, the project search, the palette, the root-save prompt) have no movable text cursor either; `components/name_prompt.rs` got one (see design.md), decide whether they share its code
 
 ## Explorer and terminal
-- [ ] Open File and Open Folder: a better path prompt. Walking the path today is clumsy; the prompt should fuzzy-match the entries of the directory typed so far (type `src/comp` to get `src/components`), step up with backspace on a separator or `..`, understand `~` and relative paths (against the project root), show directories first with a trailing `/`, `tab` completes the common part, enter on a directory goes into it and, for Open Folder, enter on `.` (or a key) picks the one shown; reads the directory off the UI thread and shows an error for one that cannot be read. It is the Open File prompt of the menu item generalized, so build it once for both (and for the palette's argument prompts). Tests: fuzzy match order, stepping up, `~`, a directory that vanishes, a huge directory (30,000 entries) stays within the frame budget
+- [ ] Path prompt, follow-ups: the same list for the palette's argument prompts and the `Move` prompt of the explorer (today only Open File and Open Folder have it); an entry that is a link drawn as one; the list for a Windows drive (`C:\`) and a UNC path; `ctrl+backspace` by path segment; remembering the last folder opened
 - [ ] Terminal paths, follow-ups: a search for a unique file that ends with the text, the wrap flag kept in the history of `trcode-pty`, the shell's folder on Windows and macOS (no cheap way found)
 
 ## Languages

@@ -11,6 +11,7 @@ pub mod key_capture;
 pub mod menu;
 pub mod name_prompt;
 pub mod palette;
+pub(crate) mod path_list;
 pub(crate) mod pick_list;
 pub mod plugin_list;
 pub mod plugin_readme;
