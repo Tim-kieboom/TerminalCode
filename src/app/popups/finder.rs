@@ -66,6 +66,8 @@ impl App {
         match command {
             palette::Command::Insert(c) => finder.insert(c),
             palette::Command::Backspace => finder.backspace(),
+            palette::Command::Delete => finder.delete(),
+            palette::Command::Caret(caret) => finder.move_caret(caret),
             palette::Command::ClearQuery => finder.clear_query(),
             palette::Command::Previous => finder.select_previous(),
             palette::Command::Next => finder.select_next(),

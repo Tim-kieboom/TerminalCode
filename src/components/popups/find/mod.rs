@@ -16,6 +16,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::buffer::{Buffer, Position};
 use crate::components::editor::Replacement;
 use crate::components::popups::search::Options;
+use crate::components::text_field::{Caret, TextField};
 use crate::ui::theme::Theme;
 
 #[cfg(test)]
@@ -26,6 +27,9 @@ mod tests;
 pub(crate) const MAX_MATCHES: usize = 10_000;
 /// The longest selection that becomes the query when the bar opens.
 const MAX_SEEDED_QUERY: usize = 200;
+/// The columns the shortest form of the three switches takes, and the least a text gets.
+const SHORTEST_OPTIONS: usize = 14;
+const MOST_NARROW_FIELD: usize = 8;
 
 /// A match on one line, as grapheme columns (`end` is exclusive).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +54,9 @@ impl Match {
 pub(crate) enum Command {
     Insert(char),
     Backspace,
+    Delete,
+    /// Moves the text cursor in the text being typed.
+    Caret(Caret),
     ClearQuery,
     ToggleCase,
     ToggleRegex,
@@ -75,8 +82,12 @@ impl Command {
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+        if !alt && let Some(caret) = Caret::from_key(key.code, ctrl) {
+            return Some(Self::Caret(caret));
+        }
         Some(match (key.code, ctrl, alt, shift) {
             (KeyCode::Esc, false, false, _) => Self::Close,
+            (KeyCode::Delete, false, false, _) => Self::Delete,
             (KeyCode::Enter, false, false, false) => Self::Confirm,
             (KeyCode::Enter, false, false, true) => Self::Previous,
             (KeyCode::Down, false, false, _) => Self::Next,
@@ -112,7 +123,7 @@ enum Problem {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Find {
-    query: String,
+    query: TextField,
     options: Options,
     /// In the order they appear in the file.
     matches: Vec<Match>,
@@ -126,17 +137,18 @@ pub(crate) struct Find {
     version: u64,
     /// What a match is replaced with; with regex on, `$1` and `${name}` stand
     /// for the groups of the match.
-    replacement: String,
+    replacement: TextField,
     /// Whether the row for the replacement is shown.
     replace_open: bool,
-    field: Field,
+    /// Which of the two the typing goes to.
+    active: Field,
 }
 
 impl Find {
     /// Starts finding in `buffer` for `query`, beginning at `origin`.
     pub(crate) fn open(buffer: &Buffer, origin: Position, query: String, options: Options) -> Self {
         let mut find = Self {
-            query,
+            query: TextField::with_text(query),
             options,
             matches: Vec::new(),
             capped: false,
@@ -144,9 +156,9 @@ impl Find {
             problem: None,
             origin,
             version: buffer.version(),
-            replacement: String::new(),
+            replacement: TextField::default(),
             replace_open: false,
-            field: Field::Query,
+            active: Field::Query,
         };
         find.recompute(buffer);
         find
@@ -169,7 +181,7 @@ impl Find {
     }
 
     pub(crate) fn query(&self) -> &str {
-        &self.query
+        self.query.text()
     }
 
     pub(crate) fn options(&self) -> Options {
@@ -204,37 +216,48 @@ impl Find {
         }
     }
 
-    pub(crate) fn insert(&mut self, buffer: &Buffer, c: char) {
-        match self.field {
-            Field::Query => {
-                self.query.push(c);
-                self.recompute(buffer);
-            }
-            Field::Replacement => self.replacement.push(c),
+    /// The text the typing goes to.
+    fn typing(&mut self) -> &mut TextField {
+        match self.active {
+            Field::Query => &mut self.query,
+            Field::Replacement => &mut self.replacement,
         }
     }
 
-    pub(crate) fn backspace(&mut self, buffer: &Buffer) {
-        match self.field {
-            Field::Query => {
-                self.query.pop();
-                self.recompute(buffer);
-            }
-            Field::Replacement => {
-                self.replacement.pop();
-            }
+    /// The matches are looked for again when the query is what changed.
+    fn edited(&mut self, buffer: &Buffer) {
+        if self.active == Field::Query {
+            self.recompute(buffer);
         }
+    }
+
+    pub(crate) fn insert(&mut self, buffer: &Buffer, c: char) {
+        self.typing().insert(c);
+        self.edited(buffer);
+    }
+
+    pub(crate) fn backspace(&mut self, buffer: &Buffer) {
+        if self.typing().backspace() {
+            self.edited(buffer);
+        }
+    }
+
+    /// Deletes the character at the cursor of the text being typed.
+    pub(crate) fn delete(&mut self, buffer: &Buffer) {
+        if self.typing().delete() {
+            self.edited(buffer);
+        }
+    }
+
+    /// Moves the cursor in the text being typed.
+    pub(crate) fn move_caret(&mut self, caret: Caret) {
+        self.typing().move_caret(caret);
     }
 
     /// Empties the text being typed.
     pub(crate) fn clear_query(&mut self, buffer: &Buffer) {
-        match self.field {
-            Field::Query => {
-                self.query.clear();
-                self.recompute(buffer);
-            }
-            Field::Replacement => self.replacement.clear(),
-        }
+        self.typing().clear();
+        self.edited(buffer);
     }
 
     pub(crate) fn toggle_case(&mut self, buffer: &Buffer) {
@@ -253,11 +276,11 @@ impl Find {
     }
 
     pub(crate) fn replacement(&self) -> &str {
-        &self.replacement
+        self.replacement.text()
     }
 
     pub(crate) fn set_replacement(&mut self, text: String) {
-        self.replacement = text;
+        self.replacement.set(&text);
     }
 
     #[cfg(test)]
@@ -267,7 +290,7 @@ impl Find {
 
     /// Whether typing goes to the replacement, which Enter then puts in.
     pub(crate) fn replacing(&self) -> bool {
-        self.replace_open && self.field == Field::Replacement
+        self.replace_open && self.active == Field::Replacement
     }
 
     /// The rows the bar takes.
@@ -281,7 +304,7 @@ impl Find {
     /// Shows the replacement row and gives it the typing, or hides it again.
     pub(crate) fn toggle_replace(&mut self) {
         self.replace_open = !self.replace_open;
-        self.field = match self.replace_open {
+        self.active = match self.replace_open {
             true => Field::Replacement,
             false => Field::Query,
         };
@@ -292,7 +315,7 @@ impl Find {
         if !self.replace_open {
             return;
         }
-        self.field = match self.field {
+        self.active = match self.active {
             Field::Query => Field::Replacement,
             Field::Replacement => Field::Query,
         };
@@ -302,7 +325,7 @@ impl Find {
     pub(crate) fn current_replacement(&self, buffer: &Buffer) -> Option<Replacement> {
         let found = self.current()?;
         let content = buffer.line_content(found.line).ok()?;
-        let regex = build(&self.query, self.options).ok()?;
+        let regex = build(self.query.text(), self.options).ok()?;
         let on_line = self.line_replacements(&regex, &content);
         let (start, end, text) = on_line
             .into_iter()
@@ -316,7 +339,7 @@ impl Find {
 
     /// What replacing every match would put in their places, in text order.
     pub(crate) fn all_replacements(&self, buffer: &Buffer) -> Vec<Replacement> {
-        let Ok(regex) = build(&self.query, self.options) else {
+        let Ok(regex) = build(self.query.text(), self.options) else {
             return Vec::new();
         };
         let mut out = Vec::with_capacity(self.matches.len());
@@ -362,10 +385,10 @@ impl Find {
                 let text = match self.options.regex {
                     true => {
                         let mut text = String::new();
-                        caps.expand(&self.replacement, &mut text);
+                        caps.expand(self.replacement.text(), &mut text);
                         text
                     }
-                    false => self.replacement.clone(),
+                    false => self.replacement.text().to_owned(),
                 };
                 Some((start, end, text))
             })
@@ -464,7 +487,7 @@ impl Find {
         if self.query.is_empty() {
             return;
         }
-        let regex = match build(&self.query, self.options) {
+        let regex = match build(self.query.text(), self.options) {
             Ok(regex) => regex,
             Err(reason) => {
                 self.problem = Some(Problem::InvalidPattern(reason));
@@ -492,8 +515,15 @@ impl Find {
         let bar = theme.style("find.bar");
         let dim = theme.style("find.hint");
         let first = Rect { height: 1, ..area };
-        let prompt = format!(" Find: {}", self.query);
         let status = self.status_text();
+        // The query takes what the status and the shortest form of the switches leave.
+        let label = " Find: ";
+        let query_room = usize::from(area.width)
+            .saturating_sub(label.width() + status.width() + SHORTEST_OPTIONS)
+            .max(MOST_NARROW_FIELD);
+        let (shown, before) = self.query.visible(query_room);
+        let prompt = format!("{label}{shown}");
+        let query_cursor = label.width() + before;
         let room = usize::from(area.width).saturating_sub(prompt.width() + status.width() + 1);
         let options = self.options_text(room);
 
@@ -511,15 +541,20 @@ impl Find {
         ]);
         frame.render_widget(Paragraph::new(line).style(bar), first);
 
-        let mut cursor = (first.y, prompt.width());
+        let mut cursor = (first.y, query_cursor);
         if self.replace_open && area.height > 1 {
             let second = Rect {
                 y: area.y + 1,
                 height: 1,
                 ..area
             };
-            let prompt = format!(" Replace: {}", self.replacement);
             let hint = "enter replaces, alt+a replaces all, tab switches ";
+            let label = " Replace: ";
+            let room = usize::from(area.width)
+                .saturating_sub(label.width() + hint.width())
+                .max(MOST_NARROW_FIELD);
+            let (shown, before) = self.replacement.visible(room);
+            let prompt = format!("{label}{shown}");
             let gap = usize::from(area.width)
                 .saturating_sub(prompt.width() + hint.width())
                 .max(1);
@@ -529,8 +564,8 @@ impl Find {
                 Span::styled(hint, dim),
             ]);
             frame.render_widget(Paragraph::new(line).style(bar), second);
-            if self.field == Field::Replacement {
-                cursor = (second.y, prompt.width());
+            if self.active == Field::Replacement {
+                cursor = (second.y, label.width() + before);
             }
         }
 

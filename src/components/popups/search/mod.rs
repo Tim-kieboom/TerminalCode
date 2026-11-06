@@ -8,12 +8,12 @@ use std::path::{Path, PathBuf};
 
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
-use ratatui::layout::{Position, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
-use unicode_width::UnicodeWidthStr;
 
+use crate::components::text_field::{Caret, TextField};
 use crate::ui::theme::Theme;
 
 pub(crate) use hit::Hit;
@@ -57,6 +57,9 @@ pub(crate) enum Status {
 pub(crate) enum Command {
     Insert(char),
     Backspace,
+    Delete,
+    /// Moves the text cursor in the query.
+    Caret(Caret),
     ClearQuery,
     ToggleCase,
     ToggleRegex,
@@ -76,8 +79,12 @@ impl Command {
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
+        if !alt && let Some(caret) = Caret::from_key(key.code, ctrl) {
+            return Some(Self::Caret(caret));
+        }
         Some(match (key.code, ctrl, alt) {
             (KeyCode::Esc, false, false) => Self::Cancel,
+            (KeyCode::Delete, false, false) => Self::Delete,
             (KeyCode::Enter, false, false) => Self::Open,
             (KeyCode::Up, false, false) => Self::Previous,
             (KeyCode::Down, false, false) => Self::Next,
@@ -101,7 +108,7 @@ pub(crate) struct Search {
     id: u64,
     /// Stops the search when dropped.
     _handle: Option<SearchHandle>,
-    query: String,
+    field: TextField,
     options: Options,
     hits: Vec<Hit>,
     selected: usize,
@@ -116,7 +123,7 @@ impl Search {
             root,
             id: 0,
             _handle: None,
-            query,
+            field: TextField::with_text(query),
             options,
             hits: Vec::new(),
             selected: 0,
@@ -129,7 +136,7 @@ impl Search {
     }
 
     pub(crate) fn query(&self) -> &str {
-        &self.query
+        self.field.text()
     }
 
     pub(crate) fn options(&self) -> Options {
@@ -161,15 +168,25 @@ impl Search {
     }
 
     pub(crate) fn insert(&mut self, c: char) {
-        self.query.push(c);
+        self.field.insert(c);
     }
 
-    pub(crate) fn backspace(&mut self) {
-        self.query.pop();
+    /// Deletes before the cursor. Whether the query changed.
+    pub(crate) fn backspace(&mut self) -> bool {
+        self.field.backspace()
+    }
+
+    /// Deletes at the cursor. Whether the query changed.
+    pub(crate) fn delete(&mut self) -> bool {
+        self.field.delete()
+    }
+
+    pub(crate) fn move_caret(&mut self, caret: Caret) {
+        self.field.move_caret(caret);
     }
 
     pub(crate) fn clear_query(&mut self) {
-        self.query.clear();
+        self.field.clear();
     }
 
     pub(crate) fn toggle_case(&mut self) {
@@ -254,13 +271,7 @@ impl Search {
         let dim = theme.style("pane.border");
 
         let input_area = Rect { height: 1, ..inner };
-        let prompt = format!("> {}", self.query);
-        frame.render_widget(Paragraph::new(prompt.as_str()), input_area);
-        let cursor_x = input_area.x + prompt.width().min(usize::from(input_area.width)) as u16;
-        frame.set_cursor_position(Position::new(
-            cursor_x.min(input_area.right()),
-            input_area.y,
-        ));
+        self.field.render_input(frame, input_area, "> ");
 
         let options_area = Rect {
             y: inner.y + 1,

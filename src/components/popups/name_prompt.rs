@@ -7,11 +7,10 @@ use ratatui::Frame;
 use ratatui::layout::{Position, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
-use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::popups::key_with_ctrl;
-use crate::components::text::head_fitting;
+use crate::components::text_field::{Caret, TextField};
 use crate::files::entries::EntryKind;
 use crate::ui::theme::Theme;
 
@@ -99,11 +98,7 @@ pub(crate) struct NamePrompt {
     purpose: Purpose,
     /// The folder the new entry is made in.
     dir: PathBuf,
-    name: String,
-    /// Where typing goes: a byte offset in `name`, always between two graphemes.
-    cursor: usize,
-    /// The first byte of `name` that is shown, when the name is longer than the box.
-    scroll: usize,
+    field: TextField,
     /// Where the box is on the screen, set by [`NamePrompt::place`] before each draw.
     layout: Layout,
     /// The list of the folder under the text, for the prompts that ask for a path.
@@ -128,9 +123,7 @@ impl NamePrompt {
             picker: Self::picker_for(&purpose),
             purpose,
             dir,
-            cursor: name.len(),
-            name,
-            scroll: 0,
+            field: TextField::with_text(name),
             layout: Layout::default(),
         }
     }
@@ -200,19 +193,24 @@ impl NamePrompt {
     }
 
     pub(crate) fn name(&self) -> &str {
-        &self.name
+        self.field.text()
     }
 
     /// Where the text cursor is: a byte offset in the name.
     #[cfg(test)]
     pub(crate) fn cursor(&self) -> usize {
-        self.cursor
+        self.field.cursor()
+    }
+
+    /// The first byte of the name that was drawn last.
+    #[cfg(test)]
+    pub(crate) fn scroll(&self) -> usize {
+        self.field.scroll()
     }
 
     /// Types `c` at the cursor.
     pub(crate) fn insert(&mut self, c: char) {
-        self.name.insert(self.cursor, c);
-        self.cursor += c.len_utf8();
+        self.field.insert(c);
     }
 
     /// Deletes the character (grapheme) before the cursor.
@@ -221,62 +219,40 @@ impl NamePrompt {
         if self.step_up() {
             return;
         }
-        let start = self.previous_boundary(self.cursor);
-        self.name.replace_range(start..self.cursor, "");
-        self.cursor = start;
+        self.field.backspace();
     }
 
     /// Deletes the character (grapheme) at the cursor.
     pub(crate) fn delete(&mut self) {
-        let end = self.next_boundary(self.cursor);
-        self.name.replace_range(self.cursor..end, "");
+        self.field.delete();
     }
 
     pub(crate) fn clear(&mut self) {
-        self.name.clear();
-        self.cursor = 0;
+        self.field.clear();
     }
 
     pub(crate) fn move_left(&mut self) {
-        self.cursor = self.previous_boundary(self.cursor);
+        self.field.move_left();
     }
 
     pub(crate) fn move_right(&mut self) {
-        self.cursor = self.next_boundary(self.cursor);
+        self.field.move_right();
     }
 
     pub(crate) fn move_home(&mut self) {
-        self.cursor = 0;
+        self.field.move_caret(Caret::Home);
     }
 
     pub(crate) fn move_end(&mut self) {
-        self.cursor = self.name.len();
+        self.field.move_caret(Caret::End);
     }
 
-    /// To the start of the word before the cursor: over what is not a word, then over
-    /// the word.
     pub(crate) fn move_word_left(&mut self) {
-        let mut at = self.cursor;
-        while at > 0 && !self.is_word_before(at) {
-            at = self.previous_boundary(at);
-        }
-        while at > 0 && self.is_word_before(at) {
-            at = self.previous_boundary(at);
-        }
-        self.cursor = at;
+        self.field.move_word_left();
     }
 
-    /// To the end of the word after the cursor: over what is not a word, then over the
-    /// word.
     pub(crate) fn move_word_right(&mut self) {
-        let mut at = self.cursor;
-        while at < self.name.len() && !self.is_word_at(at) {
-            at = self.next_boundary(at);
-        }
-        while at < self.name.len() && self.is_word_at(at) {
-            at = self.next_boundary(at);
-        }
-        self.cursor = at;
+        self.field.move_word_right();
     }
 
     /// Puts the cursor at the character under the cell (`column`, `row`) when that is
@@ -289,59 +265,8 @@ impl NamePrompt {
         {
             return false;
         }
-        let wanted = usize::from(column - layout.text_x);
-        let mut used = 0;
-        let mut at = self.floor_to_boundary(self.scroll);
-        for grapheme in self.name[at..].graphemes(true) {
-            let width = grapheme.width().max(1);
-            if wanted < used + width {
-                // The nearer edge of the character: the left half of a wide one is before it.
-                if wanted - used >= width.div_ceil(2) {
-                    at += grapheme.len();
-                }
-                break;
-            }
-            used += width;
-            at += grapheme.len();
-        }
-        self.cursor = at;
+        self.field.click(usize::from(column - layout.text_x));
         true
-    }
-
-    fn previous_boundary(&self, from: usize) -> usize {
-        self.name[..from]
-            .grapheme_indices(true)
-            .next_back()
-            .map_or(0, |(index, _)| index)
-    }
-
-    fn next_boundary(&self, from: usize) -> usize {
-        self.name[from..]
-            .graphemes(true)
-            .next()
-            .map_or(from, |grapheme| from + grapheme.len())
-    }
-
-    fn is_word_before(&self, at: usize) -> bool {
-        self.name[..at].chars().next_back().is_some_and(is_word)
-    }
-
-    fn is_word_at(&self, at: usize) -> bool {
-        self.name[at..].chars().next().is_some_and(is_word)
-    }
-
-    /// The nearest grapheme boundary of the name at or before `at`. A byte offset kept
-    /// from an earlier frame may fall inside a character once the text was edited.
-    fn floor_to_boundary(&self, at: usize) -> usize {
-        if at >= self.name.len() {
-            return self.name.len();
-        }
-        self.name
-            .grapheme_indices(true)
-            .map(|(index, _)| index)
-            .take_while(|index| *index <= at)
-            .last()
-            .unwrap_or(0)
     }
 
     /// Finds where the box goes on `screen` and which part of a long name is shown, so
@@ -357,7 +282,7 @@ impl NamePrompt {
         };
         let inner = Block::bordered().inner(area);
         let room = usize::from(inner.width).saturating_sub(PROMPT.width() + 1);
-        self.scroll = self.first_shown(room);
+        self.field.visible(room);
         let text_x = inner.x + PROMPT.width().min(usize::from(inner.width)) as u16;
         self.layout = Layout {
             area,
@@ -407,11 +332,9 @@ impl NamePrompt {
         }
 
         let room = usize::from(inner.width).saturating_sub(PROMPT.width() + 1);
-        let from = self.floor_to_boundary(self.scroll).min(self.cursor);
-        let shown = head_fitting(&self.name[from..], room);
+        let (shown, before_cursor) = self.field.visible(room);
         let line = format!("{PROMPT}{shown}");
         frame.render_widget(Paragraph::new(line.as_str()), Rect { height: 1, ..inner });
-        let before_cursor = self.name[from..self.cursor].width();
         let cursor_x = self
             .layout
             .text_x
@@ -419,24 +342,6 @@ impl NamePrompt {
         frame.set_cursor_position(Position::new(cursor_x.min(inner.right()), inner.y));
         self.render_list(frame, theme, self.layout.list);
     }
-}
-
-impl NamePrompt {
-    /// The first byte of the name that is drawn: the start when the name fits, and
-    /// otherwise as far along as the cursor needs to be inside `room` cells; it stays
-    /// where it was while the cursor is in view.
-    fn first_shown(&self, room: usize) -> usize {
-        let mut from = self.floor_to_boundary(self.scroll.min(self.cursor));
-        while from < self.cursor && self.name[from..self.cursor].width() > room {
-            from = self.next_boundary(from);
-        }
-        // Nothing needs hiding when the whole name fits.
-        if self.name.width() <= room { 0 } else { from }
-    }
-}
-
-fn is_word(c: char) -> bool {
-    c.is_alphanumeric() || c == '_'
 }
 
 /// A line and an optional column from what was typed: `42`, `42:7`, `:7` is

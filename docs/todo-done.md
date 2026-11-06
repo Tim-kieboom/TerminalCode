@@ -469,3 +469,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] `ctrl+space` shows the suggestions at the cursor ("Language: Show Completions"): an invoked completion request that opens the box with nothing typed; says so when the file's server has no completion
 
 - [x] Open File and Open Folder path prompt (`docs/design.md`, "The path prompt"): the entries of the folder typed so far listed under the text, matched by the letters in order, folders first; `tab`, `up`/`down`, `enter` into a folder, `ctrl+enter` as typed, backspace after a `/` steps up, `~` and `..`, the folder read on a thread with an error row when it cannot be read; shown for Open Folder as folders only
+
+- [x] The text cursor in the command palette, the file finder, the project search and the find bar (`docs/design.md`, "The text cursor in the other inputs"): `left`/`right`/`home`/`end`/`ctrl+left`/`ctrl+right`, `delete`, typing and backspace at the cursor, the matches following every edit; one `TextField` shared with the name prompt

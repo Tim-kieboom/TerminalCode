@@ -12,6 +12,7 @@ use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Pa
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::popups::key_with_ctrl;
+use crate::components::text_field::{Caret, TextField};
 use crate::event::action::Action;
 use crate::ui::fuzzy;
 use crate::ui::theme::Theme;
@@ -34,6 +35,9 @@ pub(crate) struct Entry {
 pub(crate) enum Command {
     Insert(char),
     Backspace,
+    Delete,
+    /// Moves the text cursor in the query.
+    Caret(Caret),
     ClearQuery,
     Previous,
     Next,
@@ -44,8 +48,12 @@ pub(crate) enum Command {
 impl Command {
     pub(crate) fn from_key(key: KeyEvent) -> Option<Self> {
         let (code, ctrl) = key_with_ctrl(key)?;
+        if let Some(caret) = Caret::from_key(code, ctrl) {
+            return Some(Self::Caret(caret));
+        }
         Some(match (code, ctrl) {
             (KeyCode::Esc, _) => Self::Cancel,
+            (KeyCode::Delete, _) => Self::Delete,
             (KeyCode::Enter, _) => Self::Run,
             (KeyCode::Up, _) => Self::Previous,
             (KeyCode::Down, _) => Self::Next,
@@ -60,7 +68,7 @@ impl Command {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Palette {
     entries: Vec<Entry>,
-    query: String,
+    field: TextField,
     /// Indices into `entries` that match the query, best first.
     matches: Vec<usize>,
     selected: usize,
@@ -84,7 +92,7 @@ impl Palette {
             .collect();
         let mut palette = Self {
             entries,
-            query: String::new(),
+            field: TextField::default(),
             matches: Vec::new(),
             selected: 0,
             recent,
@@ -95,7 +103,7 @@ impl Palette {
 
     #[cfg(test)]
     pub(crate) fn query(&self) -> &str {
-        &self.query
+        self.field.text()
     }
 
     /// The entries that match the query, best first.
@@ -115,17 +123,28 @@ impl Palette {
     }
 
     pub(crate) fn insert(&mut self, c: char) {
-        self.query.push(c);
+        self.field.insert(c);
         self.refilter();
     }
 
     pub(crate) fn backspace(&mut self) {
-        self.query.pop();
-        self.refilter();
+        if self.field.backspace() {
+            self.refilter();
+        }
+    }
+
+    pub(crate) fn delete(&mut self) {
+        if self.field.delete() {
+            self.refilter();
+        }
+    }
+
+    pub(crate) fn move_caret(&mut self, caret: Caret) {
+        self.field.move_caret(caret);
     }
 
     pub(crate) fn clear_query(&mut self) {
-        self.query.clear();
+        self.field.clear();
         self.refilter();
     }
 
@@ -145,7 +164,9 @@ impl Palette {
             .entries
             .iter()
             .enumerate()
-            .filter_map(|(index, entry)| Some((fuzzy::score(&self.query, &entry.title)?, index)))
+            .filter_map(|(index, entry)| {
+                Some((fuzzy::score(self.field.text(), &entry.title)?, index))
+            })
             .collect();
         let rank = |index: usize| self.recent[index].unwrap_or(usize::MAX);
         scored.sort_by_key(|&(score, index)| (std::cmp::Reverse(score), rank(index), index));
@@ -168,13 +189,7 @@ impl Palette {
         }
 
         let input_area = Rect { height: 1, ..inner };
-        let prompt = format!("> {}", self.query);
-        frame.render_widget(Paragraph::new(prompt.as_str()), input_area);
-        let cursor_x = input_area.x + prompt.width().min(usize::from(input_area.width)) as u16;
-        frame.set_cursor_position(Position::new(
-            cursor_x.min(input_area.right()),
-            input_area.y,
-        ));
+        self.field.render_input(frame, input_area, "> ");
 
         let list_area = Rect {
             y: inner.y + 1,

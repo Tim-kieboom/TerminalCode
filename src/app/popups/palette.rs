@@ -100,6 +100,8 @@ impl App {
         match command {
             palette::Command::Insert(c) => palette.insert(c),
             palette::Command::Backspace => palette.backspace(),
+            palette::Command::Delete => palette.delete(),
+            palette::Command::Caret(caret) => palette.move_caret(caret),
             palette::Command::ClearQuery => palette.clear_query(),
             palette::Command::Previous => palette.select_previous(),
             palette::Command::Next => palette.select_next(),

@@ -79,6 +79,8 @@ impl App {
         match command {
             find::Command::Insert(c) => find.insert(self.state.editor().buffer(), c),
             find::Command::Backspace => find.backspace(self.state.editor().buffer()),
+            find::Command::Delete => find.delete(self.state.editor().buffer()),
+            find::Command::Caret(caret) => find.move_caret(caret),
             find::Command::ClearQuery => find.clear_query(self.state.editor().buffer()),
             find::Command::ToggleCase => find.toggle_case(self.state.editor().buffer()),
             find::Command::ToggleRegex => find.toggle_regex(self.state.editor().buffer()),

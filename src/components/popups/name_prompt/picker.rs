@@ -57,12 +57,12 @@ impl NamePrompt {
 
     /// The part of the name before its last separator, as typed (with the separator).
     pub(crate) fn typed_folder(&self) -> &str {
-        path_list::split_typed(&self.name).0
+        path_list::split_typed(self.field.text()).0
     }
 
     /// The part of the name after its last separator: what the list is matched against.
     pub(crate) fn partial(&self) -> &str {
-        path_list::split_typed(&self.name).1
+        path_list::split_typed(self.field.text()).1
     }
 
     /// Whether the folder `dir` is not the one the list is of (or being read for), so it is to
@@ -169,9 +169,7 @@ impl NamePrompt {
     /// Replaces the name being typed (after the last separator) with `text`.
     fn set_partial(&mut self, text: &str) {
         let keep = self.typed_folder().len();
-        self.name.truncate(keep);
-        self.name.push_str(text);
-        self.cursor = self.name.len();
+        self.field.replace_from(keep, text);
     }
 
     /// Goes into the folder called `name`: it is written with a separator after it, and the
@@ -241,13 +239,13 @@ impl NamePrompt {
         if self.picker.is_none() {
             return false;
         }
-        let before = &self.name[..self.cursor];
+        let before = self.field.before_cursor();
         let Some(rest) = before.strip_suffix(std::path::is_separator) else {
             return false;
         };
         let start = rest.rfind(std::path::is_separator).map_or(0, |at| at + 1);
-        self.name.replace_range(start..self.cursor, "");
-        self.cursor = start;
+        let end = self.field.cursor();
+        self.field.remove_range(start, end);
         true
     }
 

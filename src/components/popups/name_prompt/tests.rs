@@ -219,7 +219,7 @@ fn a_name_longer_than_the_box_scrolls_to_keep_the_cursor_in_view() {
     let mut at_start = draw(&mut prompt, 80);
     let text_start = (80 - WIDTH) / 2 + 1 + PROMPT.width() as u16;
     assert_eq!(at_start.get_cursor_position().unwrap().x, text_start);
-    assert_eq!(prompt.scroll, 0);
+    assert_eq!(prompt.scroll(), 0);
 }
 
 #[test]
@@ -228,7 +228,7 @@ fn a_scroll_offset_from_before_an_edit_does_not_cut_a_character_in_two() {
     // frame can fall inside one once the text before it changes.
     let mut prompt = prompt(&"\u{e9}".repeat(100));
     draw(&mut prompt, 80);
-    assert!(prompt.scroll > 0, "the name is scrolled");
+    assert!(prompt.scroll() > 0, "the name is scrolled");
 
     prompt.move_home();
     prompt.insert('x');
@@ -236,13 +236,13 @@ fn a_scroll_offset_from_before_an_edit_does_not_cut_a_character_in_two() {
     let mut terminal = draw(&mut prompt, 80);
 
     assert_eq!(
-        prompt.scroll % 2,
+        prompt.scroll() % 2,
         1,
         "after the `x` the characters start at odd bytes"
     );
     assert!(terminal.get_cursor_position().is_ok());
     prompt.click(prompt.layout.text_x + 3, prompt.layout.text_y);
-    assert!(prompt.name.is_char_boundary(prompt.cursor()));
+    assert!(prompt.name().is_char_boundary(prompt.cursor()));
 }
 
 #[test]
@@ -255,5 +255,5 @@ fn a_click_before_the_next_draw_after_an_edit_stays_on_a_character_boundary() {
     prompt.move_end();
     prompt.click(prompt.layout.text_x + 3, prompt.layout.text_y);
 
-    assert!(prompt.name.is_char_boundary(prompt.cursor()));
+    assert!(prompt.name().is_char_boundary(prompt.cursor()));
 }

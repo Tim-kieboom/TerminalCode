@@ -9,12 +9,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use ratatui::Frame;
-use ratatui::layout::{Position, Rect};
+use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph};
-use unicode_width::UnicodeWidthStr;
 
+use crate::components::text_field::{Caret, TextField};
 use crate::ui::fuzzy::Query;
 use crate::ui::theme::Theme;
 
@@ -145,7 +145,7 @@ pub(crate) struct Finder {
     _handle: Option<ScanHandle>,
     walk: Walk,
     files: Vec<File>,
-    query: String,
+    field: TextField,
     prepared: Query,
     /// Every file that matches the query, so a longer query only has to look
     /// at these.
@@ -170,7 +170,7 @@ impl Finder {
             _handle: handle,
             walk: Walk::Running,
             files: Vec::new(),
-            query: String::new(),
+            field: TextField::default(),
             prepared: Query::new(""),
             candidates: Vec::new(),
             matches: Vec::new(),
@@ -201,7 +201,7 @@ impl Finder {
 
     #[cfg(test)]
     pub(crate) fn query(&self) -> &str {
-        &self.query
+        self.field.text()
     }
 
     #[cfg(test)]
@@ -281,17 +281,28 @@ impl Finder {
     }
 
     pub(crate) fn insert(&mut self, c: char) {
-        self.query.push(c);
+        self.field.insert(c);
         self.refilter_after_typing();
     }
 
     pub(crate) fn backspace(&mut self) {
-        self.query.pop();
-        self.refilter(Narrowing::FromAllFiles);
+        if self.field.backspace() {
+            self.refilter(Narrowing::FromAllFiles);
+        }
+    }
+
+    pub(crate) fn delete(&mut self) {
+        if self.field.delete() {
+            self.refilter(Narrowing::FromAllFiles);
+        }
+    }
+
+    pub(crate) fn move_caret(&mut self, caret: Caret) {
+        self.field.move_caret(caret);
     }
 
     pub(crate) fn clear_query(&mut self) {
-        self.query.clear();
+        self.field.clear();
         self.refilter(Narrowing::FromAllFiles);
     }
 
@@ -300,7 +311,7 @@ impl Finder {
     /// against did not just grow (the typed `:` and digits after a name are a
     /// place, not part of it).
     fn refilter_after_typing(&mut self) {
-        let grew = target::parse(&self.query)
+        let grew = target::parse(self.field.text())
             .text
             .starts_with(self.matched_text.as_str());
         let from = match grew {
@@ -320,7 +331,7 @@ impl Finder {
 
     /// Ranks the files again for the new query and goes back to the top.
     fn refilter(&mut self, from: Narrowing) {
-        let parsed = target::parse(&self.query);
+        let parsed = target::parse(self.field.text());
         self.place = parsed.line.map(|line| (line, parsed.column));
         self.matched_text = parsed.text.to_owned();
         self.prepared = Query::new(parsed.text);
@@ -373,13 +384,7 @@ impl Finder {
         }
 
         let input_area = Rect { height: 1, ..inner };
-        let prompt = format!("> {}", self.query);
-        frame.render_widget(Paragraph::new(prompt.as_str()), input_area);
-        let cursor_x = input_area.x + prompt.width().min(usize::from(input_area.width)) as u16;
-        frame.set_cursor_position(Position::new(
-            cursor_x.min(input_area.right()),
-            input_area.y,
-        ));
+        self.field.render_input(frame, input_area, "> ");
 
         let footer_area = Rect {
             y: inner.bottom() - 1,

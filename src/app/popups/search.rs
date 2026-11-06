@@ -53,7 +53,9 @@ impl App {
         let mut chosen = None;
         match command {
             search::Command::Insert(c) => search.insert(c),
-            search::Command::Backspace => search.backspace(),
+            search::Command::Backspace => changed = search.backspace(),
+            search::Command::Delete => changed = search.delete(),
+            search::Command::Caret(caret) => (changed, _) = (false, search.move_caret(caret)),
             search::Command::ClearQuery => search.clear_query(),
             search::Command::ToggleCase => search.toggle_case(),
             search::Command::ToggleRegex => search.toggle_regex(),

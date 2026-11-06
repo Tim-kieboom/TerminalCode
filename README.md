@@ -84,7 +84,7 @@ an `.envrc` that `direnv` has not been told to trust needs `direnv allow` in the
 
 ## Keys
 
-Press `f1` for the command palette, which lists every action with its key. The defaults:
+Press `f1` for the command palette, which lists every action with its key. In every one-line input (the palette, the file finder, the project search, the find bar and its replacement, and the name prompts) `left`, `right`, `home`, `end` and `ctrl+left` / `ctrl+right` (by word) move the text cursor, `delete` and backspace edit at it, and `ctrl+u` clears the line. The defaults:
 
 | Keys | Action |
 |---|---|
