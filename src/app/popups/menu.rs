@@ -109,6 +109,13 @@ impl App {
                 menu::Step::Run(action) => self.run_menu_action(&menu, action),
                 _ => self.state.open_menu(menu),
             },
+            // The pointer over an item makes it the selected one, so the keys go on from there.
+            MouseEventKind::Moved => {
+                if menu.hover(position) {
+                    self.needs_redraw = true;
+                }
+                self.state.open_menu(menu);
+            }
             _ => self.state.open_menu(menu),
         }
         true

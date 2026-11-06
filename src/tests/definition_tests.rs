@@ -623,3 +623,24 @@ fn real_rust_analyzer_goes_to_definitions_in_the_project_and_in_the_standard_lib
     assert_eq!(rig.name(), "main.rs");
     assert_eq!(rig.head().line, 1);
 }
+
+#[test]
+fn the_pointer_over_a_row_selects_it_and_the_keys_go_on_from_there() {
+    let mut rig = rig_with_two();
+    rig.f12_on_value();
+    rig.pump_until(|app| app.state().definition_list().is_some());
+    assert_eq!(rig.list_selected(), 0);
+    let (column, row) = rig.cell_at("src/util.rs:10");
+
+    rig.app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Moved,
+        column: column + 2,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+
+    assert_eq!(rig.list_selected(), 1, "the row under the pointer");
+    assert!(rig.list_open(), "hover does not go there");
+    rig.press(KeyCode::Up);
+    assert_eq!(rig.list_selected(), 0);
+}

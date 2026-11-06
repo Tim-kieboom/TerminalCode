@@ -732,6 +732,84 @@ mod groups {
 
         assert_eq!(menu.selected_action(), Some(&Action::Quit));
     }
+
+    // ---- hover: the item under the pointer is the selected one
+
+    #[test]
+    fn hover_selects_the_item_under_the_pointer_and_runs_nothing() {
+        let mut menu = main_menu();
+        // Rows: frame 1, File 2, separator 3, Quit 4.
+        assert!(menu.hover(Position::new(3, 4)));
+
+        assert_eq!(menu.selected_action(), Some(&Action::Quit));
+        assert!(menu.submenu().is_none(), "a group is not opened by hover");
+    }
+
+    #[test]
+    fn hover_on_the_frame_a_separator_or_outside_changes_nothing() {
+        let mut menu = main_menu();
+        menu.key(Command::Next);
+
+        for at in [(3, 1), (3, 3), (70, 20)] {
+            assert!(!menu.hover(Position::new(at.0, at.1)), "{at:?}");
+            assert_eq!(menu.selected_action(), Some(&Action::Quit), "{at:?}");
+        }
+    }
+
+    #[test]
+    fn hover_on_the_item_already_selected_is_not_a_change() {
+        let mut menu = main_menu();
+
+        assert!(!menu.hover(Position::new(3, 2)));
+    }
+
+    #[test]
+    fn hover_in_an_open_submenu_selects_there_and_the_keys_go_on_from_it() {
+        let mut menu = main_menu();
+        menu.key(Command::Right);
+        menu.place(Rect::new(0, 0, 80, 24));
+
+        // Save is on row 2, Save All on row 3, in the submenu to the right.
+        assert!(menu.hover(Position::new(20, 3)));
+        assert_eq!(menu.key(Command::Run), Step::Run(Action::SaveAll));
+        assert_eq!(menu.key(Command::Previous), Step::Stay);
+        assert_eq!(
+            menu.key(Command::Run),
+            Step::Run(Action::Save),
+            "keys continue from the hovered row"
+        );
+    }
+
+    #[test]
+    fn a_menu_taller_than_the_screen_scrolls_to_keep_the_selection_in_view() {
+        let entries: Vec<Entry> = (0..12)
+            .map(|n| Entry::Item {
+                label: format!("Item {n}").into(),
+                action: Action::Save,
+                keys: None,
+            })
+            .collect();
+        let mut menu = Menu::on_app(entries, Position::new(0, 0));
+        let screen = Rect::new(0, 0, 40, 6); // room for 4 items inside the frame
+        menu.place(screen);
+
+        for _ in 0..9 {
+            menu.key(Command::Next);
+        }
+        menu.place(screen);
+
+        let inner_rows = 4;
+        assert_eq!(menu.selected(), 9);
+        // The selected item (9) is on the last visible row, so the row under the pointer
+        // there is item 9, and the first visible is item 6.
+        let last_row = Position::new(3, 1 + inner_rows);
+        assert!(
+            !menu.hover(last_row),
+            "that row is the selected one already"
+        );
+        assert!(menu.hover(Position::new(3, 1)));
+        assert_eq!(menu.selected(), 6);
+    }
 }
 
 /// What the clipboard holds, by pasting it into a new, empty editor tab.
@@ -794,4 +872,123 @@ fn copy_relative_path_in_the_menu_copies_the_path_from_the_project_folder() {
         // The path of the file on disk, so with the separator of the platform.
         Path::new("src").join("main.rs").display().to_string()
     );
+}
+
+// ---- hover over the menus of the explorer
+
+fn hover(app: &mut App, (column, row): (u16, u16)) {
+    mouse(app, MouseEventKind::Moved, column, row);
+}
+
+#[test]
+fn the_pointer_over_an_item_of_the_explorer_menu_selects_it() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+
+    hover(&mut app, cell_of(&terminal, "Rename"));
+
+    assert_eq!(selected_label(&app), "Rename");
+}
+
+#[test]
+fn hovering_and_the_keys_move_the_same_highlight() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+
+    hover(&mut app, cell_of(&terminal, "Rename"));
+    press(&mut app, KeyCode::Down);
+    assert_eq!(
+        selected_label(&app),
+        "Cut",
+        "the next item after the hovered one"
+    );
+    hover(&mut app, cell_of(&terminal, "New Folder"));
+    press(&mut app, KeyCode::Down);
+    assert_eq!(selected_label(&app), "Rename");
+}
+
+#[test]
+fn enter_runs_the_item_the_pointer_is_over() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+
+    hover(&mut app, cell_of(&terminal, "Rename"));
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(app.state().name_prompt().unwrap().name(), "a.txt");
+}
+
+#[test]
+fn the_pointer_moving_over_the_frame_or_a_separator_keeps_the_selection() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+    right_click(&mut app, cell_of(&terminal, "a.txt"));
+    draw(&mut app, &mut terminal);
+    hover(&mut app, cell_of(&terminal, "Rename"));
+    let (column, row) = cell_of(&terminal, "Rename");
+
+    hover(&mut app, (column, row + 1)); // the separator under Rename
+
+    assert_eq!(selected_label(&app), "Rename");
+}
+
+#[test]
+fn the_pointer_moving_with_no_menu_open_does_nothing_to_the_explorer() {
+    let dir = project();
+    let (mut app, mut terminal) = app_in(dir.path());
+    select(&mut app, "a.txt");
+    draw(&mut app, &mut terminal);
+
+    hover(&mut app, cell_of(&terminal, "b.txt"));
+
+    assert_eq!(app.state().explorer().selected_row().unwrap().name, "a.txt");
+}
+
+#[test]
+fn a_tall_menu_on_a_short_screen_scrolls_and_the_mouse_hits_the_row_it_shows() {
+    let dir = project();
+    let mut state = AppState::default();
+    state.open_project(dir.path()).unwrap();
+    let mut app = App::new(state).with_trash(trash_that_works);
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Char('b'),
+        KeyModifiers::CONTROL,
+    )));
+    let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
+    draw(&mut app, &mut terminal);
+    select(&mut app, "a.txt");
+    open_menu(&mut app);
+
+    // Walk down to the last item (Delete): far more entries than the screen has rows.
+    for _ in 0..11 {
+        press(&mut app, KeyCode::Down);
+    }
+    draw(&mut app, &mut terminal);
+
+    assert_eq!(selected_label(&app), "Delete");
+    let screen = terminal.backend().to_string();
+    assert!(
+        screen.contains("Delete"),
+        "the selected item scrolled into view: {screen}"
+    );
+    assert!(
+        !screen.contains("New File"),
+        "the top scrolled out: {screen}"
+    );
+    hover(&mut app, cell_of(&terminal, "Open in Terminal"));
+    assert_eq!(selected_label(&app), "Open in Terminal");
 }

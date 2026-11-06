@@ -232,6 +232,12 @@ impl App {
             }
             MouseEventKind::ScrollDown => list.step(1),
             MouseEventKind::ScrollUp => list.step(-1),
+            // The pointer over a row selects it, as the keys would.
+            MouseEventKind::Moved => {
+                if list.select_at(event.column, event.row) {
+                    self.needs_redraw = true;
+                }
+            }
             _ => {}
         }
         true

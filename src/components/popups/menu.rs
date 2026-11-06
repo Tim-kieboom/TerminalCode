@@ -14,6 +14,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
+use crate::components::list_cursor::revealed;
 use crate::components::popups::plain_key;
 use crate::event::action::Action;
 use crate::ui::theme::Theme;
@@ -95,6 +96,8 @@ pub(crate) struct Menu {
     target: Option<PathBuf>,
     /// Where it was last placed on screen; empty until the first draw.
     area: Rect,
+    /// The first entry shown, when the screen is too short for all of them.
+    scroll: usize,
     /// The menu of the selected group, while it is open. It has the keyboard.
     submenu: Option<Box<Menu>>,
     /// The menu belongs to the app and not to what was clicked: the keyboard stays
@@ -142,6 +145,7 @@ impl Menu {
             anchor,
             target,
             area: Rect::default(),
+            scroll: 0,
             submenu: None,
             keeps_focus: false,
             from_anchor_row: false,
@@ -254,7 +258,7 @@ impl Menu {
         if !inner.contains(position) {
             return Step::Stay;
         }
-        let index = usize::from(position.y - inner.y);
+        let index = self.scroll + usize::from(position.y - inner.y);
         match self.entries.get(index) {
             Some(Entry::Item { action, .. }) => Step::Run(action.clone()),
             Some(Entry::Group { .. }) => {
@@ -262,6 +266,29 @@ impl Menu {
                 Step::Stay
             }
             _ => Step::Stay,
+        }
+    }
+
+    /// The pointer is at a screen cell: the item under it becomes the selected one, as if
+    /// the keys had moved there (so `enter` runs it), in the open submenu when the pointer is
+    /// in that. Nothing is run or opened. Whether the selection changed.
+    pub(crate) fn hover(&mut self, position: Position) -> bool {
+        if let Some(sub) = self.submenu.as_mut()
+            && sub.contains(position)
+        {
+            return sub.hover(position);
+        }
+        let inner = Block::bordered().inner(self.area);
+        if !inner.contains(position) {
+            return false;
+        }
+        let index = self.scroll + usize::from(position.y - inner.y);
+        match self.entries.get(index) {
+            Some(entry) if is_item(entry) && index != self.selected => {
+                self.selected = index;
+                true
+            }
+            _ => false,
         }
     }
 
@@ -283,10 +310,16 @@ impl Menu {
     /// drawing, so that clicks are tested against what is on screen.
     pub(crate) fn place(&mut self, screen: Rect) {
         self.area = self.area_on(screen);
-        let (area, selected) = (self.area, self.selected);
+        let rows = usize::from(Block::bordered().inner(self.area).height);
+        self.scroll = revealed(self.selected, self.scroll, rows);
+        // Never leave empty rows at the bottom when there is something above them.
+        self.scroll = self
+            .scroll
+            .min(self.entries.len().saturating_sub(rows.max(1)));
+        let (area, selected, scroll) = (self.area, self.selected, self.scroll);
         if let Some(sub) = self.submenu.as_mut() {
             // Its first item is level with the group, to the right of this menu.
-            let row = area.y + 1 + selected as u16;
+            let row = area.y + 1 + selected.saturating_sub(scroll) as u16;
             sub.anchor = Position::new(area.right(), row.saturating_sub(2));
             sub.place(screen);
         }
@@ -314,7 +347,10 @@ impl Menu {
         if !inner.contains(position) {
             return None;
         }
-        match self.entries.get(usize::from(position.y - inner.y))? {
+        match self
+            .entries
+            .get(self.scroll + usize::from(position.y - inner.y))?
+        {
             Entry::Item { action, .. } => Some(action),
             Entry::Group { .. } | Entry::Separator => None,
         }
@@ -336,6 +372,8 @@ impl Menu {
             .entries
             .iter()
             .enumerate()
+            .skip(self.scroll)
+            .take(usize::from(inner.height))
             .map(|(index, entry)| match entry {
                 Entry::Item { label, keys, .. } => {
                     let keys = keys.as_deref().unwrap_or("");

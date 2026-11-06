@@ -143,6 +143,12 @@ impl App {
             }
             MouseEventKind::ScrollUp => palette.select_previous(),
             MouseEventKind::ScrollDown => palette.select_next(),
+            // The pointer over a row selects it, as the keys would.
+            MouseEventKind::Moved => {
+                if let Some(index) = palette.row_at(screen, event.column, event.row) {
+                    palette.select(index);
+                }
+            }
             _ => {}
         }
         if keep_open {

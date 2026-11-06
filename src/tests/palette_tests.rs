@@ -892,3 +892,55 @@ fn going_to_a_line_selects_nothing() {
     let selection = *app.state().editor().selections().primary();
     assert!(selection.is_empty());
 }
+
+#[test]
+fn the_pointer_over_an_entry_selects_it_and_enter_runs_that_one() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Toggle");
+    assert_eq!(app.state().palette().unwrap().selected(), 0);
+    let at = cell_of_nth(&mut app, "View: Toggle Status Bar", 0);
+
+    mouse(&mut app, MouseEventKind::Moved, at);
+
+    let selected = app.state().palette().unwrap().selected();
+    assert!(selected > 0 || titles(&app)[0] == "View: Toggle Status Bar");
+    assert_eq!(titles(&app)[selected], "View: Toggle Status Bar");
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Enter,
+        KeyModifiers::NONE,
+    )));
+    assert!(!app.state().is_visible(&crate::ui::ComponentKind::StatusBar));
+}
+
+#[test]
+fn the_keys_go_on_from_the_row_the_pointer_selected() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Toggle");
+    let third = titles(&app)[2].to_owned();
+    let at = cell_of_nth(&mut app, &third, 0);
+
+    mouse(&mut app, MouseEventKind::Moved, at);
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Down,
+        KeyModifiers::NONE,
+    )));
+
+    assert_eq!(app.state().palette().unwrap().selected(), 3);
+}
+
+#[test]
+fn the_pointer_over_the_palettes_input_line_or_outside_keeps_the_selection() {
+    let mut app = App::default();
+    open(&mut app);
+    type_str(&mut app, "Toggle");
+    app.handle_input(InputEvent::Key(KeyEvent::new(
+        KeyCode::Down,
+        KeyModifiers::NONE,
+    )));
+
+    mouse(&mut app, MouseEventKind::Moved, (99, 29));
+
+    assert_eq!(app.state().palette().unwrap().selected(), 1);
+}
