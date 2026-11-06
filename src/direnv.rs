@@ -67,10 +67,7 @@ fn last_line(text: &str) -> &str {
 pub(crate) fn parse(json: &str) -> Result<Vec<Change>, String> {
     let all: BTreeMap<String, Option<String>> = serde_json::from_str(json)
         .map_err(|error| format!("direnv's output is no JSON: {error}"))?;
-    Ok(all
-        .into_iter()
-        .filter(|change| can_be_set(change))
-        .collect())
+    Ok(all.into_iter().filter(can_be_set).collect())
 }
 
 /// Whether the environment can take `change` (setting a name that is empty or has a
