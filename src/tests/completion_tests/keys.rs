@@ -178,3 +178,77 @@ fn a_modified_enter_is_not_a_pick() {
 
     assert_ne!(rig.text(), "vb");
 }
+
+fn ctrl_space(rig: &mut Rig) {
+    rig.app.handle_input(crossterm::event::Event::Key(
+        crossterm::event::KeyEvent::new(KeyCode::Char(' '), KeyModifiers::CONTROL),
+    ));
+    rig.frame();
+}
+
+#[test]
+fn ctrl_space_shows_the_suggestions_with_nothing_typed() {
+    let mut rig = Rig::with_answer(items(&["alpha", "beta"]));
+
+    ctrl_space(&mut rig);
+    rig.wait_for_box();
+
+    assert_eq!(rig.shown(), ["alpha", "beta"]);
+    assert_eq!(rig.text(), "", "no space was typed");
+    let requests = rig.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0]["context"], json!({ "triggerKind": 1 }));
+}
+
+#[test]
+fn ctrl_space_in_a_word_narrows_the_list_to_it() {
+    let mut rig = Rig::with_answer(items(&["alpha", "alphabet", "beta"]));
+    rig.type_text("al");
+    rig.wait_for_box();
+    rig.press(KeyCode::Esc);
+    assert!(rig.app.state().completion_box().is_none());
+
+    ctrl_space(&mut rig);
+    rig.wait_for_box();
+
+    assert_eq!(rig.shown(), ["alpha", "alphabet"]);
+}
+
+#[test]
+fn the_box_from_ctrl_space_stays_open_and_a_suggestion_can_be_picked() {
+    let mut rig = Rig::with_answer(items(&["alpha", "beta"]));
+    ctrl_space(&mut rig);
+    rig.wait_for_box();
+    rig.frame();
+    assert!(
+        rig.app.state().completion_box().is_some(),
+        "not closed for being empty"
+    );
+
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Tab);
+
+    assert_eq!(rig.text(), "beta");
+}
+
+#[test]
+fn ctrl_space_with_a_server_that_has_no_suggestions_says_so_and_asks_nothing() {
+    let mut rig = Rig::start(
+        json!({ "textDocumentSync": 2 }),
+        "",
+        answering(items(&["a"])),
+    );
+
+    ctrl_space(&mut rig);
+
+    assert!(rig.app.state().completion_box().is_none());
+    assert!(
+        rig.app
+            .state()
+            .notifications()
+            .texts()
+            .iter()
+            .any(|text| text.contains("no language server with suggestions")),
+    );
+    assert!(rig.requests().is_empty());
+}

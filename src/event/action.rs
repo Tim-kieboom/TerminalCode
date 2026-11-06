@@ -79,6 +79,9 @@ pub(crate) enum Action {
     GoToDefinition,
     RenameSymbol,
     CodeActions,
+    /// Asks the language server for the suggestions at the cursor and shows them, even with
+    /// nothing typed of the word.
+    OpenCompletion,
     FormatDocument,
     FormatSelection,
     /// Opens the find bar for the open file.
@@ -454,6 +457,7 @@ impl Action {
             Self::GoToDefinition => "Navigate: Go to Definition",
             Self::RenameSymbol => "Language: Rename Symbol",
             Self::CodeActions => "Language: Code Action",
+            Self::OpenCompletion => "Language: Show Completions",
             Self::FormatDocument => "Language: Format Document",
             Self::FormatSelection => "Language: Format Selection",
             Self::FindInFile => "Search: Find in File",
@@ -606,6 +610,7 @@ impl Action {
             Self::GoToDefinition,
             Self::RenameSymbol,
             Self::CodeActions,
+            Self::OpenCompletion,
             Self::FormatDocument,
             Self::FormatSelection,
             Self::FindInFile,

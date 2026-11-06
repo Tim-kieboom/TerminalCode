@@ -191,6 +191,32 @@ impl App {
         })
     }
 
+    /// Asks the server for the suggestions at the cursor, as if a trigger character had been
+    /// typed: the box shows with nothing typed of the word, and with a word started it
+    /// narrows to it. Says so when there is no server for the file.
+    pub(super) fn open_completion(&mut self) {
+        let Some(document) = self.completion_document() else {
+            return;
+        };
+        if self.completion_target(document).is_none() {
+            self.state
+                .notify("there is no language server with suggestions for this file");
+            return;
+        }
+        let editor = self.state.editor();
+        let text = editor.buffer().snapshot();
+        let head = editor.selections().primary().head();
+        let Ok(cursor) = editor.buffer().position_to_byte(head) else {
+            return;
+        };
+        let wish = Wish {
+            trigger: Trigger::Typing,
+            word_start: word_start(&text, cursor),
+            by_trigger: true,
+        };
+        self.ask(document, text, cursor, wish);
+    }
+
     /// Sends the request, forgetting one that has not been answered.
     fn ask(&mut self, document: DocumentId, text: Rope, cursor: usize, wish: Wish) {
         let Some((key, uri, _)) = self.completion_target(document) else {
