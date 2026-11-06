@@ -204,6 +204,17 @@ const HTML_INJECTIONS: &str = r#"
 (style_element (raw_text) @injection.content (#set! injection.language "sol"))
 "#;
 
+/// The injection query of the HTML language, with `style` holding the language named
+/// `style_language`.
+fn html_injections(style_language: &str) -> String {
+    format!(
+        r#"
+(script_element (raw_text) @injection.content (#set! injection.language "javascript"))
+(style_element (raw_text) @injection.content (#set! injection.language "{style_language}"))
+"#
+    )
+}
+
 fn html(extension: &str, injections: &str) -> LanguageSpec {
     LanguageSpec {
         name: "HTML".to_owned(),
@@ -240,8 +251,13 @@ fn text_of_another_language_inside_a_plugins_language_is_colored_by_that_languag
 
 #[test]
 fn the_language_inside_can_be_another_plugins() {
-    register_language("test-k", spec("solc9")).unwrap();
-    register_language("test-l", html("htmj2", HTML_INJECTIONS)).unwrap();
+    // The language inside is found by its name, and every test names its Sol "Sol": another
+    // test taking its own away between the lookup and its use made this one fail now and then.
+    // A name of its own makes it the only one that can take this language away.
+    let mut inner = spec("solc9");
+    inner.name = "SolInsideHtml".to_owned();
+    register_language("test-k", inner).unwrap();
+    register_language("test-l", html("htmj2", &html_injections("solinsidehtml"))).unwrap();
 
     let found = colors(
         language("a.htmj2").unwrap(),
