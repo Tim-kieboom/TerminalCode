@@ -464,6 +464,12 @@ impl App {
             Action::ClearBreakpoints => self.clear_breakpoints(),
             Action::NextTab => self.state.workspace_mut().next_tab(),
             Action::PreviousTab => self.state.workspace_mut().previous_tab(),
+            Action::MoveTabLeft => {
+                self.state.workspace_mut().move_active_tab(-1);
+            }
+            Action::MoveTabRight => {
+                self.state.workspace_mut().move_active_tab(1);
+            }
             Action::ToggleSidePane => self.toggle_side_pane(),
             Action::ResetPaneSizes => self.reset_pane_sizes(),
             Action::SidePaneWider => self.resize_side_pane(5),

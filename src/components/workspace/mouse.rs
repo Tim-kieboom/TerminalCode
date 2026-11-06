@@ -49,6 +49,7 @@ impl Workspace {
         row: u16,
         on_text: impl FnOnce(&mut Editor) -> Result<(), crate::buffer::BufferError>,
     ) -> Result<(), crate::buffer::BufferError> {
+        self.tab_drag = None;
         let Some(index) = self.pane_at(column, row) else {
             return Ok(());
         };
@@ -63,8 +64,10 @@ impl Workspace {
 
         let pane = &self.panes[index];
         if let Some(tab) = pane.tab_at(column, row) {
+            let held = (pane.id, pane.tabs[tab].id);
             self.reset_confirmations();
             self.panes[index].active = tab;
+            self.tab_drag = Some(held);
             return Ok(());
         }
         if !contains(pane.editor_area, column, row) {

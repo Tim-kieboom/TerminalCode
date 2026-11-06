@@ -133,7 +133,8 @@ Press `f1` for the command palette, which lists every action with its key. The d
 | `tab`, `up`, `down`, `esc` | While the box of suggestions is open (it appears as you type, from a language server): `tab` writes the highlighted one (a call with its brackets and the first argument selected, and the `use` line it needs, as one undo step), `up` and `down` move the highlight, `esc` closes the box; `enter` closes it and is a newline; a small box above shows the documentation of the highlighted one (`pgup` and `pgdn`, or the wheel over it, scroll it when it is longer) |
 | `alt+,`, `alt+.` | Back to where the last jump left, and forward again (the places are recorded by go to line, a search or finder hit, `f8`, another file coming to the front and a mouse click more than a screen away; plain movement, typing and paging record nothing; the list keeps 100 places and moves them with your edits) |
 | `ctrl+n`, `ctrl+w` | New file, close tab |
-| `ctrl+tab`, `ctrl+shift+tab` | Next, previous tab |
+| `ctrl+tab`, `ctrl+shift+tab` | Next, previous tab (the wheel over the tab strip steps through the tabs too) |
+| `ctrl+shift+page down`, `ctrl+shift+page up` | Move the tab in front one place right, left (a drag of the tab with the mouse does the same, and so does "Move Left" and "Move Right" in its right-click menu); a pinned tab stays among the pinned ones, a loose tab among the loose |
 | `ctrl+k e`, `ctrl+k w`, `ctrl+k z` | Close other tabs, close all tabs, reopen the closed tab |
 | `ctrl+k right`, `ctrl+k down` | Split the pane |
 | `alt+h`, `alt+j`, `alt+k`, `alt+l` | Move to the pane on the left, below, above, on the right |

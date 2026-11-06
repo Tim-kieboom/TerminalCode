@@ -257,6 +257,10 @@ pub(crate) enum Action {
     ClearBreakpoints,
     NextTab,
     PreviousTab,
+    /// Moves the tab in front one place to the left, among the tabs of its kind (pinned or not).
+    MoveTabLeft,
+    /// Moves the tab in front one place to the right, among the tabs of its kind.
+    MoveTabRight,
     SplitRight,
     SplitDown,
     /// Shows the pane right of the editor (a plugin's preview) if it is hidden, hides it if
@@ -302,6 +306,8 @@ impl Action {
                 | Self::CloseTab
                 | Self::NextTab
                 | Self::PreviousTab
+                | Self::MoveTabLeft
+                | Self::MoveTabRight
                 | Self::SplitRight
                 | Self::SplitDown
                 | Self::FocusNextPane
@@ -387,6 +393,8 @@ impl Action {
                 | Self::CloseTab
                 | Self::NextTab
                 | Self::PreviousTab
+                | Self::MoveTabLeft
+                | Self::MoveTabRight
                 | Self::SplitRight
                 | Self::SplitDown
                 | Self::FocusNextPane
@@ -501,6 +509,8 @@ impl Action {
             Self::CloseTab => "Tab: Close",
             Self::NextTab => "Tab: Next",
             Self::PreviousTab => "Tab: Previous",
+            Self::MoveTabLeft => "Tab: Move Left",
+            Self::MoveTabRight => "Tab: Move Right",
             Self::SplitRight => "Pane: Split Right",
             Self::SplitDown => "Pane: Split Down",
             Self::ToggleSidePane => "View: Toggle Side Pane",
@@ -657,6 +667,8 @@ impl Action {
             Self::CloseTab,
             Self::NextTab,
             Self::PreviousTab,
+            Self::MoveTabLeft,
+            Self::MoveTabRight,
             Self::SplitRight,
             Self::SplitDown,
             Self::ToggleSidePane,

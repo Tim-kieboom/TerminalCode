@@ -246,6 +246,8 @@ impl App {
             item("Close All", Action::CloseAllTabs),
             Entry::Separator,
             pin,
+            item("Move Left", Action::MoveTabLeft),
+            item("Move Right", Action::MoveTabRight),
             Entry::Separator,
             item("Copy Path", Action::CopyPath),
             item("Copy Relative Path", Action::CopyRelativePath),

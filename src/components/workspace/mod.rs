@@ -41,6 +41,7 @@ mod highlights;
 mod mouse;
 mod panes;
 mod render;
+mod tab_move;
 mod tabs;
 #[cfg(test)]
 mod tests;
@@ -129,6 +130,9 @@ pub(crate) struct Workspace {
     focused: PaneId,
     next_id: u32,
     confirm_close: Option<ViewId>,
+    /// The tab a left press took hold of, with its pane: a drag moves it along the strip,
+    /// the release lets go.
+    tab_drag: Option<(PaneId, ViewId)>,
     /// The bulk close that asked for confirmation; doing it again confirms.
     confirm_bulk: Option<CloseScope>,
     /// The document whose save was refused because its file changed on disk;
@@ -180,6 +184,7 @@ impl Workspace {
             focused: pane,
             next_id: 1,
             confirm_close: None,
+            tab_drag: None,
             confirm_bulk: None,
             closed: Vec::new(),
             recent: Vec::new(),

@@ -456,3 +456,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Open in file manager, in a terminal tab and in an external terminal (`docs/design.md`, "Open in file manager and terminal"): three actions in the explorer's menu, the tab menu and the palette; the `terminal` setting names the external terminal program (with `${folder}`), else `$TERMINAL` and the usual ones of the platform are tried
 
 - [x] The menu bar shows the path of the open file (`docs/design.md`, "The path in the menu bar"): from the project folder, whole when the file is outside it, `[untitled]` for a tab with no file, centered, cut from the left with `…`; theme slot `menubar.path` in the four themes
+
+- [x] Moving tabs (`docs/design.md`, "Moving tabs"): drag a tab along the strip, `ctrl+shift+page up/down` and "Move Left" / "Move Right" in the tab menu, a pinned tab stays among the pinned and a loose one among the loose; the wheel over the strip steps through the tabs (the strip follows)

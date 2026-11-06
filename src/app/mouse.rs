@@ -299,9 +299,11 @@ impl App {
                     false => workspace.mouse_press(column, row, extend, clicks),
                 }
             }
-            MouseEventKind::Drag(MouseButton::Left) => {
-                workspace.with_editor(|editor| editor.mouse_drag(column, row))
-            }
+            // A tab that was pressed follows the pointer; otherwise the text is dragged.
+            MouseEventKind::Drag(MouseButton::Left) => match workspace.drag_tab(column) {
+                true => Ok(()),
+                false => workspace.with_editor(|editor| editor.mouse_drag(column, row)),
+            },
             // Middle-clicking a tab closes it; on the text it pastes there.
             MouseEventKind::Down(MouseButton::Middle) => {
                 closed = workspace.middle_press(column, row);
@@ -309,7 +311,19 @@ impl App {
                 Ok(())
             }
             MouseEventKind::Up(MouseButton::Left) => {
+                workspace.end_tab_drag();
                 workspace.with_editor(|editor| editor.mouse_release());
+                Ok(())
+            }
+            // The wheel over a strip of tabs steps through them.
+            MouseEventKind::ScrollUp | MouseEventKind::ScrollLeft
+                if workspace.scroll_tabs(column, row, -1) =>
+            {
+                Ok(())
+            }
+            MouseEventKind::ScrollDown | MouseEventKind::ScrollRight
+                if workspace.scroll_tabs(column, row, 1) =>
+            {
                 Ok(())
             }
             // With `shift` the wheel scrolls sideways.
