@@ -118,6 +118,9 @@ fn a_right_click_on_a_tab_brings_it_to_the_front_and_opens_the_menu() {
             "Pin Tab",
             "Copy Path",
             "Copy Relative Path",
+            "Open in File Manager",
+            "Open in Terminal",
+            "Open in External Terminal",
         ]
     );
 }

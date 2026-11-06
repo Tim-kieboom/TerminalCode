@@ -37,6 +37,9 @@ pub(crate) struct Settings {
     /// The program the terminal pane runs; `None` is the user's own shell
     /// (`$SHELL`, or the platform's). New terminal tabs use it.
     pub(crate) shell: Option<String>,
+    /// The program that "Open in External Terminal" starts, and its arguments (`${folder}` is
+    /// the folder); `None` is the system's terminal program.
+    pub(crate) terminal: Option<Vec<String>>,
     /// Whether the mouse is on at the start. `alt+m` still switches it for the run.
     pub(crate) mouse: bool,
     /// How many columns a tab character draws, and how many a level of
@@ -75,6 +78,7 @@ impl Default for Settings {
         Self {
             theme: None,
             shell: None,
+            terminal: None,
             mouse: true,
             hide_ignored: false,
             detect_indent: true,
@@ -172,6 +176,13 @@ impl Settings {
                 .flatten()
                 .map(|shell| shell.trim().to_owned())
                 .filter(|shell| !shell.is_empty()),
+            terminal: take::<Option<Vec<String>>>(&mut map, "terminal")?
+                .flatten()
+                .filter(|command| {
+                    command
+                        .first()
+                        .is_some_and(|program| !program.trim().is_empty())
+                }),
             mouse: take(&mut map, "mouse")?.unwrap_or(defaults.mouse),
             tab_size: take_in_range(&mut map, "tab_size", TabWidth::RANGE)?
                 .and_then(TabWidth::new)

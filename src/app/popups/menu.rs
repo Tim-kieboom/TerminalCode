@@ -203,6 +203,10 @@ impl App {
             Entry::Separator,
             item("Copy Path", Action::CopyPath),
             item("Copy Relative Path", Action::CopyRelativePath),
+            Entry::Separator,
+            item("Open in File Manager", Action::OpenInFileManager),
+            item("Open in Terminal", Action::OpenInTerminal),
+            item("Open in External Terminal", Action::OpenInExternalTerminal),
         ]);
         if !is_root {
             entries.extend([Entry::Separator, item("Delete", Action::DeleteSelected)]);
@@ -245,6 +249,10 @@ impl App {
             Entry::Separator,
             item("Copy Path", Action::CopyPath),
             item("Copy Relative Path", Action::CopyRelativePath),
+            Entry::Separator,
+            item("Open in File Manager", Action::OpenInFileManager),
+            item("Open in Terminal", Action::OpenInTerminal),
+            item("Open in External Terminal", Action::OpenInExternalTerminal),
         ]
     }
 

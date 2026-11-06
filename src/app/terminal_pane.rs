@@ -63,6 +63,12 @@ impl App {
 
     /// Opens a new tab with a shell in it, showing the pane if it is hidden.
     pub(in crate::app) fn new_terminal_tab(&mut self) {
+        let root = self.project_root();
+        self.new_terminal_tab_in(root);
+    }
+
+    /// Opens a new tab with a shell in `directory`, showing the pane if it is hidden.
+    pub(in crate::app) fn new_terminal_tab_in(&mut self, directory: std::path::PathBuf) {
         if !self.show_terminal_pane() {
             return;
         }
@@ -71,7 +77,7 @@ impl App {
                 .notify_error(format!("at most {MAX_TABS} terminal tabs"));
             return;
         }
-        if !self.start_tab() {
+        if !self.start_tab_in(directory) {
             self.hide_pane_without_tabs();
             return;
         }
@@ -135,18 +141,20 @@ impl App {
         self.state.set_focus(Focus::Explorer);
     }
 
-    /// Starts a shell in a new tab, in the project root. Returns whether one
-    /// started. When the shell cannot start, the platform's own is tried once
-    /// and, if that works, it is the shell for the rest of the run; the error
-    /// that says so stays on screen until it is dismissed. Failing both says why.
+    /// Starts a shell in a new tab, in the project root. Returns whether one started.
     fn start_tab(&mut self) -> bool {
+        let root = self.project_root();
+        self.start_tab_in(root)
+    }
+
+    // DOC
+    fn start_tab_in(&mut self, directory: std::path::PathBuf) -> bool {
         let Some(events) = self.background.sender() else {
             self.state
                 .notify_error("the terminal needs the event loop, which is not running");
             return false;
         };
         let (rows, columns) = self.terminal_dimensions();
-        let directory = self.project_root();
         let spawn = |shell: &Shell| {
             let config = SpawnConfig {
                 shell: shell.clone(),

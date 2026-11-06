@@ -1244,3 +1244,9 @@ Goal: run the program of the project from the editor, then debug it with breakpo
   for the user and nothing guesses which template was meant.
 - `Config: Open Theme` opens the theme in use; with the fallback in use there is no file, so it says how to make a theme.
   It no longer creates `themes/dark.toml`. Removed: the `Theme: Dark/Light/SolDark/SolLight` palette entries (`UseTheme`).
+
+## Open in file manager and terminal (built)
+- Three actions ("File: Open in File Manager", "File: Open in Terminal", "File: Open in External Terminal"; the explorer's right-click menu, the tab menu and the palette; `app/open_in.rs`). The folder is the explorer's selected entry when it is a folder, else the folder of the entry or of the file of the active tab; with nothing it is the project folder. A folder that has gone is told, nothing starts.
+- **File manager:** the system opener (`xdg-open`, `open`, `rundll32 url.dll,FileProtocolHandler`, the one "Run: open" uses) is given the folder. It does not select the file.
+- **Terminal tab:** `new_terminal_tab_in(folder)`, the same as a new tab with the shell in another folder.
+- **External terminal:** the `terminal` setting is a program and its arguments, `${folder}` replaced in each; the program is also started with the folder as its working directory. Without the setting the candidates are `$TERMINAL`, then on Linux `x-terminal-emulator`, gnome-terminal, konsole, kitty, alacritty, foot, xfce4-terminal and xterm (those that need the folder as an argument get it), `wt` then `cmd /c start cmd` on Windows, `open -a Terminal` on macOS. A program that is not installed is passed over; one that is installed and fails stops the search and is named. None found says to set `terminal`. It starts detached with no input or output (`opener::start`).

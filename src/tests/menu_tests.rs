@@ -121,6 +121,10 @@ fn shift_f10_opens_a_menu_on_the_selected_row() {
             "Copy Path",
             "Copy Relative Path",
             "---",
+            "Open in File Manager",
+            "Open in Terminal",
+            "Open in External Terminal",
+            "---",
             "Delete"
         ]
     );
@@ -141,7 +145,11 @@ fn the_project_folder_only_offers_to_add_things_and_to_copy_its_path() {
             "New Folder",
             "---",
             "Copy Path",
-            "Copy Relative Path"
+            "Copy Relative Path",
+            "---",
+            "Open in File Manager",
+            "Open in Terminal",
+            "Open in External Terminal"
         ]
     );
 }
@@ -159,7 +167,7 @@ fn the_selection_skips_the_separator_and_stops_at_both_ends() {
 
     press(&mut app, KeyCode::Up);
     assert_eq!(selected_label(&app), "New File");
-    for _ in 0..5 {
+    for _ in 0..8 {
         press(&mut app, KeyCode::Down);
     }
     assert_eq!(selected_label(&app), "Delete");
@@ -217,7 +225,7 @@ fn enter_on_delete_deletes_the_row_the_menu_was_opened_on() {
     let (mut app, _terminal) = app_in(dir.path());
     select(&mut app, "a.txt");
     open_menu(&mut app);
-    for _ in 0..5 {
+    for _ in 0..8 {
         press(&mut app, KeyCode::Down);
     }
     assert_eq!(selected_label(&app), "Delete");
@@ -351,7 +359,7 @@ fn a_right_click_selects_the_row_and_opens_the_menu_on_it() {
 
     assert_eq!(target_name(&app), "b.txt");
     assert_eq!(app.state().explorer().selected_row().unwrap().name, "b.txt");
-    assert_eq!(labels(&app).len(), 8);
+    assert_eq!(labels(&app).len(), 12);
 }
 
 #[test]
@@ -371,7 +379,11 @@ fn a_right_click_on_empty_space_opens_the_menu_on_the_project_folder() {
             "New Folder",
             "---",
             "Copy Path",
-            "Copy Relative Path"
+            "Copy Relative Path",
+            "---",
+            "Open in File Manager",
+            "Open in Terminal",
+            "Open in External Terminal"
         ]
     );
 }

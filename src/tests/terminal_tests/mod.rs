@@ -261,6 +261,7 @@ impl Rig {
 
 mod basics;
 mod links;
+mod open_in;
 mod resize;
 mod selection;
 mod shell_cannot_start;

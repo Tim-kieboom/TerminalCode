@@ -472,7 +472,7 @@ impl App {
         };
         let path = self.project_root().join(&text);
         let (system, front) = super::opener::system_opener();
-        let program = self.runs.opener.as_deref().unwrap_or(system);
+        let program = self.opener_override().unwrap_or(system);
         match super::opener::open(program, front, &path) {
             Ok(()) => self.state.notify(format!("opened {text}")),
             Err(error) => self
@@ -703,6 +703,11 @@ impl App {
             .cargo
             .clone()
             .unwrap_or_else(|| "cargo".to_owned())
+    }
+
+    /// The file opener a test put in place of the system's, if one.
+    pub(super) fn opener_override(&self) -> Option<&str> {
+        self.runs.opener.as_deref()
     }
 
     /// Opens files with this program instead of the system's, for tests.

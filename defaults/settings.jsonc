@@ -14,6 +14,13 @@
     // If the shell cannot start, the platform's own is tried and you are told.
     "shell": null,
 
+    // The terminal program "Open in External Terminal" starts, as a list: the
+    // program and its arguments, where ${folder} is the folder to open it in. For
+    // example ["kitty", "--directory", "${folder}"]. The program also starts with
+    // that folder as its working directory. null tries $TERMINAL and the usual
+    // terminals of the system (Windows Terminal on Windows, Terminal on macOS).
+    "terminal": null,
+
     // Whether the mouse is on at the start. With it on, clicks, drags and the
     // wheel reach the editor and the terminal's own text selection needs shift;
     // with it off the terminal handles the mouse. alt+m switches it for the run.

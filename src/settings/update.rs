@@ -67,6 +67,7 @@ const fn setting(key: &'static str, since: &'static str) -> Introduced {
 const INTRODUCED: &[Introduced] = &[
     setting("theme", BASELINE),
     setting("shell", BASELINE),
+    setting("terminal", "0.13.1"),
     setting("mouse", BASELINE),
     setting("tab_size", BASELINE),
     setting("indent_style", BASELINE),

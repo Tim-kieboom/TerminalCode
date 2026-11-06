@@ -1,7 +1,7 @@
 //! Copying the path of a file: of the explorer's selected entry, or of the open file when the
 //! keyboard is elsewhere (the tab menu and the palette).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::App;
 use crate::app::state::Focus;
@@ -11,19 +11,24 @@ impl App {
     /// Puts the path of the explorer's selection (or, with the keyboard elsewhere, of the open
     /// file) on the clipboard: `relative` to the project folder when it is in it, else whole.
     pub(super) fn copy_path(&mut self, relative: bool) {
-        let path = match self.state.focus() {
+        let Some(path) = self.path_in_focus() else {
+            self.state.notify("there is no file to copy the path of");
+            return;
+        };
+        self.copy_path_text(&path, relative);
+    }
+
+    /// The path the keyboard is on: the explorer's selected row, or, with the keyboard
+    /// elsewhere, the file of the active tab.
+    pub(super) fn path_in_focus(&self) -> Option<PathBuf> {
+        match self.state.focus() {
             Focus::Explorer => self
                 .state
                 .explorer()
                 .selected_row()
                 .map(|row| row.path.clone()),
             _ => self.state.editor().buffer().path().map(Path::to_path_buf),
-        };
-        let Some(path) = path else {
-            self.state.notify("there is no file to copy the path of");
-            return;
-        };
-        self.copy_path_text(&path, relative);
+        }
     }
 
     /// Puts `path` on the clipboard as text, and says what was copied.

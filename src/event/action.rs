@@ -102,6 +102,14 @@ pub(crate) enum Action {
     CopyPath,
     /// Copies the path relative to the project folder, as [`Action::CopyPath`] finds it.
     CopyRelativePath,
+    /// Shows the folder of the explorer's selected entry (or of the open file) in the system's
+    /// file manager.
+    OpenInFileManager,
+    /// Opens a new tab of the terminal pane in that folder.
+    OpenInTerminal,
+    /// Opens the system's terminal program in that folder, or the one the `terminal` setting
+    /// names.
+    OpenInExternalTerminal,
     /// Opens a path of the terminal's output (as written there, with its line and column),
     /// from the menu on it.
     OpenTerminalPath(Box<str>),
@@ -353,6 +361,9 @@ impl Action {
                 | Self::Rename
                 | Self::CopyPath
                 | Self::CopyRelativePath
+                | Self::OpenInFileManager
+                | Self::OpenInTerminal
+                | Self::OpenInExternalTerminal
                 | Self::OpenTerminalPath(_)
                 | Self::CopyTerminalPath(_)
                 | Self::MoveEntry
@@ -438,6 +449,9 @@ impl Action {
             Self::Rename => "Explorer: Rename",
             Self::CopyPath => "File: Copy Path",
             Self::CopyRelativePath => "File: Copy Relative Path",
+            Self::OpenInFileManager => "File: Open in File Manager",
+            Self::OpenInTerminal => "File: Open in Terminal",
+            Self::OpenInExternalTerminal => "File: Open in External Terminal",
             Self::MoveEntry => "Explorer: Move",
             Self::ContextMenu => "Explorer: Context Menu",
             Self::GoToLine => "Cursor: Go to Line",
@@ -594,6 +608,9 @@ impl Action {
             Self::Rename,
             Self::CopyPath,
             Self::CopyRelativePath,
+            Self::OpenInFileManager,
+            Self::OpenInTerminal,
+            Self::OpenInExternalTerminal,
             Self::MoveEntry,
             Self::ContextMenu,
             Self::GoToLine,

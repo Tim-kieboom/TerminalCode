@@ -72,6 +72,7 @@ mod jumps;
 mod keys;
 mod lsp;
 mod mouse;
+mod open_in;
 mod panels;
 mod popups;
 mod reset;

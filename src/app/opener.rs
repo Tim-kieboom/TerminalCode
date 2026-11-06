@@ -42,5 +42,22 @@ pub(crate) fn open(program: &str, front: &[&str], path: &Path) -> io::Result<()>
     Ok(())
 }
 
+/// Starts `program` with `args`, in `directory`, and does not wait for it: the terminal
+/// program or file manager is a window of its own. It has no input and no output. Its end
+/// is waited for on a thread, so it does not stay a zombie.
+pub(crate) fn start(program: &str, args: &[String], directory: &Path) -> io::Result<()> {
+    let mut child = Command::new(program)
+        .args(args)
+        .current_dir(directory)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;

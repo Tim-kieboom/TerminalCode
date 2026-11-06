@@ -188,6 +188,39 @@ fn a_null_or_empty_shell_means_the_users_own() {
 }
 
 #[test]
+fn an_external_terminal_is_a_program_and_its_arguments() {
+    let settings = parse(r#"{ "terminal": ["kitty", "--directory", "${folder}"] }"#).settings;
+
+    assert_eq!(
+        settings.terminal,
+        Some(vec![
+            "kitty".to_owned(),
+            "--directory".to_owned(),
+            "${folder}".to_owned()
+        ])
+    );
+}
+
+#[test]
+fn no_external_terminal_means_the_systems() {
+    for source in [
+        r#"{ "terminal": null }"#,
+        r#"{ "terminal": [] }"#,
+        r#"{ "terminal": [" "] }"#,
+        "{}",
+    ] {
+        assert_eq!(parse(source).settings.terminal, None, "{source}");
+    }
+}
+
+#[test]
+fn an_external_terminal_that_is_not_a_list_is_rejected_by_name() {
+    let message = error_of(r#"{ "terminal": "kitty" }"#);
+
+    assert!(message.contains("\"terminal\""), "{message}");
+}
+
+#[test]
 fn a_shell_that_is_not_text_is_rejected_by_name() {
     let message = error_of(r#"{ "shell": 3 }"#);
 
