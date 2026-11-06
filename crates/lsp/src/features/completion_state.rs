@@ -85,6 +85,9 @@ pub struct Completion {
     shown: Vec<usize>,
     /// Which of `shown` is highlighted.
     selected: usize,
+    /// Whether the user moved the highlight (and it is still on what they chose): only then
+    /// does `enter` pick it. A new word, or a list that no longer has the item, starts over.
+    moved: bool,
     /// Where the word being typed starts.
     word_start: usize,
     /// What is typed of it.
@@ -105,6 +108,7 @@ impl Completion {
             entries: Vec::new(),
             shown: Vec::new(),
             selected: 0,
+            moved: false,
             word_start,
             asked_for: prefix.clone(),
             prefix,
@@ -168,10 +172,12 @@ impl Completion {
         }
         // The entry itself, not its label: two entries can have the same one.
         let kept = self.shown.get(self.selected).copied();
+        let moved = self.moved;
         self.prefix = word;
         self.filter();
         if let Some(position) = kept.and_then(|kept| self.shown.iter().position(|&i| i == kept)) {
             self.selected = position;
+            self.moved = moved;
         }
         Refresh::Open
     }
@@ -182,6 +188,7 @@ impl Completion {
             .filter(|&index| self.entries[index].filter.starts_with(&typed))
             .collect();
         self.selected = 0;
+        self.moved = false;
     }
 
     /// What tells the highlighted item apart in another list for the same word.
@@ -199,7 +206,7 @@ impl Completion {
         })
     }
 
-    fn select_like(&mut self, wanted: &Highlight) {
+    fn select_like(&mut self, wanted: &Highlight) -> bool {
         let position = self
             .shown
             .iter()
@@ -212,8 +219,12 @@ impl Completion {
             })
             .nth(wanted.nth)
             .map(|(position, _)| position);
-        if let Some(position) = position {
-            self.selected = position;
+        match position {
+            Some(position) => {
+                self.selected = position;
+                true
+            }
+            None => false,
         }
     }
 
@@ -234,8 +245,10 @@ impl Completion {
 
     /// Highlights the item that `previous` had highlighted, if this has it too.
     pub fn keep_highlight_of(&mut self, previous: &Completion) {
-        if let Some(highlight) = previous.highlight() {
-            self.select_like(&highlight);
+        if let Some(highlight) = previous.highlight()
+            && self.select_like(&highlight)
+        {
+            self.moved = previous.moved;
         }
     }
 
@@ -257,6 +270,11 @@ impl Completion {
         self.selected
     }
 
+    /// Whether the user moved the highlight onto the item that is highlighted.
+    pub fn has_moved(&self) -> bool {
+        self.moved
+    }
+
     pub fn selected_item(&self) -> Option<&CompletionItem> {
         self.shown
             .get(self.selected)
@@ -266,6 +284,7 @@ impl Completion {
     /// The next item; after the last, the first.
     pub fn select_next(&mut self) {
         if !self.shown.is_empty() {
+            self.moved = true;
             self.selected = (self.selected + 1) % self.shown.len();
         }
     }
@@ -273,6 +292,7 @@ impl Completion {
     /// The previous item; before the first, the last.
     pub fn select_previous(&mut self) {
         if !self.shown.is_empty() {
+            self.moved = true;
             self.selected = (self.selected + self.shown.len() - 1) % self.shown.len();
         }
     }

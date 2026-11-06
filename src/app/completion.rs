@@ -270,8 +270,8 @@ impl App {
     }
 
     /// A key while the box is open. `Tab` writes the highlighted suggestion,
-    /// `Up` and `Down` move the highlight, `Esc` closes the box; `Enter` closes
-    /// it and goes on to be a newline. Every other key is typed or does what it
+    /// `Up` and `Down` move the highlight, `Esc` closes the box; `Enter` picks the highlighted
+    /// suggestion once the highlight was moved, else it closes the box and goes on to be a newline. Every other key is typed or does what it
     /// does as if there were no box. Whether the key was used up.
     pub(super) fn handle_completion_key(&mut self, key: KeyEvent) -> bool {
         let Some(open) = self.state.completion_box() else {
@@ -285,6 +285,7 @@ impl App {
             self.close_completion();
             return false;
         }
+        let moved = open.completion().has_moved();
         match key.code {
             KeyCode::Tab => self.accept_completion(),
             KeyCode::Down => self.move_completion(true),
@@ -293,6 +294,9 @@ impl App {
             // The page keys scroll the documentation when it has more than it shows.
             KeyCode::PageUp if self.page_docs(-1) => {}
             KeyCode::PageDown if self.page_docs(1) => {}
+            // `enter` picks the suggestion the user moved to; with the highlight where it
+            // began it is a newline, so typing and pressing `enter` never inserts one.
+            KeyCode::Enter if moved => self.accept_completion(),
             KeyCode::Enter => {
                 self.close_completion();
                 return false;

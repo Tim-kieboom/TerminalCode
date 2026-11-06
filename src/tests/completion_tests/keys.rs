@@ -95,3 +95,86 @@ fn without_a_box_tab_indents_as_always() {
     assert!(rig.text().len() > 1, "{:?}", rig.text());
     assert_ne!(rig.text(), "xvec");
 }
+
+#[test]
+fn enter_picks_the_suggestion_once_the_highlight_was_moved() {
+    let mut rig = Rig::with_answer(items(&["va", "vb", "vc"]));
+    rig.type_text("v");
+    rig.wait_for_box();
+
+    rig.press(KeyCode::Down);
+    rig.press(KeyCode::Enter);
+
+    assert_eq!(rig.text(), "vb", "written, and no newline");
+    assert!(rig.app.state().completion_box().is_none());
+}
+
+#[test]
+fn enter_picks_after_up_too_and_after_going_round_to_the_first() {
+    let mut rig = Rig::with_answer(items(&["va", "vb", "vc"]));
+    rig.type_text("v");
+    rig.wait_for_box();
+
+    rig.press(KeyCode::Up);
+    assert_eq!(rig.highlighted().as_deref(), Some("vc"));
+    rig.press(KeyCode::Down);
+    assert_eq!(rig.highlighted().as_deref(), Some("va"));
+    rig.press(KeyCode::Enter);
+
+    assert_eq!(rig.text(), "va", "moved, though back where it began");
+}
+
+#[test]
+fn enter_with_the_highlight_untouched_is_still_a_newline() {
+    let mut rig = Rig::with_answer(items(&["va", "vb"]));
+    rig.type_text("v");
+    rig.wait_for_box();
+
+    rig.press(KeyCode::Enter);
+
+    assert_eq!(rig.text(), "v\n");
+}
+
+#[test]
+fn typing_on_keeps_the_choice_while_the_item_is_still_listed() {
+    let mut rig = Rig::with_answer(items(&["vec", "vector"]));
+    rig.type_text("ve");
+    rig.wait_for_box();
+    rig.press(KeyCode::Down);
+    assert_eq!(rig.highlighted().as_deref(), Some("vector"));
+
+    rig.type_text("c");
+    assert_eq!(rig.highlighted().as_deref(), Some("vector"));
+    rig.press(KeyCode::Enter);
+
+    assert_eq!(rig.text(), "vector");
+}
+
+#[test]
+fn typing_a_letter_that_drops_the_chosen_item_starts_over_and_enter_is_a_newline() {
+    let mut rig = Rig::with_answer(items(&["vec", "vex"]));
+    rig.type_text("ve");
+    rig.wait_for_box();
+    rig.press(KeyCode::Down);
+    assert_eq!(rig.highlighted().as_deref(), Some("vex"));
+
+    rig.type_text("c");
+    assert_eq!(rig.highlighted().as_deref(), Some("vec"));
+    rig.press(KeyCode::Enter);
+
+    assert_eq!(rig.text(), "vec\n");
+}
+
+#[test]
+fn a_modified_enter_is_not_a_pick() {
+    let mut rig = Rig::with_answer(items(&["va", "vb"]));
+    rig.type_text("v");
+    rig.wait_for_box();
+    rig.press(KeyCode::Down);
+
+    rig.app.handle_input(crossterm::event::Event::Key(
+        crossterm::event::KeyEvent::new(KeyCode::Enter, KeyModifiers::SHIFT),
+    ));
+
+    assert_ne!(rig.text(), "vb");
+}
