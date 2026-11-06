@@ -24,7 +24,11 @@ impl Dialect {
     /// indent (unknown types, and Markdown, where brackets end prose lines).
     pub(super) fn of(path: &Path) -> Option<Self> {
         let line_comment = match Language::from_path(path)? {
-            Language::Rust | Language::Json | Language::JavaScript => "//",
+            Language::Rust
+            | Language::Json
+            | Language::JavaScript
+            | Language::TypeScript
+            | Language::Tsx => "//",
             Language::Toml | Language::Nix => "#",
             Language::Markdown => return None,
             // A language a plugin added: its own marker, or one no text has when it has none.

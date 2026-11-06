@@ -75,6 +75,10 @@ fn the_language_comes_from_the_extension() {
     for name in ["a.js", "a.mjs", "a.cjs", "App.jsx"] {
         assert_eq!(language(name), Some(Language::JavaScript), "{name}");
     }
+    for name in ["a.ts", "a.mts", "a.cts"] {
+        assert_eq!(language(name), Some(Language::TypeScript), "{name}");
+    }
+    assert_eq!(language("App.tsx"), Some(Language::Tsx));
     assert_eq!(language("README.md"), Some(Language::Markdown));
     assert_eq!(language("notes.markdown"), Some(Language::Markdown));
     assert_eq!(language("flake.nix"), Some(Language::Nix));
@@ -89,6 +93,8 @@ fn every_language_sets_up_with_each_built_in_theme() {
         Language::Toml,
         Language::Json,
         Language::JavaScript,
+        Language::TypeScript,
+        Language::Tsx,
         Language::Markdown,
         Language::Nix,
     ] {
@@ -228,4 +234,121 @@ fn javascript_functions_methods_and_constructors_are_not_taken_for_variables() {
     }
     assert!(has(&found, "Map", Color::Cyan), "a constructor: {found:?}");
     assert!(has(&found, "x", Color::White), "a variable: {found:?}");
+}
+
+/// What each of the colors in the TypeScript tests stands for.
+const TYPESCRIPT_THEME: &str = "[\"syntax.keyword\"]\ntext = \"red\"\n[\"syntax.type\"]\ntext = \"cyan\"\n[\"syntax.function\"]\ntext = \"yellow\"\n[\"syntax.constant\"]\ntext = \"magenta\"\n[\"syntax.attribute\"]\ntext = \"green\"\n[\"syntax.variable\"]\ntext = \"white\"\n[\"syntax.property\"]\ntext = \"blue\"\n[\"syntax.constructor\"]\ntext = \"lightcyan\"\n[\"syntax.variable.parameter\"]\ntext = \"gray\"\n";
+
+fn typescript_colors(language: Language, source: &str) -> Vec<(String, Color)> {
+    let theme = Theme::from_toml(TYPESCRIPT_THEME);
+    let mut highlighter = Highlighter::new(language, &theme).unwrap();
+    let rope = Rope::from_str(source);
+    highlighter.parse(&rope).unwrap();
+    highlighter
+        .spans(&rope, 0..source.len())
+        .into_iter()
+        .filter_map(|span| Some((source[span.range].to_owned(), span.style.fg?)))
+        .collect()
+}
+
+const TYPESCRIPT_SAMPLE: &str = "interface Shape { area(): number }\nenum Color { Red, Green = 2 }\n@sealed\nclass Box<T> implements Shape {\n  constructor(private readonly size: T) {}\n}\nfunction wrap<T>(value: T, extra?: string): T { return value as T; }\nconst n = box?.size;\nconst m = new Map<string, number>();\n";
+
+#[test]
+fn typescript_types_enums_decorators_and_parameters_get_their_own_colors() {
+    let found = typescript_colors(Language::TypeScript, TYPESCRIPT_SAMPLE);
+
+    // The names of types, and the types the grammar knows by themselves.
+    for word in ["Shape", "Color", "Box", "T", "number", "string"] {
+        assert!(has(&found, word, Color::Cyan), "{word}: {found:?}");
+    }
+    // What TypeScript adds to the keywords.
+    for word in [
+        "interface",
+        "enum",
+        "implements",
+        "private",
+        "readonly",
+        "as",
+    ] {
+        assert!(has(&found, word, Color::Red), "{word}: {found:?}");
+    }
+    // The members of an enum.
+    for word in ["Red", "Green"] {
+        assert!(has(&found, word, Color::Magenta), "{word}: {found:?}");
+    }
+    assert!(
+        has(&found, "@sealed", Color::Green),
+        "a decorator: {found:?}"
+    );
+    // Parameters are not variables, though the JavaScript query takes every identifier for one.
+    for word in ["size", "value", "extra"] {
+        assert!(has(&found, word, Color::Gray), "{word}: {found:?}");
+    }
+    assert!(has(&found, "wrap", Color::Yellow), "a function: {found:?}");
+    assert!(
+        has(&found, "Map", Color::LightCyan),
+        "a constructor: {found:?}"
+    );
+    assert!(
+        has(&found, "size", Color::Blue),
+        "a property after `?.`: {found:?}"
+    );
+    assert!(has(&found, "n", Color::White), "a variable: {found:?}");
+}
+
+#[test]
+fn a_ts_file_that_holds_only_javascript_still_highlights_as_javascript_does() {
+    let source = "function go() {}\nconst run = () => 1;\nlet x = new Map();\ngo();\nx.size();\nclass A { m() {} }\n";
+
+    let found = typescript_colors(Language::TypeScript, source);
+
+    for function in ["go", "run", "size", "m"] {
+        assert!(
+            has(&found, function, Color::Yellow),
+            "{function}: {found:?}"
+        );
+    }
+    assert!(
+        has(&found, "Map", Color::LightCyan),
+        "a constructor: {found:?}"
+    );
+    assert!(has(&found, "x", Color::White), "a variable: {found:?}");
+}
+
+#[test]
+fn tsx_has_the_types_of_typescript_and_the_tags_of_jsx() {
+    let source = "const a = <div><Foo bar={1} /></div>;\ninterface P { x: number }\nfunction f<T>(p: P) { return p as unknown as T; }\n";
+
+    let found = typescript_colors(Language::Tsx, source);
+
+    assert!(has(&found, "div", Color::Red), "a tag: {found:?}");
+    assert!(
+        has(&found, "Foo", Color::LightCyan),
+        "a component: {found:?}"
+    );
+    assert!(has(&found, "interface", Color::Red), "{found:?}");
+    assert!(has(&found, "P", Color::Cyan), "a type: {found:?}");
+    assert!(has(&found, "p", Color::Gray), "a parameter: {found:?}");
+}
+
+#[test]
+fn the_name_of_a_typescript_block_in_markdown_finds_the_language() {
+    for name in ["ts", "typescript", "TypeScript", "mts", "cts"] {
+        assert_eq!(
+            Language::by_name(name),
+            Some(Language::TypeScript),
+            "{name}"
+        );
+    }
+    for name in ["tsx", "TSX"] {
+        assert_eq!(Language::by_name(name), Some(Language::Tsx), "{name}");
+    }
+}
+
+#[test]
+fn typescript_toggles_comments_with_slashes() {
+    use crate::Comment;
+
+    assert_eq!(Language::TypeScript.comment(), Some(Comment::Line("//")));
+    assert_eq!(Language::Tsx.comment(), Some(Comment::Line("//")));
 }

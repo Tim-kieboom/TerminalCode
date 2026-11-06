@@ -67,7 +67,8 @@
     // everything its manifest names (and that you allowed when you turned it on).
     "plugin_file_types": {},
 
-    // Language servers, by name. These are the ones there are: Rust, Nix and JSON.
+    // Language servers, by name. These are the ones there are: Rust, Nix, JSON, and JavaScript and TypeScript (one
+    // server, `typescript-language-server`, for both, so a project has one process).
     // Your entry for one of them overrides only the fields you write, and keeps the
     // rest from here, so this is enough to change one thing:
     //
@@ -111,8 +112,8 @@
         "javascript": {
             "command": "typescript-language-server",
             "args": ["--stdio"],
-            "extensions": ["js", "mjs", "cjs", "jsx"],
-            "root_files": ["package.json", "jsconfig.json"],
+            "extensions": ["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx"],
+            "root_files": ["package.json", "jsconfig.json", "tsconfig.json"],
             "format_on_save": false
         }
     }

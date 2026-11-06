@@ -291,6 +291,11 @@ fn language_ids_are_what_servers_call_them() {
     assert_eq!(language_id("py"), "python");
     assert_eq!(language_id("md"), "markdown");
     assert_eq!(language_id("sh"), "shellscript");
+    for extension in ["ts", "mts", "cts"] {
+        assert_eq!(language_id(extension), "typescript", "{extension}");
+    }
+    assert_eq!(language_id("tsx"), "typescriptreact");
+    assert_eq!(language_id("jsx"), "javascriptreact");
     assert_eq!(
         language_id("unheardof"),
         "unheardof",

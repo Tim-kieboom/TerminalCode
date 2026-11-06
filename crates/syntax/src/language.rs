@@ -45,9 +45,36 @@ const JAVASCRIPT_BEFORE: &str = r#"
 ((identifier) @variable.builtin (#match? @variable.builtin "^(arguments|module|console|window|document)$") (#is-not? local))
 ([(identifier) (shorthand_property_identifier) (shorthand_property_identifier_pattern)] @constant (#match? @constant "^[A-Z_][A-Z\\d_]+$"))
 ((identifier) @constructor (#match? @constructor "^[A-Z]"))
+"#;
+
+/// The tags of JSX, for the grammars that have them (JavaScript and TSX): a tag is a keyword
+/// (themes have no `tag`), and a component is left to the constructor pattern above.
+const JSX_BEFORE: &str = r#"
 (jsx_opening_element (identifier) @keyword (#match? @keyword "^[a-z][^.]*$"))
 (jsx_closing_element (identifier) @keyword (#match? @keyword "^[a-z][^.]*$"))
 (jsx_self_closing_element (identifier) @keyword (#match? @keyword "^[a-z][^.]*$"))
+"#;
+
+/// TypeScript: what it adds to JavaScript, before the grammar's query for the same reason. The
+/// names of types and of the things that hold them are types (the grammar's query only knows a
+/// `type_identifier` where it is used), the members of an enum are constants, a decorator is an
+/// attribute, and a parameter is a parameter (the grammar's pattern for it comes after the
+/// JavaScript one that takes every identifier for a variable).
+const TYPESCRIPT_BEFORE: &str = r#"
+(interface_declaration name: (type_identifier) @type)
+(type_alias_declaration name: (type_identifier) @type)
+(enum_declaration name: (identifier) @type)
+(class_declaration name: (type_identifier) @type)
+(abstract_class_declaration name: (type_identifier) @type)
+(type_parameter name: (type_identifier) @type)
+(enum_body (property_identifier) @constant)
+(enum_assignment name: (property_identifier) @constant)
+(required_parameter pattern: (identifier) @variable.parameter)
+(optional_parameter pattern: (identifier) @variable.parameter)
+(decorator "@" @attribute)
+(decorator (identifier) @attribute)
+(decorator (call_expression function: (identifier) @attribute))
+(decorator (member_expression property: (property_identifier) @attribute))
 "#;
 
 /// How a language writes a comment on one line.
@@ -66,6 +93,11 @@ pub enum Language {
     Toml,
     Json,
     JavaScript,
+    /// `.ts`, `.mts` and `.cts`.
+    TypeScript,
+    /// `.tsx`: TypeScript with JSX, which needs a grammar of its own because a cast written
+    /// with angle brackets and a tag cannot be told apart.
+    Tsx,
     Markdown,
     Nix,
     /// A language a plugin added (see [`crate::register_language`]).
@@ -79,6 +111,8 @@ impl Language {
             Self::Toml => "TOML",
             Self::Json => "JSON",
             Self::JavaScript => "JavaScript",
+            Self::TypeScript => "TypeScript",
+            Self::Tsx => "TSX",
             Self::Markdown => "Markdown",
             Self::Nix => "Nix",
             Self::Plugin(slot) => plugin::get(slot).map_or("a language that is gone", |e| e.name),
@@ -90,7 +124,9 @@ impl Language {
     /// server's JSONC) do.
     pub fn comment(self) -> Option<Comment> {
         Some(match self {
-            Self::Rust | Self::Json | Self::JavaScript => Comment::Line("//"),
+            Self::Rust | Self::Json | Self::JavaScript | Self::TypeScript | Self::Tsx => {
+                Comment::Line("//")
+            }
             Self::Toml | Self::Nix => Comment::Line("#"),
             Self::Markdown => Comment::Around("<!--", "-->"),
             Self::Plugin(slot) => Comment::Line(plugin::get(slot)?.comment?),
@@ -111,6 +147,8 @@ impl Language {
             Self::Toml,
             Self::Json,
             Self::JavaScript,
+            Self::TypeScript,
+            Self::Tsx,
             Self::Markdown,
             Self::Nix,
         ]
@@ -126,6 +164,8 @@ impl Language {
             "toml" => Some(Self::Toml),
             "json" | "jsonc" => Some(Self::Json),
             "js" | "mjs" | "cjs" | "jsx" => Some(Self::JavaScript),
+            "ts" | "mts" | "cts" => Some(Self::TypeScript),
+            "tsx" => Some(Self::Tsx),
             "md" | "markdown" => Some(Self::Markdown),
             "nix" => Some(Self::Nix),
             other => plugin::by_extension(other).map(Self::Plugin),
@@ -151,6 +191,8 @@ impl Language {
                 Self::Toml => tree_sitter_toml_ng::LANGUAGE.into(),
                 Self::Json => tree_sitter_json::LANGUAGE.into(),
                 Self::JavaScript => tree_sitter_javascript::LANGUAGE.into(),
+                Self::TypeScript => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+                Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
                 Self::Markdown => tree_sitter_md::LANGUAGE.into(),
                 Self::Nix => tree_sitter_nix::LANGUAGE.into(),
                 Self::Plugin(slot) => {
@@ -178,6 +220,18 @@ impl Language {
                 tree_sitter_javascript::HIGHLIGHT_QUERY,
                 tree_sitter_javascript::JSX_HIGHLIGHT_QUERY
             ),
+            // TypeScript's own query only holds what it adds, and expects JavaScript's in front.
+            Self::TypeScript => &format!(
+                "{}\n{}",
+                tree_sitter_javascript::HIGHLIGHT_QUERY,
+                tree_sitter_typescript::HIGHLIGHTS_QUERY
+            ),
+            Self::Tsx => &format!(
+                "{}\n{}\n{}",
+                tree_sitter_javascript::HIGHLIGHT_QUERY,
+                tree_sitter_javascript::JSX_HIGHLIGHT_QUERY,
+                tree_sitter_typescript::HIGHLIGHTS_QUERY
+            ),
             Self::Markdown => tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
             Self::Nix => tree_sitter_nix::HIGHLIGHTS_QUERY,
         };
@@ -189,11 +243,16 @@ impl Language {
     /// two patterns capture exactly the same text the earlier one wins, so what
     /// comes `before` overrides the grammar (keywords it lumps together) and
     /// what comes `after` only fills in what the grammar leaves uncolored.
-    fn extra_highlights(self) -> (&'static str, &'static str) {
+    fn extra_highlights(self) -> (String, &'static str) {
         match self {
-            Self::Rust => (RUST_BEFORE, RUST_AFTER),
-            Self::JavaScript => (JAVASCRIPT_BEFORE, ""),
-            _ => ("", ""),
+            Self::Rust => (RUST_BEFORE.to_owned(), RUST_AFTER),
+            Self::JavaScript => (format!("{JAVASCRIPT_BEFORE}\n{JSX_BEFORE}"), ""),
+            Self::TypeScript => (format!("{TYPESCRIPT_BEFORE}\n{JAVASCRIPT_BEFORE}"), ""),
+            Self::Tsx => (
+                format!("{TYPESCRIPT_BEFORE}\n{JAVASCRIPT_BEFORE}\n{JSX_BEFORE}"),
+                "",
+            ),
+            _ => (String::new(), ""),
         }
     }
 

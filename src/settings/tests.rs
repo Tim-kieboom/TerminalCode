@@ -304,19 +304,20 @@ fn language_servers_default_to_those_of_the_default_file() {
 }
 
 #[test]
-fn javascript_has_a_default_server_for_its_files_that_is_not_for_json_or_typescript() {
+fn javascript_and_typescript_share_a_default_server_that_is_not_for_json() {
     let settings = parse("{}").settings;
     let server = settings.language_servers.get("javascript").unwrap();
 
     assert_eq!(server.command, "typescript-language-server");
     assert_eq!(server.args, ["--stdio"]);
-    for extension in ["js", "mjs", "cjs", "jsx"] {
+    for extension in ["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx"] {
         assert!(
             server.extensions.iter().any(|e| e == extension),
             "{extension}"
         );
     }
-    assert!(!server.extensions.iter().any(|e| e == "json" || e == "ts"));
+    assert!(!server.extensions.iter().any(|e| e == "json"));
+    assert!(server.root_files.iter().any(|file| file == "tsconfig.json"));
 }
 
 #[test]
