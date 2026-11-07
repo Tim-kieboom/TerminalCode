@@ -36,6 +36,7 @@ mod hover_tests;
 mod initial_state_tests;
 mod jump_tests;
 mod language_plugin_tests;
+mod list_mouse_tests;
 mod lsp_completion_state_tests;
 mod lsp_tests;
 mod main_menu_tests;

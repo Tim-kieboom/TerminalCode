@@ -207,8 +207,8 @@ impl PluginList {
         };
     }
 
-    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
-        let screen = frame.area();
+    /// The box, centered on `screen`.
+    fn area(&self, screen: Rect) -> Rect {
         let wanted = self
             .rows
             .iter()
@@ -218,12 +218,54 @@ impl PluginList {
             .max(help_width(HELP.len()) + 4);
         let width = (wanted as u16).clamp(NARROWEST, WIDEST).min(screen.width);
         let height = (self.rows.len() as u16 + 8).max(12).min(screen.height);
-        let area = Rect {
+        Rect {
             x: screen.x + (screen.width - width) / 2,
             y: screen.y + (screen.height - height) / 2,
             width,
             height,
-        };
+        }
+    }
+
+    /// The rows of the list: the box inside its frame, less the five lines under them.
+    fn rows_area(&self, screen: Rect) -> Rect {
+        let inner = Block::new().borders(Borders::ALL).inner(self.area(screen));
+        let footer = 5.min(inner.height);
+        Rect {
+            height: inner.height - footer,
+            ..inner
+        }
+    }
+
+    /// Whether a screen cell is inside the box.
+    pub(crate) fn contains(&self, screen: Rect, column: u16, row: u16) -> bool {
+        self.area(screen)
+            .contains(ratatui::layout::Position::new(column, row))
+    }
+
+    /// The plugin under a screen cell, as an index into the rows.
+    pub(crate) fn row_at(&self, screen: Rect, column: u16, row: u16) -> Option<usize> {
+        let list = self.rows_area(screen);
+        if !list.contains(ratatui::layout::Position::new(column, row)) {
+            return None;
+        }
+        let top = crate::components::list_cursor::first_when_drawn(
+            self.selected,
+            usize::from(list.height),
+        );
+        let index = top + usize::from(row - list.y);
+        (index < self.rows.len()).then_some(index)
+    }
+
+    /// Selects the row at `index`, if there is one.
+    pub(crate) fn select_row(&mut self, index: usize) {
+        if index < self.rows.len() {
+            self.selected = index;
+        }
+    }
+
+    pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
+        let screen = frame.area();
+        let area = self.area(screen);
         let border = theme.style("pane.border.focused");
         let block = Block::new()
             .borders(Borders::ALL)

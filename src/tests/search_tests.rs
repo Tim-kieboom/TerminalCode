@@ -295,10 +295,12 @@ fn the_search_takes_the_keys_the_mouse_and_paste() {
     open(&mut app);
 
     app.handle_input(InputEvent::Paste("pasted".to_owned()));
+    // A click on the box (its top border, no row) is the popup's own, not the editor's.
+    screen(&mut app);
     app.handle_input(InputEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 60,
-        row: 15,
+        row: 3,
         modifiers: KeyModifiers::NONE,
     }));
     app.handle_input(key(KeyCode::Char('q'), KeyModifiers::CONTROL));
@@ -625,4 +627,111 @@ fn after_escape_shift_f4_goes_to_the_result_before_the_highlighted_one() {
     shift_f4(&mut app);
 
     assert_eq!(place(&app), ("lib.rs".to_owned(), 0), "the first result");
+}
+
+// ---- the mouse
+
+fn mouse(app: &mut App, kind: MouseEventKind, (column, row): (u16, u16)) {
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+}
+
+/// The cell where `text` starts in the box (the first line that has it).
+fn cell_of(app: &mut App, text: &str) -> (u16, u16) {
+    let shown = screen(app);
+    for (row, line) in shown.lines().enumerate() {
+        let line = line.trim_matches('"');
+        if let Some(byte) = line.find(text) {
+            return (line[..byte].chars().count() as u16, row as u16);
+        }
+    }
+    panic!("{text} is not on the screen: {shown}");
+}
+
+fn searched(dir: &Path, query: &str) -> (App, mpsc::Receiver<Event>) {
+    let (mut app, mut rx) = app_in(dir);
+    open(&mut app);
+    type_str(&mut app, query);
+    finish(&mut app, &mut rx);
+    (app, rx)
+}
+
+fn current_file(app: &App) -> Option<String> {
+    app.state()
+        .editor()
+        .buffer()
+        .path()
+        .and_then(|path| path.file_name())
+        .map(|name| name.to_string_lossy().into_owned())
+}
+
+#[test]
+fn the_pointer_over_a_result_selects_it_and_enter_opens_that_one() {
+    let dir = project();
+    let (mut app, _rx) = searched(dir.path(), "hello");
+    assert!(found(&app).len() >= 3);
+    let at = cell_of(&mut app, "pub fn hello");
+
+    mouse(&mut app, MouseEventKind::Moved, at);
+    press(&mut app, KeyCode::Enter);
+
+    assert_eq!(current_file(&app).as_deref(), Some("lib.rs"));
+}
+
+#[test]
+fn a_click_on_a_result_opens_it_at_its_line() {
+    let dir = project();
+    let (mut app, _rx) = searched(dir.path(), "hello");
+    let at = cell_of(&mut app, "pub fn hello");
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
+
+    assert!(app.state().search().is_none(), "the search closed");
+    assert_eq!(current_file(&app).as_deref(), Some("lib.rs"));
+    let head = app.state().editor().selections().primary().head();
+    assert_eq!(head.line, 1, "the line of the match");
+}
+
+#[test]
+fn the_wheel_moves_the_selection_in_the_search() {
+    let dir = project();
+    let (mut app, _rx) = searched(dir.path(), "hello");
+    let hits = found(&app);
+    let at = cell_of(&mut app, "pub fn hello");
+
+    mouse(&mut app, MouseEventKind::ScrollDown, at);
+    press(&mut app, KeyCode::Enter);
+
+    let wanted = &hits[1];
+    let file = wanted
+        .rsplit('/')
+        .next()
+        .unwrap()
+        .split(':')
+        .next()
+        .unwrap();
+    assert_eq!(current_file(&app).as_deref(), Some(file), "{hits:?}");
+}
+
+#[test]
+fn a_click_outside_the_search_closes_it_and_keeps_its_results_for_the_step_keys() {
+    let dir = project();
+    let (mut app, _rx) = searched(dir.path(), "hello");
+    screen(&mut app);
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (60, 3));
+    assert!(
+        app.state().search().is_some(),
+        "the frame is part of the box"
+    );
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (2, 28));
+    assert!(
+        app.state().search().is_none(),
+        "outside closes it, as esc does"
+    );
 }

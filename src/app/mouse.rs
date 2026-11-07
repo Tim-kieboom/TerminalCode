@@ -374,13 +374,16 @@ impl App {
 /// and says whether it took it. The line between two panes is held until the button is let
 /// go, wherever the pointer goes meanwhile; the tabs of a bar come before what is inside it,
 /// as they are in its frame.
-const PANE_STAGES: [fn(&mut App, MouseEvent) -> bool; 13] = [
+const PANE_STAGES: [fn(&mut App, MouseEvent) -> bool; 16] = [
     App::click_in_name_prompt,
     App::handle_divider_mouse,
     App::handle_definitions_mouse,
     App::handle_run_picker_mouse,
     App::handle_actions_mouse,
     App::handle_palette_mouse,
+    App::handle_finder_mouse,
+    App::handle_search_mouse,
+    App::handle_plugin_list_mouse,
     App::handle_menu_bar_mouse,
     App::handle_bar_tab_mouse,
     App::handle_plugin_mouse,

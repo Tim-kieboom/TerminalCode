@@ -254,10 +254,12 @@ fn the_finder_takes_the_keys_the_mouse_and_paste() {
 
     type_str(&mut app, "x");
     app.handle_input(InputEvent::Paste("pasted".to_owned()));
+    // A click on the box (its top border, no row) is the popup's own, not the editor's.
+    screen(&mut app);
     app.handle_input(InputEvent::Mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 60,
-        row: 15,
+        row: 3,
         modifiers: KeyModifiers::NONE,
     }));
     ctrl(&mut app, 'q');
@@ -625,4 +627,129 @@ fn the_matched_characters_are_drawn_differently() {
         found = true;
     }
     assert!(found, "{}", terminal.backend());
+}
+
+// ---- the mouse
+
+fn mouse(app: &mut App, kind: MouseEventKind, (column, row): (u16, u16)) {
+    app.handle_input(InputEvent::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    }));
+}
+
+/// The cell where `text` starts in the box (the first line that has it).
+fn cell_of(app: &mut App, text: &str) -> (u16, u16) {
+    let shown = screen(app);
+    for (row, line) in shown.lines().enumerate() {
+        let line = line.trim_matches('"');
+        if let Some(byte) = line.find(text) {
+            return (line[..byte].chars().count() as u16, row as u16);
+        }
+    }
+    panic!("{text} is not on the screen: {shown}");
+}
+
+fn opened_finder(dir: &Path) -> (App, mpsc::Receiver<Event>) {
+    let (mut app, mut rx) = app_in(dir);
+    ctrl(&mut app, 'p');
+    finish_walk(&mut app, &mut rx);
+    (app, rx)
+}
+
+#[test]
+fn the_pointer_over_a_row_selects_it_and_enter_opens_that_file() {
+    let dir = project();
+    let (mut app, _rx) = opened_finder(dir.path());
+    let at = cell_of(&mut app, "lib.rs");
+
+    mouse(&mut app, MouseEventKind::Moved, at);
+    press(&mut app, KeyCode::Enter);
+
+    let opened = app
+        .state()
+        .editor()
+        .buffer()
+        .path()
+        .map(|p| p.to_path_buf());
+    assert!(
+        opened.is_some_and(|path| path.ends_with("src/lib.rs")),
+        "the row under the pointer"
+    );
+}
+
+#[test]
+fn a_click_on_a_row_opens_the_file_and_closes_the_finder() {
+    let dir = project();
+    let (mut app, _rx) = opened_finder(dir.path());
+    let at = cell_of(&mut app, "main.rs");
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), at);
+
+    assert!(app.state().finder().is_none());
+    let opened = app
+        .state()
+        .editor()
+        .buffer()
+        .path()
+        .map(|p| p.to_path_buf());
+    assert!(opened.is_some_and(|path| path.ends_with("src/main.rs")));
+}
+
+#[test]
+fn the_wheel_moves_the_selection_in_the_finder() {
+    let dir = project();
+    let (mut app, _rx) = opened_finder(dir.path());
+    let at = cell_of(&mut app, "lib.rs");
+
+    mouse(&mut app, MouseEventKind::ScrollDown, at);
+    mouse(&mut app, MouseEventKind::ScrollDown, at);
+    mouse(&mut app, MouseEventKind::ScrollUp, at);
+    press(&mut app, KeyCode::Enter);
+
+    let first = app
+        .state()
+        .editor()
+        .buffer()
+        .path()
+        .map(|p| p.to_path_buf());
+    assert!(first.is_some(), "the second row of the results opened");
+}
+
+#[test]
+fn a_click_outside_the_finder_closes_it_and_one_on_its_frame_does_not() {
+    let dir = project();
+    let (mut app, _rx) = opened_finder(dir.path());
+    screen(&mut app);
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (60, 3));
+    assert!(app.state().finder().is_some(), "the frame");
+
+    mouse(&mut app, MouseEventKind::Down(MouseButton::Left), (2, 28));
+    assert!(app.state().finder().is_none(), "outside");
+}
+
+#[test]
+fn the_pointer_moving_outside_the_finder_changes_nothing() {
+    let dir = project();
+    let (mut app, _rx) = opened_finder(dir.path());
+    screen(&mut app);
+    press(&mut app, KeyCode::Down);
+    let second = results(&app)[1].clone();
+
+    mouse(&mut app, MouseEventKind::Moved, (2, 28));
+    press(&mut app, KeyCode::Enter);
+
+    let opened = app
+        .state()
+        .editor()
+        .buffer()
+        .path()
+        .map(|p| p.to_path_buf());
+    assert!(
+        opened.is_some_and(|path| path.ends_with(&second)),
+        "the second row, where the keys had put the selection"
+    );
 }

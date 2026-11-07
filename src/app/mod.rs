@@ -71,6 +71,7 @@ mod copy_path;
 mod file_clipboard;
 mod jumps;
 mod keys;
+mod list_mouse;
 mod lsp;
 mod mouse;
 mod open_in;

@@ -434,6 +434,43 @@ impl Finder {
         }
     }
 
+    /// Where the matches are listed on `screen`.
+    fn list_area(&self, screen: Rect) -> Rect {
+        let inner = Block::new().borders(Borders::ALL).inner(self.area(screen));
+        Rect {
+            y: inner.y + 1,
+            height: inner.height.saturating_sub(2),
+            ..inner
+        }
+    }
+
+    /// Whether a screen cell is inside the finder's box.
+    pub(crate) fn contains(&self, screen: Rect, column: u16, row: u16) -> bool {
+        self.area(screen)
+            .contains(ratatui::layout::Position::new(column, row))
+    }
+
+    /// The match under a screen cell, as an index into the matches.
+    pub(crate) fn row_at(&self, screen: Rect, column: u16, row: u16) -> Option<usize> {
+        let list = self.list_area(screen);
+        if !list.contains(ratatui::layout::Position::new(column, row)) {
+            return None;
+        }
+        let first = crate::components::list_cursor::first_when_drawn(
+            self.selected,
+            usize::from(list.height),
+        );
+        let index = first + usize::from(row - list.y);
+        (index < self.matches.len()).then_some(index)
+    }
+
+    /// Selects the match at `index`, if there is one.
+    pub(crate) fn select(&mut self, index: usize) {
+        if index < self.matches.len() {
+            self.selected = index;
+        }
+    }
+
     /// The box: horizontally centered, near the top.
     fn area(&self, screen: Rect) -> Rect {
         let width = WIDTH.min(screen.width);

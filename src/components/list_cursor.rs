@@ -98,6 +98,13 @@ pub(crate) fn stepped(selected: usize, step: Step, count: usize, page: usize) ->
     }
 }
 
+/// The first row a list shows when it is drawn from the top with `selected` and `rows` lines:
+/// the selected row is the last one shown once it is past the first screenful (how the lists
+/// that keep no scroll of their own come out).
+pub(crate) fn first_when_drawn(selected: usize, rows: usize) -> usize {
+    selected.saturating_sub(rows.saturating_sub(1))
+}
+
 /// The scroll nearest to `scroll` that shows `selected` in `height` lines. With
 /// no lines the scroll stays.
 pub(crate) fn revealed(selected: usize, scroll: usize, height: usize) -> usize {

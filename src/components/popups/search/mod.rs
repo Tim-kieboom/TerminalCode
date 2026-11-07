@@ -333,6 +333,43 @@ impl Search {
         }
     }
 
+    /// Where the results are listed on `screen`.
+    fn list_area(&self, screen: Rect) -> Rect {
+        let inner = Block::new().borders(Borders::ALL).inner(self.area(screen));
+        Rect {
+            y: inner.y + 2,
+            height: inner.height.saturating_sub(3),
+            ..inner
+        }
+    }
+
+    /// Whether a screen cell is inside the search's box.
+    pub(crate) fn contains(&self, screen: Rect, column: u16, row: u16) -> bool {
+        self.area(screen)
+            .contains(ratatui::layout::Position::new(column, row))
+    }
+
+    /// The result under a screen cell, as an index into the results.
+    pub(crate) fn row_at(&self, screen: Rect, column: u16, row: u16) -> Option<usize> {
+        let list = self.list_area(screen);
+        if !list.contains(ratatui::layout::Position::new(column, row)) {
+            return None;
+        }
+        let first = crate::components::list_cursor::first_when_drawn(
+            self.selected,
+            usize::from(list.height),
+        );
+        let index = first + usize::from(row - list.y);
+        (index < self.hits.len()).then_some(index)
+    }
+
+    /// Selects the result at `index`, if there is one.
+    pub(crate) fn select(&mut self, index: usize) {
+        if index < self.hits.len() {
+            self.selected = index;
+        }
+    }
+
     /// The box: horizontally centered, near the top.
     fn area(&self, screen: Rect) -> Rect {
         let width = WIDTH.min(screen.width);
