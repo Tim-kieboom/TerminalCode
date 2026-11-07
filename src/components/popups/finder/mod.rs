@@ -21,6 +21,7 @@ use crate::ui::theme::Theme;
 pub(crate) use scan::{ScanHandle, start as start_scan};
 
 mod scan;
+pub(crate) use scan::list_files;
 pub(crate) mod target;
 #[cfg(test)]
 mod tests;

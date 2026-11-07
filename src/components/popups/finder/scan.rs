@@ -40,13 +40,29 @@ pub(crate) fn start(root: PathBuf, scan: u64, events: mpsc::Sender<Event>) -> Sc
     ScanHandle { cancelled }
 }
 
-fn walk(root: &Path, scan: u64, events: &mpsc::Sender<Event>, cancelled: &AtomicBool) {
-    let walker = WalkBuilder::new(root)
+/// The walk over the project's files, by the explorer's rules.
+fn walker(root: &Path) -> ignore::Walk {
+    WalkBuilder::new(root)
         .hidden(false)
         // Honor .gitignore files even outside a git repository.
         .require_git(false)
         .filter_entry(|entry| entry.file_name() != HIDDEN_DIRECTORY)
-        .build();
+        .build()
+}
+
+/// Every file of the project under `root` (at most `most`), as paths from it, by the same rules
+/// as the finder. For work that wants them all at once, on a thread of its own.
+pub(crate) fn list_files(root: &Path, most: usize) -> Vec<PathBuf> {
+    walker(root)
+        .flatten()
+        .filter(is_file)
+        .filter_map(|entry| entry.path().strip_prefix(root).ok().map(Path::to_path_buf))
+        .take(most)
+        .collect()
+}
+
+fn walk(root: &Path, scan: u64, events: &mpsc::Sender<Event>, cancelled: &AtomicBool) {
+    let walker = walker(root);
 
     let mut batch = Vec::new();
     let mut unreadable = 0;

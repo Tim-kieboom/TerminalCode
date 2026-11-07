@@ -69,6 +69,7 @@ pub(crate) use open::expand_path;
 pub(crate) use plugin_files::ActiveFile;
 mod copy_path;
 mod file_clipboard;
+mod file_index;
 mod jumps;
 mod keys;
 mod list_mouse;
@@ -121,6 +122,8 @@ pub(crate) struct App {
     removal: Removal,
     /// What saving as root needs: the password prompt's state and how to run sudo.
     root: popups::Root,
+    /// The project's files by name, for paths of the terminal's output that end like one.
+    file_index: file_index::FileIndex,
     /// The file or folder the explorer copied or cut, waiting for a paste.
     file_clipboard: Option<file_clipboard::Held>,
     /// What the terminal pane runs.
@@ -216,6 +219,7 @@ impl App {
             removal: Removal::default(),
             root: popups::Root::default(),
             file_clipboard: None,
+            file_index: file_index::FileIndex::default(),
             terminal_shell: Shell::detect(),
             fallback_shell: Shell::from_setting(None),
             terminal_prefix: None,
@@ -556,6 +560,7 @@ impl App {
             Event::PluginJob(job) => self.plugin_job_event(job),
             Event::RootSaved(result) => self.root_save_finished(result),
             Event::FilePasted { from, result } => self.file_pasted(&from, result),
+            Event::FileIndex { root, files } => self.file_index_ready(root, files),
             Event::PathListing {
                 request,
                 dir,

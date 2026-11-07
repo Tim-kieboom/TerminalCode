@@ -484,3 +484,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] A click on the text of the palette, the finder, the project search and the find bar (its query and its replacement) puts the text cursor there (`TextField::click_at`; the find bar also gets the keys back)
 
 - [x] The list of folders in the explorer's Move prompt (`docs/design.md`, "The path list in the Move prompt"): every folder of the entry's folder at first, matching after the first edit, no highlight until the arrows so a new name is never taken for a folder
+
+- [x] A path in the terminal's output that is nowhere it says is the one file of the project that ends with it (`docs/design.md`, "Paths in the terminal output"): the project's files read on a thread the first time one is needed, whole parts only, two matches make no link

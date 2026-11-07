@@ -290,3 +290,118 @@ fn a_relative_path_is_also_tried_from_the_folder_the_shell_is_in() {
 
     assert_eq!(rig.editor_file().as_deref(), Some("only_here.rs"));
 }
+
+// ---- a path that is nowhere it says is the one file of the project that ends like it
+
+/// A shell that prints a path with only its ending, then waits.
+const ENDING_ONLY: &str = "printf 'at inner.rs:2\\nand mod.rs:1\\nand nothing.rs:1\\n'; sleep 30";
+
+fn project_with_deep_files() -> tempfile::TempDir {
+    let dir = project_with_a_file();
+    fs::create_dir_all(dir.path().join("src/deep")).unwrap();
+    fs::create_dir_all(dir.path().join("other")).unwrap();
+    fs::write(dir.path().join("src/deep/inner.rs"), "one\ntwo\nthree\n").unwrap();
+    fs::write(dir.path().join("src/mod.rs"), "a\n").unwrap();
+    fs::write(dir.path().join("other/mod.rs"), "b\n").unwrap();
+    dir
+}
+
+fn shown_with_endings(dir: &tempfile::TempDir) -> Rig {
+    let mut rig = rig_in(dir.path(), ENDING_ONLY);
+    rig.toggle();
+    rig.wait_for_text("nothing.rs:1");
+    std::thread::sleep(Duration::from_millis(200));
+    rig.draw();
+    rig
+}
+
+impl Rig {
+    /// Moves the pointer with `ctrl` over `cell` until the text there is underlined (the
+    /// files of the project were read meanwhile), or says it never was.
+    fn underlines_after_a_while(&mut self, cell: (u16, u16)) -> bool {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            while let Ok(event) = self.events.try_recv() {
+                self.app.handle_event(event);
+            }
+            self.move_to(cell, KeyModifiers::CONTROL);
+            if self.underlined(cell) {
+                return true;
+            }
+            if Instant::now() > deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
+#[test]
+fn the_only_file_that_ends_with_the_text_is_the_link_once_the_files_are_read() {
+    let dir = project_with_deep_files();
+    let mut rig = shown_with_endings(&dir);
+    let on_it = rig.cell_of("inner.rs:2", 3);
+
+    assert!(
+        rig.underlines_after_a_while(on_it),
+        "src/deep/inner.rs is the one"
+    );
+    rig.press_at(on_it, KeyModifiers::CONTROL);
+
+    assert_eq!(rig.editor_file().as_deref(), Some("inner.rs"));
+    let head = rig.app.state().editor().selections().primary().head();
+    assert_eq!(head.line, 1, "line 2");
+}
+
+#[test]
+fn two_files_with_that_ending_make_no_link() {
+    let dir = project_with_deep_files();
+    let mut rig = shown_with_endings(&dir);
+    let on_it = rig.cell_of("mod.rs:1", 2);
+
+    assert!(!rig.underlines_after_a_while_for(on_it, Duration::from_millis(1500)));
+    rig.press_at(on_it, KeyModifiers::CONTROL);
+
+    assert_eq!(rig.editor_file(), None);
+}
+
+#[test]
+fn a_name_no_file_has_makes_no_link() {
+    let dir = project_with_deep_files();
+    let mut rig = shown_with_endings(&dir);
+    let on_it = rig.cell_of("nothing.rs:1", 3);
+
+    assert!(!rig.underlines_after_a_while_for(on_it, Duration::from_millis(1500)));
+}
+
+#[test]
+fn a_right_click_on_such_a_path_offers_its_menu_once_the_files_are_read() {
+    let dir = project_with_deep_files();
+    let mut rig = shown_with_endings(&dir);
+    let on_it = rig.cell_of("inner.rs:2", 3);
+    rig.underlines_after_a_while(on_it);
+
+    right_click(&mut rig, on_it);
+
+    assert_eq!(
+        menu_labels(&rig),
+        Some(vec!["Open inner.rs".to_owned(), "Copy Path".to_owned()])
+    );
+}
+
+impl Rig {
+    fn underlines_after_a_while_for(&mut self, cell: (u16, u16), wait: Duration) -> bool {
+        let deadline = Instant::now() + wait;
+        while Instant::now() < deadline {
+            while let Ok(event) = self.events.try_recv() {
+                self.app.handle_event(event);
+            }
+            self.move_to(cell, KeyModifiers::CONTROL);
+            if self.underlined(cell) {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        false
+    }
+}

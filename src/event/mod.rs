@@ -78,6 +78,12 @@ pub(crate) enum Event {
         dir: std::path::PathBuf,
         result: Result<Vec<crate::components::popups::path_list::Entry>, String>,
     },
+    /// The files of the project, read for the paths of the terminal's output that end like one
+    /// (see `app/file_index.rs`): from `root`, with `/` between the parts.
+    FileIndex {
+        root: std::path::PathBuf,
+        files: Vec<String>,
+    },
     /// A paste of a copied file or folder is over (see `app/file_clipboard.rs`): the copy's path,
     /// or what went wrong.
     FilePasted {

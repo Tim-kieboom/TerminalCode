@@ -17,7 +17,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 
 ## Explorer and terminal
 - [ ] Path prompt, follow-ups: an entry that is a link drawn as one; the list for a Windows drive (`C:\`) and a UNC path; `ctrl+backspace` by path segment; remembering the last folder opened (the palette has no argument prompts to share it with yet)
-- [ ] Terminal paths, follow-ups: a search for a unique file that ends with the text, the wrap flag kept in the history of `trcode-pty`, the shell's folder on Windows and macOS (no cheap way found)
+- [ ] Terminal paths, follow-ups: the wrap flag kept in the history of `trcode-pty`, the shell's folder on Windows and macOS (no cheap way found), the project's files kept up to date from the watcher instead of read again after 30 seconds
 
 ## Languages
 - [ ] Load tree-sitter grammars at runtime from shared libraries (`.so` / `.dll`), so languages can be added without a rebuild (plan; the built-in five stay compiled in):

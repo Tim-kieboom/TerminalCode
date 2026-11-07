@@ -24,6 +24,11 @@ impl App {
             true => self.terminal_link_under(event.column, event.row),
             false => None,
         };
+        // A path that is nowhere it says: the files of the project are read, so that the one
+        // that ends like it can be found from the next move of the pointer.
+        if wants_link && link.is_none() && self.terminal_link_text_under(event.column, event.row) {
+            self.want_file_index();
+        }
         let cells = link.as_ref().map(|(link, _)| link.cells.clone());
         if self.state.terminal_mut().set_link(cells) {
             self.needs_redraw = true;
@@ -49,6 +54,15 @@ impl App {
         })
     }
 
+    /// Whether there is text that looks like a path under a screen cell.
+    fn terminal_link_text_under(&self, column: u16, row: u16) -> bool {
+        self.state
+            .terminal()
+            .cell_at(column, row)
+            .and_then(|cell| self.state.terminal().link_at(cell))
+            .is_some()
+    }
+
     /// The path under a screen cell, when it names a file or a folder that is there, and where
     /// it is.
     fn terminal_link_under(&self, column: u16, row: u16) -> Option<(Link, PathBuf)> {
@@ -69,6 +83,8 @@ impl App {
             .and_then(|session| session.working_folder());
         let bases = [Some(self.project_root()), shell_folder];
         first_that_exists(path, bases.into_iter().flatten())
+            // Nowhere it says: the one file of the project that ends like it.
+            .or_else(|| self.unique_project_file(path))
     }
 
     /// A right click on a path of the output: a menu to open it or copy it. Returns whether
@@ -79,6 +95,9 @@ impl App {
             return false;
         }
         let Some((link, _)) = self.terminal_link_under(event.column, event.row) else {
+            if self.terminal_link_text_under(event.column, event.row) {
+                self.want_file_index();
+            }
             return false;
         };
         let written = written_text(&link.text);
