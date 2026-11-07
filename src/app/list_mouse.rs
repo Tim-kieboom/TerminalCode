@@ -22,6 +22,7 @@ impl App {
         };
         let (column, row) = (event.column, event.row);
         match event.kind {
+            MouseEventKind::Down(MouseButton::Left) if finder.click_text(column, row) => {}
             MouseEventKind::Down(MouseButton::Left) => match finder.row_at(screen, column, row) {
                 Some(index) => {
                     finder.select(index);
@@ -53,6 +54,7 @@ impl App {
         };
         let (column, row) = (event.column, event.row);
         match event.kind {
+            MouseEventKind::Down(MouseButton::Left) if search.click_text(column, row) => {}
             MouseEventKind::Down(MouseButton::Left) => match search.row_at(screen, column, row) {
                 Some(index) => {
                     search.select(index);

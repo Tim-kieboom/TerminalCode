@@ -181,6 +181,12 @@ impl Search {
         self.field.delete()
     }
 
+    /// A click at a screen cell: puts the text cursor there when it is on the text of the
+    /// query. Whether it was.
+    pub(crate) fn click_text(&mut self, column: u16, row: u16) -> bool {
+        self.field.click_at(column, row)
+    }
+
     pub(crate) fn move_caret(&mut self, caret: Caret) {
         self.field.move_caret(caret);
     }

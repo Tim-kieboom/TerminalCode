@@ -100,6 +100,12 @@ impl App {
             self.needs_redraw = true;
         }
 
+        // A click on the text of the find bar puts its cursor there, and gives it the keys back.
+        if event.kind == MouseEventKind::Down(MouseButton::Left) && self.click_in_find_bar(event) {
+            self.needs_redraw = true;
+            return;
+        }
+
         // A click puts the cursor elsewhere: the word is over.
         if matches!(event.kind, MouseEventKind::Down(_)) {
             self.close_completion();
@@ -407,6 +413,23 @@ fn adds_cursor(modifiers: KeyModifiers) -> bool {
 }
 
 impl App {
+    /// A click on the query or the replacement of the find bar. Returns whether it was on one.
+    fn click_in_find_bar(&mut self, event: MouseEvent) -> bool {
+        if self.modal_open() {
+            return false;
+        }
+        let Some(mut find) = self.state.take_find() else {
+            return false;
+        };
+        let hit = find.click_text(event.column, event.row);
+        self.state.put_find(find);
+        if hit {
+            self.state.set_focus(crate::app::state::Focus::Editor);
+            self.state.set_find_focused(true);
+        }
+        hit
+    }
+
     /// A click on the text of the name box puts the text cursor there. Returns whether
     /// it did.
     fn click_in_name_prompt(&mut self, event: MouseEvent) -> bool {

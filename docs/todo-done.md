@@ -480,3 +480,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Several cursors for Enter, a closing bracket, Tab and Shift+Tab, and `ctrl+d` for the next occurrence (`docs/design.md`, "Select next occurrence and the other multi-cursor operations"): the line break at every cursor has the smart indent of a bracket, a closing bracket dedents at every cursor, Tab and Shift+Tab act on every cursor, `ctrl+d` selects the word and then adds the next occurrence
 
 - [x] The mouse in the file finder, the project search and the plugin list (`docs/design.md`, "Menus and lists"): hover and a click on a row (the finder and the search open it as `enter` does, the plugin list selects), the wheel, a click outside closes
+
+- [x] A click on the text of the palette, the finder, the project search and the find bar (its query and its replacement) puts the text cursor there (`TextField::click_at`; the find bar also gets the keys back)

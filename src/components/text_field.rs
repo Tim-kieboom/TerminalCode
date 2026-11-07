@@ -47,6 +47,8 @@ pub(crate) struct TextField {
     cursor: usize,
     /// The first byte of `text` that was drawn last, kept while the cursor stays in view.
     scroll: Cell<usize>,
+    /// The cells the text was drawn in last (after its prompt), for a click.
+    drawn: Cell<Rect>,
 }
 
 impl TextField {
@@ -57,6 +59,7 @@ impl TextField {
             cursor: text.len(),
             text,
             scroll: Cell::new(0),
+            drawn: Cell::new(Rect::default()),
         }
     }
 
@@ -80,11 +83,42 @@ impl TextField {
         let (shown, before) = self.visible(room);
         let line = format!("{prompt}{shown}");
         frame.render_widget(Paragraph::new(line), area);
+        let prompt_width = u16::try_from(prompt.width())
+            .unwrap_or(u16::MAX)
+            .min(area.width);
+        self.set_drawn(Rect {
+            x: area.x + prompt_width,
+            width: area.width - prompt_width,
+            height: area.height.min(1),
+            ..area
+        });
         let column = (prompt.width() + before).min(usize::from(u16::MAX)) as u16;
         frame.set_cursor_position(Position::new(
             area.x.saturating_add(column).min(area.right()),
             area.y,
         ));
+    }
+
+    /// Says where the text was drawn (the cells after any prompt), so that a click there can put
+    /// the cursor in it.
+    pub(crate) fn set_drawn(&self, text_area: Rect) {
+        self.drawn.set(text_area);
+    }
+
+    /// A click at a screen cell: when it is on the cells the text was drawn in, puts the cursor
+    /// at the nearer edge of the character there (past the end of the text: the end). Whether it
+    /// was on them.
+    pub(crate) fn click_at(&mut self, column: u16, row: u16) -> bool {
+        let area = self.drawn.get();
+        let inside = area.width > 0
+            && area.height > 0
+            && row == area.y
+            && column >= area.x
+            && column < area.right();
+        if inside {
+            self.click(usize::from(column - area.x));
+        }
+        inside
     }
 
     /// The first byte that was drawn last.

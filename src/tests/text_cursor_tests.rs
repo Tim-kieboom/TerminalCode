@@ -4,7 +4,9 @@
 
 use std::fs;
 
-use crossterm::event::{Event as InputEvent, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{
+    Event as InputEvent, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use tokio::sync::mpsc;
@@ -320,5 +322,170 @@ fn a_long_query_scrolls_so_the_cursor_stays_on_the_screen() {
     assert!(
         rig.cursor_column() < column,
         "back at the start of the text"
+    );
+}
+
+// ---- a click on the text puts the cursor there
+
+impl Rig {
+    fn screen_text(&mut self) -> String {
+        let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+        let app = &mut self.app;
+        terminal
+            .draw(|frame| prepare_and_render(frame, app.state_mut()))
+            .unwrap();
+        terminal.backend().to_string()
+    }
+
+    /// The cell of the character `offset` places into `text`, which is on the screen once.
+    fn cell_in(&mut self, text: &str, offset: usize) -> (u16, u16) {
+        let shown = self.screen_text();
+        for (row, line) in shown.lines().enumerate() {
+            let line = line.trim_matches('"');
+            if let Some(byte) = line.find(text) {
+                let column = line[..byte].chars().count() + offset;
+                return (column as u16, row as u16);
+            }
+        }
+        panic!("{text} is not on the screen: {shown}");
+    }
+
+    fn click(&mut self, (column, row): (u16, u16)) {
+        self.app.handle_input(InputEvent::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+}
+
+#[test]
+fn a_click_on_the_palettes_text_puts_the_cursor_between_the_characters_it_is_on() {
+    let mut rig = rig();
+    rig.app.run_action(Action::CommandPalette);
+    rig.type_text("abcdef");
+
+    let at = rig.cell_in("> abcdef", 2 + 2); // the `c`
+    rig.click(at);
+    rig.type_text("X");
+
+    assert_eq!(palette_query(&rig), "abXcdef");
+    assert!(
+        rig.app.state().palette().is_some(),
+        "a click on the text does not close it"
+    );
+}
+
+#[test]
+fn a_click_past_the_end_of_the_text_goes_to_the_end() {
+    let mut rig = rig();
+    rig.app.run_action(Action::CommandPalette);
+    rig.type_text("abc");
+    rig.key(KeyCode::Home);
+
+    let at = rig.cell_in("> abc", 2 + 3 + 10);
+    rig.click(at);
+    rig.type_text("X");
+
+    assert_eq!(palette_query(&rig), "abcX");
+}
+
+#[test]
+fn a_click_on_the_prompt_symbol_is_not_on_the_text() {
+    let mut rig = rig();
+    rig.app.run_action(Action::CommandPalette);
+    rig.type_text("abc");
+    rig.key(KeyCode::Home);
+
+    let at = rig.cell_in("> abc", 0);
+    rig.click(at);
+    rig.type_text("X");
+
+    assert_eq!(palette_query(&rig), "Xabc", "the cursor stays where it was");
+}
+
+#[test]
+fn a_click_on_the_finders_text_puts_the_cursor_there() {
+    let mut rig = rig();
+    rig.app.run_action(Action::FindFile);
+    rig.finish_walk();
+    rig.type_text("alpha");
+
+    let at = rig.cell_in("> alpha", 2 + 2);
+    rig.click(at);
+    rig.type_text("X");
+
+    assert_eq!(rig.app.state().finder().unwrap().query(), "alXpha");
+}
+
+#[test]
+fn a_click_on_the_project_searchs_text_puts_the_cursor_there() {
+    let mut rig = rig();
+    rig.app.run_action(Action::FindInProject);
+    rig.type_text("find me");
+
+    let at = rig.cell_in("> find me", 2 + 5); // the `m`
+    rig.click(at);
+    rig.type_text("X");
+
+    assert_eq!(rig.app.state().search().unwrap().query(), "find Xme");
+}
+
+#[test]
+fn a_click_on_the_find_bars_query_puts_the_cursor_there_and_gives_it_the_keys_back() {
+    let mut rig = rig();
+    rig.app.run_action(Action::FindInFile);
+    rig.type_text("fnd me");
+    // A click in the text takes the keys from the bar.
+    let text_cell = (5, 1);
+    rig.click(text_cell);
+    assert!(!rig.app.state().find_focused());
+
+    let at = rig.cell_in("Find: fnd me", 6 + 1); // the `n`, so before it
+    rig.click(at);
+    assert!(
+        rig.app.state().find_focused(),
+        "the click gave the keys back"
+    );
+    rig.type_text("i");
+
+    assert_eq!(rig.app.state().find().unwrap().query(), "find me");
+}
+
+#[test]
+fn a_click_on_the_replacement_moves_the_typing_to_it_with_its_own_cursor() {
+    let mut rig = rig();
+    rig.app.run_action(Action::FindInFile);
+    rig.type_text("ab");
+    rig.press(KeyCode::Char('r'), KeyModifiers::CONTROL);
+    rig.type_text("xz");
+    // Back to the query by tab, then a click on the replacement.
+    rig.key(KeyCode::Tab);
+
+    let at = rig.cell_in("Replace: xz", 9 + 1);
+    rig.click(at);
+    rig.type_text("y");
+
+    let find = rig.app.state().find().unwrap();
+    assert_eq!(find.replacement(), "xyz");
+    assert_eq!(find.query(), "ab");
+}
+
+#[test]
+fn a_click_on_the_find_bars_label_changes_nothing_about_the_cursor() {
+    let mut rig = rig();
+    rig.app.run_action(Action::FindInFile);
+    rig.type_text("ab");
+    rig.key(KeyCode::Home);
+
+    let at = rig.cell_in("Find: ab", 1);
+    rig.click(at);
+    rig.type_text("X");
+
+    assert_eq!(
+        rig.app.state().find().unwrap().query(),
+        "ab",
+        "the text went to the editor: it was no click on the text"
     );
 }

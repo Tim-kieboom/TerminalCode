@@ -249,6 +249,20 @@ impl Find {
         }
     }
 
+    /// A click at a screen cell: when it is on the query or on the replacement, puts the text
+    /// cursor there and gives that one the typing. Whether it was.
+    pub(crate) fn click_text(&mut self, column: u16, row: u16) -> bool {
+        if self.query.click_at(column, row) {
+            self.active = Field::Query;
+            return true;
+        }
+        if self.replace_open && self.replacement.click_at(column, row) {
+            self.active = Field::Replacement;
+            return true;
+        }
+        false
+    }
+
     /// Moves the cursor in the text being typed.
     pub(crate) fn move_caret(&mut self, caret: Caret) {
         self.typing().move_caret(caret);
@@ -522,6 +536,15 @@ impl Find {
             .saturating_sub(label.width() + status.width() + SHORTEST_OPTIONS)
             .max(MOST_NARROW_FIELD);
         let (shown, before) = self.query.visible(query_room);
+        let label_width = u16::try_from(label.width()).unwrap_or(u16::MAX);
+        self.query.set_drawn(Rect {
+            x: area.x + label_width.min(area.width),
+            width: u16::try_from(query_room)
+                .unwrap_or(u16::MAX)
+                .min(area.width.saturating_sub(label_width)),
+            height: 1,
+            ..first
+        });
         let prompt = format!("{label}{shown}");
         let query_cursor = label.width() + before;
         let room = usize::from(area.width).saturating_sub(prompt.width() + status.width() + 1);
@@ -554,6 +577,15 @@ impl Find {
                 .saturating_sub(label.width() + hint.width())
                 .max(MOST_NARROW_FIELD);
             let (shown, before) = self.replacement.visible(room);
+            let label_width = u16::try_from(label.width()).unwrap_or(u16::MAX);
+            self.replacement.set_drawn(Rect {
+                x: area.x + label_width.min(area.width),
+                width: u16::try_from(room)
+                    .unwrap_or(u16::MAX)
+                    .min(area.width.saturating_sub(label_width)),
+                height: 1,
+                ..second
+            });
             let prompt = format!("{label}{shown}");
             let gap = usize::from(area.width)
                 .saturating_sub(prompt.width() + hint.width())

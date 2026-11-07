@@ -130,6 +130,9 @@ impl App {
         let mut chosen = None;
         let mut keep_open = true;
         match event.kind {
+            // A click on the text of the query puts the cursor there.
+            MouseEventKind::Down(MouseButton::Left)
+                if palette.click_text(event.column, event.row) => {}
             MouseEventKind::Down(MouseButton::Left) => {
                 match palette.row_at(screen, event.column, event.row) {
                     Some(index) => {
