@@ -31,9 +31,11 @@ pub(crate) struct Listing {
 /// what to tell the user.
 pub(crate) fn read_dir(dir: &Path) -> Result<Vec<Entry>, String> {
     let read = fs::read_dir(dir).map_err(|error| match error.kind() {
-        std::io::ErrorKind::NotFound => format!("{} is not a folder that exists", dir.display()),
-        std::io::ErrorKind::NotADirectory => format!("{} is not a folder", dir.display()),
-        _ => format!("cannot read {}: {error}", dir.display()),
+        // The reason comes first: the row is cut at the right edge of the box, and a long
+        // path (a Windows temp folder) would push the reason out of it.
+        std::io::ErrorKind::NotFound => format!("not a folder that exists: {}", dir.display()),
+        std::io::ErrorKind::NotADirectory => format!("not a folder: {}", dir.display()),
+        _ => format!("cannot read ({error}): {}", dir.display()),
     })?;
     let mut entries = Vec::new();
     for entry in read.flatten() {

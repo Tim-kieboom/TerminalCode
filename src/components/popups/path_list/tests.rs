@@ -156,7 +156,7 @@ fn a_folder_that_is_not_there_or_is_a_file_is_an_error_that_says_which() {
 
     assert!(gone.contains("not a folder that exists"), "{gone}");
     assert!(
-        file.contains("is not a folder") || file.contains("cannot read"),
+        file.contains("not a folder") || file.contains("cannot read"),
         "{file}"
     );
 }
