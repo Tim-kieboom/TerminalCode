@@ -1285,3 +1285,6 @@ Goal: run the program of the project from the editor, then debug it with breakpo
 - **Scrolling a tall menu:** a menu with more entries than the screen has rows shows the ones around the selection (`Menu::scroll`, worked out in `place` with `list_cursor::revealed`), and clicks, hover and the submenu's row use the scrolled row. The wheel still closes a menu.
 - **Not built:** see the todo item "Menus and lists, what is left".
 
+## The end of a session always wakes the app (fixed)
+- A session wakes the app once when its screen changes and not again until a draw has taken the change (`wake_once`). The end of a session (`Feeder::finish`, the reader reaching the end of the shell's output, the watcher seeing the child gone) used the same rule, so when the output's wake was still waiting for its draw, the end's was swallowed: the app had looked at the sessions when the output woke it, found this one still going, and was never told again. A build that failed showed its text but its tab never got the "not started" notice; it showed in the test of that as a timeout in about one run in six of the whole suite. `wake_for_the_end` wakes whatever is pending, and a test in `trcode-pty` ends a session with a wake waiting.
+

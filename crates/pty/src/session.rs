@@ -125,7 +125,7 @@ impl Feeder {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(code);
         self.shared.ended.store(true, Ordering::SeqCst);
-        wake_once(&self.shared, &*self.wake);
+        wake_for_the_end(&self.shared, &*self.wake);
     }
 }
 
@@ -449,7 +449,16 @@ fn read_output(
     }
     shared.ended.store(true, Ordering::SeqCst);
     // The shell ended; the app wants to know.
-    wake_once(shared, wake);
+    wake_for_the_end(shared, wake);
+}
+
+/// Wakes the app for the end of a session, whether or not a wake-up is still waiting for its
+/// draw. The app that looked for ended sessions when the output woke it found this one still
+/// going, and the draw that takes the waiting wake-up comes after; without a wake of its own
+/// the end would never be heard of (a build that failed showed its text but no notice).
+fn wake_for_the_end(shared: &Shared, wake: &(dyn Fn() + Send + Sync)) {
+    shared.wake_pending.store(true, Ordering::SeqCst);
+    wake();
 }
 
 /// Wakes the app unless a wake-up is still waiting for its draw.
@@ -521,7 +530,7 @@ fn watch_child(
         if exited {
             wait_for_quiet_output(shared);
             shared.ended.store(true, Ordering::SeqCst);
-            wake_once(shared, wake);
+            wake_for_the_end(shared, wake);
             return;
         }
     }

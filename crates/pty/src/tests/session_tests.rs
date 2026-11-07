@@ -121,9 +121,10 @@ fn resizing_changes_the_screen_at_once_and_the_shell_after() {
 
 #[test]
 fn many_changes_wake_the_app_once_until_a_draw_takes_them() {
-    let rig = start("i=0; while [ $i -lt 3000 ]; do echo line$i; i=$((i+1)); done");
+    // The shell stays a while after its output: the wake for its end is a wake of its own and
+    // is not part of what is counted here.
+    let rig = start("i=0; while [ $i -lt 3000 ]; do echo line$i; i=$((i+1)); done; sleep 30");
 
-    rig.wait_for_exit();
     rig.wait_for_text("line2999");
 
     assert_eq!(rig.wakes.load(Ordering::SeqCst), 1);
@@ -133,7 +134,7 @@ fn many_changes_wake_the_app_once_until_a_draw_takes_them() {
 
 #[test]
 fn taking_the_change_lets_the_next_one_wake_the_app_again() {
-    let rig = start("printf one; sleep 0.4; printf two");
+    let rig = start("printf one; sleep 0.4; printf two; sleep 30");
     rig.wait_for_text("one");
     assert_eq!(rig.wakes.load(Ordering::SeqCst), 1);
 
@@ -308,4 +309,28 @@ fn a_shell_that_is_gone_has_no_working_folder() {
     rig.wait_until("the shell to end", |rig| rig.session.exit_code().is_some());
 
     assert_eq!(rig.session.working_folder(), None);
+}
+
+#[test]
+fn the_end_of_a_session_wakes_the_app_even_when_an_earlier_wake_is_still_waiting_for_its_draw() {
+    // The output wakes the app once. If the app looks at the sessions before the end comes (it
+    // finds nothing over) and draws only after it, the end must still be told: a wake that is
+    // swallowed because one is "pending" is an end that nobody ever hears of.
+    let (session, feeder, wakes) = detached();
+    feeder.text(b"[the build failed]");
+    assert_eq!(wakes.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        session.finished(),
+        None,
+        "the app looks, and it is not over"
+    );
+
+    feeder.finish(101);
+
+    assert_eq!(
+        wakes.load(Ordering::SeqCst),
+        2,
+        "the end is told though the draw has not taken the first wake"
+    );
+    assert_eq!(session.finished(), Some(101));
 }
