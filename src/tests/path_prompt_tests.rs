@@ -485,3 +485,85 @@ fn a_folder_of_thousands_of_files_keeps_typing_quick() {
     assert!(screen.contains("more"), "the rest is counted: {screen}");
     assert!(took < Duration::from_secs(2), "{took:?}");
 }
+
+// ---- the Move prompt has the list too, of folders, with no highlight until the arrows
+
+impl Rig {
+    /// Opens the Move prompt for `relative` (a path from the project folder).
+    fn move_prompt_for(&mut self, relative: &str) {
+        self.app
+            .state_mut()
+            .set_focus(crate::app::state::Focus::Explorer);
+        let path = self.dir.path().join(relative);
+        self.app.state_mut().explorer_mut().reveal(&path).unwrap();
+        self.app.do_action(Action::MoveEntry);
+    }
+}
+
+#[test]
+fn the_move_prompt_lists_the_folders_of_the_folder_typed_so_far() {
+    let mut rig = rig();
+    rig.move_prompt_for("alpha.txt");
+
+    let list = rig.box_text();
+    assert!(list.contains("docs/") && list.contains("src/"), "{list}");
+    assert!(!list.contains("alpine.txt"), "files are not listed: {list}");
+
+    for _ in 0..rig.name().len() {
+        rig.key(KeyCode::Backspace);
+    }
+    rig.type_text("src/");
+    assert!(rig.box_text().contains("components/"));
+}
+
+#[test]
+fn a_new_name_typed_in_the_move_prompt_is_not_taken_for_a_folder_that_matches_it() {
+    let mut rig = rig();
+    rig.move_prompt_for("alpha.txt");
+    for _ in 0..rig.name().len() {
+        rig.key(KeyCode::Backspace);
+    }
+
+    // `doc` matches the folder `docs`, but enter is the user's name, not a step into it.
+    rig.type_text("doc");
+    rig.key(KeyCode::Enter);
+
+    assert!(
+        rig.dir.path().join("doc").exists(),
+        "alpha.txt was moved to the name doc"
+    );
+    assert!(!rig.dir.path().join("alpha.txt").exists());
+}
+
+#[test]
+fn down_and_enter_in_the_move_prompt_go_into_the_folder() {
+    let mut rig = rig();
+    rig.move_prompt_for("alpha.txt");
+    for _ in 0..rig.name().len() {
+        rig.key(KeyCode::Backspace);
+    }
+
+    rig.key(KeyCode::Down);
+    rig.key(KeyCode::Enter);
+
+    assert_eq!(rig.name(), "docs/", "the first folder, gone into");
+    rig.key(KeyCode::Enter);
+    assert!(
+        rig.dir.path().join("docs/alpha.txt").exists(),
+        "enter with the folder typed moves into it"
+    );
+}
+
+#[test]
+fn tab_in_the_move_prompt_completes_a_folder_name() {
+    let mut rig = rig();
+    rig.move_prompt_for("alpha.txt");
+    for _ in 0..rig.name().len() {
+        rig.key(KeyCode::Backspace);
+    }
+
+    rig.type_text("sr");
+    rig.key(KeyCode::Tab);
+
+    assert_eq!(rig.name(), "src");
+}

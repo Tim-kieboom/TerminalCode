@@ -16,7 +16,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 - [ ] Text inputs, what is left: the password prompt of "Save as root" has no cursor (decided: it is a wiped `Secret`); the name prompt keeps its own copy of the click code (`NamePrompt::click` with its `Layout`) instead of `TextField::click_at`
 
 ## Explorer and terminal
-- [ ] Path prompt, follow-ups: the same list for the palette's argument prompts and the `Move` prompt of the explorer (today only Open File and Open Folder have it); an entry that is a link drawn as one; the list for a Windows drive (`C:\`) and a UNC path; `ctrl+backspace` by path segment; remembering the last folder opened
+- [ ] Path prompt, follow-ups: an entry that is a link drawn as one; the list for a Windows drive (`C:\`) and a UNC path; `ctrl+backspace` by path segment; remembering the last folder opened (the palette has no argument prompts to share it with yet)
 - [ ] Terminal paths, follow-ups: a search for a unique file that ends with the text, the wrap flag kept in the history of `trcode-pty`, the shell's folder on Windows and macOS (no cheap way found)
 
 ## Languages

@@ -482,3 +482,5 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] The mouse in the file finder, the project search and the plugin list (`docs/design.md`, "Menus and lists"): hover and a click on a row (the finder and the search open it as `enter` does, the plugin list selects), the wheel, a click outside closes
 
 - [x] A click on the text of the palette, the finder, the project search and the find bar (its query and its replacement) puts the text cursor there (`TextField::click_at`; the find bar also gets the keys back)
+
+- [x] The list of folders in the explorer's Move prompt (`docs/design.md`, "The path list in the Move prompt"): every folder of the entry's folder at first, matching after the first edit, no highlight until the arrows so a new name is never taken for a folder

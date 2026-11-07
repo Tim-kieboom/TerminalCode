@@ -59,8 +59,7 @@ impl App {
         let root = self.state.explorer().root_path().map(PathBuf::from);
         match root {
             Some(root) if root != path => {
-                self.state
-                    .open_name_prompt(NamePrompt::move_from(path, root));
+                self.open_path_prompt(NamePrompt::move_from(path, root));
             }
             _ => self.state.notify("the project folder cannot be moved here"),
         }

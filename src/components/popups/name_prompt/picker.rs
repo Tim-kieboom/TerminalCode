@@ -34,11 +34,24 @@ pub(super) struct Picker {
     total: usize,
     /// The highlighted row of `shown`: nothing until a name is typed or a key moves it.
     selected: Option<usize>,
-    /// Files are left out (Open Folder).
+    /// Files are left out (Open Folder, Move).
     dirs_only: bool,
+    /// The highlight starts on the first match once a name is typed. Move turns it off: what is
+    /// typed there can be a new name, which `enter` must not take for a folder that matches it.
+    auto_highlight: bool,
+    /// The name the prompt started with (Move starts with the entry's own path): while it is
+    /// still what is typed, the list shows every folder instead of matching it.
+    unfiltered: Option<String>,
 }
 
 impl NamePrompt {
+    /// Makes the list show every folder while the name is still `name`, what the prompt began with.
+    pub(super) fn leave_unfiltered_while(&mut self, name: &str) {
+        if let Some(picker) = self.picker.as_mut() {
+            picker.unfiltered = Some(name.to_owned());
+        }
+    }
+
     /// Whether this prompt shows a list of the folder.
     pub(crate) fn has_list(&self) -> bool {
         self.picker.is_some()
@@ -46,8 +59,16 @@ impl NamePrompt {
 
     pub(super) fn picker_for(purpose: &Purpose) -> Option<Picker> {
         match purpose {
-            Purpose::OpenFile => Some(Picker::default()),
+            Purpose::OpenFile => Some(Picker {
+                auto_highlight: true,
+                ..Picker::default()
+            }),
             Purpose::OpenFolder => Some(Picker {
+                dirs_only: true,
+                auto_highlight: true,
+                ..Picker::default()
+            }),
+            Purpose::Move(_) => Some(Picker {
                 dirs_only: true,
                 ..Picker::default()
             }),
@@ -112,7 +133,15 @@ impl NamePrompt {
     /// Matches the entries against the name being typed again. The highlight starts on the
     /// first match once a name is typed, and nowhere before.
     pub(crate) fn refresh_matches(&mut self) {
-        let partial = self.partial().to_owned();
+        let untouched = self
+            .picker
+            .as_ref()
+            .and_then(|picker| picker.unfiltered.as_deref())
+            == Some(self.field.text());
+        let partial = match untouched {
+            true => String::new(),
+            false => self.partial().to_owned(),
+        };
         let Some(picker) = self.picker.as_mut() else {
             return;
         };
@@ -122,7 +151,8 @@ impl NamePrompt {
             }
             _ => (Vec::new(), 0),
         };
-        picker.selected = (!partial.is_empty() && !shown.is_empty()).then_some(0);
+        picker.selected =
+            (picker.auto_highlight && !partial.is_empty() && !shown.is_empty()).then_some(0);
         picker.shown = shown;
         picker.total = total;
     }

@@ -150,7 +150,9 @@ impl NamePrompt {
             .unwrap_or(&from)
             .to_string_lossy()
             .into_owned();
-        Self::with(Purpose::Move(from), root, name)
+        let mut prompt = Self::with(Purpose::Move(from), root, name.clone());
+        prompt.leave_unfiltered_while(&name);
+        prompt
     }
 
     /// Asks for the name of a new theme, a copy of `template`.
