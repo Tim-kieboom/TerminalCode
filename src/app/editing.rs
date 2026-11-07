@@ -3,7 +3,7 @@
 use super::App;
 use super::keys::NO_FILE_MESSAGE;
 use crate::clipboard::{Notice, Register};
-use crate::components::editor::Toggled;
+use crate::components::editor::{Occurrence, Toggled};
 use crate::components::workspace::{CloseMany, CloseResult, CloseScope, SaveOutcome};
 use crate::error::IdeResult;
 
@@ -28,6 +28,19 @@ impl App {
                 "could not write the system clipboard ({error}); only the editor's own copy is used, so paste works here and nowhere else"
             ));
         }
+    }
+
+    /// `ctrl+d`: the next occurrence of the selected text joins the selections; with a bare cursor
+    /// the word it is in is selected first. Says so when there is nothing more to add.
+    pub(super) fn select_next_occurrence(&mut self) -> IdeResult {
+        match self.state.edit(|editor| editor.select_next_occurrence())? {
+            Occurrence::Word | Occurrence::Added => {}
+            Occurrence::NoMore => self
+                .state
+                .notify("no more occurrences of the selected text"),
+            Occurrence::NoWord => self.state.notify("the cursor is not in a word"),
+        }
+        Ok(())
     }
 
     pub(super) fn paste(&mut self) -> IdeResult {

@@ -87,13 +87,14 @@ fn one_undo_takes_back_what_was_typed_at_every_cursor() {
 }
 
 #[test]
-fn an_indent_acts_on_the_primary_cursor_alone_and_leaves_one_cursor() {
+fn tab_indents_at_every_cursor_and_keeps_them() {
     let mut app = app("a\nb");
     press(&mut app, KeyCode::Down, ALT_CTRL);
 
     press(&mut app, KeyCode::Tab, KeyModifiers::NONE);
 
-    assert_eq!(cursors(&app), 1);
+    assert_eq!(cursors(&app), 2);
+    assert_eq!(app.state().editor().buffer().text(), "    a\n    b");
 }
 
 fn drawn(app: &mut App) -> Terminal<TestBackend> {
@@ -383,4 +384,69 @@ fn ctrl_slash_comments_the_line_and_a_file_with_no_language_says_so() {
         notes.iter().any(|note| note.contains("no comment marker")),
         "{notes:?}"
     );
+}
+
+const CTRL: KeyModifiers = KeyModifiers::CONTROL;
+
+#[test]
+fn ctrl_d_selects_the_word_then_adds_each_next_occurrence_and_typing_replaces_them_all() {
+    let mut app = app("let total = total + total;");
+    for _ in 0..6 {
+        press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+    }
+
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    assert_eq!(cursors(&app), 1, "the word is selected");
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    assert_eq!(cursors(&app), 3);
+    type_str(&mut app, "sum");
+
+    assert_eq!(text(&app), "let sum = sum + sum;");
+}
+
+#[test]
+fn ctrl_d_with_every_occurrence_selected_says_so() {
+    let mut app = app("ab ab");
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    press(&mut app, KeyCode::Char('d'), CTRL);
+
+    press(&mut app, KeyCode::Char('d'), CTRL);
+
+    assert_eq!(cursors(&app), 2);
+    let told = app.state().notifications().texts().join("|");
+    assert!(told.contains("no more occurrences"), "{told}");
+}
+
+#[test]
+fn ctrl_d_scrolls_to_an_occurrence_that_is_below_the_screen() {
+    let mut lines: Vec<String> = (0..40).map(|n| format!("line {n}")).collect();
+    lines[1] = "target here".to_owned();
+    lines[35] = "also target".to_owned();
+    let mut app = app(&lines.join("\n"));
+    press(&mut app, KeyCode::Down, KeyModifiers::NONE);
+    press(&mut app, KeyCode::Right, KeyModifiers::NONE);
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    drawn(&mut app);
+
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    let terminal = drawn(&mut app);
+
+    assert!(
+        terminal.backend().to_string().contains("also target"),
+        "{}",
+        terminal.backend()
+    );
+}
+
+#[test]
+fn ctrl_d_in_the_explorer_or_elsewhere_is_not_the_editors() {
+    // The editor binding is in the editor context only: the palette lists the action instead.
+    let mut app = app("ab ab");
+    app.state_mut()
+        .set_focus(crate::app::state::Focus::Explorer);
+
+    press(&mut app, KeyCode::Char('d'), CTRL);
+
+    assert_eq!(cursors(&app), 1);
 }

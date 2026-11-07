@@ -82,10 +82,18 @@ impl IndentStyle {
     }
 
     /// One level of indentation as text.
-    fn unit(self) -> String {
+    pub(super) fn unit(self) -> String {
         match self {
             Self::Tabs => "\t".to_owned(),
             Self::Spaces(width) => " ".repeat(width),
+        }
+    }
+
+    /// What Tab writes at `column`: a tab, or the spaces up to the next tab stop.
+    pub(super) fn tab_text(self, column: usize) -> String {
+        match self {
+            Self::Tabs => "\t".to_owned(),
+            Self::Spaces(width) => " ".repeat(width - column % width),
         }
     }
 
@@ -111,15 +119,15 @@ impl Editor {
     /// otherwise it inserts one level at the cursor (to the next tab stop for
     /// spaces), replacing the selection.
     pub(crate) fn indent(&mut self) -> Result<(), BufferError> {
+        if self.has_many_cursors() {
+            return self.indent_at_every_cursor();
+        }
         let selection = *self.view.selections.primary();
         if selection.start().line != selection.end().line {
             return self.indent_lines(&selection);
         }
 
-        let text = match self.view.indent {
-            IndentStyle::Tabs => "\t".to_owned(),
-            IndentStyle::Spaces(width) => " ".repeat(width - selection.start().column % width),
-        };
+        let text = self.view.indent.tab_text(selection.start().column);
         let kind = selection.is_empty().then_some(EditKind::Typing);
         self.replace(self.selection_bytes()?, &text, kind)
     }
@@ -127,8 +135,11 @@ impl Editor {
     /// Shift+Tab. Removes one level of indentation from the current line, or
     /// from every selected line.
     pub(crate) fn outdent(&mut self) -> Result<(), BufferError> {
-        let primary = Selections::single(*self.view.selections.primary());
-        self.shift_lines(Direction::Out, &primary)
+        let which = match self.has_many_cursors() {
+            true => self.view.selections.clone(),
+            false => Selections::single(*self.view.selections.primary()),
+        };
+        self.shift_lines(Direction::Out, &which)
     }
 
     /// How many characters one level of outdent takes off the start of `line`: a tab,
@@ -228,6 +239,25 @@ impl Editor {
             return self.newline_at_every_cursor();
         }
         let selection = *self.view.selections.primary();
+        let (text, leaving) = self.newline_text(&selection)?;
+        self.insert_text(&text)?;
+        if leaving > 0 {
+            // The cursor goes to the empty line in the middle, the closing bracket's line below it.
+            self.move_cursor(Motion::Up)?;
+            return self.move_cursor(Motion::LineEnd);
+        }
+        Ok(())
+    }
+
+    /// What a line break at `selection` writes in place of it, and how many bytes of that
+    /// stay after the cursor: the line break and the indentation of the line (as far as it
+    /// lies left of the selection); one level deeper after an opening bracket (in a language
+    /// that has them, see [`Dialect`]); and, with a closing bracket right after a bare
+    /// cursor, a line of its own for the bracket, which stays after the cursor.
+    pub(super) fn newline_text(
+        &self,
+        selection: &Selection,
+    ) -> Result<(String, usize), BufferError> {
         let start = selection.start();
         let content = self.buffer.line_content(start.line)?;
         let indent: String = content
@@ -236,33 +266,36 @@ impl Editor {
             .take(start.column)
             .collect();
         let line_break = self.buffer.line_ending().as_str();
-
         let cursor = self.buffer.position_to_byte(start)?;
         let line_start = self.buffer.position_to_byte(Position::new(start.line, 0))?;
         let (before, after) = content.split_at(cursor - line_start);
         let closer =
             Dialect::of_buffer(&self.buffer).and_then(|dialect| dialect.closer_to_add(before));
         let Some(closer) = closer else {
-            let text = format!("{line_break}{indent}");
-            return self.insert_text(&text);
+            return Ok((format!("{line_break}{indent}"), 0));
         };
-
         let deeper = format!("{indent}{}", self.view.indent.unit());
         if selection.is_empty() && after.starts_with(closer) {
-            let text = format!("{line_break}{deeper}{line_break}{indent}");
-            self.insert_text(&text)?;
-            // The cursor goes to the empty line in the middle.
-            self.move_cursor(Motion::Up)?;
-            return self.move_cursor(Motion::LineEnd);
+            let below = format!("{line_break}{indent}");
+            return Ok((format!("{line_break}{deeper}{below}"), below.len()));
         }
-        self.insert_text(&format!("{line_break}{deeper}"))
+        Ok((format!("{line_break}{deeper}"), 0))
     }
 
     /// Typing a closing bracket on a line that holds only indentation takes one
     /// level of it away first, so the bracket lines up with what opened it.
     /// `None` when `text` is something else, or there is nothing to take away.
     pub(super) fn closer_dedent(&self, text: &str) -> Result<Option<Range<usize>>, BufferError> {
-        let selection = self.view.selections.primary();
+        let selection = *self.view.selections.primary();
+        self.closer_dedent_for(&selection, text)
+    }
+
+    /// [`Editor::closer_dedent`] for one of the selections.
+    pub(super) fn closer_dedent_for(
+        &self,
+        selection: &Selection,
+        text: &str,
+    ) -> Result<Option<Range<usize>>, BufferError> {
         if !selection.is_empty() || !is_closer(text) || Dialect::of_buffer(&self.buffer).is_none() {
             return Ok(None);
         }
@@ -311,7 +344,7 @@ impl Editor {
 
 /// Which way a line moves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Direction {
+enum Direction {
     In,
     Out,
 }

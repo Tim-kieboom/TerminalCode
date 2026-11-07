@@ -15,6 +15,9 @@ use super::{EditKind, Editor, Motion};
 /// there. `None` for a cursor with nothing to do.
 type Planned = Option<(Range<usize>, String)>;
 
+/// A [`Planned`] with the bytes of its text that stay after the cursor.
+type PlannedLeaving = Option<(Range<usize>, String, usize)>;
+
 /// Which delete is meant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Delete {
@@ -74,29 +77,47 @@ impl Editor {
         self.edit_each(
             continues_typing.then_some(EditKind::Typing),
             |editor, selection| {
-                let range = editor.bytes_of(selection)?;
+                let mut range = editor.bytes_of(selection)?;
+                // A closing bracket on a line of only indentation takes a level of it away.
+                if let Some(dedent) = editor.closer_dedent_for(selection, text)? {
+                    range = dedent.start..range.end;
+                }
                 Ok((!(range.is_empty() && text.is_empty())).then(|| (range, text.to_owned())))
             },
         )
     }
 
-    /// A line break at every cursor, each followed by the indentation of its
-    /// line as far as it lies left of the cursor.
+    /// A line break at every cursor, as `Enter` makes it with one: each followed by the
+    /// indentation of its line as far as it lies left of the cursor, one level deeper after
+    /// an opening bracket, and a closing bracket right after the cursor sent to a line of its own.
     pub(super) fn newline_at_every_cursor(&mut self) -> Result<(), BufferError> {
-        let line_break = self.buffer.line_ending().as_str();
-        self.edit_each(None, |editor, selection| {
-            let start = selection.start();
-            let content = editor.buffer.line_content(start.line)?;
-            let indent: String = content
-                .chars()
-                .take_while(|c| matches!(c, ' ' | '\t'))
-                .take(start.column)
-                .collect();
-            Ok(Some((
-                editor.bytes_of(selection)?,
-                format!("{line_break}{indent}"),
-            )))
+        self.edit_each_leaving(None, false, |editor, selection| {
+            let (text, leaving) = editor.newline_text(selection)?;
+            Ok(Some((editor.bytes_of(selection)?, text, leaving)))
         })
+    }
+
+    /// Tab with several cursors: when a selection covers several lines, those lines (and the
+    /// lines of the other cursors) move one level in; otherwise every cursor gets one level of
+    /// indentation (to the next tab stop for spaces) in place of what it has selected.
+    pub(super) fn indent_at_every_cursor(&mut self) -> Result<(), BufferError> {
+        if self
+            .view
+            .selections
+            .iter()
+            .any(|selection| selection.start().line != selection.end().line)
+        {
+            return self.indent_line();
+        }
+        let all_bare = self.view.selections.iter().all(Selection::is_empty);
+        let style = self.view.indent;
+        self.edit_each(
+            all_bare.then_some(EditKind::Typing),
+            move |editor, selection| {
+                let text = style.tab_text(selection.start().column);
+                Ok(Some((editor.bytes_of(selection)?, text)))
+            },
+        )
     }
 
     /// One delete at every cursor; a selection is deleted whole.
@@ -202,7 +223,7 @@ impl Editor {
         })
     }
 
-    fn bytes_of(&self, selection: &Selection) -> Result<Range<usize>, BufferError> {
+    pub(super) fn bytes_of(&self, selection: &Selection) -> Result<Range<usize>, BufferError> {
         let start = self.buffer.position_to_byte(selection.start())?;
         let end = self.buffer.position_to_byte(selection.end())?;
         Ok(start..end)
@@ -260,12 +281,32 @@ impl Editor {
         stay: bool,
         plan: impl Fn(&Self, &Selection) -> Result<Planned, BufferError>,
     ) -> Result<(), BufferError> {
+        self.edit_each_leaving(kind, stay, |editor, selection| {
+            Ok(plan(editor, selection)?.map(|(range, text)| (range, text, 0)))
+        })
+    }
+
+    /// `edit_each_placing`, where a change may also say how many bytes of its text stay
+    /// after its cursor (a line break that opens a line between two brackets puts the
+    /// cursor on the empty line, with the closing bracket's line after it).
+    fn edit_each_leaving(
+        &mut self,
+        kind: Option<EditKind>,
+        stay: bool,
+        plan: impl Fn(&Self, &Selection) -> Result<PlannedLeaving, BufferError>,
+    ) -> Result<(), BufferError> {
         let selections: Vec<Selection> = self.view.selections.iter().copied().collect();
         let mut planned = Vec::with_capacity(selections.len());
         for selection in &selections {
             planned.push(plan(self, selection)?);
         }
-        let changes = join_overlapping(planned.iter().flatten().cloned().collect());
+        let changes = join_overlapping(
+            planned
+                .iter()
+                .flatten()
+                .map(|(range, text, _)| (range.clone(), text.clone()))
+                .collect(),
+        );
         if changes.is_empty() {
             return Ok(());
         }
@@ -284,7 +325,9 @@ impl Editor {
         let mut cursors = Vec::with_capacity(selections.len());
         for ((plan, head), _) in planned.iter().zip(&heads).zip(&selections) {
             let byte = match plan {
-                Some((range, _)) if !stay => after_change(&changes, range),
+                Some((range, _, leaving)) if !stay => {
+                    after_change(&changes, range).saturating_sub(*leaving)
+                }
                 _ => moved_by(&changes, *head),
             };
             cursors.push(Selection::cursor(

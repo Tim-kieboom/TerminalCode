@@ -202,7 +202,7 @@ fn selecting_by_motion_extends_every_selection() {
 fn something_that_knows_one_cursor_only_leaves_one() {
     let mut editor = cursors_down("a\nb", 2);
 
-    editor.indent().unwrap();
+    editor.go_to(Position::new(0, 0));
 
     assert!(!editor.has_many_cursors());
 }

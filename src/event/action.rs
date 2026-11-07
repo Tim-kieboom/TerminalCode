@@ -203,6 +203,9 @@ pub(crate) enum Action {
     AddCursorAbove,
     /// Adds a cursor on the line below the primary one.
     AddCursorBelow,
+    /// Adds the next occurrence of the selected text to the selections (selecting the word
+    /// at a bare cursor first).
+    SelectNextOccurrence,
     /// Goes back to the primary cursor alone.
     CollapseCursors,
     Indent,
@@ -568,6 +571,7 @@ impl Action {
             Self::MoveLineDown => "Edit: Move Line Down",
             Self::AddCursorAbove => "Cursor: Add Cursor Above",
             Self::AddCursorBelow => "Cursor: Add Cursor Below",
+            Self::SelectNextOccurrence => "Selection: Add Next Occurrence",
             Self::CollapseCursors => "Cursor: Back to One Cursor",
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
@@ -723,6 +727,7 @@ impl Action {
             Self::MoveLineDown,
             Self::AddCursorAbove,
             Self::AddCursorBelow,
+            Self::SelectNextOccurrence,
             Self::CollapseCursors,
             Self::Indent,
             Self::Outdent,
