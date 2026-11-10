@@ -22,6 +22,9 @@ use crate::lsp::{
 use super::App;
 use super::definition::borrowed_target;
 
+/// The most characters of a server's message that are shown.
+const MOST_MESSAGE: usize = 300;
+
 /// What the app keeps of the language servers.
 pub(super) struct Lsp {
     /// Made when the first file that wants a server is shown.
@@ -55,6 +58,9 @@ pub(super) struct Lsp {
     /// standard library), with the server that did: they stay with it, instead
     /// of getting a server of their own.
     pub(super) borrowed: HashMap<PathBuf, (ServerKey, String)>,
+    /// What servers said by `window/showMessage` and the user was shown, so a server that says
+    /// the same again (rust-analyzer does at every reload) is not shown again.
+    messages: std::collections::HashSet<(String, String)>,
 }
 
 impl Default for Lsp {
@@ -74,6 +80,7 @@ impl Default for Lsp {
             lightbulb: super::lightbulb::Lightbulb::default(),
             formatting: super::formatting::Formatting::default(),
             borrowed: HashMap::new(),
+            messages: std::collections::HashSet::new(),
         }
     }
 }
@@ -140,8 +147,14 @@ impl App {
         let notifications = manager.take_notifications();
         self.show_lsp_notices(notices);
         for notification in notifications {
-            if notification.method == "textDocument/publishDiagnostics" {
-                self.take_published_diagnostics(&notification.key, &notification.params);
+            match notification.method.as_str() {
+                "textDocument/publishDiagnostics" => {
+                    self.take_published_diagnostics(&notification.key, &notification.params);
+                }
+                "window/showMessage" => {
+                    self.server_message(&notification.key, &notification.params);
+                }
+                _ => {}
             }
         }
         self.completion_answer();
@@ -154,6 +167,46 @@ impl App {
         self.formatting_step();
         self.refresh_lsp_status();
         self.needs_redraw = true;
+    }
+
+    /// A server said something to the user (`window/showMessage`): a warning or an error is
+    /// shown, once, with the server's name in front (an error stays until it is dismissed). What
+    /// is only information is not. rust-analyzer says this when it cannot find the standard
+    /// library (`rustc` is not on the PATH of the editor), and until then its suggestions leave
+    /// out `std`.
+    fn server_message(&mut self, key: &ServerKey, params: &serde_json::Value) {
+        let kind = params
+            .get("type")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(4);
+        let Some(text) = params.get("message").and_then(serde_json::Value::as_str) else {
+            return;
+        };
+        if kind > 2 {
+            return;
+        }
+        let text = text.trim();
+        let first_lines: String = text
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .take(2)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let shown: String = first_lines.chars().take(MOST_MESSAGE).collect();
+        if shown.is_empty() || !self.lsp.messages.insert((key.name.clone(), shown.clone())) {
+            return;
+        }
+        let hint = match shown.contains("sysroot") {
+            true => {
+                " (put rustc on the PATH the editor starts with, or set \"initialization_options\": { \"cargo\": { \"sysroot\": \"<path>\" } } for the rust server in settings.jsonc)"
+            }
+            false => "",
+        };
+        let message = format!("{}: {shown}{hint}", key.name);
+        match kind {
+            1 => self.state.notify_error(message),
+            _ => self.state.notify(message),
+        }
     }
 
     /// The `language_servers` setting changed: every server is ended and the
