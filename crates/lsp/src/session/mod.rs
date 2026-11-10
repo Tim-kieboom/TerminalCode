@@ -7,5 +7,6 @@ pub(super) mod language;
 pub(super) mod launch;
 pub(super) mod manager;
 pub(super) mod progress;
+pub(super) mod server_log;
 pub(super) mod supervisor;
 pub(super) mod sync;

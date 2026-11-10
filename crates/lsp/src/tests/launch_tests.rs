@@ -32,6 +32,7 @@ fn spec(root: &Path, script: &str) -> LaunchSpec {
         args: vec!["-c".to_owned(), script.to_owned()],
         root: root.to_path_buf(),
         initialization_options: Value::Null,
+        log: crate::LogSink::default(),
     }
 }
 
@@ -256,6 +257,7 @@ fn real_rust_analyzer_starts_reports_progress_and_shuts_down() {
         args: Vec::new(),
         root: dir.path().to_path_buf(),
         initialization_options: Value::Null,
+        log: crate::LogSink::default(),
     };
 
     let session = match launch(&spec) {
@@ -312,6 +314,7 @@ fn real_rust_analyzer_puts_a_type_error_on_the_right_line() {
         args: Vec::new(),
         root: root.clone(),
         initialization_options: Value::Null,
+        log: crate::LogSink::default(),
     };
     let session = match launch(&spec) {
         Ok(session) => session,
@@ -405,4 +408,31 @@ fn real_rust_analyzer_puts_a_type_error_on_the_right_line() {
     let line = text[..on_the_wrong_line.range.start].matches('\n').count();
     assert_eq!(line, 3, "the error is on the line with `let wrong`");
     assert_eq!(&text[on_the_wrong_line.range.clone()], "\"not a number\"");
+}
+
+#[test]
+fn what_the_program_writes_to_its_error_output_goes_to_the_log() {
+    let dir = tempfile::tempdir().unwrap();
+    let script = server(
+        "echo 'loading the workspace' >&2",
+        "echo 'a later line' >&2; sleep 30",
+    );
+    let spec = spec(dir.path(), &script);
+    let log = spec.log.clone();
+
+    let _session = launch(&spec).unwrap();
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let lines = log.lines();
+        if lines.len() >= 2 {
+            assert_eq!(
+                lines,
+                ["stderr: loading the workspace", "stderr: a later line"]
+            );
+            return;
+        }
+        assert!(Instant::now() < deadline, "the log has {lines:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }

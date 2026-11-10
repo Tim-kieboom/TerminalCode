@@ -165,6 +165,17 @@ pub(crate) enum Action {
     ShowDebug,
     /// Says which language server the file in front has, or why it has none.
     ShowLspServer,
+    /// Ends the language server of the file in front and starts it again (also one that was
+    /// switched off for dying too often).
+    RestartLspServer,
+    /// Ends every language server; the files in front start the ones they need again.
+    RestartLspServers,
+    /// Opens what the language server of the file in front said about itself: its error
+    /// output, its log messages, when it started, ended and was restarted.
+    ShowLspLog,
+    /// Ends the editor and starts it again in the project folder (the environment of the
+    /// project is read again; open files are closed, unsaved ones asked about first).
+    RestartEditor,
     Save,
     Undo,
     Redo,
@@ -380,6 +391,8 @@ impl Action {
                 | Self::Rename
                 | Self::CopyPath
                 | Self::CopyRelativePath
+                | Self::RestartLspServers
+                | Self::RestartEditor
                 | Self::FileCopy
                 | Self::FileCut
                 | Self::FilePaste
@@ -560,6 +573,10 @@ impl Action {
             Self::ShowErrors => "View: Show Errors",
             Self::ShowDebug => "View: Show Debug",
             Self::ShowLspServer => "LSP: Show Server of This File",
+            Self::RestartLspServer => "LSP: Restart Server of This File",
+            Self::RestartLspServers => "LSP: Restart All Servers",
+            Self::ShowLspLog => "LSP: Show Server Log of This File",
+            Self::RestartEditor => "Editor: Restart",
             Self::ClearRecent => "File: Clear Recent",
             Self::OpenFile => "File: Open File...",
             Self::OpenFolder => "File: Open Folder...",
@@ -721,6 +738,10 @@ impl Action {
             Self::ShowErrors,
             Self::ShowDebug,
             Self::ShowLspServer,
+            Self::RestartLspServer,
+            Self::RestartLspServers,
+            Self::ShowLspLog,
+            Self::RestartEditor,
             Self::NextBarView,
             Self::PreviousBarView,
             Self::MoveLineUp,

@@ -30,6 +30,9 @@ pub struct LaunchSpec {
     /// The project root: the folder the program runs in and is told about.
     pub root: PathBuf,
     pub initialization_options: Value,
+    /// Where what the server says about itself is kept, to be looked at (the manager gives
+    /// each server one buffer, whatever is put here).
+    pub log: crate::LogSink,
 }
 
 /// A session with a server that has been started and initialized.
@@ -142,7 +145,7 @@ impl Launcher for ProcessLauncher {
             )));
         };
 
-        let tail = ErrorTail::start(stderr);
+        let tail = ErrorTail::start(stderr, spec.log.clone());
         let (connection, incoming) = Connection::start(stdout, stdin, move || wake());
         let started = initialize(
             &connection,
@@ -204,11 +207,12 @@ struct ErrorTail {
 }
 
 impl ErrorTail {
-    fn start(stderr: impl std::io::Read + Send + 'static) -> Self {
+    fn start(stderr: impl std::io::Read + Send + 'static, log: crate::LogSink) -> Self {
         let lines = Arc::new(Mutex::new(VecDeque::new()));
         let kept = Arc::clone(&lines);
         let reader = std::thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                log.push(&format!("stderr: {line}"));
                 let mut kept = kept
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);

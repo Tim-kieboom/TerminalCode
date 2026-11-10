@@ -309,6 +309,7 @@ mod diagnostics;
 mod documents;
 mod real_rust_analyzer;
 mod real_typescript_server;
+mod restart_and_log;
 mod server_messages;
 mod server_report;
 mod settings;

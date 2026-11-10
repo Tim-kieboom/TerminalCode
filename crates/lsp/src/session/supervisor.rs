@@ -164,6 +164,12 @@ impl Supervisor {
         }
     }
 
+    /// Forgets the server `key`, so that the next file that wants it starts it afresh (also
+    /// when it was off): for a restart the user asked for.
+    pub fn forget(&mut self, key: &ServerKey) {
+        self.slots.remove(key);
+    }
+
     /// Forgets every server, so the next file that wants one starts it afresh:
     /// for when the settings changed, or the project was reopened.
     pub fn reset(&mut self) {

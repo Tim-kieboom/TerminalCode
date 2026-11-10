@@ -33,6 +33,7 @@ pub use rename::{
     FileEdits, FileRename, PendingPrepare, PendingRename, Prepared, RenameEdit, WorkspaceEdit,
     parse_prepare, parse_workspace_edit,
 };
+pub use server_log::LogSink;
 pub use supervisor::{Effect, Notice, Supervisor};
 pub use sync::{DocSnapshot, DocumentSync, Outgoing, language_id};
 
@@ -52,4 +53,6 @@ use features::{
 };
 pub use protocol::uri;
 use protocol::{connection, error, framing, handshake, message, position, replies};
-use session::{cargo, config, diff, language, launch, manager, progress, supervisor, sync};
+use session::{
+    cargo, config, diff, language, launch, manager, progress, server_log, supervisor, sync,
+};

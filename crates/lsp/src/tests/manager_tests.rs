@@ -23,6 +23,7 @@ fn spec() -> LaunchSpec {
         args: Vec::new(),
         root: std::env::temp_dir(),
         initialization_options: Value::Null,
+        log: crate::LogSink::default(),
     }
 }
 
@@ -233,4 +234,116 @@ fn a_start_that_finishes_after_a_reset_is_thrown_away() {
     rig.manager.poll();
 
     assert_eq!(rig.manager.status(&key()), None, "nobody wants it");
+}
+
+// ---- the log of a server, and restarting it
+
+#[test]
+fn the_log_says_what_happened_to_the_server_in_order() {
+    let mut rig = rig(FakeLauncher::new(|_| stays()));
+
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer"));
+
+    assert_eq!(rig.manager.log_lines(&key()), ["-- started"]);
+}
+
+#[test]
+fn a_server_that_cannot_start_says_why_in_its_log() {
+    let mut rig = rig(FakeLauncher::new(|_| None));
+
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer: off"));
+
+    let log = rig.manager.log_lines(&key());
+    assert_eq!(log.len(), 1, "{log:?}");
+    assert!(log[0].starts_with("-- could not start: "), "{log:?}");
+}
+
+#[test]
+fn a_server_that_died_has_its_end_in_the_log_and_the_log_goes_on_through_the_restart() {
+    let mut rig = rig(FakeLauncher::new(|number| {
+        if number == 0 { dies() } else { stays() }
+    }));
+
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer"));
+    // The first run died: wait until the second one is the one running.
+    let deadline = Instant::now() + PATIENCE;
+    while rig.launcher.launched() < 2 {
+        assert!(Instant::now() < deadline, "never started again");
+        rig.wait_for_status(|_| true);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    rig.wait_for_status(|status| status == Some("rust-analyzer"));
+
+    let log = rig.manager.log_lines(&key());
+    assert!(
+        log.iter().any(|line| line.starts_with("-- ended")),
+        "{log:?}"
+    );
+    assert_eq!(
+        log.iter().filter(|line| *line == "-- started").count(),
+        2,
+        "{log:?}"
+    );
+}
+
+#[test]
+fn restart_ends_the_server_and_the_next_ask_starts_it_again() {
+    let mut rig = rig(FakeLauncher::new(|_| stays()));
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer"));
+    assert_eq!(rig.launcher.launched(), 1);
+
+    rig.manager.restart(&key());
+    assert_eq!(
+        rig.manager.status(&key()),
+        None,
+        "forgotten until asked for"
+    );
+    assert!(!rig.manager.is_running(&key()));
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer"));
+
+    assert_eq!(rig.launcher.launched(), 2);
+    let log = rig.manager.log_lines(&key());
+    assert_eq!(
+        log,
+        [
+            "-- started",
+            "-- restarted at the user's request",
+            "-- started"
+        ]
+    );
+}
+
+#[test]
+fn restart_brings_back_a_server_that_was_off() {
+    // The first start fails and is not tried again by itself.
+    let mut rig = rig(FakeLauncher::new(
+        |number| {
+            if number == 0 { None } else { stays() }
+        },
+    ));
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer: off"));
+    rig.ensure();
+    assert_eq!(rig.launcher.launched(), 1, "off stays off");
+
+    rig.manager.restart(&key());
+    rig.ensure();
+    rig.wait_for_status(|status| status == Some("rust-analyzer"));
+
+    assert_eq!(rig.launcher.launched(), 2);
+}
+
+#[test]
+fn restarting_a_server_that_was_never_started_is_nothing_to_undo() {
+    let mut rig = rig(FakeLauncher::new(|_| stays()));
+
+    rig.manager.restart(&key());
+
+    assert_eq!(rig.manager.status(&key()), None);
+    assert_eq!(rig.launcher.launched(), 0);
 }

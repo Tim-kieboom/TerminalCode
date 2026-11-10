@@ -20,6 +20,7 @@ fn spec() -> LaunchSpec {
         args: Vec::new(),
         root: PathBuf::from("/p"),
         initialization_options: Value::Null,
+        log: crate::LogSink::default(),
     }
 }
 

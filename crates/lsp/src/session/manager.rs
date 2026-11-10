@@ -7,10 +7,10 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
-use crate::Incoming;
 use crate::config::ServerKey;
 use crate::launch::{LaunchSpec, Launcher, Session, StartError};
 use crate::supervisor::{Effect, Notice, Supervisor};
+use crate::{Incoming, LogSink};
 
 type Wake = Arc<dyn Fn() + Send + Sync>;
 type Started = (ServerKey, Result<Session, StartError>);
@@ -31,6 +31,8 @@ pub struct Manager {
     notifications: Vec<ServerNotification>,
     /// Edits servers asked to be made, taken by [`Manager::take_apply_edits`].
     apply_edits: Vec<ApplyEditRequest>,
+    /// What each server said about itself and what happened to it, for the user to look at.
+    logs: HashMap<ServerKey, LogSink>,
 }
 
 /// A server asking for an edit to be made (`workspace/applyEdit`). It waits for
@@ -65,13 +67,35 @@ impl Manager {
             wake: Arc::new(wake),
             notifications: Vec::new(),
             apply_edits: Vec::new(),
+            logs: HashMap::new(),
         }
     }
 
     /// A file wants the server `key`; starts it if it was not asked for before.
-    pub fn ensure(&mut self, key: &ServerKey, spec: LaunchSpec) -> Vec<Notice> {
+    pub fn ensure(&mut self, key: &ServerKey, mut spec: LaunchSpec) -> Vec<Notice> {
+        // One log for each server, whatever the spec brings: it holds the history.
+        spec.log = self.log_of(key);
         let effects = self.supervisor.ensure(key, spec);
         self.carry_out(effects)
+    }
+
+    /// The log of the server `key`, made when it is first asked for.
+    fn log_of(&mut self, key: &ServerKey) -> LogSink {
+        self.logs.entry(key.clone()).or_default().clone()
+    }
+
+    /// What the server `key` said about itself, and what happened to it, oldest first.
+    pub fn log_lines(&self, key: &ServerKey) -> Vec<String> {
+        self.logs.get(key).map(LogSink::lines).unwrap_or_default()
+    }
+
+    /// Ends the server `key` and forgets it, so that the next file that wants it starts it
+    /// again, also when it was off for having died too often. A start that is under way
+    /// finishes into nothing.
+    pub fn restart(&mut self, key: &ServerKey) {
+        self.log_of(key).push("-- restarted at the user's request");
+        self.sessions.remove(key);
+        self.supervisor.forget(key);
     }
 
     /// Takes everything that is waiting: servers that finished starting, what
@@ -89,9 +113,14 @@ impl Manager {
                 Ok(session) => {
                     self.sessions.insert(key.clone(), session);
                     *self.generations.entry(key.clone()).or_default() += 1;
+                    self.log_of(&key).push("-- started");
                     self.supervisor.launched(&key, Ok(()))
                 }
-                Err(error) => self.supervisor.launched(&key, Err(error)),
+                Err(error) => {
+                    self.log_of(&key)
+                        .push(&format!("-- could not start: {}", error.reason()));
+                    self.supervisor.launched(&key, Err(error))
+                }
             };
             notices.extend(self.carry_out(effects));
         }
@@ -113,6 +142,9 @@ impl Manager {
             match incoming {
                 Incoming::Notification { method, params } => {
                     self.supervisor.notification(key, &method, &params);
+                    if let Some(line) = log_line(&method, &params) {
+                        self.log_of(key).push(&line);
+                    }
                     if method != "$/progress" {
                         self.notifications.push(ServerNotification {
                             key: key.clone(),
@@ -140,6 +172,7 @@ impl Manager {
                     }
                 }
                 Incoming::Closed(reason) => {
+                    self.log_of(key).push(&format!("-- ended: {reason}"));
                     // Dropping the session ends the program if it is still there.
                     self.sessions.remove(key);
                     let effects = self.supervisor.closed(key, &reason, Instant::now());
@@ -487,4 +520,22 @@ impl Manager {
         )
         .ok()
     }
+}
+
+/// The line a notification of a server gives the log, if it is one that says something:
+/// `window/logMessage` and `window/showMessage`, with a letter for how serious it is.
+fn log_line(method: &str, params: &serde_json::Value) -> Option<String> {
+    let shown = match method {
+        "window/logMessage" => "log",
+        "window/showMessage" => "message",
+        _ => return None,
+    };
+    let text = params.get("message")?.as_str()?;
+    let level = match params.get("type").and_then(serde_json::Value::as_u64) {
+        Some(1) => "error",
+        Some(2) => "warning",
+        Some(3) => "info",
+        _ => "log",
+    };
+    Some(format!("{shown} ({level}): {text}"))
 }

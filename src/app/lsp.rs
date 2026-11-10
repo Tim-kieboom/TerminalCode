@@ -244,6 +244,7 @@ impl App {
             args: config.args.clone(),
             root: key.root.clone(),
             initialization_options: config.initialization_options.clone(),
+            log: crate::lsp::LogSink::default(),
         };
         Some((key, spec))
     }
@@ -287,6 +288,95 @@ impl App {
 }
 
 impl App {
+    /// "LSP: Restart Server of This File": ends the server of the file in front and starts it
+    /// again, which brings back one that was switched off, and a server that works on stale
+    /// state. What it was told about the open files is told again when it is up.
+    pub(super) fn restart_lsp_server(&mut self) {
+        let Some((key, _)) = self.server_for_file_in_front() else {
+            self.state
+                .notify("the file in front has no language server to restart");
+            return;
+        };
+        let Some(manager) = self.lsp.manager.as_mut() else {
+            self.state
+                .notify(format!("{} has not been started yet", key.name));
+            return;
+        };
+        manager.restart(&key);
+        self.lsp.fingerprint = 0;
+        self.lsp.shown = None;
+        self.state.notify(format!("restarting {}", key.name));
+        self.lsp_file_shown();
+        self.needs_redraw = true;
+    }
+
+    /// "LSP: Restart All Servers": every server is ended and the file in front starts the
+    /// one it needs; the others start when a file that needs one is shown.
+    pub(super) fn restart_lsp_servers(&mut self) {
+        if self.lsp.manager.is_none() {
+            self.state.notify("no language server has been started yet");
+            return;
+        }
+        self.lsp_settings_changed();
+        self.state.notify("restarting the language servers");
+        self.needs_redraw = true;
+    }
+
+    /// "LSP: Show Server Log of This File": what the server said about itself, in a tab that
+    /// cannot be edited, with the end in view.
+    pub(super) fn show_lsp_log(&mut self) {
+        let Some((key, spec)) = self.server_for_file_in_front() else {
+            self.state
+                .notify("the file in front has no language server, so there is no log");
+            return;
+        };
+        let lines = self
+            .lsp
+            .manager
+            .as_ref()
+            .map(|manager| manager.log_lines(&key))
+            .unwrap_or_default();
+        if lines.is_empty() {
+            self.state.notify(format!(
+                "{} has said nothing yet (it is {})",
+                key.name,
+                self.lsp
+                    .manager
+                    .as_ref()
+                    .and_then(|manager| manager.status(&key))
+                    .unwrap_or_else(|| "not started".to_owned())
+            ));
+            return;
+        }
+        let mut text = format!(
+            "# {}: {} {} in {}\n# stderr: its error output; log and message: what it said; --: what happened to it\n\n",
+            key.name,
+            spec.command,
+            spec.args.join(" "),
+            key.root.display()
+        );
+        for line in &lines {
+            text.push_str(line);
+            text.push('\n');
+        }
+        let buffer = crate::buffer::Buffer::defaults_copy(&text, format!("{} log", key.name));
+        self.state.workspace_mut().open_buffer(buffer);
+        self.state.set_focus(super::state::Focus::Editor);
+        let _ = self
+            .state
+            .edit(|editor| editor.move_cursor(crate::components::editor::Motion::DocumentEnd));
+        self.needs_redraw = true;
+    }
+
+    /// "Editor: Restart": ends the editor and starts it again in the project folder. Unsaved
+    /// files are asked about first, as for quit.
+    pub(super) fn restart_editor(&mut self) {
+        let root = self.project_root();
+        if let Err(error) = self.restart_in_folder(&root) {
+            self.state.notify_error(error.to_string());
+        }
+    }
+
     /// "LSP: Show Server of This File": says in a notification which language
     /// server the file in front has, or why it has none.
     pub(super) fn show_lsp_server_of_file(&mut self) {
