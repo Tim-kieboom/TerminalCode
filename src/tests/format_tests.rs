@@ -679,3 +679,66 @@ fn closing_the_quit_prompt_gives_up_the_quit_that_follows_its_saves() {
         "esc closed the prompt: nothing quits"
     );
 }
+
+// ---- the cursor stays where it was when the server answers with one big edit
+
+const BODY: &str =
+    "fn main(){\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n}\n";
+
+/// One edit for the whole text, as a formatter that does not diff gives it: the same text, but
+/// the first line.
+fn whole_text_edit() -> Value {
+    json!([{
+        "range": {
+            "start": { "line": 0, "character": 0 },
+            "end": { "line": 5, "character": 1 },
+        },
+        "newText": "fn main() {\n    let a = 1;\n    let b = 2;\n    let c = 3;\n    let d = 4;\n}",
+    }])
+}
+
+fn cursor(rig: &Rig) -> Position {
+    rig.app.state().editor().selections().primary().head()
+}
+
+#[test]
+fn saving_keeps_the_cursor_on_its_line_when_the_server_replaces_the_whole_text_for_one_change() {
+    let mut rig = Rig::start(provider(), BODY, formatting(whole_text_edit())).format_on_save();
+    rig.typed("x");
+    rig.app.state_mut().edit(|editor| editor.undo().unwrap());
+    rig.app
+        .state_mut()
+        .edit(|editor| editor.go_to(Position::new(3, 6)));
+
+    rig.ctrl('s');
+    rig.wait_until_saved();
+
+    assert!(
+        rig.on_disk().starts_with("fn main() {\n"),
+        "it was formatted"
+    );
+    assert_eq!(
+        cursor(&rig),
+        Position::new(3, 6),
+        "not at the end of the file"
+    );
+}
+
+#[test]
+fn a_cursor_in_the_line_that_changed_keeps_its_place_before_the_change() {
+    let mut rig = Rig::start(provider(), BODY, formatting(whole_text_edit())).format_on_save();
+    rig.typed("x");
+    rig.app.state_mut().edit(|editor| editor.undo().unwrap());
+    rig.app
+        .state_mut()
+        .edit(|editor| editor.go_to(Position::new(0, 3)));
+
+    rig.ctrl('s');
+    rig.wait_until_saved();
+
+    assert_eq!(
+        cursor(&rig),
+        Position::new(0, 3),
+        "inside what the two lines share at the start"
+    );
+}

@@ -21,7 +21,7 @@ use crate::lsp::{
     LspPosition, PendingPrepare, PendingRename, Prepared, ServerKey, WorkspaceEdit, from_lsp,
     to_lsp,
 };
-use apply::{Check, EditError, MoveStage, OpenDocument, plan, remap};
+use apply::{Check, EditError, MoveStage, OpenDocument, plan, remap_keeping_lines};
 
 pub(super) mod apply;
 
@@ -347,6 +347,7 @@ impl App {
                 .workspace_mut()
                 .edit_document(open.document, |editor| {
                     let buffer = editor.buffer();
+                    let text = buffer.snapshot();
                     let selection = *editor.selections().primary();
                     let head = buffer.position_to_byte(selection.head())?;
                     let anchor = buffer.position_to_byte(selection.anchor())?;
@@ -357,8 +358,8 @@ impl App {
                         .collect();
                     editor.replace_ranges(
                         &replacements,
-                        remap(anchor, &open.replacements),
-                        remap(head, &open.replacements),
+                        remap_keeping_lines(anchor, &open.replacements, &text),
+                        remap_keeping_lines(head, &open.replacements, &text),
                     )
                 });
             // An open document that went away is no loss: it was not edited.

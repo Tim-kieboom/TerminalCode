@@ -410,21 +410,6 @@ fn a_swap_that_fails_halfway_names_the_files_already_changed() {
 }
 
 #[test]
-fn a_place_follows_the_replacements_before_it() {
-    let replacements = [(2..5, "x".to_owned()), (10..13, "longer".to_owned())];
-
-    assert_eq!(remap(0, &replacements), 0);
-    assert_eq!(remap(7, &replacements), 5, "after a shorter replacement");
-    assert_eq!(remap(20, &replacements), 20 - 2 + 3);
-    assert_eq!(
-        remap(3, &replacements),
-        3,
-        "inside: the end of the new text"
-    );
-    assert_eq!(remap(11, &replacements), 8 + 6, "inside the second");
-}
-
-#[test]
 fn an_action_edit_has_no_old_text_to_compare() {
     let dir = project();
     let path = dir.path().join("a.rs");
@@ -462,4 +447,100 @@ fn an_action_edit_in_a_file_that_is_not_open_is_refused_and_nothing_is_read_or_w
 
     assert!(matches!(error, EditError::NotOpen(name) if name == "a.rs"));
     assert_eq!(fs::read_to_string(&path).unwrap(), "old\n");
+}
+
+fn rope(text: &str) -> Rope {
+    Rope::from_str(text)
+}
+
+#[test]
+fn a_place_follows_the_replacements_before_it_and_the_ones_it_is_inside_of() {
+    let text = rope(&"x".repeat(30));
+    let replacements = [(2..5, "y".to_owned()), (10..13, "longer".to_owned())];
+
+    assert_eq!(remap_keeping_lines(0, &replacements, &text), 0);
+    assert_eq!(
+        remap_keeping_lines(7, &replacements, &text),
+        5,
+        "after a shorter replacement"
+    );
+    assert_eq!(remap_keeping_lines(20, &replacements, &text), 20 - 2 + 3);
+    // Inside a replaced word: the end of what replaced it (what it shares with the old text at
+    // the start is kept: both are `x`es here, so the place is after that).
+    assert_eq!(remap_keeping_lines(11, &replacements, &text), 8 + 6);
+}
+
+#[test]
+fn a_place_on_a_line_the_big_edit_kept_stays_on_that_line() {
+    let old = "a\nb\nc\nd\ne\nf\n";
+    let new = "A\nb\nc\nd\ne\nF\n";
+    let text = rope(old);
+    let replacements = [(0..old.len(), new.to_owned())];
+
+    // The `d` of the fourth line, byte 6.
+    assert_eq!(remap_keeping_lines(6, &replacements, &text), 6);
+    // The `c`, where the byte is the line's own.
+    assert_eq!(remap_keeping_lines(4, &replacements, &text), 4);
+}
+
+#[test]
+fn lines_added_above_move_the_place_down_and_removed_ones_up() {
+    let old = "a\nb\nc\nd\n";
+    let text = rope(old);
+
+    let added = [(0..old.len(), "new1\nnew2\na\nb\nc\nd\n".to_owned())];
+    // The `c` (byte 4) is on line 2; two lines came above it.
+    assert_eq!(
+        remap_keeping_lines(4, &added, &text),
+        4 + "new1\nnew2\n".len()
+    );
+
+    let removed = [(0..old.len(), "b\nc\nd\n".to_owned())];
+    assert_eq!(
+        remap_keeping_lines(4, &removed, &text),
+        2,
+        "the `c` is on line 1 now"
+    );
+}
+
+#[test]
+fn the_column_is_kept_on_a_line_that_stays() {
+    let old = "keep this line\nand this one\nlast\n";
+    let new = "changed\nand this one\nlast\n";
+    let text = rope(old);
+    let replacements = [(0..old.len(), new.to_owned())];
+
+    // Column 4 of "and this one" (byte 15 + 4).
+    assert_eq!(
+        remap_keeping_lines(15 + 4, &replacements, &text),
+        "changed\n".len() + 4
+    );
+}
+
+#[test]
+fn a_place_in_a_line_that_changed_keeps_what_the_lines_share_at_the_start_and_the_end() {
+    let old = "fn main(){\nbody\n";
+    let new = "fn main() {\nbody\n";
+    let text = rope(old);
+    let replacements = [(0..old.len(), new.to_owned())];
+
+    // Inside `fn main(` (shared at the start): where it was.
+    assert_eq!(remap_keeping_lines(3, &replacements, &text), 3);
+    // After the `{` (shared at the end, so kept from the end): one place on, past the new space.
+    assert_eq!(remap_keeping_lines(10, &replacements, &text), 11);
+}
+
+#[test]
+fn a_place_in_what_changed_goes_to_the_end_of_the_new_text_of_it() {
+    let old = "let value = 1;\n";
+    let new = "let renamed_value = 1;\n";
+    let text = rope(old);
+    let replacements = [(0..old.len(), new.to_owned())];
+
+    // Inside `value` (`let va|lue`): the lines share `value = 1;` at the end, so the place
+    // stays inside the word, with `renamed_` put before it.
+    assert_eq!(
+        remap_keeping_lines(6, &replacements, &text),
+        "let renamed_va".len()
+    );
 }

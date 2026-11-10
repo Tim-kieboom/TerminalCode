@@ -402,20 +402,96 @@ fn edited(mut text: Rope, replacements: &[(Range<usize>, String)]) -> String {
     text.to_string()
 }
 
-/// Where a place in the text goes once `replacements` (in text order) are made;
-/// a place inside a replaced stretch goes to the end of its new text.
-pub(in crate::app) fn remap(byte: usize, replacements: &[(Range<usize>, String)]) -> usize {
+/// Where a place of an open document goes once `replacements` (in text order) are made; `text` is
+/// the document as it is before them. A place inside a replaced stretch is kept on its line when
+/// that line is in the new text too. A server may answer with one big edit for a whole stretch it only changed here
+/// and there (a formatter does), and the cursor must not go to the end of that stretch: it stays
+/// on the line it is on, moved by what was added or removed above it; on a line that was itself
+/// changed it goes to the start of what replaced it.
+pub(in crate::app) fn remap_keeping_lines(
+    byte: usize,
+    replacements: &[(Range<usize>, String)],
+    text: &Rope,
+) -> usize {
     let mut shift = 0isize;
     for (range, new) in replacements {
         if range.end <= byte {
             shift += new.len() as isize - range.len() as isize;
         } else if range.start < byte {
-            return range.start.saturating_add_signed(shift) + new.len();
+            let old = text.byte_slice(range.clone()).to_string();
+            let inside = place_in_replacement(byte - range.start, &old, new);
+            return range.start.saturating_add_signed(shift) + inside;
         } else {
             break;
         }
     }
     byte.saturating_add_signed(shift)
+}
+
+/// Where the place `at` bytes into `old` is in `new`, which replaced it: the same column of the
+/// same line when that line is kept (the line numbers move by the lines added or removed before
+/// it), and in lines that changed the place the changed lines leave it (see
+/// [`remap_keeping_lines`]).
+fn place_in_replacement(at: usize, old: &str, new: &str) -> usize {
+    let line = old[..at].matches('\n').count();
+    let column = at - old[..at].rfind('\n').map_or(0, |newline| newline + 1);
+    let blocks =
+        crate::git::line_blocks(&crate::git::hash_lines(old), &crate::git::hash_lines(new));
+    let mut moved = 0isize;
+    for block in &blocks {
+        if block.old.contains(&line) {
+            return place_in_changed_lines(at, old, new, block);
+        }
+        if block.old.end <= line {
+            moved += block.new.len() as isize - block.old.len() as isize;
+        }
+    }
+    let new_line = line.saturating_add_signed(moved);
+    let start = start_of_line(new, new_line);
+    let length = new[start..].find('\n').unwrap_or(new.len() - start);
+    start + column.min(length)
+}
+
+/// A place in lines of `old` that `new` has other lines for (`block` says which): in the start
+/// they share it keeps its offset, in the end they share its distance from the end, and in what
+/// changed it goes to the end of the new text of it.
+fn place_in_changed_lines(at: usize, old: &str, new: &str, block: &crate::git::LineBlock) -> usize {
+    let old_from = start_of_line(old, block.old.start);
+    let new_from = start_of_line(new, block.new.start);
+    let old_block = &old[old_from..start_of_line(old, block.old.end)];
+    let new_block = &new[new_from..start_of_line(new, block.new.end)];
+    let offset = at - old_from;
+    let prefix: usize = old_block
+        .chars()
+        .zip(new_block.chars())
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len_utf8())
+        .sum();
+    let room = old_block.len().min(new_block.len()) - prefix;
+    let suffix: usize = old_block
+        .chars()
+        .rev()
+        .zip(new_block.chars().rev())
+        .take_while(|(a, b)| a == b)
+        .map(|(a, _)| a.len_utf8())
+        .sum::<usize>()
+        .min(room);
+    let inside = match offset {
+        o if o <= prefix => o,
+        o if o >= old_block.len() - suffix => new_block.len() - (old_block.len() - o),
+        _ => new_block.len() - suffix,
+    };
+    new_from + inside
+}
+
+/// The byte where line `line` of `text` starts; the end of the text when there are fewer lines.
+fn start_of_line(text: &str, line: usize) -> usize {
+    if line == 0 {
+        return 0;
+    }
+    text.match_indices('\n')
+        .nth(line - 1)
+        .map_or(text.len(), |(newline, _)| newline + 1)
 }
 
 impl Plan {
