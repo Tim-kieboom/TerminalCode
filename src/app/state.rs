@@ -218,7 +218,6 @@ impl PluginView {
         &self.content
     }
 }
-
 impl AppState {
     pub(crate) fn new(editor: Editor) -> Self {
         Self {
@@ -227,6 +226,14 @@ impl AppState {
                 ..Default::default()
             },
             ..Self::default()
+        }
+    }
+
+    /// The project: the explorer's root, else the working directory.
+    pub(crate) fn project_root(&self) -> std::path::PathBuf {
+        match self.explorer().root_path() {
+            Some(root) => root.to_path_buf(),
+            None => std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
         }
     }
 

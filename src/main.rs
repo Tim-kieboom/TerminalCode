@@ -13,7 +13,6 @@ fn main() -> ExitCode {
         }
     }
 }
-
 fn start() -> IdeResult {
     // Help and version are answered before the terminal is touched.
     let args = std::env::args_os();

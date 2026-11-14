@@ -59,9 +59,6 @@ pub(super) struct Remembered {
 impl App {
     /// The project: the explorer's root, else the working directory.
     pub(super) fn project_root(&self) -> std::path::PathBuf {
-        match self.state.explorer().root_path() {
-            Some(root) => root.to_path_buf(),
-            None => std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
-        }
+        self.state.project_root()
     }
 }

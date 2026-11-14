@@ -90,17 +90,24 @@ impl MenuBar {
     /// The path of the open file, in the middle of the row. It takes the room the icon's
     /// width leaves on both sides so it stays centered, and is cut from the left to fit.
     fn render_title(&self, frame: &mut Frame, state: &AppState, area: Rect) {
+        let project = trcode_files::paths::without_verbatim_prefix(&state.project_root())
+            .to_string_lossy()
+            .to_string();
+
         let title = title_of(
             state.editor().buffer().path(),
             state.explorer().root_path(),
             state.workspace().has_tabs(),
         );
+
         let margin = Self::icon_rect(area).width;
         let room = usize::from(area.width.saturating_sub(margin * 2));
-        let text = cut_from_left(&title, room);
-        if text.is_empty() {
+        let title_text = cut_from_left(&title, room);
+        let project_text = cut_from_left(&project, 25);
+        if title_text.is_empty() {
             return;
         }
+
         let theme = state.theme();
         let style = theme.style("menubar").patch(theme.style("menubar.path"));
         let inner = Rect {
@@ -109,8 +116,16 @@ impl MenuBar {
             height: area.height.min(1),
             ..area
         };
+
         frame.render_widget(
-            Paragraph::new(text)
+            Paragraph::new(project_text)
+                .style(style)
+                .alignment(Alignment::Left),
+            inner,
+        );
+
+        frame.render_widget(
+            Paragraph::new(title_text)
                 .style(style)
                 .alignment(Alignment::Center),
             inner,
