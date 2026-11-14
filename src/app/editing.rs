@@ -34,11 +34,51 @@ impl App {
     /// the word it is in is selected first. Says so when there is nothing more to add.
     pub(super) fn select_next_occurrence(&mut self) -> IdeResult {
         match self.state.edit(|editor| editor.select_next_occurrence())? {
-            Occurrence::Word | Occurrence::Added => {}
+            Occurrence::Word | Occurrence::Added | Occurrence::Skipped | Occurrence::All(_) => {}
             Occurrence::NoMore => self
                 .state
                 .notify("no more occurrences of the selected text"),
             Occurrence::NoWord => self.state.notify("the cursor is not in a word"),
+        }
+        Ok(())
+    }
+
+    /// `ctrl+shift+l`: every occurrence of the selected text (the word at a bare cursor) is
+    /// selected, and it says how many were added.
+    pub(super) fn select_all_occurrences(&mut self) -> IdeResult {
+        match self.state.edit(|editor| editor.select_all_occurrences())? {
+            Occurrence::All(count) => self.state.notify(format!(
+                "added {count} occurrence{}",
+                if count == 1 { "" } else { "s" }
+            )),
+            Occurrence::NoMore => self
+                .state
+                .notify("every occurrence of the selected text is selected already"),
+            Occurrence::NoWord => self.state.notify("the cursor is not in a word"),
+            Occurrence::Word | Occurrence::Added | Occurrence::Skipped => {}
+        }
+        Ok(())
+    }
+
+    /// `ctrl+k ctrl+d`: the primary selection moves on to the next occurrence.
+    pub(super) fn skip_occurrence(&mut self) -> IdeResult {
+        match self.state.edit(|editor| editor.skip_occurrence())? {
+            Occurrence::NoMore => self
+                .state
+                .notify("no other occurrence of the selected text to move to"),
+            Occurrence::NoWord => self.state.notify("the cursor is not in a word"),
+            Occurrence::Word | Occurrence::Added | Occurrence::Skipped | Occurrence::All(_) => {}
+        }
+        Ok(())
+    }
+
+    /// `ctrl+u`: the newest selection goes; says so when there is only one.
+    pub(super) fn take_back_selection(&mut self) -> IdeResult {
+        let removed = self
+            .state
+            .edit(|editor| Ok::<bool, crate::buffer::BufferError>(editor.take_back_selection()))?;
+        if !removed {
+            self.state.notify("there is only one selection");
         }
         Ok(())
     }

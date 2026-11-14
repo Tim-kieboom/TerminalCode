@@ -1,5 +1,7 @@
 //! `ctrl+d`: adds the next occurrence of the selected text to the selections, so the next edit
 //! reaches all of them. With a bare cursor it first selects the word the cursor is in.
+//! `ctrl+shift+l` adds all of them, `ctrl+k ctrl+d` moves the newest one on to the next
+//! occurrence (skips one) and `ctrl+u` takes the newest one back.
 
 use std::ops::Range;
 
@@ -18,6 +20,10 @@ pub(crate) enum Occurrence {
     NoMore,
     /// A bare cursor that is not in or next to a word: nothing to take.
     NoWord,
+    /// The primary selection moved on to the next occurrence, leaving the old one unselected.
+    Skipped,
+    /// This many occurrences were added (every one that was not selected yet).
+    All(usize),
 }
 
 impl Editor {
@@ -36,12 +42,7 @@ impl Editor {
         let text = self.buffer.text();
         let wanted = self.bytes_of(&primary)?;
         let needle = &text[wanted.clone()];
-        let taken: Vec<Range<usize>> = self
-            .view
-            .selections
-            .iter()
-            .map(|selection| self.bytes_of(selection))
-            .collect::<Result<_, _>>()?;
+        let taken = self.taken_ranges()?;
         let Some(found) = next_match(&text, needle, wanted.end, &taken) else {
             return Ok(Occurrence::NoMore);
         };
@@ -51,6 +52,95 @@ impl Editor {
         );
         self.view.selections = self.view.selections.with_added(added);
         Ok(Occurrence::Added)
+    }
+
+    /// `ctrl+shift+l`. Selects every occurrence of the primary selection's text (the word at a
+    /// bare cursor) that is not selected yet, keeping the selections there are; the primary one
+    /// stays the primary one. Matches as `ctrl+d` does.
+    pub(crate) fn select_all_occurrences(&mut self) -> Result<Occurrence, BufferError> {
+        self.view.last_edit = None;
+        let primary = *self.view.selections.primary();
+        if primary.is_empty() {
+            let word = self.select_word_at(&primary)?;
+            if word != Occurrence::Word {
+                return Ok(word);
+            }
+        }
+        let text = self.buffer.text();
+        let wanted = self.bytes_of(self.view.selections.primary())?;
+        let needle = &text[wanted];
+        let taken = self.taken_ranges()?;
+        let found = all_matches(&text, needle, &taken);
+        if found.is_empty() {
+            return Ok(Occurrence::NoMore);
+        }
+        let mut items: Vec<Selection> = self.view.selections.iter().copied().collect();
+        for range in &found {
+            items.push(Selection::new(
+                self.buffer.byte_to_position(range.start)?,
+                self.buffer.byte_to_position(range.end)?,
+            ));
+        }
+        self.view.selections = Selections::from_items(items, self.view.selections.primary_index());
+        Ok(Occurrence::All(found.len()))
+    }
+
+    /// `ctrl+k ctrl+d`. Moves the primary selection to the next occurrence of its text, as
+    /// `ctrl+d` finds it, and leaves the old place unselected. At a bare cursor it selects the
+    /// word, as `ctrl+d` does.
+    pub(crate) fn skip_occurrence(&mut self) -> Result<Occurrence, BufferError> {
+        self.view.last_edit = None;
+        let primary = *self.view.selections.primary();
+        if primary.is_empty() {
+            return self.select_word_at(&primary);
+        }
+        let text = self.buffer.text();
+        let wanted = self.bytes_of(&primary)?;
+        let needle = &text[wanted.clone()];
+        let taken = self.taken_ranges()?;
+        let Some(found) = next_match(&text, needle, wanted.end, &taken) else {
+            return Ok(Occurrence::NoMore);
+        };
+        let moved = Selection::new(
+            self.buffer.byte_to_position(found.start)?,
+            self.buffer.byte_to_position(found.end)?,
+        );
+        let primary_index = self.view.selections.primary_index();
+        let items: Vec<Selection> = self
+            .view
+            .selections
+            .iter()
+            .enumerate()
+            .map(|(index, selection)| match index == primary_index {
+                true => moved,
+                false => *selection,
+            })
+            .collect();
+        self.view.selections = Selections::from_items(items, primary_index);
+        Ok(Occurrence::Skipped)
+    }
+
+    /// `ctrl+u`. Drops the primary selection, and the one before it (in the text) becomes the
+    /// primary one. Does nothing, and says `false`, when there is only one.
+    pub(crate) fn take_back_selection(&mut self) -> bool {
+        if self.view.selections.is_single() {
+            return false;
+        }
+        self.view.last_edit = None;
+        let at = self.view.selections.primary_index();
+        let mut items: Vec<Selection> = self.view.selections.iter().copied().collect();
+        items.remove(at);
+        self.view.selections = Selections::from_items(items, at.saturating_sub(1));
+        true
+    }
+
+    /// The byte ranges of every selection.
+    fn taken_ranges(&self) -> Result<Vec<Range<usize>>, BufferError> {
+        self.view
+            .selections
+            .iter()
+            .map(|selection| self.bytes_of(selection))
+            .collect()
     }
 
     /// Selects the word at the bare cursor `at`, leaving the other selections.
@@ -100,9 +190,25 @@ fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+/// Whether `needle` at byte `at` of `text` is a place to select: it does not run into one of
+/// `taken` (byte ranges) and, for a needle that is a word, has no word character next to it.
+fn fits(text: &str, needle: &str, at: usize, taken: &[Range<usize>]) -> bool {
+    let range = at..at + needle.len();
+    let whole_word = needle.chars().all(is_word_char);
+    let alone = !whole_word
+        || (!text[..range.start]
+            .chars()
+            .next_back()
+            .is_some_and(is_word_char)
+            && !text[range.end..].chars().next().is_some_and(is_word_char));
+    alone
+        && !taken
+            .iter()
+            .any(|other| other.start < range.end && range.start < other.end)
+}
+
 /// The first place of `needle` in `text` from byte `from` on, going round to the start, that
-/// does not run into one of `taken` (byte ranges) and, for a needle that is a word, has no
-/// word character next to it.
+/// `fits`.
 fn next_match(
     text: &str,
     needle: &str,
@@ -112,28 +218,26 @@ fn next_match(
     if needle.is_empty() {
         return None;
     }
-    let whole_word = needle.chars().all(is_word_char);
-    let fits = |at: usize| {
-        let range = at..at + needle.len();
-        let alone = !whole_word
-            || (!text[..range.start]
-                .chars()
-                .next_back()
-                .is_some_and(is_word_char)
-                && !text[range.end..].chars().next().is_some_and(is_word_char));
-        alone
-            && !taken
-                .iter()
-                .any(|other| other.start < range.end && range.start < other.end)
-    };
     // From the end of the selection, then from the start of the text up to it.
     let from = from.min(text.len());
     let after = text[from..].match_indices(needle).map(|(at, _)| from + at);
     let before = text[..from].match_indices(needle).map(|(at, _)| at);
     after
         .chain(before)
-        .find(|at| fits(*at))
+        .find(|at| fits(text, needle, *at, taken))
         .map(|at| at..at + needle.len())
+}
+
+/// Every place of `needle` in `text` that `fits`, in text order.
+fn all_matches(text: &str, needle: &str, taken: &[Range<usize>]) -> Vec<Range<usize>> {
+    if needle.is_empty() {
+        return Vec::new();
+    }
+    text.match_indices(needle)
+        .map(|(at, _)| at)
+        .filter(|at| fits(text, needle, *at, taken))
+        .map(|at| at..at + needle.len())
+        .collect()
 }
 
 #[cfg(test)]

@@ -450,3 +450,37 @@ fn ctrl_d_in_the_explorer_or_elsewhere_is_not_the_editors() {
 
     assert_eq!(cursors(&app), 1);
 }
+
+#[test]
+fn ctrl_shift_l_selects_every_occurrence_and_typing_changes_them_all() {
+    let mut app = app("foo bar foo baz foo");
+    press(&mut app, KeyCode::Char('d'), CTRL);
+
+    press(
+        &mut app,
+        KeyCode::Char('L'),
+        KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+    );
+    type_str(&mut app, "x");
+
+    assert_eq!(text(&app), "x bar x baz x");
+}
+
+#[test]
+fn ctrl_k_ctrl_d_skips_an_occurrence_and_ctrl_u_takes_the_newest_back() {
+    let mut app = app("foo bar foo baz foo");
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    press(&mut app, KeyCode::Char('d'), CTRL);
+
+    press(&mut app, KeyCode::Char('k'), CTRL);
+    press(&mut app, KeyCode::Char('d'), CTRL);
+    assert_eq!(cursors(&app), 2);
+    assert_eq!(
+        app.state().editor().selections().primary().head(),
+        Position::new(0, 19),
+        "the second foo was skipped"
+    );
+
+    press(&mut app, KeyCode::Char('u'), CTRL);
+    assert_eq!(cursors(&app), 1);
+}

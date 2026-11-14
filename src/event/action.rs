@@ -217,6 +217,12 @@ pub(crate) enum Action {
     /// Adds the next occurrence of the selected text to the selections (selecting the word
     /// at a bare cursor first).
     SelectNextOccurrence,
+    /// Adds every occurrence of the selected text to the selections.
+    SelectAllOccurrences,
+    /// Moves the primary selection on to the next occurrence of its text, leaving the old place.
+    SkipOccurrence,
+    /// Takes the primary selection away; the one before it becomes the primary one.
+    TakeBackSelection,
     /// Goes back to the primary cursor alone.
     CollapseCursors,
     Indent,
@@ -589,6 +595,9 @@ impl Action {
             Self::AddCursorAbove => "Cursor: Add Cursor Above",
             Self::AddCursorBelow => "Cursor: Add Cursor Below",
             Self::SelectNextOccurrence => "Selection: Add Next Occurrence",
+            Self::SelectAllOccurrences => "Selection: Select All Occurrences",
+            Self::SkipOccurrence => "Selection: Skip This Occurrence",
+            Self::TakeBackSelection => "Selection: Take Back the Last Selection",
             Self::CollapseCursors => "Cursor: Back to One Cursor",
             Self::Move(Motion::DocumentStart) => "Cursor: Go to Document Start",
             Self::Move(Motion::DocumentEnd) => "Cursor: Go to Document End",
@@ -749,6 +758,9 @@ impl Action {
             Self::AddCursorAbove,
             Self::AddCursorBelow,
             Self::SelectNextOccurrence,
+            Self::SelectAllOccurrences,
+            Self::SkipOccurrence,
+            Self::TakeBackSelection,
             Self::CollapseCursors,
             Self::Indent,
             Self::Outdent,

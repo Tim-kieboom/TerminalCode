@@ -430,6 +430,9 @@ impl App {
             Action::AddCursorAbove => self.state.edit(|editor| editor.add_cursor_vertically(-1))?,
             Action::AddCursorBelow => self.state.edit(|editor| editor.add_cursor_vertically(1))?,
             Action::SelectNextOccurrence => self.select_next_occurrence()?,
+            Action::SelectAllOccurrences => self.select_all_occurrences()?,
+            Action::SkipOccurrence => self.skip_occurrence()?,
+            Action::TakeBackSelection => self.take_back_selection()?,
             Action::CollapseCursors => self.state.edit(|editor| {
                 editor.collapse_cursors();
                 Ok::<(), crate::buffer::BufferError>(())

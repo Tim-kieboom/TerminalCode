@@ -163,6 +163,79 @@ fn with_other_cursors_around_only_the_primary_one_picks_the_word() {
     assert_eq!(selected(&editor), "three");
 }
 
+// ---- select all occurrences, skip, take back
+
+#[test]
+fn select_all_takes_every_whole_word_and_leaves_the_primary_one_where_it_was() {
+    let mut editor = editor_in("a.rs", "foo foobar foo foo");
+    editor.go_to(Position::new(0, 1));
+
+    assert_eq!(editor.select_all_occurrences().unwrap(), Occurrence::All(2));
+
+    assert_eq!(heads(&editor), [(0, 3), (0, 14), (0, 18)], "not the foobar");
+    assert_eq!(
+        editor.selections().primary().head(),
+        Position::new(0, 3),
+        "the word the cursor was in"
+    );
+}
+
+#[test]
+fn select_all_does_not_add_what_is_selected_and_then_says_so() {
+    let mut editor = editor_in("a.rs", "foo bar foo");
+    editor.go_to(Position::new(0, 1));
+    editor.select_next_occurrence().unwrap();
+    editor.select_next_occurrence().unwrap();
+
+    assert_eq!(editor.select_all_occurrences().unwrap(), Occurrence::NoMore);
+}
+
+#[test]
+fn skip_moves_the_primary_selection_to_the_next_occurrence() {
+    let mut editor = editor_in("a.rs", "foo bar foo baz foo");
+    editor.go_to(Position::new(0, 1));
+    editor.select_next_occurrence().unwrap();
+    editor.select_next_occurrence().unwrap();
+    assert_eq!(heads(&editor), [(0, 3), (0, 11)]);
+
+    assert_eq!(editor.skip_occurrence().unwrap(), Occurrence::Skipped);
+
+    assert_eq!(
+        heads(&editor),
+        [(0, 3), (0, 19)],
+        "the one at 11 is left out"
+    );
+    assert_eq!(editor.selections().primary().head(), Position::new(0, 19));
+}
+
+#[test]
+fn skip_with_nowhere_to_go_changes_nothing() {
+    let mut editor = editor_in("a.rs", "foo bar");
+    editor.go_to(Position::new(0, 1));
+    editor.select_next_occurrence().unwrap();
+
+    assert_eq!(editor.skip_occurrence().unwrap(), Occurrence::NoMore);
+
+    assert_eq!(heads(&editor), [(0, 3)]);
+}
+
+#[test]
+fn take_back_drops_the_newest_selection_and_the_one_before_it_is_primary() {
+    let mut editor = editor_in("a.rs", "foo bar foo baz foo");
+    editor.go_to(Position::new(0, 1));
+    editor.select_next_occurrence().unwrap();
+    editor.select_next_occurrence().unwrap();
+    editor.select_next_occurrence().unwrap();
+
+    assert!(editor.take_back_selection());
+
+    assert_eq!(heads(&editor), [(0, 3), (0, 11)]);
+    assert_eq!(editor.selections().primary().head(), Position::new(0, 11));
+    assert!(editor.take_back_selection());
+    assert!(!editor.take_back_selection(), "one is left, and it stays");
+    assert_eq!(heads(&editor), [(0, 3)]);
+}
+
 // ---- Enter with several cursors
 
 #[test]
