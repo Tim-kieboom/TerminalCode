@@ -13,7 +13,7 @@ See `design.md` for decisions. Everything finished is in `todo-done.md` (milesto
 - [ ] Undo tree, visual-block, vim macros (git support has its own item under "Plugins and tools")
 - [ ] Several cursors, what is left: completion at every cursor, whole-word matching that can be turned off for `ctrl+d`; the find bar's replace is by match and leaves one cursor
 - [ ] Menus and lists, what is left (see "Menus and lists" in `docs/design.md`): the quit prompt has no hover; a group of a menu opens by click or key, not by hover; `Menu` has no disabled entries (the code-action list has them, through its own `disabled` text); the row drawing of the palette, the finder, the search and the plugin list is still four copies of a `List` with `list.selected` (the two pickers share `PickList`, the menus share `Menu`) and could be one list box; the wheel over a `Menu` closes it instead of scrolling a tall one; the plugin list's mouse only selects (a double click could do the main action)
-- [ ] Text inputs, what is left: the password prompt of "Save as root" has no cursor (decided: it is a wiped `Secret`); the name prompt keeps its own copy of the click code (`NamePrompt::click` with its `Layout`) instead of `TextField::click_at`
+- [ ] Text inputs, what is left: the password prompt of "Save as root" has no cursor (decided: it is a wiped `Secret`)
 
 ## Explorer and terminal
 - [ ] Path prompt, follow-ups: an entry that is a link drawn as one; the list for a Windows drive (`C:\`) and a UNC path; `ctrl+backspace` by path segment; remembering the last folder opened (the palette has no argument prompts to share it with yet)

@@ -109,10 +109,9 @@ pub(crate) struct NamePrompt {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct Layout {
     area: Rect,
-    /// The cells the text can use, on one row.
+    /// Where the text starts, on one row (the field itself knows how far it reaches).
     text_x: u16,
     text_y: u16,
-    text_width: u16,
     /// The rows of the list under the text.
     list: Rect,
 }
@@ -260,15 +259,7 @@ impl NamePrompt {
     /// Puts the cursor at the character under the cell (`column`, `row`) when that is
     /// on the text. Returns whether it was.
     pub(crate) fn click(&mut self, column: u16, row: u16) -> bool {
-        let layout = self.layout;
-        if row != layout.text_y
-            || column < layout.text_x
-            || column >= layout.text_x.saturating_add(layout.text_width)
-        {
-            return false;
-        }
-        self.field.click(usize::from(column - layout.text_x));
-        true
+        self.field.click_at(column, row)
     }
 
     /// Finds where the box goes on `screen` and which part of a long name is shown, so
@@ -286,11 +277,16 @@ impl NamePrompt {
         let room = usize::from(inner.width).saturating_sub(PROMPT.width() + 1);
         self.field.visible(room);
         let text_x = inner.x + PROMPT.width().min(usize::from(inner.width)) as u16;
+        self.field.set_drawn(Rect {
+            x: text_x,
+            y: inner.y,
+            width: inner.right().saturating_sub(text_x),
+            height: 1,
+        });
         self.layout = Layout {
             area,
             text_x,
             text_y: inner.y,
-            text_width: inner.right().saturating_sub(text_x),
             list: Rect {
                 y: inner.y + 1,
                 height: inner.height.saturating_sub(1),
