@@ -20,8 +20,12 @@ impl App {
             return;
         };
         let Some(document) = self.document_with_uri(key, &published.uri) else {
+            self.take_closed_diagnostics(published);
             return;
         };
+        if let Some(path) = crate::lsp::uri::uri_to_path(&published.uri) {
+            self.state.closed_diagnostics_mut().remove(&path);
+        }
         let ranges: Vec<_> = published
             .diagnostics
             .iter()
@@ -51,6 +55,25 @@ impl App {
             })
             .collect();
         self.state.diagnostics_mut().set(document, diagnostics);
+        self.needs_redraw = true;
+    }
+
+    /// What a server says about a file that is not open (the checker's output for the whole
+    /// project): kept for the Errors view when the file is inside the project. A file that is open
+    /// in a tab but that the server was not told about yet is left to the open document.
+    fn take_closed_diagnostics(&mut self, published: crate::lsp::Published) {
+        let Some(path) = crate::lsp::uri::uri_to_path(&published.uri) else {
+            return;
+        };
+        if !path.starts_with(self.project_root()) {
+            return;
+        }
+        if self.state.workspace().open_paths().contains(&path) {
+            return;
+        }
+        self.state
+            .closed_diagnostics_mut()
+            .set(path, published.diagnostics);
         self.needs_redraw = true;
     }
 

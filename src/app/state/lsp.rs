@@ -55,6 +55,10 @@ impl AppState {
         &mut self.lsp_diagnostics
     }
 
+    pub(crate) fn closed_diagnostics_mut(&mut self) -> &mut crate::lsp::ClosedDiagnostics {
+        &mut self.closed_diagnostics
+    }
+
     /// The line with a mark in the gutter for the actions there, in `document`.
     pub(crate) fn action_mark_in(&self, document: crate::ids::DocumentId) -> Option<usize> {
         self.action_mark

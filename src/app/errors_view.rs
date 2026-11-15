@@ -4,7 +4,7 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use super::App;
 use crate::app::state::Focus;
-use crate::components::errors::ErrorsCommand;
+use crate::components::errors::{ErrorTarget, ErrorsCommand};
 use crate::ui::ComponentKind;
 
 /// Rows one wheel notch scrolls.
@@ -49,9 +49,17 @@ impl App {
         let Some(row) = rows.get(self.state.errors().selected()) else {
             return;
         };
-        let (document, position) = (row.document, row.position);
+        let (target, position) = (row.target.clone(), row.position);
         self.mark_jump();
-        self.state.workspace_mut().show_document(document);
+        match target {
+            ErrorTarget::Document(document) => self.state.workspace_mut().show_document(document),
+            ErrorTarget::File(path) => {
+                if let Err(error) = self.state.workspace_mut().open_path(&path) {
+                    self.state.notify_error(error.to_string());
+                    return;
+                }
+            }
+        }
         self.state.edit(|editor| editor.go_to(position));
         self.state.set_focus(Focus::Editor);
         self.needs_redraw = true;

@@ -305,6 +305,7 @@ impl Rig {
 }
 
 mod basics;
+mod closed_files;
 mod diagnostics;
 mod documents;
 mod real_rust_analyzer;

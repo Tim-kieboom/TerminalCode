@@ -120,6 +120,8 @@ pub(crate) struct AppState {
     plugin_areas: HashMap<PluginViewId, (ratatui::layout::Rect, ratatui::layout::Rect)>,
     /// What the language servers say is wrong with the open documents.
     lsp_diagnostics: crate::lsp::Diagnostics,
+    /// What the servers say about files that are not open (listed in the Errors view).
+    closed_diagnostics: crate::lsp::ClosedDiagnostics,
     /// The name of the run configuration the Run key starts, for the status bar.
     run_label: Option<String>,
     /// The breakpoints, drawn in the gutter of the editors.

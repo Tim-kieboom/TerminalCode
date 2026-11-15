@@ -2,7 +2,7 @@
 //! documents, worst first, one row each. It is a view of a bar (the bottom one
 //! in the default layout) and has its own keys and selection.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use ratatui::layout::Rect;
 use serde::Deserialize;
@@ -33,10 +33,18 @@ pub(crate) enum ErrorsCommand {
     Leave,
 }
 
+/// What a row opens: a document that is open, or a file that is not (the server said something
+/// about it anyway).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ErrorTarget {
+    Document(DocumentId),
+    File(PathBuf),
+}
+
 /// One problem in the list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ErrorRow {
-    pub(crate) document: DocumentId,
+    pub(crate) target: ErrorTarget,
     /// The file, short (relative to the project when it is in it).
     pub(crate) file: String,
     /// Where it is, from 0.
@@ -48,7 +56,7 @@ pub(crate) struct ErrorRow {
 
 impl ErrorRow {
     pub(crate) fn new(
-        document: DocumentId,
+        target: ErrorTarget,
         path: Option<&Path>,
         name: &str,
         project: Option<&Path>,
@@ -62,7 +70,7 @@ impl ErrorRow {
             (None, _) => name.to_owned(),
         };
         Self {
-            document,
+            target,
             file,
             position,
             severity,

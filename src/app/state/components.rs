@@ -1,8 +1,9 @@
 //! The parts of the screen: which are shown, and access to each.
 
 use super::{AppState, PluginView};
+use crate::buffer::Position;
 use crate::components::debug::DebugView;
-use crate::components::errors::{ErrorRow, ErrorsView};
+use crate::components::errors::{ErrorRow, ErrorTarget, ErrorsView};
 use crate::components::explorer::{Explorer, ExplorerError};
 use crate::components::menu_bar::MenuBar;
 use crate::components::status_view::StatusBar;
@@ -57,11 +58,7 @@ impl AppState {
 
     /// The Errors tab of a bar says how many problems there are.
     pub(super) fn count_problems_on_tabs(&self, placements: &mut [Placement]) {
-        let count: usize = self
-            .lsp_diagnostics
-            .documents()
-            .map(|(_, diagnostics)| diagnostics.len())
-            .sum();
+        let count = self.error_rows().len();
         if count == 0 {
             return;
         }
@@ -191,6 +188,27 @@ impl AppState {
     pub(crate) fn error_rows(&self) -> Vec<ErrorRow> {
         let project = self.explorer().root_path();
         let mut rows = Vec::new();
+        let open = self.workspace().open_paths();
+        for (path, diagnostics) in self.closed_diagnostics.files() {
+            // A file that was opened since is listed by its document.
+            if open.iter().any(|own| own == path) {
+                continue;
+            }
+            for diagnostic in diagnostics {
+                rows.push(ErrorRow::new(
+                    ErrorTarget::File(path.to_path_buf()),
+                    Some(path),
+                    "",
+                    project,
+                    Position::new(
+                        diagnostic.start.line as usize,
+                        diagnostic.start.character as usize,
+                    ),
+                    diagnostic.severity,
+                    &diagnostic.message,
+                ));
+            }
+        }
         for (document, diagnostics) in self.lsp_diagnostics.documents() {
             let Some((path, name, buffer)) = self.workspace().document_info(document) else {
                 continue;
@@ -200,7 +218,7 @@ impl AppState {
                     continue;
                 };
                 rows.push(ErrorRow::new(
-                    document,
+                    ErrorTarget::Document(document),
                     path,
                     &name,
                     project,

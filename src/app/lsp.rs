@@ -223,6 +223,7 @@ impl App {
         self.lsp.shown = None;
         self.lsp.sync.clear();
         self.state.diagnostics_mut().clear_all();
+        self.state.closed_diagnostics_mut().clear_all();
         self.lsp.targets.clear();
         self.lsp.fingerprint = 0;
         self.lsp_file_shown();

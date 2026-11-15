@@ -8,6 +8,7 @@
 
 use std::collections::HashMap;
 use std::ops::Range;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -242,5 +243,39 @@ impl Diagnostics {
                     _ => (errors, warnings, rest + 1),
                 },
             )
+    }
+}
+
+/// What a server published about files that are not open: kept as it was sent (positions, not
+/// bytes: there is no text to place them in), so the Errors view can list them.
+#[derive(Debug, Default)]
+pub struct ClosedDiagnostics {
+    files: HashMap<PathBuf, Vec<RawDiagnostic>>,
+}
+
+impl ClosedDiagnostics {
+    /// Replaces what `path` has; nothing at all forgets the file.
+    pub fn set(&mut self, path: PathBuf, diagnostics: Vec<RawDiagnostic>) {
+        if diagnostics.is_empty() {
+            self.files.remove(&path);
+            return;
+        }
+        self.files.insert(path, diagnostics);
+    }
+
+    /// Forgets a file (it was opened: the open document has its own now).
+    pub fn remove(&mut self, path: &Path) {
+        self.files.remove(path);
+    }
+
+    pub fn clear_all(&mut self) {
+        self.files.clear();
+    }
+
+    /// Every file that has some, with what it has.
+    pub fn files(&self) -> impl Iterator<Item = (&Path, &[RawDiagnostic])> {
+        self.files
+            .iter()
+            .map(|(path, diagnostics)| (path.as_path(), diagnostics.as_slice()))
     }
 }
