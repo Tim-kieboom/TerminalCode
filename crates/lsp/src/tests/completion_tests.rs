@@ -160,6 +160,25 @@ fn the_detail_falls_back_to_the_label_details_and_an_empty_one_is_none() {
 }
 
 #[test]
+fn an_import_note_in_the_label_details_is_where_the_item_comes_from() {
+    let list = parse_completion(&json!([
+        { "label": "HashMap", "detail": "HashMap<K, V>",
+          "labelDetails": { "detail": "(use std::collections::HashMap)" } },
+        { "label": "a", "labelDetails": { "detail": "(x: u8)" } },
+        { "label": "b" },
+    ]))
+    .unwrap();
+
+    assert_eq!(
+        list.items[0].source.as_deref(),
+        Some("use std::collections::HashMap")
+    );
+    assert_eq!(list.items[0].detail.as_deref(), Some("HashMap<K, V>"));
+    assert_eq!(list.items[1].source, None, "a signature is not a place");
+    assert_eq!(list.items[2].source, None);
+}
+
+#[test]
 fn an_insert_or_replace_edit_gives_its_insert_half() {
     let edit = json!({
         "newText": "push",

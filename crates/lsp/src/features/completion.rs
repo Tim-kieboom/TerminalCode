@@ -196,6 +196,9 @@ pub struct CompletionItem {
     pub kind: Kind,
     /// A short note beside the name, such as a signature.
     pub detail: Option<String>,
+    /// Where the item comes from when the server says so and it is not in scope yet: the
+    /// `use` line of an import (rust-analyzer's `labelDetails.detail` is `(use std::fmt::Write)`).
+    pub source: Option<String>,
     /// What the list is ordered by; the label when the server gives none.
     pub sort_text: String,
     /// What the typed text is matched against; the label when the server gives none.
@@ -283,6 +286,13 @@ pub fn parse_completion(result: &Value) -> Result<CompletionList, LspError> {
     })
 }
 
+/// `use a::b::C` from `(use a::b::C)`: the note rust-analyzer puts on an item that needs an
+/// import. Other notes between parentheses (a signature) are not where an item comes from.
+fn import_of(note: &str) -> Option<String> {
+    let inner = note.trim().strip_prefix('(')?.strip_suffix(')')?.trim();
+    inner.starts_with("use ").then(|| inner.to_owned())
+}
+
 fn parse_item(value: &Value) -> Option<CompletionItem> {
     let label = value.get("label")?.as_str()?.to_owned();
     let text = |key: &str| value.get(key).and_then(Value::as_str).map(str::to_owned);
@@ -295,7 +305,12 @@ fn parse_item(value: &Value) -> Option<CompletionItem> {
                 .filter(|detail| !detail.is_empty())
                 .map(str::to_owned)
         });
+    let source = value
+        .pointer("/labelDetails/detail")
+        .and_then(Value::as_str)
+        .and_then(import_of);
     Some(CompletionItem {
+        source,
         kind: Kind::from_code(value.get("kind").and_then(Value::as_u64)),
         detail,
         sort_text: text("sortText").unwrap_or_else(|| label.clone()),

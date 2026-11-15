@@ -186,3 +186,51 @@ fn with_room_for_only_part_of_the_documentation_it_shows_what_fits() {
     assert!(screen.contains("/20 "), "{screen}");
     assert!(!screen.contains("line 7"), "{screen}");
 }
+
+fn named_by_module(module: &str) -> Value {
+    json!({
+        "label": "HashMap",
+        "kind": 22,
+        "detail": "HashMap<K, V, S, A>",
+        "labelDetails": { "detail": format!("(use {module}::HashMap)") },
+    })
+}
+
+#[test]
+fn the_line_under_the_box_says_where_the_highlighted_item_comes_from() {
+    let mut rig = Rig::with_answer(json!([
+        named_by_module("std::collections"),
+        named_by_module("hashbrown"),
+    ]));
+    rig.type_text("Has");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+    assert!(screen.contains("use std::collections::HashMap"), "{screen}");
+    assert!(!screen.contains("use hashbrown::HashMap"), "{screen}");
+
+    rig.press(KeyCode::Down);
+    let screen = rig.screen();
+    assert!(screen.contains("use hashbrown::HashMap"), "{screen}");
+    assert!(
+        !screen.contains("use std::collections::HashMap"),
+        "{screen}"
+    );
+}
+
+#[test]
+fn without_a_place_the_line_shows_the_whole_detail_the_row_had_to_cut() {
+    let long = "fn very_long_name(first: LongTypeNumberOne, second: LongTypeNumberTwo) -> Result<(), Error>";
+    let mut rig = Rig::with_answer(json!([
+        { "label": "very_long_name", "kind": 3, "detail": long },
+    ]));
+    rig.type_text("very");
+    rig.wait_for_box();
+
+    let screen = rig.screen();
+
+    assert!(
+        screen.contains("fn very_long_name(first: LongTypeNumberOne"),
+        "{screen}"
+    );
+}

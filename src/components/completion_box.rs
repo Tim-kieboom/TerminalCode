@@ -119,6 +119,21 @@ impl CompletionBox {
             .collect()
     }
 
+    /// The line under the rows about the highlighted item: where it comes from (the `use` line
+    /// of an import), else its whole detail (a signature the row had to cut).
+    fn about_selected(&self) -> Option<&str> {
+        let item = self.completion.selected_item()?;
+        item.source.as_deref().or(item.detail.as_deref())
+    }
+
+    /// Whether the box has the line: any of the items has something to say, so the box does not
+    /// grow and shrink as the highlight moves.
+    fn has_about_line(&self) -> bool {
+        self.completion
+            .items()
+            .any(|item| item.source.is_some() || item.detail.is_some())
+    }
+
     /// The first row to show so that the highlighted one is among them.
     fn first_row(&self, selected: usize) -> usize {
         let mut first = self.scroll.get();
@@ -161,8 +176,9 @@ impl CompletionBox {
             .min(usize::from(screen.width.saturating_sub(2)))
             .max(1);
         let rows = self.completion.len().min(MOST_ROWS);
+        let about_line = u16::from(self.has_about_line());
         let width = u16::try_from(columns).unwrap_or(u16::MAX) + 2;
-        let height = u16::try_from(rows).unwrap_or(u16::MAX) + 2;
+        let height = u16::try_from(rows).unwrap_or(u16::MAX) + 2 + about_line;
         // The names line up with the word being typed.
         let typed = u16::try_from(self.completion.typed().width()).unwrap_or(u16::MAX);
         let word_x = cursor.x.saturating_sub(typed);
@@ -209,6 +225,19 @@ impl CompletionBox {
                 ..inner
             },
         );
+
+        if about_line > 0 {
+            let text = self.about_selected().unwrap_or("");
+            let shown = fit(text, usize::from(inner.width).saturating_sub(2));
+            frame.render_widget(
+                Paragraph::new(format!(" {shown}")).style(theme.style("completion.detail")),
+                Rect {
+                    y: inner.y + rows as u16,
+                    height: 1,
+                    ..inner
+                },
+            );
+        }
 
         let item = self.completion.selected_item();
         let docs = item.and_then(|item| item.documentation.as_deref());
