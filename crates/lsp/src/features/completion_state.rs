@@ -62,6 +62,52 @@ struct Entry {
     filter: String,
 }
 
+/// How well what is typed matches the text of an item, best first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Match {
+    /// It starts the text: `pu` in `push`.
+    Prefix,
+    /// It starts a word inside the text (after `_` or `::`, or a capital): `string` in `to_string`.
+    WordStart,
+    /// It is somewhere in the text: `ing` in `to_string`.
+    Inside,
+    /// Its letters come in this order in the text, with others between: `tstr` in `to_string`.
+    Scattered,
+}
+
+/// How `typed` (lower case) matches an item's `original` filter text (`lower` is the same in lower
+/// case), or `None` when it does not. Scattered letters only count for two letters or more.
+fn match_rank(original: &str, lower: &str, typed: &str) -> Option<Match> {
+    if lower.starts_with(typed) {
+        return Some(Match::Prefix);
+    }
+    let kept: Vec<char> = original.chars().collect();
+    let letters: Vec<char> = lower.chars().collect();
+    let wanted: Vec<char> = typed.chars().collect();
+    // A capital only marks a word when the lower case text has the same letters.
+    let known_case = kept.len() == letters.len();
+    let starts_word = |at: usize| {
+        let before = letters[at - 1];
+        !before.is_alphanumeric()
+            || (known_case && kept[at - 1].is_lowercase() && kept[at].is_uppercase())
+    };
+    let mut inside = false;
+    for at in 1..letters.len() {
+        if letters[at..].starts_with(&wanted) {
+            if starts_word(at) {
+                return Some(Match::WordStart);
+            }
+            inside = true;
+        }
+    }
+    if inside {
+        return Some(Match::Inside);
+    }
+    let mut rest = letters.iter();
+    let scattered = wanted.len() >= 2 && wanted.iter().all(|c| rest.any(|l| l == c));
+    scattered.then_some(Match::Scattered)
+}
+
 /// An item told apart from the others: two can share a label (a module and a type
 /// both called `Json`), so the kind and the detail count too, and when even those are
 /// equal, which of them it is.
@@ -81,7 +127,7 @@ fn same_item(a: &CompletionItem, b: &CompletionItem) -> bool {
 pub struct Completion {
     /// Every item of the list, in the server's order.
     entries: Vec<Entry>,
-    /// The entries that start with what is typed, as indexes into `entries`.
+    /// The entries that match what is typed, best first, as indexes into `entries`.
     shown: Vec<usize>,
     /// Which of `shown` is highlighted.
     selected: usize,
@@ -184,9 +230,16 @@ impl Completion {
 
     fn filter(&mut self) {
         let typed = self.prefix.to_lowercase();
-        self.shown = (0..self.entries.len())
-            .filter(|&index| self.entries[index].filter.starts_with(&typed))
+        let mut ranked: Vec<(Match, usize)> = (0..self.entries.len())
+            .filter_map(|index| {
+                let entry = &self.entries[index];
+                let rank = match_rank(&entry.item.filter_text, &entry.filter, &typed)?;
+                Some((rank, index))
+            })
             .collect();
+        // Better matches first; the server's order within each kind (the sort is stable).
+        ranked.sort_by_key(|(rank, _)| *rank);
+        self.shown = ranked.into_iter().map(|(_, index)| index).collect();
         self.selected = 0;
         self.moved = false;
     }

@@ -63,12 +63,64 @@ fn only_what_starts_with_the_typed_word_is_shown_whatever_its_case() {
 }
 
 #[test]
-fn letters_in_order_somewhere_inside_do_not_match() {
-    let completion = open(plain(&["push", "shrink_to_fit"]), "psh", 0, 3);
+fn letters_that_come_in_order_with_others_between_still_match_but_come_last() {
+    let completion = open(plain(&["push", "shrink_to_fit", "ps"]), "psh", 0, 3);
 
-    assert!(completion.is_empty());
-    assert_eq!(completion.len(), 0);
-    assert_eq!(completion.selected_item(), None);
+    assert_eq!(labels(&completion), ["push"]);
+    let none = open(plain(&["pop", "shrink"]), "psh", 0, 3);
+    assert!(none.is_empty());
+    assert_eq!(none.len(), 0);
+    assert_eq!(none.selected_item(), None);
+}
+
+#[test]
+fn a_word_inside_the_name_matches_so_string_finds_to_string() {
+    let completion = open(
+        plain(&["to_string", "string", "to_owned", "into_boxed_str"]),
+        "string",
+        0,
+        6,
+    );
+
+    assert_eq!(labels(&completion), ["string", "to_string"]);
+}
+
+#[test]
+fn a_capital_starts_a_word_too() {
+    let completion = open(plain(&["getElementById", "target"]), "element", 0, 7);
+
+    assert_eq!(labels(&completion), ["getElementById"]);
+}
+
+#[test]
+fn what_starts_the_name_comes_before_a_word_inside_before_letters_inside_before_scattered() {
+    // The server's order is the labels' order here; the kind of match comes first.
+    let completion = open(
+        plain(&[
+            "a_ring_s",
+            "bstring",
+            "xs_t_r_i_n_g",
+            "string_len",
+            "to_string",
+        ]),
+        "string",
+        0,
+        6,
+    );
+
+    assert_eq!(
+        labels(&completion),
+        ["string_len", "to_string", "bstring", "xs_t_r_i_n_g"]
+    );
+}
+
+#[test]
+fn one_scattered_letter_is_not_a_match_but_one_letter_that_starts_a_name_is() {
+    let completion = open(plain(&["push", "pop", "shrink"]), "o", 0, 1);
+
+    assert_eq!(labels(&completion), ["pop"], "inside, not scattered");
+    let completion = open(plain(&["push", "pop", "shrink"]), "p", 0, 1);
+    assert_eq!(labels(&completion), ["pop", "push"]);
 }
 
 #[test]
