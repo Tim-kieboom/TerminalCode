@@ -86,7 +86,9 @@ impl App {
         reply: Option<(Box<str>, u64)>,
         result: Result<HeadText, GitError>,
     ) {
-        let outcome = self.show_head(document, relative, head, open, result);
+        // A plugin that asked keeps the keyboard where it is (its list goes on to the next file).
+        let take_keyboard = reply.is_none();
+        let outcome = self.show_head(document, relative, head, (open, take_keyboard), result);
         let told = match &outcome {
             Ok(()) => None,
             // The tab of a diff that follows `HEAD` is left as it was, and the user told.
@@ -112,7 +114,7 @@ impl App {
         document: Option<DocumentId>,
         relative: PathBuf,
         head: Option<String>,
-        open: bool,
+        (open, take_keyboard): (bool, bool),
         result: Result<HeadText, GitError>,
     ) -> Result<(), String> {
         if document.is_some_and(|document| !self.state.workspace().has_document(document)) {
@@ -132,7 +134,9 @@ impl App {
         match (document, open) {
             (Some(document), true) => {
                 workspace.open_diff(document, relative, head, text.as_deref())?;
-                self.state.set_focus(Focus::Editor);
+                if take_keyboard {
+                    self.state.set_focus(Focus::Editor);
+                }
             }
             (Some(document), false) => {
                 workspace.set_diff_base(document, head, text.as_deref())?;
@@ -142,7 +146,9 @@ impl App {
                     return Err(format!("{name} is neither on the disk nor in HEAD"));
                 };
                 workspace.open_deleted_diff(relative, head, &text)?;
-                self.state.set_focus(Focus::Editor);
+                if take_keyboard {
+                    self.state.set_focus(Focus::Editor);
+                }
             }
             (None, false) => {}
         }

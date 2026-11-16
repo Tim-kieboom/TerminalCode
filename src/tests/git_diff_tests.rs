@@ -271,3 +271,27 @@ fn ctrl_click_on_the_marker_of_the_gutter_opens_the_diff_and_a_plain_click_does_
 
     assert!(rig.app.state().workspace().active_is_diff());
 }
+
+#[test]
+fn a_diff_a_plugin_asks_for_keeps_the_keyboard_where_it_is() {
+    use crate::app::state::Focus;
+    let mut rig = rig("alpha\nbeta\n", "alpha\nBETA\n");
+    rig.app.state_mut().set_focus(Focus::Explorer);
+
+    rig.app
+        .handle_event(Event::Plugin(crate::plugins::Notice::OpenDiff {
+            plugin: "git".into(),
+            request: 1,
+            path: "a.txt".to_owned(),
+        }));
+    rig.pump_until("the text of HEAD", |event| {
+        matches!(event, Event::GitHead { .. })
+    });
+
+    assert!(rig.app.state().workspace().active_is_diff());
+    assert_eq!(
+        rig.app.state().focus(),
+        Focus::Explorer,
+        "a plugin's list goes on to the next file"
+    );
+}

@@ -330,7 +330,7 @@ fn s_stages_the_selected_file_and_u_unstages_it() {
 
 #[test]
 #[ignore = "needs the module built for wasm32"]
-fn down_and_enter_open_the_next_file_in_the_editor_and_the_keyboard_stays_in_the_pane() {
+fn down_and_enter_open_the_diff_of_the_next_file_and_the_keyboard_stays_in_the_pane() {
     let mut rig = started();
     rig.wait_until("the files", |rig| rig.has_row("U b.txt"));
 
@@ -345,6 +345,9 @@ fn down_and_enter_open_the_next_file_in_the_editor_and_the_keyboard_stays_in_the
             .buffer()
             .path()
             .is_some_and(|path| path.ends_with("b.txt"))
+    });
+    rig.wait_until("the diff tab", |rig| {
+        rig.app.state().workspace().active_is_diff()
     });
     assert_eq!(rig.app.state().focus(), Focus::Plugin);
 }
@@ -461,12 +464,16 @@ fn a_right_click_on_a_file_opens_its_menu_and_stage_file_stages_that_file() {
     });
 
     // The editor's menu, with the titles and the keys of the plugin's actions.
-    assert_eq!(rig.menu(), ["Open File", "Stage File", "Discard Changes"]);
+    assert_eq!(
+        rig.menu(),
+        ["Open Diff", "Open File", "Stage File", "Discard Changes"]
+    );
     let screen = rig.screen();
     assert!(
         screen.contains("Open File") && screen.contains("Stage File"),
         "{screen}"
     );
+    rig.press(KeyCode::Down);
     rig.press(KeyCode::Down);
     rig.press(KeyCode::Enter);
     rig.wait_until("b.txt to be staged", |rig| rig.cached() == "b.txt");
@@ -485,7 +492,11 @@ fn a_right_click_on_a_staged_file_offers_to_unstage_it_and_on_a_heading_the_whol
     rig.wait_until("the menu", |rig| {
         matches!(rig.app.state().popup(), Popup::Menu(_))
     });
-    assert_eq!(rig.menu(), ["Open File", "Unstage File", "Discard Changes"]);
+    assert_eq!(
+        rig.menu(),
+        ["Open Diff", "Open File", "Unstage File", "Discard Changes"]
+    );
+    rig.press(KeyCode::Down);
     rig.press(KeyCode::Down);
     rig.press(KeyCode::Enter);
     rig.wait_until("b.txt to be unstaged", |rig| rig.cached() == "a.txt");

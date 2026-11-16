@@ -981,7 +981,7 @@ Goal: a tab that shows the file next to the file as it is in `HEAD`, as Zed does
 
 ### A diff from a plugin (plugin API 1.15, built)
 - `FromPlugin::OpenDiff { request, path }`, with the capability `editor.open` like `OpenFile`, the path from the root of the repository. The answer is `Done` when the tab is shown, `Refused` `bad_argument` for a path that cannot be one, `no_repository`, or `failed` with the reason (not text, too large, "neither on the disk nor in HEAD"). The runtime hands it to the app as `Notice::OpenDiff`; the app opens the file (`open_path`) or, when it is not on the disk, shows it as deleted, asks for the text in `HEAD` and answers when the tab is there (`Event::GitHead::reply`).
-- The Git plugin's list is meant to use it for a key on a row; that is a release of `trcode-plugin-git`, not of this repository.
+- The Git plugin uses it since its 0.5.0: a click or `enter` on a file of its list opens the diff, `o` the file as a plain tab. A diff a plugin asked for leaves the keyboard where it is (the user's own "Git: Open Diff" gives it to the editor), as `OpenFile` does, so the list goes on to the next file with the arrow keys; `show_head` takes `(open, take_keyboard)` and the keyboard is taken only when there is no plugin to answer.
 
 ## Plugin runtime (decided after a grill; the first slice is built)
 
