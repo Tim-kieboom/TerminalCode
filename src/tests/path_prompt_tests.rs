@@ -679,14 +679,22 @@ fn ctrl_b_shows_the_folders_as_a_tree_and_enter_opens_the_one_selected() {
         "folders only: {tree}"
     );
     assert!(tree.contains("ctrl+b: type"), "{tree}");
-    assert!(rig.name().ends_with('/'), "the root: {}", rig.name());
+    assert!(
+        rig.name().ends_with(std::path::is_separator),
+        "the root: {}",
+        rig.name()
+    );
 
     rig.key(KeyCode::Down);
     rig.key(KeyCode::Down);
     rig.key(KeyCode::Right);
     let tree = rig.box_text();
     assert!(tree.contains("components"), "src opened: {tree}");
-    assert!(rig.name().ends_with("/src/"), "{}", rig.name());
+    assert!(
+        rig.name().ends_with(std::path::is_separator) && Path::new(&rig.name()).ends_with("src"),
+        "{}",
+        rig.name()
+    );
 
     rig.key(KeyCode::Enter);
 
@@ -712,7 +720,9 @@ fn left_on_the_root_of_the_tree_goes_up_and_ctrl_b_goes_back_to_typing() {
         root.starts_with(&up) && up.len() < root.len(),
         "{root} -> {up}"
     );
-    let parent = Path::new(up.trim_end_matches('/')).file_name().unwrap();
+    let parent = Path::new(up.trim_end_matches(std::path::is_separator))
+        .file_name()
+        .unwrap();
     let tree = rig.box_text();
     assert!(
         tree.contains(parent.to_str().unwrap()),
