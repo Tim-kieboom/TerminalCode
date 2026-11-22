@@ -44,10 +44,25 @@ impl AppState {
             return false;
         };
         match hit {
+            // The button is the app's (it has the clipboard): see `App::copy_notification_at`.
+            Hit::Copy(_) => false,
             Hit::Message(id) => self.notifications.dismiss(id),
             Hit::More(shown) => self.notifications.dismiss_hidden_info(&shown),
         };
         true
+    }
+
+    /// The text of the message whose copy button is at a screen cell, as last drawn.
+    pub(crate) fn copy_button_text_at(&self, column: u16, row: u16) -> Option<Box<str>> {
+        let position = ratatui::layout::Position::new(column, row);
+        let (hit, _) = self
+            .notification_hits
+            .iter()
+            .find(|(_, area)| area.contains(position))?;
+        match hit {
+            Hit::Copy(id) => self.notifications.text_of(*id).map(Box::from),
+            _ => None,
+        }
     }
 
     /// The text of the newest message, if any.

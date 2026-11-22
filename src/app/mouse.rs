@@ -167,6 +167,16 @@ impl App {
     /// What is drawn over everything: a message, the debugger's buttons and its box.
     /// Returns whether one of them took the event.
     fn mouse_overlays(&mut self, event: MouseEvent) -> bool {
+        // A click on the copy button of a message copies its text and leaves the message (an
+        // error is not dismissed by it; the next key or click elsewhere does that).
+        if event.kind == MouseEventKind::Down(MouseButton::Left)
+            && let Some(text) = self.state.copy_button_text_at(event.column, event.row)
+        {
+            self.set_register(crate::clipboard::Register::charwise(text.into_string()));
+            self.state.notify("copied the message");
+            self.needs_redraw = true;
+            return true;
+        }
         // A click on a message takes that message away and goes no further.
         if event.kind == MouseEventKind::Down(MouseButton::Left)
             && self.state.click_notification(event.column, event.row)

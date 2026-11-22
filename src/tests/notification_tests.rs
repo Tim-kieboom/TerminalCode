@@ -635,3 +635,78 @@ fn a_right_click_on_a_message_does_nothing_to_it() {
 
     assert_eq!(texts(&app), ["a message"]);
 }
+
+// ---- the copy button and the test messages
+
+fn app_with_memory_clipboard() -> App {
+    use crate::clipboard::{Clipboard, Memory, System};
+    App::default().with_clipboard(Clipboard::new(System::Memory(Memory::default())))
+}
+
+/// The cell of the `[copy]` button on the top edge of the error message.
+fn error_copy_button(app: &mut App) -> (u16, u16) {
+    let screen = screen(app, 100, 30);
+    let (row, line) = screen
+        .lines()
+        .enumerate()
+        .find(|(_, line)| line.contains(" Error ") && line.contains("[copy]"))
+        .unwrap_or_else(|| panic!("no copy button on an error: {screen}"));
+    let line = line.trim_matches('"');
+    let byte = line.find("[copy]").unwrap();
+    // A column counts characters, and the box is drawn with wide ones.
+    let column = line[..byte].chars().count();
+    (column as u16 + 2, row as u16)
+}
+
+#[test]
+fn the_test_command_shows_an_error_and_an_info_message() {
+    let mut app = App::default();
+
+    app.run_action(crate::event::action::Action::ShowTestNotifications);
+
+    assert!(app.state().notifications().has_errors());
+    assert_eq!(app.state().notifications().len(), 2);
+}
+
+#[test]
+fn a_click_on_the_copy_button_puts_the_whole_message_on_the_clipboard_and_keeps_it() {
+    let mut app = app_with_memory_clipboard();
+    app.run_action(crate::event::action::Action::ShowTestNotifications);
+    let (column, row) = error_copy_button(&mut app);
+
+    app.handle_input(click(column, row));
+
+    assert!(
+        app.state().notifications().has_errors(),
+        "the error is still there"
+    );
+    assert!(
+        app.state()
+            .notifications()
+            .texts()
+            .contains(&"copied the message")
+    );
+    ctrl_v(&mut app);
+    let text = buffer_text(&app);
+    assert!(text.starts_with("this is a test error"), "{text}");
+    assert!(
+        text.ends_with("as one line)"),
+        "the whole message, not what was drawn: {text}"
+    );
+}
+
+#[test]
+fn a_click_on_the_rest_of_a_message_still_dismisses_it() {
+    let mut app = app_with_memory_clipboard();
+    app.run_action(crate::event::action::Action::ShowTestNotifications);
+    let (column, row) = error_copy_button(&mut app);
+
+    // Two rows under the top edge is the text of the message.
+    app.handle_input(click(column, row + 2));
+
+    assert!(!app.state().notifications().has_errors());
+}
+
+fn ctrl_v(app: &mut App) {
+    app.handle_input(key(KeyCode::Char('v'), KeyModifiers::CONTROL));
+}

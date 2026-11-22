@@ -169,6 +169,7 @@ used `anyhow` everywhere instead of typed errors.
   for the next expiry), `Level::Error` stays until a key press or mouse click, which is handled as usual; the
   dismissal runs before the key so an error that key causes is kept. Every user-visible message goes through
   `notify` / `notify_error`, never straight to the status bar.
+  Every message has a `[copy]` button on its top edge, at the right (`Hit::Copy`, drawn when the box is wide enough for it and its title). A left click on it is taken first by `App::mouse_overlays`: the whole text (not the wrapped and cut part that is drawn) goes to the clipboard through `set_register`, "copied the message" is shown, and the message stays, an error too, because the click does not reach the code that dismisses errors. A click anywhere else on the message dismisses it as before. "Notifications: Show Test Messages" (palette, `Action::ShowTestNotifications`) shows an info message and a long error for trying this.
 - The command palette is a modal of the same kind. Its entries come from `Action::palette_actions()`, each with
   a hand-written title from `Action::title()` (an exhaustive match, so a new action must decide whether it is
   listed); actions with an argument are listed once per useful value. App builds the entries when it opens

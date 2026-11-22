@@ -176,6 +176,9 @@ pub(crate) enum Action {
     /// Ends the editor and starts it again in the project folder (the environment of the
     /// project is read again; open files are closed, unsaved ones asked about first).
     RestartEditor,
+    /// Shows an error message and an info message, to try the notifications (and their copy
+    /// button) with.
+    ShowTestNotifications,
     Save,
     Undo,
     Redo,
@@ -399,6 +402,7 @@ impl Action {
                 | Self::CopyRelativePath
                 | Self::RestartLspServers
                 | Self::RestartEditor
+                | Self::ShowTestNotifications
                 | Self::FileCopy
                 | Self::FileCut
                 | Self::FilePaste
@@ -583,6 +587,7 @@ impl Action {
             Self::RestartLspServers => "LSP: Restart All Servers",
             Self::ShowLspLog => "LSP: Show Server Log of This File",
             Self::RestartEditor => "Editor: Restart",
+            Self::ShowTestNotifications => "Notifications: Show Test Messages",
             Self::ClearRecent => "File: Clear Recent",
             Self::OpenFile => "File: Open File...",
             Self::OpenFolder => "File: Open Folder...",
@@ -751,6 +756,7 @@ impl Action {
             Self::RestartLspServers,
             Self::ShowLspLog,
             Self::RestartEditor,
+            Self::ShowTestNotifications,
             Self::NextBarView,
             Self::PreviousBarView,
             Self::MoveLineUp,

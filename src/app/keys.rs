@@ -375,6 +375,7 @@ impl App {
             Action::RestartLspServers => self.restart_lsp_servers(),
             Action::ShowLspLog => self.show_lsp_log(),
             Action::RestartEditor => self.restart_editor(),
+            Action::ShowTestNotifications => self.show_test_notifications(),
             Action::OpenMenu => self.open_main_menu(),
             Action::OpenFile => self.ask_for_file(),
             Action::OpenRecentFile(path) => self.open_recent_file(&path),

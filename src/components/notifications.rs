@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Modifier;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 
@@ -64,6 +65,8 @@ impl Default for Notifications {
 /// What a screen cell shown by [`Notifications::render`] belongs to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Hit {
+    /// The copy button of the message with this id.
+    Copy(u64),
     /// The message with this id.
     Message(u64),
     /// The "+N more" line; the ids are the messages that were shown.
@@ -111,6 +114,14 @@ impl Notifications {
             .position(|item| item.level == Level::Info)
             .unwrap_or(0);
         self.items.remove(victim);
+    }
+
+    /// The text of the message with `id`, if it is still there.
+    pub(crate) fn text_of(&self, id: u64) -> Option<&str> {
+        self.items
+            .iter()
+            .find(|item| item.id == id)
+            .map(|item| &*item.text)
     }
 
     /// Removes the message with `id`. Returns whether it was still there.
@@ -211,7 +222,11 @@ impl Notifications {
                 height,
             };
             let item = &self.items[index];
-            draw_one(frame, theme, item.level, lines, area);
+            let button = draw_one(frame, theme, item.level, lines, area);
+            // The button is first: a click is given to the first thing it is on.
+            if let Some(button) = button {
+                hits.push((Hit::Copy(item.id), button));
+            }
             hits.push((Hit::Message(item.id), area));
         }
 
@@ -263,7 +278,17 @@ impl Notifications {
     }
 }
 
-fn draw_one(frame: &mut Frame, theme: &Theme, level: Level, lines: Vec<String>, area: Rect) {
+/// What is on the top edge of a message, at the right: the copy button.
+const COPY_BUTTON: &str = " [copy] ";
+
+/// Draws one message; where its copy button is, when the message is wide enough for one.
+fn draw_one(
+    frame: &mut Frame,
+    theme: &Theme,
+    level: Level,
+    lines: Vec<String>,
+    area: Rect,
+) -> Option<Rect> {
     let (slot, title) = match level {
         Level::Info => ("notification.info", None),
         Level::Error => ("notification.error", Some(" Error ")),
@@ -274,6 +299,19 @@ fn draw_one(frame: &mut Frame, theme: &Theme, level: Level, lines: Vec<String>, 
         .border_style(theme.style(slot));
     if let Some(title) = title {
         block = block.title(Line::styled(title, theme.style(slot)));
+    }
+    // Both titles and the button have to fit on the edge, with the corners.
+    let button_width = COPY_BUTTON.len() as u16;
+    let room = title.map_or(0, |title| title.len() as u16) + button_width + 2;
+    let button = (area.width >= room).then(|| Rect {
+        x: area.right() - 1 - button_width,
+        y: area.y,
+        width: button_width,
+        height: 1,
+    });
+    if button.is_some() {
+        let style = theme.style(slot).add_modifier(Modifier::BOLD);
+        block = block.title(Line::styled(COPY_BUTTON, style).right_aligned());
     }
     let inner = block.inner(area);
     crate::ui::backdrop::clear(frame, theme, area);
@@ -286,4 +324,5 @@ fn draw_one(frame: &mut Frame, theme: &Theme, level: Level, lines: Vec<String>, 
     };
     let lines: Vec<Line> = lines.into_iter().map(Line::from).collect();
     frame.render_widget(Paragraph::new(lines), padded);
+    button
 }

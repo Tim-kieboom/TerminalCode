@@ -30,6 +30,17 @@ impl App {
         }
     }
 
+    /// "Notifications: Show Test Messages": an error that is long enough to wrap and an info
+    /// message, for trying the notifications and the copy button.
+    pub(super) fn show_test_notifications(&mut self) {
+        self.state.notify("this is a test message");
+        self.state.notify_error(
+            "this is a test error: it is long enough to wrap over several lines, so the copy \
+             button on its top edge can be tried with a message that is more than one row \
+             (error[E0000]: the text copied is the whole message, as one line)",
+        );
+    }
+
     /// `ctrl+d`: the next occurrence of the selected text joins the selections; with a bare cursor
     /// the word it is in is selected first. Says so when there is nothing more to add.
     pub(super) fn select_next_occurrence(&mut self) -> IdeResult {
