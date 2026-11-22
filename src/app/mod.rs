@@ -82,6 +82,7 @@ mod popups;
 mod reset;
 mod saved;
 pub(crate) mod state;
+mod system_picker;
 mod terminal_keys;
 mod terminal_links;
 mod terminal_pane;
@@ -566,6 +567,7 @@ impl App {
                 dir,
                 result,
             } => self.path_listing_ready(request, dir, result),
+            Event::SystemPick { path, failed } => self.system_pick_done(path, failed),
             Event::DebugChanged => self.debug_changed(),
             Event::RunList(list) => self.run_list_ready(list),
             Event::RunBuilt {

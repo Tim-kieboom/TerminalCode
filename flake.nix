@@ -33,10 +33,13 @@
           doCheck = false;
 
           # The clipboard uses these when they are there; rust-analyzer is
-          # found on the PATH when the user has it installed.
+          # found on the PATH when the user has it installed. The system's file dialog
+          # (ctrl+e in Open File and Open Folder) talks to the desktop portal through
+          # libdbus, which the program loads when it is asked to, so it has to be findable.
           postInstall = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
             wrapProgram $out/bin/trcode \
-              --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.wl-clipboard pkgs.xclip ]}
+              --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.wl-clipboard pkgs.xclip ]} \
+              --suffix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [ pkgs.dbus ]}
           '';
 
           meta = {
@@ -66,6 +69,10 @@
             rust-analyzer
             cmake
           ];
+          # For the system's file dialog (see the package above), when running with cargo.
+          shellHook = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.dbus ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          '';
         };
       });
     };

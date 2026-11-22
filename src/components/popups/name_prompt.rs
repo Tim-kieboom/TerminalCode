@@ -9,6 +9,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
 use unicode_width::UnicodeWidthStr;
 
+use crate::components::explorer::Explorer;
 use crate::components::popups::key_with_ctrl;
 use crate::components::text_field::{Caret, TextField};
 use crate::files::entries::EntryKind;
@@ -17,6 +18,7 @@ use crate::ui::theme::Theme;
 const WIDTH: u16 = 60;
 const PROMPT: &str = "> ";
 
+mod browse;
 mod picker;
 
 /// What a key press asks the prompt to do.
@@ -36,6 +38,12 @@ pub(crate) enum Command {
     Complete,
     Up,
     Down,
+    PageUp,
+    PageDown,
+    /// `ctrl+b`: swaps the list for the tree of the folder, and back.
+    Browse,
+    /// `ctrl+e`: the operating system's own file dialog.
+    SystemDialog,
     /// `ctrl+enter`: what is typed is what is meant, whatever the list has highlighted.
     SubmitTyped,
     Submit,
@@ -52,6 +60,10 @@ impl Command {
             (KeyCode::Tab, _) => Self::Complete,
             (KeyCode::Up, _) => Self::Up,
             (KeyCode::Down, _) => Self::Down,
+            (KeyCode::PageUp, _) => Self::PageUp,
+            (KeyCode::PageDown, _) => Self::PageDown,
+            (KeyCode::Char('b'), true) => Self::Browse,
+            (KeyCode::Char('e'), true) => Self::SystemDialog,
             (KeyCode::Backspace, _) => Self::Backspace,
             (KeyCode::Delete, _) => Self::Delete,
             (KeyCode::Left, true) => Self::WordLeft,
@@ -93,7 +105,7 @@ pub(crate) enum Purpose {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub(crate) struct NamePrompt {
     purpose: Purpose,
     /// The folder the new entry is made in.
@@ -103,6 +115,11 @@ pub(crate) struct NamePrompt {
     layout: Layout,
     /// The list of the folder under the text, for the prompts that ask for a path.
     picker: Option<picker::Picker>,
+    /// The tree of the folder, in the place of the list, while it is browsed.
+    browse: Option<Box<Explorer>>,
+    /// Whether the system's file dialog is open for this prompt (it is on a thread of its own;
+    /// the path it gives is waited for).
+    dialog_open: bool,
 }
 
 /// Where the box and its text are on the screen.
@@ -124,6 +141,8 @@ impl NamePrompt {
             dir,
             field: TextField::with_text(name),
             layout: Layout::default(),
+            browse: None,
+            dialog_open: false,
         }
     }
 
@@ -293,6 +312,9 @@ impl NamePrompt {
                 ..inner
             },
         };
+        if let Some(explorer) = self.browse.as_mut() {
+            explorer.fit(self.layout.list);
+        }
     }
 
     pub(crate) fn render(&self, frame: &mut Frame, theme: &Theme) {
@@ -322,6 +344,10 @@ impl NamePrompt {
             .border_type(BorderType::Rounded)
             .border_style(theme.style("pane.border.focused"))
             .title(Line::styled(title, theme.style("pane.title")));
+        let block = match self.hint() {
+            Some(hint) => block.title_bottom(Line::styled(hint, theme.style("pane.border"))),
+            None => block,
+        };
         let inner = block.inner(area);
         crate::ui::backdrop::clear(frame, theme, area);
         frame.render_widget(block, area);
@@ -338,7 +364,10 @@ impl NamePrompt {
             .text_x
             .saturating_add(before_cursor.min(usize::from(u16::MAX)) as u16);
         frame.set_cursor_position(Position::new(cursor_x.min(inner.right()), inner.y));
-        self.render_list(frame, theme, self.layout.list);
+        match self.browsing() {
+            true => self.render_browse(frame, theme, self.layout.list),
+            false => self.render_list(frame, theme, self.layout.list),
+        }
     }
 }
 

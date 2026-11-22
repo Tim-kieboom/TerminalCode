@@ -78,6 +78,13 @@ pub(crate) enum Event {
         dir: std::path::PathBuf,
         result: Result<Vec<crate::components::popups::path_list::Entry>, String>,
     },
+    /// The operating system's file dialog, opened from the Open File or Open Folder prompt (see
+    /// `app/system_picker.rs`), was closed: the path chosen, or `None` for a cancel. `failed` when
+    /// there was no path and no one had the time to cancel: the dialog never opened.
+    SystemPick {
+        path: Option<std::path::PathBuf>,
+        failed: bool,
+    },
     /// The files of the project, read for the paths of the terminal's output that end like one
     /// (see `app/file_index.rs`): from `root`, with `/` between the parts.
     FileIndex {

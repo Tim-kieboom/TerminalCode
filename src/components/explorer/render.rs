@@ -1,4 +1,5 @@
 use ratatui::Frame;
+use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
@@ -19,13 +20,7 @@ const GUIDE: &str = "│ ";
 impl Render<AppState> for Explorer {
     fn prepare(&mut self, placement: &Placement) {
         self.area = placement.area;
-        self.body = placement.frame.inner(placement.area);
-        self.scroll = self.scroll.min(self.max_scroll());
-        if !self.follow_selection {
-            return;
-        }
-
-        self.scroll = revealed(self.selected, self.scroll, usize::from(self.body.height));
+        self.fit(placement.frame.inner(placement.area));
     }
 
     fn render(&self, frame: &mut Frame, state: &AppState, placement: &Placement) {
@@ -69,6 +64,42 @@ impl Render<AppState> for Explorer {
             .collect();
 
         frame.render_widget(Paragraph::new(lines), inner);
+    }
+}
+
+impl Explorer {
+    /// Puts the rows in `body`, scrolled to keep the selection in view unless the wheel moved it.
+    pub(crate) fn fit(&mut self, body: Rect) {
+        self.body = body;
+        self.scroll = self.scroll.min(self.max_scroll());
+        if !self.follow_selection {
+            return;
+        }
+        self.scroll = revealed(self.selected, self.scroll, usize::from(self.body.height));
+    }
+
+    /// Draws the rows in `area` with no frame and no git marks, as a list inside another box
+    /// (the folder browser of the Open Folder prompt). The selection is always drawn live.
+    pub(crate) fn render_rows(&self, frame: &mut Frame, theme: &Theme, area: Rect) {
+        let lines: Vec<Line> = self
+            .rows()
+            .iter()
+            .enumerate()
+            .skip(self.scroll)
+            .take(usize::from(area.height))
+            .map(|(index, row)| {
+                let shown = Shown {
+                    selected: index == self.selected,
+                    active: false,
+                    drop: false,
+                    focused: true,
+                    mark: None,
+                    width: area.width,
+                };
+                line(row, &shown, theme)
+            })
+            .collect();
+        frame.render_widget(Paragraph::new(lines), area);
     }
 }
 

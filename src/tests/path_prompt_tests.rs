@@ -482,7 +482,7 @@ fn a_folder_of_thousands_of_files_keeps_typing_quick() {
     let took = start.elapsed();
 
     assert!(screen.contains("file_0"), "{screen}");
-    assert!(screen.contains("more"), "the rest is counted: {screen}");
+    assert!(screen.contains("of 5000"), "the rest is counted: {screen}");
     assert!(took < Duration::from_secs(2), "{took:?}");
 }
 
@@ -566,4 +566,297 @@ fn tab_in_the_move_prompt_completes_a_folder_name() {
     rig.key(KeyCode::Tab);
 
     assert_eq!(rig.name(), "src");
+}
+
+// ---- the list scrolls, and the folder can be browsed as a tree
+
+impl Rig {
+    fn ctrl(&mut self, c: char) {
+        self.app.handle_input(InputEvent::Key(KeyEvent::new(
+            KeyCode::Char(c),
+            KeyModifiers::CONTROL,
+        )));
+    }
+
+    fn wheel(&mut self, kind: MouseEventKind, column: u16, row: u16) {
+        self.app.handle_input(InputEvent::Mouse(MouseEvent {
+            kind,
+            column,
+            row,
+            modifiers: KeyModifiers::NONE,
+        }));
+    }
+
+    /// Where `text` is on the screen: column and row.
+    fn find_on_screen(&mut self, text: &str) -> (u16, u16) {
+        let screen = self.screen();
+        let (row, line) = screen
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains(text))
+            .unwrap_or_else(|| panic!("no {text}: {screen}"));
+        (
+            line.trim_matches('"').find(text).unwrap() as u16,
+            row as u16,
+        )
+    }
+
+    fn many_folders(&self) {
+        for n in 0..30 {
+            fs::create_dir(self.dir.path().join(format!("d{n:02}"))).unwrap();
+        }
+    }
+}
+
+#[test]
+fn the_highlight_scrolls_the_list_past_its_last_row() {
+    let mut rig = rig();
+    rig.many_folders();
+    rig.app.do_action(Action::OpenFolder);
+    let first = rig.box_text();
+    assert!(first.contains("d00/") && !first.contains("d12/"), "{first}");
+
+    for _ in 0..13 {
+        rig.key(KeyCode::Down);
+    }
+    let scrolled = rig.box_text();
+
+    assert!(
+        scrolled.contains("d12/"),
+        "the highlight is on screen: {scrolled}"
+    );
+    assert!(
+        !scrolled.contains("d00/"),
+        "the first rows went off the top: {scrolled}"
+    );
+    assert!(
+        scrolled.contains("of 32"),
+        "the place in the list is said: {scrolled}"
+    );
+    rig.key(KeyCode::Enter);
+    assert_eq!(
+        rig.name(),
+        "d12/",
+        "enter takes the row that is highlighted"
+    );
+}
+
+#[test]
+fn page_down_and_the_wheel_scroll_the_list() {
+    let mut rig = rig();
+    rig.many_folders();
+    rig.app.do_action(Action::OpenFolder);
+
+    rig.key(KeyCode::PageDown);
+    assert!(rig.box_text().contains("d10/"));
+
+    let (column, row) = rig.find_on_screen("d10/");
+    for _ in 0..3 {
+        rig.wheel(MouseEventKind::ScrollDown, column, row);
+    }
+    let scrolled = rig.box_text();
+    assert!(
+        scrolled.contains("d19/") && !scrolled.contains("d09/"),
+        "{scrolled}"
+    );
+    assert_eq!(rig.name(), "", "the wheel does not touch the name");
+
+    // A click on a row after the wheel is a click on the row that is there.
+    let (column, row) = rig.find_on_screen("d15/");
+    rig.wheel(MouseEventKind::Down(MouseButton::Left), column + 1, row);
+    assert_eq!(rig.name(), "d15/");
+}
+
+#[test]
+fn ctrl_b_shows_the_folders_as_a_tree_and_enter_opens_the_one_selected() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+
+    rig.ctrl('b');
+    let tree = rig.box_text();
+    assert!(
+        tree.contains("docs") && tree.contains("src") && !tree.contains("alpha.txt"),
+        "folders only: {tree}"
+    );
+    assert!(tree.contains("ctrl+b: type"), "{tree}");
+    assert!(rig.name().ends_with('/'), "the root: {}", rig.name());
+
+    rig.key(KeyCode::Down);
+    rig.key(KeyCode::Down);
+    rig.key(KeyCode::Right);
+    let tree = rig.box_text();
+    assert!(tree.contains("components"), "src opened: {tree}");
+    assert!(rig.name().ends_with("/src/"), "{}", rig.name());
+
+    rig.key(KeyCode::Enter);
+
+    assert!(rig.app.should_quit());
+    assert!(
+        rig.app
+            .restart_target()
+            .is_some_and(|dir| dir.ends_with("src"))
+    );
+}
+
+#[test]
+fn left_on_the_root_of_the_tree_goes_up_and_ctrl_b_goes_back_to_typing() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+    rig.ctrl('b');
+    let root = rig.name();
+
+    rig.key(KeyCode::Left);
+
+    let up = rig.name();
+    assert!(
+        root.starts_with(&up) && up.len() < root.len(),
+        "{root} -> {up}"
+    );
+    let parent = Path::new(up.trim_end_matches('/')).file_name().unwrap();
+    let tree = rig.box_text();
+    assert!(
+        tree.contains(parent.to_str().unwrap()),
+        "the folder above is the root: {tree}"
+    );
+
+    rig.ctrl('b');
+    let list = rig.box_text();
+    assert!(list.contains("browse"), "the list is back: {list}");
+    rig.type_text("x");
+    assert_eq!(
+        rig.name(),
+        format!("{up}x"),
+        "typing goes on from the tree's path"
+    );
+}
+
+#[test]
+fn the_tree_hides_dot_folders_until_a_dot_is_pressed() {
+    let mut rig = rig();
+    fs::create_dir(rig.dir.path().join(".dots")).unwrap();
+    rig.app.do_action(Action::OpenFolder);
+    rig.ctrl('b');
+    assert!(!rig.box_text().contains(".dots"));
+
+    rig.key(KeyCode::Char('.'));
+
+    assert!(rig.box_text().contains(".dots"));
+}
+
+#[test]
+fn open_file_browses_files_too_and_enter_on_a_file_opens_it() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFile);
+    rig.ctrl('b');
+
+    // From the root: docs, src, then the files.
+    for _ in 0..3 {
+        rig.key(KeyCode::Down);
+    }
+    rig.key(KeyCode::Enter);
+
+    assert_eq!(rig.file().as_deref(), Some("alpha.txt"));
+}
+
+#[test]
+fn escape_in_the_tree_closes_the_prompt() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+    rig.ctrl('b');
+
+    rig.key(KeyCode::Esc);
+
+    assert!(!matches!(rig.app.state().popup(), Popup::NewEntry(_)));
+    assert!(!rig.app.should_quit());
+}
+
+// ---- the system's own file dialog
+
+impl Rig {
+    /// What the thread of the dialog does when it is closed, after the prompt was waiting.
+    fn dialog_closed(&mut self, path: Option<std::path::PathBuf>) {
+        self.dialog_ended(path, false);
+    }
+
+    fn dialog_ended(&mut self, path: Option<std::path::PathBuf>, failed: bool) {
+        let prompt = self.app.state_mut().name_prompt_mut().unwrap();
+        assert!(prompt.begin_dialog(), "no dialog was open yet");
+        self.app
+            .handle_event(crate::event::Event::SystemPick { path, failed });
+    }
+}
+
+#[test]
+fn a_folder_chosen_in_the_system_dialog_is_opened() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+    let docs = rig.dir.path().join("docs");
+
+    rig.dialog_closed(Some(docs));
+
+    assert!(rig.app.should_quit());
+    assert!(
+        rig.app
+            .restart_target()
+            .is_some_and(|dir| dir.ends_with("docs"))
+    );
+}
+
+#[test]
+fn a_file_chosen_in_the_system_dialog_is_opened_as_a_tab() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFile);
+
+    rig.dialog_closed(Some(rig.dir.path().join("alpha.txt")));
+
+    assert_eq!(rig.file().as_deref(), Some("alpha.txt"));
+}
+
+#[test]
+fn a_cancelled_system_dialog_leaves_the_prompt_as_it_was() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+    rig.type_text("do");
+
+    rig.dialog_closed(None);
+
+    assert_eq!(rig.name(), "do");
+    assert!(!rig.app.should_quit());
+}
+
+#[test]
+fn an_answer_of_a_dialog_the_prompt_was_not_waiting_for_is_dropped() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+
+    rig.app.handle_event(crate::event::Event::SystemPick {
+        path: Some(rig.dir.path().join("docs")),
+        failed: false,
+    });
+
+    assert!(!rig.app.should_quit());
+    assert_eq!(rig.name(), "");
+}
+
+#[test]
+fn ctrl_e_says_so_when_the_editor_has_no_event_loop_to_hear_the_dialog() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+
+    rig.ctrl('e');
+
+    assert!(rig.told().contains("dialog"), "{}", rig.told());
+}
+
+#[test]
+fn a_system_dialog_that_never_opened_says_so_and_leaves_the_prompt() {
+    let mut rig = rig();
+    rig.app.do_action(Action::OpenFolder);
+    rig.type_text("do");
+
+    rig.dialog_ended(None, true);
+
+    assert!(rig.told().contains("did not open"), "{}", rig.told());
+    assert_eq!(rig.name(), "do");
+    assert!(!rig.app.should_quit());
 }

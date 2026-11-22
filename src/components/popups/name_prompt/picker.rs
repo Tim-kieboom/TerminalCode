@@ -11,6 +11,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::{NamePrompt, Purpose};
+use crate::components::list_cursor::revealed;
 use crate::components::popups::path_list::{self, Entry, Listing, Match};
 use crate::ui::theme::Theme;
 
@@ -34,6 +35,9 @@ pub(super) struct Picker {
     total: usize,
     /// The highlighted row of `shown`: nothing until a name is typed or a key moves it.
     selected: Option<usize>,
+    /// The first row of `shown` that is on screen: the list scrolls when the highlight leaves
+    /// its [`MOST_ROWS`] rows, or the wheel turns.
+    top: usize,
     /// Files are left out (Open Folder, Move).
     dirs_only: bool,
     /// The highlight starts on the first match once a name is typed. Move turns it off: what is
@@ -42,6 +46,20 @@ pub(super) struct Picker {
     /// The name the prompt started with (Move starts with the entry's own path): while it is
     /// still what is typed, the list shows every folder instead of matching it.
     unfiltered: Option<String>,
+}
+
+impl Picker {
+    /// The rows of `shown` that are on screen.
+    fn window(&self) -> std::ops::Range<usize> {
+        self.top..self.shown.len().min(self.top + MOST_ROWS)
+    }
+
+    /// Scrolls so that the highlighted row is on screen.
+    fn reveal_selected(&mut self) {
+        if let Some(row) = self.selected {
+            self.top = revealed(row, self.top, MOST_ROWS);
+        }
+    }
 }
 
 impl NamePrompt {
@@ -72,6 +90,15 @@ impl NamePrompt {
                 dirs_only: true,
                 ..Picker::default()
             }),
+            _ => None,
+        }
+    }
+
+    /// The line on the bottom edge of the box that says how the list is changed.
+    pub(super) fn hint(&self) -> Option<&'static str> {
+        match (self.can_browse(), self.browsing()) {
+            (true, true) => Some(" ctrl+b: type  .: dot folders  ctrl+e: system dialog "),
+            (true, false) => Some(" ctrl+b: browse  ctrl+e: system dialog "),
             _ => None,
         }
     }
@@ -155,6 +182,7 @@ impl NamePrompt {
             (picker.auto_highlight && !partial.is_empty() && !shown.is_empty()).then_some(0);
         picker.shown = shown;
         picker.total = total;
+        picker.top = 0;
     }
 
     fn entry_at(&self, row: usize) -> Option<&Entry> {
@@ -179,6 +207,7 @@ impl NamePrompt {
             None => Some(0),
             Some(row) => Some((row + 1).min(last)),
         };
+        picker.reveal_selected();
     }
 
     /// The highlight one row up; off the first it goes to nothing when no name is typed, else
@@ -194,6 +223,33 @@ impl NamePrompt {
             Some(row) => Some(row - 1),
             None => None,
         };
+        picker.reveal_selected();
+    }
+
+    /// The highlight a page down, or up: from nothing onto the first or the last.
+    pub(crate) fn select_page(&mut self, down: bool) {
+        let Some(picker) = self.picker.as_mut() else {
+            return;
+        };
+        let last = picker.shown.len().saturating_sub(1);
+        picker.selected = match (picker.selected, down) {
+            _ if picker.shown.is_empty() => None,
+            (None, true) => Some(MOST_ROWS.min(last)),
+            (None, false) => Some(0),
+            (Some(row), true) => Some((row + MOST_ROWS).min(last)),
+            (Some(row), false) => Some(row.saturating_sub(MOST_ROWS)),
+        };
+        picker.reveal_selected();
+    }
+
+    /// The wheel: scrolls the rows by `rows` (negative is up) without moving the highlight.
+    pub(crate) fn scroll_list(&mut self, rows: isize) {
+        if let Some(picker) = self.picker.as_mut() {
+            picker.top = picker
+                .top
+                .saturating_add_signed(rows)
+                .min(picker.shown.len().saturating_sub(MOST_ROWS));
+        }
     }
 
     /// Replaces the name being typed (after the last separator) with `text`.
@@ -281,6 +337,9 @@ impl NamePrompt {
 
     /// How many rows the list takes under the text.
     pub(super) fn list_height(&self) -> u16 {
+        if self.browsing() {
+            return super::browse::BROWSE_ROWS;
+        }
         let Some(picker) = self.picker.as_ref() else {
             return 0;
         };
@@ -295,7 +354,8 @@ impl NamePrompt {
         let picker = self.picker.as_ref()?;
         let inside = column >= list.x && column < list.right() && row >= list.y;
         let index = usize::from(row.checked_sub(list.y)?);
-        (inside && index < picker.shown.len().min(MOST_ROWS)).then_some(index)
+        let row = picker.top + index;
+        (inside && picker.window().contains(&row)).then_some(row)
     }
 
     /// Highlights row `row`.
@@ -313,27 +373,30 @@ impl NamePrompt {
         let dim = theme.style("pane.border");
         let hit = theme.style("finder.match");
         let chosen = theme.style("list.selected");
-        let rows = picker.shown.len().min(MOST_ROWS);
-        for (index, found) in picker.shown.iter().take(rows).enumerate() {
-            let Some(entry) = self.entry_at(index) else {
+        let window = picker.window();
+        for (offset, row) in window.clone().enumerate() {
+            let Some(entry) = self.entry_at(row) else {
                 continue;
             };
-            let Some(row_area) = row_in(area, index) else {
+            let Some(row_area) = row_in(area, offset) else {
                 break;
             };
-            let base = match picker.selected == Some(index) {
+            let base = match picker.selected == Some(row) {
                 true => chosen,
                 false => Style::default(),
             };
-            let line = Line::from(name_spans(entry, found, base, hit));
+            let line = Line::from(name_spans(entry, &picker.shown[row], base, hit));
             frame.render_widget(Paragraph::new(line).style(base), row_area);
         }
-        let note = match (&picker.error, picker.total > rows) {
+        let note = match (&picker.error, picker.total > window.len()) {
             (Some(message), _) => Some((message.clone(), theme.style("notification.error"))),
-            (None, true) => Some((format!(" +{} more", picker.total - rows), dim)),
+            (None, true) => Some((
+                format!(" {}-{} of {}", window.start + 1, window.end, picker.total),
+                dim,
+            )),
             _ => None,
         };
-        if let (Some((text, style)), Some(row_area)) = (note, row_in(area, rows)) {
+        if let (Some((text, style)), Some(row_area)) = (note, row_in(area, window.len())) {
             frame.render_widget(Paragraph::new(text).style(style), row_area);
         }
     }

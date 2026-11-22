@@ -59,6 +59,8 @@ pub(crate) struct Explorer {
     /// The row a button is held on, and the drag it became, if it did.
     press: Option<Press>,
     drag: Option<Drag>,
+    /// Files are left out of the rows: only the folders are listed.
+    dirs_only: bool,
     /// Changes whenever the rows are rebuilt, i.e. when directories open or close.
     version: u64,
     /// Screen areas as of the last layout pass.
@@ -270,6 +272,15 @@ impl Explorer {
         }
     }
 
+    /// Lists only the folders, or the files too, keeping the selection on its entry when that
+    /// is still listed.
+    pub(crate) fn set_dirs_only(&mut self, only: bool) {
+        if self.dirs_only != only {
+            self.dirs_only = only;
+            self.rebuild_keeping_selection();
+        }
+    }
+
     pub(crate) fn hides_ignored(&self) -> bool {
         self.hide_ignored
     }
@@ -403,6 +414,7 @@ impl Explorer {
                 Hidden {
                     dotfiles: self.hide_dotfiles,
                     ignored: self.hide_ignored,
+                    files: self.dirs_only,
                 },
                 &mut self.rows,
             );

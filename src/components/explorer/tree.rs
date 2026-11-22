@@ -68,6 +68,8 @@ pub(super) struct Hidden {
     pub(super) dotfiles: bool,
     /// Entries the project's ignore rules leave out.
     pub(super) ignored: bool,
+    /// Files: only the folders are listed (the browser of the Open Folder prompt).
+    pub(super) files: bool,
 }
 
 /// One line of the explorer.
@@ -241,6 +243,9 @@ impl Node {
                 continue;
             }
             if hide.ignored && child.ignored {
+                continue;
+            }
+            if hide.files && child.kind == NodeKind::File {
                 continue;
             }
             child.push_rows(depth + 1, hide, rows);

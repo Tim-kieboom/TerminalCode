@@ -4,6 +4,7 @@ use crossterm::event::KeyEvent;
 use std::path::{Path, PathBuf};
 
 use crate::app::App;
+use crate::app::open::expand_path;
 use crate::app::state::Focus;
 use crate::buffer::Position;
 use crate::components::explorer::{ExplorerCommand, NodeKind};
@@ -73,6 +74,9 @@ impl App {
             return;
         };
         self.needs_redraw = true;
+        if prompt.browsing() {
+            return self.handle_browse_command(prompt, command);
+        }
         // What changes the name changes the folder the list is of, or what it is matched against.
         let edits = matches!(
             command,
@@ -89,6 +93,10 @@ impl App {
             name_prompt::Command::Complete => prompt.complete(),
             name_prompt::Command::Up => prompt.select_previous(),
             name_prompt::Command::Down => prompt.select_next(),
+            name_prompt::Command::PageUp => prompt.select_page(false),
+            name_prompt::Command::PageDown => prompt.select_page(true),
+            name_prompt::Command::Browse => self.start_browsing(&mut prompt),
+            name_prompt::Command::SystemDialog => self.open_system_dialog(&mut prompt),
             name_prompt::Command::Left => prompt.move_left(),
             name_prompt::Command::Right => prompt.move_right(),
             name_prompt::Command::Home => prompt.move_home(),
@@ -104,6 +112,64 @@ impl App {
             self.sync_path_prompt(&mut prompt);
         }
         self.state.open_name_prompt(prompt);
+    }
+
+    /// `ctrl+b`: the tree of the folder that is typed (or of the one the prompt is in) in the
+    /// place of the list. Prompts with no browser do nothing.
+    fn start_browsing(&mut self, prompt: &mut NamePrompt) {
+        if !prompt.can_browse() {
+            return;
+        }
+        let typed = expand_path(prompt.typed_folder(), prompt.dir());
+        let root = match typed.is_dir() {
+            true => typed,
+            false => prompt.dir().to_path_buf(),
+        };
+        if let Err(error) = prompt.start_browsing(&root) {
+            self.state.notify_error(error.to_string());
+        }
+    }
+
+    /// A key while the tree is shown: the arrows walk it, `enter` chooses, `ctrl+b` goes back to
+    /// the list (the name is where the tree ended), `.` shows or hides the dot folders.
+    fn handle_browse_command(&mut self, mut prompt: NamePrompt, command: name_prompt::Command) {
+        use name_prompt::Command;
+        let walk = match command {
+            Command::Up => Some(ExplorerCommand::Up),
+            Command::Down => Some(ExplorerCommand::Down),
+            Command::PageUp => Some(ExplorerCommand::PageUp),
+            Command::PageDown => Some(ExplorerCommand::PageDown),
+            Command::Home => Some(ExplorerCommand::First),
+            Command::End => Some(ExplorerCommand::Last),
+            Command::Left => Some(ExplorerCommand::Collapse),
+            Command::Right => Some(ExplorerCommand::Expand),
+            Command::Insert('.') => Some(ExplorerCommand::ToggleHidden),
+            _ => None,
+        };
+        let result = match (command, walk) {
+            (Command::Cancel, _) => return,
+            (Command::Browse, _) => {
+                prompt.stop_browsing();
+                self.sync_path_prompt(&mut prompt);
+                Ok(false)
+            }
+            (Command::SystemDialog, _) => {
+                self.open_system_dialog(&mut prompt);
+                Ok(false)
+            }
+            (Command::SubmitTyped, _) => return self.finish_name(prompt, true),
+            (Command::Submit, _) => prompt.browse_enter(),
+            (_, Some(walk)) => prompt.browse_do(walk).map(|()| false),
+            _ => Ok(false),
+        };
+        match result {
+            Ok(true) => self.finish_name(prompt, true),
+            Ok(false) => self.state.open_name_prompt(prompt),
+            Err(error) => {
+                self.state.notify_error(error.to_string());
+                self.state.open_name_prompt(prompt);
+            }
+        }
     }
 
     /// `enter`: with a list under the name the highlighted entry is taken first (a folder is

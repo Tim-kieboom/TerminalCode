@@ -430,15 +430,35 @@ impl App {
         hit
     }
 
-    /// A click on the text of the name box puts the text cursor there. Returns whether
-    /// it did.
+    /// A click on the text of the name box puts the text cursor there; the wheel over the box
+    /// scrolls its list. Returns whether it did.
     fn click_in_name_prompt(&mut self, event: MouseEvent) -> bool {
-        if event.kind != MouseEventKind::Down(MouseButton::Left) {
-            return false;
-        }
+        let wheel = match event.kind {
+            MouseEventKind::ScrollUp => -WHEEL_LINES,
+            MouseEventKind::ScrollDown => WHEEL_LINES,
+            MouseEventKind::Down(MouseButton::Left) => 0,
+            _ => return false,
+        };
         let Some(mut prompt) = self.state.take_name_prompt() else {
             return false;
         };
+        if wheel != 0 {
+            let over = prompt.scroll_over(event.column, event.row, isize::from(wheel));
+            self.state.open_name_prompt(prompt);
+            return over;
+        }
+        // A click on a row of the tree selects it and opens or closes the folder.
+        if prompt.browse_contains(event.column, event.row) {
+            match prompt.browse_click(event.column, event.row) {
+                Ok(true) => self.finish_name(prompt, true),
+                Ok(false) => self.state.open_name_prompt(prompt),
+                Err(error) => {
+                    self.state.notify_error(error.to_string());
+                    self.state.open_name_prompt(prompt);
+                }
+            }
+            return true;
+        }
         // A click on a row of the list does what `enter` does on it.
         if let Some(row) = prompt.row_at(event.column, event.row) {
             prompt.select_row(row);
