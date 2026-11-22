@@ -1,6 +1,6 @@
 # TODO
 
-See `design.md` for decisions. Everything finished is in `todo-done.md` (milestones M0 to M8, releases 0.1.0 to 0.17.0, the layout and theme rewrites, the finished backlog items); this file keeps only open work, grouped by area. The current version is 0.17.0.
+See `design.md` for decisions. Everything finished is in `todo-done.md` (milestones M0 to M8, releases 0.1.0 to 0.18.0, the layout and theme rewrites, the finished backlog items); this file keeps only open work, grouped by area. The current version is 0.18.0.
 
 ## Release 1.0.0
 What 1.0.0 means: nothing a user relies on is lost or silently changed, and the formats they write (settings, keymap, layout, theme, plugins) are promised to stay valid. The gate below came from reading `todo-done.md` and searching the code (not from running the editor, so check each gap before building it); the Nix cache is the "Packaging" section and the Windows pass is "Platform testing", both below, and both are part of this gate. Not needed for 1.0, fine in 1.x: the undo tree, visual-block, the vim layer, folding, inlay hints, runtime-loaded grammars.
