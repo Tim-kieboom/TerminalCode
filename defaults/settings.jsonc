@@ -56,6 +56,12 @@
     // them dimmed. The file finder and the project search never list them.
     "hide_ignored": false,
 
+    // Typing ( [ { or a quote also writes the closer, with the cursor between them;
+    // typing the closer steps over it, an opener typed over a selection wraps it, and
+    // Backspace between an empty pair takes both. Which pairs depends on the language
+    // (Rust has no ', Markdown has ` and *). false types only what you type.
+    "auto_close_pairs": true,
+
     // What happens to the open files and the panes when you start trcode in a
     // project folder without naming a file: "always" brings the tabs of the last
     // run back (each with its cursor and scroll, pinned tabs, the split panes),

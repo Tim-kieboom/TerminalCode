@@ -2,7 +2,7 @@
 
 use super::{Document, EditEvent, Workspace};
 use crate::buffer::{Buffer, FileError};
-use crate::components::editor::{IndentPrefs, ViewState, display_name};
+use crate::components::editor::{AutoClose, IndentPrefs, ViewState, display_name};
 use crate::components::popups::quit_prompt::Item;
 use crate::files::paths::canonical;
 use crate::ids::DocumentId;
@@ -276,6 +276,11 @@ impl Workspace {
         for doc in self.documents.values_mut() {
             doc.indent = prefs.style_for(&doc.buffer);
         }
+    }
+
+    /// Applies the setting that closes brackets and quotes as they are typed.
+    pub(crate) fn set_auto_close(&mut self, auto_close: AutoClose) {
+        self.auto_close = auto_close;
     }
 
     pub(super) fn document_mut(&mut self, id: DocumentId) -> &mut Document {

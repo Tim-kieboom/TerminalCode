@@ -17,7 +17,9 @@ use ratatui::layout::Rect;
 use serde::Deserialize;
 
 use crate::buffer::{Buffer, DiskChange};
-use crate::components::editor::{Editor, IndentPrefs, IndentStyle, ViewState, display_name};
+use crate::components::editor::{
+    AutoClose, Editor, IndentPrefs, IndentStyle, ViewState, display_name,
+};
 use crate::files::paths::canonical;
 use crate::ids::{DocumentId, PaneId, ViewId};
 use crate::syntax::DocumentSyntax;
@@ -157,6 +159,7 @@ pub(crate) struct Workspace {
     /// What the settings say about indentation and the width of a tab character,
     /// for every document and view, existing and new.
     indent_prefs: IndentPrefs,
+    auto_close: AutoClose,
     /// The edits made since they were last taken, for whatever keeps places in
     /// the text (the jump list): the document, and the bytes `start..old_end` that became `start..new_end`.
     edit_events: Vec<(DocumentId, EditEvent)>,
@@ -197,6 +200,7 @@ impl Workspace {
             find_bar: 0,
             empty: (Buffer::default(), ViewState::default()),
             indent_prefs: IndentPrefs::default(),
+            auto_close: AutoClose::default(),
             edit_events: Vec::new(),
         };
         let (view, buffer) = editor.into_parts();

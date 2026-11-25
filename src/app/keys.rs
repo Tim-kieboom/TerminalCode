@@ -414,7 +414,7 @@ impl App {
             Action::Redo => self.state.edit(|editor| editor.redo())?,
             Action::InsertText(text) => {
                 self.note_typed();
-                self.state.edit(|editor| editor.insert_text(&text))?
+                self.state.edit(|editor| editor.type_text(&text))?
             }
             Action::InsertNewline => self.state.edit(|editor| editor.insert_newline())?,
             Action::DeleteBackward => self.state.edit(|editor| editor.delete_backward())?,

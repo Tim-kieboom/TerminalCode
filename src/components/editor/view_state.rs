@@ -12,6 +12,8 @@ use super::{EditKind, IndentStyle, Scroll, TabWidth};
 /// views can show the same document.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ViewState {
+    /// Whether typing an opening bracket or quote writes its closer too.
+    pub(super) auto_close: super::pairs::AutoClose,
     pub(super) selections: Selections,
     pub(super) scroll: Scroll,
     pub(super) viewport_height: usize,
@@ -87,6 +89,10 @@ impl ViewState {
     #[cfg(test)]
     pub(crate) fn indent(&self) -> IndentStyle {
         self.indent
+    }
+
+    pub(crate) fn set_auto_close(&mut self, auto_close: super::pairs::AutoClose) {
+        self.auto_close = auto_close;
     }
 
     pub(crate) fn set_indent(&mut self, indent: IndentStyle) {

@@ -6,7 +6,7 @@ pub use captures::CaptureStyles;
 pub use document::DocumentSyntax;
 pub use error::SyntaxError;
 pub use highlighter::{Highlighter, Span};
-pub use language::{Comment, Language};
+pub use language::{Comment, Language, PLAIN_PAIRS};
 pub use plugin::{
     LanguageSpec, PluginSlot, register as register_language, unregister as unregister_language,
 };

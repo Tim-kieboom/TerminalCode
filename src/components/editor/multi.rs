@@ -230,7 +230,7 @@ impl Editor {
     }
 
     /// The bytes a delete removes next to a cursor.
-    fn delete_range(
+    pub(super) fn delete_range(
         &self,
         cursor: &Selection,
         delete: Delete,
@@ -245,7 +245,11 @@ impl Editor {
                 } else {
                     head
                 };
-                (start, head)
+                let mut bytes =
+                    self.buffer.position_to_byte(start)?..self.buffer.position_to_byte(head)?;
+                // Between an empty pair, `(|)`, the closer goes with the opener.
+                bytes.end += self.empty_pair_closer(head)?;
+                return Ok(bytes);
             }
             Delete::Forward => {
                 let end = if head.column < self.buffer.line_len(head.line)? {
@@ -353,7 +357,7 @@ fn growth((range, text): &(Range<usize>, String)) -> isize {
 
 /// Where the text of the change that covers `wanted` ends, in the text after all
 /// `changes` (in order, not overlapping) are applied: that is where its cursor goes.
-fn after_change(changes: &[(Range<usize>, String)], wanted: &Range<usize>) -> usize {
+pub(super) fn after_change(changes: &[(Range<usize>, String)], wanted: &Range<usize>) -> usize {
     let at = changes
         .iter()
         .position(|(range, _)| range == wanted)
@@ -387,7 +391,9 @@ fn moved_by(changes: &[(Range<usize>, String)], byte: usize) -> usize {
 
 /// The changes in order, those that run into one another joined into one that
 /// covers both (this only happens with deletes, whose text is empty).
-fn join_overlapping(mut changes: Vec<(Range<usize>, String)>) -> Vec<(Range<usize>, String)> {
+pub(super) fn join_overlapping(
+    mut changes: Vec<(Range<usize>, String)>,
+) -> Vec<(Range<usize>, String)> {
     changes.sort_by_key(|(range, _)| (range.start, range.end));
     let mut joined: Vec<(Range<usize>, String)> = Vec::with_capacity(changes.len());
     for (range, text) in changes {

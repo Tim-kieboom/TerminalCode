@@ -9,6 +9,7 @@ pub(crate) use comment::Toggled;
 pub(crate) use indent::{IndentKind, IndentPrefs, IndentStyle};
 pub(crate) use motion::Motion;
 pub(crate) use occurrence::Occurrence;
+pub(crate) use pairs::AutoClose;
 pub(crate) use replace::Replacement;
 pub(crate) use text_layout::TabWidth;
 pub(crate) use view_state::{Row, ViewState};
@@ -21,6 +22,7 @@ mod mouse_ops;
 mod move_line;
 mod multi;
 mod occurrence;
+mod pairs;
 pub(crate) mod render;
 mod replace;
 mod smart_indent;
@@ -307,15 +309,11 @@ impl Editor {
             return self.replace(self.selection_bytes()?, "", None);
         }
 
-        let head = selection.head();
-        let start = if head.column > 0 {
-            Position::new(head.line, head.column - 1)
-        } else if let Some(line) = head.line.checked_sub(1) {
-            Position::new(line, self.buffer.line_len(line)?)
-        } else {
+        let range = self.delete_range(&selection, multi::Delete::Backward)?;
+        if range.is_empty() {
             return Ok(());
-        };
-        self.replace_between(start, head, EditKind::Backspace)
+        }
+        self.replace(range, "", Some(EditKind::Backspace))
     }
 
     /// Deletes the selection, or the grapheme after the cursor. At the end of

@@ -86,6 +86,10 @@ pub enum Comment {
     Around(&'static str, &'static str),
 }
 
+/// The brackets and quotes typed in pairs in a text that has no language (a plain file, or
+/// a language a plugin added, which does not say): the three brackets and the double quote.
+pub const PLAIN_PAIRS: &[(char, char)] = &[('(', ')'), ('[', ']'), ('{', '}'), ('"', '"')];
+
 /// A language the editor can highlight; its grammar is compiled in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Language {
@@ -131,6 +135,34 @@ impl Language {
             Self::Markdown => Comment::Around("<!--", "-->"),
             Self::Plugin(slot) => Comment::Line(plugin::get(slot)?.comment?),
         })
+    }
+
+    /// The pairs the editor closes when the opener is typed (an opener and its closer; a quote
+    /// is both). Rust has no `'` because of lifetimes, JSON has only double quotes, Markdown
+    /// closes the backtick and `*` too.
+    pub fn pairs(self) -> &'static [(char, char)] {
+        match self {
+            Self::Rust | Self::Nix => PLAIN_PAIRS,
+            Self::Json => &[('[', ']'), ('{', '}'), ('"', '"')],
+            Self::Toml => &[('[', ']'), ('{', '}'), ('"', '"'), ('\'', '\'')],
+            Self::JavaScript | Self::TypeScript | Self::Tsx => &[
+                ('(', ')'),
+                ('[', ']'),
+                ('{', '}'),
+                ('"', '"'),
+                ('\'', '\''),
+                ('`', '`'),
+            ],
+            Self::Markdown => &[
+                ('(', ')'),
+                ('[', ']'),
+                ('{', '}'),
+                ('"', '"'),
+                ('`', '`'),
+                ('*', '*'),
+            ],
+            Self::Plugin(_) => PLAIN_PAIRS,
+        }
     }
 
     /// The language of the file at `path`, going by its extension.

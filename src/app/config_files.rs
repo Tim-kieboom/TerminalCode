@@ -2,6 +2,7 @@
 
 use crate::app::state::Focus;
 use crate::buffer::Buffer;
+use crate::components::editor::AutoClose;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
 use crate::error::IdeResult;
 use crate::pty::Shell;
@@ -239,6 +240,10 @@ impl App {
         }
         if self.settings.language_servers != before.language_servers {
             self.lsp_settings_changed();
+        }
+        if self.settings.auto_close_pairs != before.auto_close_pairs {
+            let auto_close = AutoClose::from_setting(self.settings.auto_close_pairs);
+            self.state.workspace_mut().set_auto_close(auto_close);
         }
         if self.settings.indent_prefs() != before.indent_prefs() {
             let prefs = self.settings.indent_prefs();

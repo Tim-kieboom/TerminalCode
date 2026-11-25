@@ -76,6 +76,7 @@ const INTRODUCED: &[Introduced] = &[
     setting("notification_seconds", BASELINE),
     setting("hide_ignored", BASELINE),
     setting("restore_session", "0.19.0"),
+    setting("auto_close_pairs", "0.20.0"),
     setting("plugin_sources", "0.8.0"),
     setting("plugin_file_types", "0.9.0"),
     setting("language_servers", BASELINE),

@@ -8,6 +8,7 @@ mod mouse_tests;
 mod move_line_tests;
 mod multi_tests;
 mod occurrence_tests;
+mod pairs_tests;
 mod property_tests;
 mod scroll_tests;
 mod smart_indent_tests;
