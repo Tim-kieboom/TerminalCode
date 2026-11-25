@@ -65,6 +65,16 @@ where
     let config_dir = config::user_config_dir();
     let user = startup::load_user_config(&mut state, config_dir.as_deref(), capabilities.keyboard);
 
+    // A file named on the command line wins over the tabs of the last run.
+    let pending_session = match project_and_files(paths).1.is_empty() {
+        true => startup::restore_session(
+            &mut state,
+            config_dir.as_deref(),
+            user.settings.restore_session,
+        ),
+        false => None,
+    };
+
     state.learn_terminal_background(terminal::query_background);
     if let Some(hint) = state.theme().terminal_hint() {
         state.notify(hint);
@@ -78,7 +88,8 @@ where
         .with_config_dir(config_dir)
         .with_saved_state(user.saved)
         .with_settings(user.settings, user.theme)
-        .with_keyboard_support(capabilities.keyboard);
+        .with_keyboard_support(capabilities.keyboard)
+        .with_pending_session(pending_session);
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

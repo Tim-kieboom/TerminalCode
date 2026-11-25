@@ -43,6 +43,7 @@ mod mouse;
 mod panes;
 mod recovery;
 mod render;
+mod session;
 mod tab_move;
 mod tabs;
 #[cfg(test)]

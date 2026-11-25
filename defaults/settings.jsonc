@@ -56,6 +56,13 @@
     // them dimmed. The file finder and the project search never list them.
     "hide_ignored": false,
 
+    // What happens to the open files and the panes when you start trcode in a
+    // project folder without naming a file: "always" brings the tabs of the last
+    // run back (each with its cursor and scroll, pinned tabs, the split panes),
+    // "ask" asks first, "never" keeps nothing. A file that is gone is skipped.
+    // A file named on the command line is opened instead of the last run's tabs.
+    "restore_session": "always",
+
     // More places to install plugins from: the URLs of plugin indexes (an index.json
     // like the one of the official plugins), for example
     //   ["https://raw.githubusercontent.com/you/trcode-plugins/main/index.json"]

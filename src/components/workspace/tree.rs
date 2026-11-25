@@ -33,6 +33,17 @@ pub(crate) struct Divider {
 }
 
 impl Node {
+    /// Two sides laid out along `axis`, the first having `ratio` thousandths of it
+    /// (within what a pane may have).
+    pub(super) fn joined(axis: Axis, first: Self, second: Self, ratio: u16) -> Self {
+        Self::Split {
+            axis,
+            first: Box::new(first),
+            second: Box::new(second),
+            ratio: ratio.clamp(LEAST, MOST),
+        }
+    }
+
     /// Replaces the leaf `target` with a split holding it and `new`, `new`
     /// second (right of it, or below it). Returns whether `target` was found.
     pub(super) fn split(&mut self, target: PaneId, axis: Axis, new: PaneId) -> bool {

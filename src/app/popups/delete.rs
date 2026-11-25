@@ -71,6 +71,9 @@ impl App {
             if answer == Answer::No && matches!(confirm.purpose(), Purpose::Recover) {
                 self.discard_recovery_files();
             }
+            if matches!(confirm.purpose(), Purpose::RestoreSession) {
+                self.answered_session(false);
+            }
             // A plugin that was said no to is not asked about again until it wants
             // more; the next plugin that waits for an answer is asked.
             match confirm.purpose() {
@@ -106,6 +109,7 @@ impl App {
             }
             Purpose::RunAgain(id) => self.run_confirmed(id),
             Purpose::Recover => self.recover_files(),
+            Purpose::RestoreSession => self.answered_session(true),
             Purpose::DiscardChanges {
                 plugin,
                 request,

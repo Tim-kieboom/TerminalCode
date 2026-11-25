@@ -4,13 +4,45 @@ use std::path::Path;
 
 use crate::app::state::AppState;
 use crate::config::{self, ConfigFile, ConfigWarning, ThemeChoice};
+use crate::files::paths::canonical;
 use crate::keymap::Keymap;
 use crate::persist::recent::{self, Recent};
 use crate::persist::saved_state::{self, SavedState};
-use crate::settings::Settings;
+use crate::persist::session::{self, Session};
 use crate::settings::update::update_file;
+use crate::settings::{RestoreSession, Settings};
 use crate::terminal::KeyboardSupport;
 use crate::ui::ComponentKind;
+
+/// Brings back the last session of the project folder when the setting says to, or hands
+/// it back to be asked about (`"ask"`). Call it only when no file is named on the command
+/// line: a file that was named wins over the last tabs.
+pub(crate) fn restore_session(
+    state: &mut AppState,
+    config_dir: Option<&Path>,
+    mode: RestoreSession,
+) -> Option<Session> {
+    let dir = config_dir?;
+    if mode == RestoreSession::Never {
+        return None;
+    }
+    let project = canonical(&state.project_root());
+    let session = match session::load(dir, &project) {
+        Ok(Some(session)) => session,
+        Ok(None) => return None,
+        Err(problem) => {
+            state.notify_error(format!("session: {problem}"));
+            return None;
+        }
+    };
+    match mode {
+        RestoreSession::Ask => Some(session),
+        RestoreSession::Always | RestoreSession::Never => {
+            state.restore_session(&session);
+            None
+        }
+    }
+}
 
 /// The parts of the user's configuration the app keeps.
 pub(crate) struct UserConfig {

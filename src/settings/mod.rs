@@ -29,6 +29,20 @@ const NOTIFICATION_SECONDS_RANGE: std::ops::RangeInclusive<usize> = 1..=60;
 /// The milliseconds `sequence_timeout` may be, besides 0 (wait for ever).
 const SEQUENCE_TIMEOUT_RANGE: std::ops::RangeInclusive<usize> = 200..=5000;
 
+/// Whether the open tabs and panes of a project folder are brought back when the editor
+/// starts in it with no file named on the command line.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum RestoreSession {
+    /// Brought back without asking.
+    #[default]
+    Always,
+    /// A question at the start.
+    Ask,
+    /// Not kept at all.
+    Never,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Settings {
     /// The theme to start with: an installed one, by name (a file in the themes
@@ -57,6 +71,8 @@ pub(crate) struct Settings {
     /// Whether the explorer leaves out the entries the ignore rules leave out,
     /// instead of listing them dimmed.
     pub(crate) hide_ignored: bool,
+    /// Whether the tabs and panes of the last run in a project folder come back.
+    pub(crate) restore_session: RestoreSession,
     /// Extra plugin indexes, by URL (an `index.json` like the official one). Their
     /// plugins are listed in the plugin manager beside the official ones, marked with
     /// where they come from.
@@ -81,6 +97,7 @@ impl Default for Settings {
             terminal: None,
             mouse: true,
             hide_ignored: false,
+            restore_session: RestoreSession::default(),
             detect_indent: true,
             plugin_sources: Vec::new(),
             tab_size: TabWidth::default(),
@@ -199,6 +216,7 @@ impl Settings {
                 Duration::from_secs(seconds as u64)
             }),
             hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
+            restore_session: take(&mut map, "restore_session")?.unwrap_or(defaults.restore_session),
             plugin_sources: plugin_sources(take::<Vec<String>>(&mut map, "plugin_sources")?),
             plugin_file_types: plugin_file_types(take(&mut map, "plugin_file_types")?),
             language_servers: match map.remove("language_servers") {

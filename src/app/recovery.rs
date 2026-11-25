@@ -18,6 +18,7 @@ impl App {
     /// anything, for there is nobody to ask.
     pub(super) fn hang_up(&mut self) {
         self.flow = Flow::Quit;
+        self.save_session();
         let Some(dir) = self.config_dir.as_deref() else {
             return;
         };

@@ -82,6 +82,7 @@ mod path_prompt;
 mod popups;
 mod reset;
 mod saved;
+mod session;
 pub(crate) mod state;
 mod system_picker;
 mod terminal_keys;
@@ -163,6 +164,9 @@ pub(crate) struct App {
     runs: run::Runs,
     /// The debug session.
     debug: debug::Debugging,
+    /// The last session of the project folder, waiting for the answer to the question
+    /// about bringing it back.
+    pending_session: Option<crate::persist::session::Session>,
 }
 
 /// Everything that can wake the app loop.
@@ -241,6 +245,7 @@ impl App {
             plugins: plugins::Plugins::default(),
             runs: run::Runs::default(),
             debug: debug::Debugging::default(),
+            pending_session: None,
             saved: Saved::new([true, false, true, true]),
             recent: recent::Recents::default(),
         }
@@ -266,7 +271,7 @@ impl App {
         self.lsp_file_shown();
         self.refresh_run_list();
         self.git_changed();
-        self.offer_recovery();
+        self.offer_session();
 
         loop {
             let draw_at = last_draw
@@ -341,6 +346,7 @@ impl App {
             if self.should_quit() {
                 // The lines the breakpoints moved to while files were open.
                 self.remember_breakpoints();
+                self.save_session();
                 return Ok(self.restart_in.take());
             }
         }

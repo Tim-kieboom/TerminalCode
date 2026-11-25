@@ -77,6 +77,7 @@ mod root_save_tests;
 mod run_tests;
 mod saved_state_tests;
 mod search_tests;
+mod session_tests;
 mod settings_tests;
 mod stale_view_tests;
 mod startup_tests;

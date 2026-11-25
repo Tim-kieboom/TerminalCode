@@ -53,6 +53,8 @@ pub(crate) enum Purpose {
     RunAgain(Box<str>),
     /// Bring back the text that an earlier hangup kept; `no` throws it away.
     Recover,
+    /// Open the files of the last session of this project folder.
+    RestoreSession,
 }
 
 /// What a key press answers.
@@ -372,6 +374,20 @@ impl Confirm {
             title: " Unsaved changes ".to_owned(),
             lines,
             purpose: Purpose::Recover,
+        }
+    }
+
+    /// Asks whether to open the files of the last session; `names` are the ones to list.
+    pub(crate) fn restore_session(names: &[String]) -> Self {
+        let mut lines = vec![
+            "Open the files and panes of the last session in this folder?".to_owned(),
+            String::new(),
+        ];
+        lines.extend(names.iter().map(|name| format!("  {name}")));
+        Self {
+            title: " Last session ".to_owned(),
+            lines,
+            purpose: Purpose::RestoreSession,
         }
     }
 

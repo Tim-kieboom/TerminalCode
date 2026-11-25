@@ -68,6 +68,13 @@ impl ViewState {
         self.scroll
     }
 
+    /// Puts the cursor at `cursor` (which must be a place of the text) and the view at
+    /// `scroll`, as when a view is brought back.
+    pub(crate) fn restore(&mut self, cursor: crate::buffer::Position, scroll: Scroll) {
+        self.selections = Selections::single(crate::buffer::Selection::cursor(cursor));
+        self.scroll = scroll;
+    }
+
     /// Lines the text area shows, as of the last layout pass.
     pub(crate) fn viewport_height(&self) -> usize {
         self.viewport_height
