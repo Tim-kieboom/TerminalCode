@@ -27,13 +27,17 @@ pub(crate) enum Motion {
 pub(super) struct Target {
     pub(super) position: Position,
     pub(super) desired_column: Option<usize>,
+    /// With wrapped lines: the position is the end of a row, drawn at its end and not at the
+    /// start of the row after it.
+    pub(super) affinity: bool,
 }
 
 impl Target {
-    fn at(line: usize, column: usize) -> Self {
+    pub(super) fn at(line: usize, column: usize) -> Self {
         Self {
             position: Position::new(line, column),
             desired_column: None,
+            affinity: false,
         }
     }
 }
@@ -260,5 +264,6 @@ fn vertical(
     Ok(Target {
         position: Position::new(line, column),
         desired_column: Some(wanted),
+        affinity: false,
     })
 }

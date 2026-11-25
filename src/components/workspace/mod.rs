@@ -160,6 +160,7 @@ pub(crate) struct Workspace {
     /// for every document and view, existing and new.
     indent_prefs: IndentPrefs,
     auto_close: AutoClose,
+    wrap: bool,
     /// The edits made since they were last taken, for whatever keeps places in
     /// the text (the jump list): the document, and the bytes `start..old_end` that became `start..new_end`.
     edit_events: Vec<(DocumentId, EditEvent)>,
@@ -201,6 +202,7 @@ impl Workspace {
             empty: (Buffer::default(), ViewState::default()),
             indent_prefs: IndentPrefs::default(),
             auto_close: AutoClose::default(),
+            wrap: false,
             edit_events: Vec::new(),
         };
         let (view, buffer) = editor.into_parts();

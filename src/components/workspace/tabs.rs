@@ -208,6 +208,7 @@ impl Workspace {
 
     pub(super) fn new_tab(&mut self, document: DocumentId, mut view: ViewState) -> Tab {
         view.set_tab_width(self.indent_prefs.size);
+        view.set_wrap(self.wrap);
         Tab {
             id: ViewId::new(self.take_id()),
             document,

@@ -31,6 +31,8 @@ mod smart_indent;
 mod tests;
 mod text_layout;
 mod view_state;
+pub(crate) mod wrap;
+mod wrap_ops;
 
 /// File name for titles and the status bar, with `[+]` when modified.
 pub(crate) fn display_name(buffer: &Buffer) -> String {
@@ -77,6 +79,19 @@ impl<'a> EditorRef<'a> {
     pub(crate) fn cursor_cell(&self) -> Option<ratatui::layout::Position> {
         let area = self.view.text_area()?;
         let head = self.view.selections().primary().head();
+        if self.view.is_wrapping() {
+            let height = usize::from(area.height);
+            let end_of_previous = self.view.affinity_at(head);
+            let (row, column) =
+                wrap::Layout::new(self.buffer, self.view).cell_of(head, end_of_previous, height)?;
+            if column >= usize::from(area.width) {
+                return None;
+            }
+            return Some(ratatui::layout::Position::new(
+                area.x + column as u16,
+                area.y + row as u16,
+            ));
+        }
         let content = self.buffer.line_content(head.line).ok()?;
         let column = text_layout::display_column(&content, head.column, self.view.tab_width());
         let scroll = self.view.scroll();
@@ -100,6 +115,30 @@ impl<'a> EditorRef<'a> {
             return None;
         }
         let scroll = self.view.scroll();
+        if self.view.is_wrapping() {
+            let offset = usize::from(row - area.y);
+            let slots = wrap::Layout::new(self.buffer, self.view).slots(offset + 1);
+            let slot = slots.get(offset)?;
+            let content = self.buffer.line_content(slot.line).ok()?;
+            let tab_width = self.view.tab_width();
+            let display = usize::from(column - area.x);
+            let at = match slot.rows.is_wrapped() {
+                true => {
+                    let (at, _) =
+                        wrap::column_in_row(&content, &slot.rows, slot.row, display, tab_width);
+                    (at < slot.end()).then_some(at)?
+                }
+                false => {
+                    let display = scroll.left + display;
+                    if display >= text_layout::display_column(&content, usize::MAX, tab_width) {
+                        return None;
+                    }
+                    text_layout::column_at_display(&content, display, tab_width)
+                }
+            };
+            let position = crate::buffer::Position::new(slot.line, at);
+            return self.buffer.position_to_byte(position).ok();
+        }
         let Row::Line(line) = self
             .view
             .row_at(usize::from(row - area.y), self.buffer.len_lines())
@@ -137,6 +176,8 @@ impl<'a> EditorRef<'a> {
 pub(crate) struct Scroll {
     pub(crate) top: usize,
     pub(crate) left: usize,
+    /// With wrap, the grapheme of the top line where the first row on screen starts.
+    pub(crate) top_column: usize,
 }
 
 /// What kind of edit the previous editing action was. Consecutive edits of
@@ -211,9 +252,27 @@ impl Editor {
             moved.push(self.moved(selection, motion)?);
         }
         let target = self.moved(&primary, motion)?;
-        self.follow_page_motion(motion, primary.head().line, target.head().line);
+        let affinity = self.affinity_after(&primary, motion)?;
+        match self.view.is_wrapping() {
+            true => self.follow_page_rows(motion),
+            false => self.follow_page_motion(motion, primary.head().line, target.head().line),
+        }
         self.view.selections = Selections::from_items(moved, self.view.selections.primary_index());
+        self.view.set_affinity(affinity);
         Ok(())
+    }
+
+    /// Where the cursor ends up drawn at the end of a row, when `motion` takes it there.
+    fn affinity_after(
+        &self,
+        selection: &Selection,
+        motion: Motion,
+    ) -> Result<Option<Position>, BufferError> {
+        if !self.view.is_wrapping() || self.has_many_cursors() {
+            return Ok(None);
+        }
+        let target = self.target(selection, motion)?;
+        Ok(target.affinity.then_some(target.position))
     }
 
     fn moved(&self, selection: &Selection, motion: Motion) -> Result<Selection, BufferError> {
@@ -244,9 +303,14 @@ impl Editor {
             );
         }
         let target = self.target(&primary, motion)?;
-        self.follow_page_motion(motion, primary.head().line, target.position.line);
+        match self.view.is_wrapping() {
+            true => self.follow_page_rows(motion),
+            false => self.follow_page_motion(motion, primary.head().line, target.position.line),
+        }
         self.view.selections =
             Selections::from_items(extended, self.view.selections.primary_index());
+        self.view
+            .set_affinity(target.affinity.then_some(target.position));
         Ok(())
     }
 
@@ -406,6 +470,12 @@ impl Editor {
     }
 
     fn target(&self, selection: &Selection, motion: Motion) -> Result<motion::Target, BufferError> {
+        if self.view.is_wrapping()
+            && !self.has_many_cursors()
+            && let Some(target) = self.wrapped_target(selection, motion)?
+        {
+            return Ok(target);
+        }
         motion::target(
             &self.buffer,
             selection.head(),

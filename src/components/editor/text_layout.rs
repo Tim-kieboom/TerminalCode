@@ -42,7 +42,7 @@ pub(super) fn digits(number: usize) -> usize {
     number.checked_ilog10().map_or(1, |log| log as usize + 1)
 }
 
-fn width_at(grapheme: &str, column: usize, tab: TabWidth) -> usize {
+pub(super) fn width_at(grapheme: &str, column: usize, tab: TabWidth) -> usize {
     if grapheme == "\t" {
         return tab.get() - column % tab.get();
     }

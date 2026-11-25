@@ -190,6 +190,16 @@ impl App {
         report.warning
     }
 
+    /// "View: Toggle Word Wrap": flips the setting for this run (the file is not changed).
+    pub(super) fn toggle_word_wrap(&mut self) {
+        let on = !self.settings.wrap;
+        self.settings.wrap = on;
+        self.state.workspace_mut().set_wrap(on);
+        self.state
+            .notify(if on { "word wrap on" } else { "word wrap off" });
+        self.needs_redraw = true;
+    }
+
     /// Makes `settings` the ones in use. The theme they name is chosen when it
     /// differs from the one the settings named before. A name that is no theme
     /// is returned as a warning and leaves the theme as it is; it also counts as
@@ -240,6 +250,10 @@ impl App {
         }
         if self.settings.language_servers != before.language_servers {
             self.lsp_settings_changed();
+        }
+        if self.settings.wrap != before.wrap {
+            self.state.workspace_mut().set_wrap(self.settings.wrap);
+            self.needs_redraw = true;
         }
         if self.settings.auto_close_pairs != before.auto_close_pairs {
             let auto_close = AutoClose::from_setting(self.settings.auto_close_pairs);

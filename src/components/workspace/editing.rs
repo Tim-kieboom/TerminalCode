@@ -77,6 +77,7 @@ impl Workspace {
         let (indent, last_editor) = (doc.indent, doc.last_editor);
         let mut view = std::mem::take(&mut self.panes[pane].tabs[tab_index].view);
         view.set_indent(indent);
+        view.age_affinity();
         view.set_auto_close(self.auto_close);
         if last_editor != Some(view_id) {
             view.end_edit_run();

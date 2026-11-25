@@ -278,6 +278,15 @@ impl Workspace {
         }
     }
 
+    /// Applies the setting that wraps long lines, in every pane and in the tabs opened from now on.
+    pub(crate) fn set_wrap(&mut self, on: bool) {
+        self.wrap = on;
+        self.empty.1.set_wrap(on);
+        for tab in self.panes.iter_mut().flat_map(|pane| pane.tabs.iter_mut()) {
+            tab.view.set_wrap(on);
+        }
+    }
+
     /// Applies the setting that closes brackets and quotes as they are typed.
     pub(crate) fn set_auto_close(&mut self, auto_close: AutoClose) {
         self.auto_close = auto_close;

@@ -10,6 +10,7 @@ use crate::event::mouse::Clicks;
 
 use super::motion::classify;
 use super::text_layout::{column_at_display, display_column};
+use super::wrap::Layout;
 use super::{Editor, Row};
 
 /// Lines one wheel notch scrolls.
@@ -56,7 +57,7 @@ impl Editor {
         if let Some(line) = self.gutter_line_at(column, row) {
             return self.press_line_number(line, extend);
         }
-        let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
+        let Some((position, at_end)) = self.hit_at(column, row, Outside::Ignore)? else {
             return Ok(());
         };
 
@@ -71,6 +72,8 @@ impl Editor {
         };
         self.view.drag_anchor = Some(selection.anchor());
         self.view.selections = Selections::single(selection);
+        self.view
+            .set_affinity((at_end && clicks == Clicks::Single).then_some(position));
         Ok(())
     }
 
@@ -109,6 +112,11 @@ impl Editor {
         if !gutter.contains(ScreenPosition::new(column, row)) {
             return None;
         }
+        if self.view.is_wrapping() {
+            let offset = usize::from(row - text.y);
+            let slots = Layout::new(&self.buffer, &self.view).slots(offset + 1);
+            return slots.get(offset).map(|slot| slot.line);
+        }
         match self
             .view
             .row_at(usize::from(row - text.y), self.buffer.len_lines())
@@ -140,9 +148,10 @@ impl Editor {
         let Some(anchor) = self.view.drag_anchor else {
             return Ok(());
         };
-        let Some(position) = self.position_at(column, row, Outside::Clamp)? else {
+        let Some((position, at_end)) = self.hit_at(column, row, Outside::Clamp)? else {
             return Ok(());
         };
+        self.view.set_affinity(at_end.then_some(position));
         let dragged = Selection::new(anchor, position);
         self.view.selections = match &self.view.drag_base {
             Some(base) => base.with_added(dragged),
@@ -196,17 +205,21 @@ impl Editor {
         column: u16,
         row: u16,
     ) -> Result<bool, BufferError> {
-        let Some(position) = self.position_at(column, row, Outside::Ignore)? else {
+        let Some((position, at_end)) = self.hit_at(column, row, Outside::Ignore)? else {
             return Ok(false);
         };
         self.view.last_edit = None;
         self.view.selections = Selections::single(Selection::cursor(position));
+        self.view.set_affinity(at_end.then_some(position));
         Ok(true)
     }
 
     /// Scrolls by wheel notches (positive is down). The cursor stays where it
     /// is, even if it leaves the screen.
     pub(crate) fn scroll_lines(&mut self, notches: isize) {
+        if self.view.is_wrapping() {
+            return self.scroll_rows(notches * WHEEL_LINES);
+        }
         let last_line = (self.buffer.len_lines() - 1) as isize;
         let top = self.view.scroll.top as isize + notches * WHEEL_LINES;
         self.view.scroll.top = top.clamp(0, last_line) as usize;
@@ -215,6 +228,9 @@ impl Editor {
     /// Scrolls sideways by wheel notches (positive is right), never past the
     /// end of the longest visible line.
     pub(crate) fn scroll_columns(&mut self, notches: isize) {
+        if self.view.is_wrapping() {
+            return self.scroll_long_lines_sideways(notches);
+        }
         let visible = self.view.scroll.top
             ..(self.view.scroll.top + self.view.viewport_height).min(self.buffer.len_lines());
         let widest = visible
@@ -227,6 +243,26 @@ impl Editor {
         self.view.scroll.left = left.clamp(0, widest.saturating_sub(1) as isize) as usize;
     }
 
+    /// Sideways scrolling with wrapped lines: only the lines too long to wrap have more than
+    /// a row's width, so it goes as far as the widest of those on screen, and not at all
+    /// when there is none.
+    fn scroll_long_lines_sideways(&mut self, notches: isize) {
+        let height = self.view.viewport_height;
+        let slots = Layout::new(&self.buffer, &self.view).slots(height);
+        let widest = slots
+            .iter()
+            .filter(|slot| !slot.rows.is_wrapped())
+            .filter_map(|slot| self.buffer.line_content(slot.line).ok())
+            .map(|content| display_column(&content, usize::MAX, self.view.tab_width()))
+            .max();
+        let Some(widest) = widest else {
+            self.view.scroll.left = 0;
+            return;
+        };
+        let left = self.view.scroll.left as isize + notches * WHEEL_COLUMNS;
+        self.view.scroll.left = left.clamp(0, widest.saturating_sub(1) as isize) as usize;
+    }
+
     /// The buffer position under a screen cell. Below the last line it is the
     /// end of the document; to the right of a line, that line's end.
     fn position_at(
@@ -235,6 +271,19 @@ impl Editor {
         row: u16,
         outside: Outside,
     ) -> Result<Option<Position>, BufferError> {
+        Ok(self
+            .hit_at(column, row, outside)?
+            .map(|(position, _)| position))
+    }
+
+    /// [`Editor::position_at`], and whether, with wrapped lines, the cell is past the end of
+    /// a row that goes on: the cursor is then drawn at the end of that row.
+    fn hit_at(
+        &self,
+        column: u16,
+        row: u16,
+        outside: Outside,
+    ) -> Result<Option<(Position, bool)>, BufferError> {
         let Some(area) = self.view.text_area else {
             return Ok(None);
         };
@@ -247,18 +296,26 @@ impl Editor {
 
         let row = row.clamp(area.y, area.y + area.height - 1);
         let column = column.max(area.x);
+        if self.view.is_wrapping() {
+            let layout = Layout::new(&self.buffer, &self.view);
+            let hit = layout.position_at(usize::from(row - area.y), usize::from(column - area.x));
+            return Ok(Some(hit));
+        }
         let line = self.view.line_for_offset(usize::from(row - area.y));
 
         let last_line = self.buffer.len_lines() - 1;
         if line > last_line {
             let end = self.buffer.line_len(last_line)?;
-            return Ok(Some(Position::new(last_line, end)));
+            return Ok(Some((Position::new(last_line, end), false)));
         }
         let content = self.buffer.line_content(line)?;
         let display = self.view.scroll.left + usize::from(column - area.x);
-        Ok(Some(Position::new(
-            line,
-            column_at_display(&content, display, self.view.tab_width()),
+        Ok(Some((
+            Position::new(
+                line,
+                column_at_display(&content, display, self.view.tab_width()),
+            ),
+            false,
         )))
     }
 

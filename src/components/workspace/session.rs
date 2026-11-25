@@ -207,6 +207,7 @@ impl Workspace {
             Scroll {
                 top: saved.top,
                 left: saved.left,
+                top_column: 0,
             },
         );
         let mut tab = self.new_tab(document, view);

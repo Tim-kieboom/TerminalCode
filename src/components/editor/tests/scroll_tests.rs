@@ -6,7 +6,14 @@ fn visible_target_does_not_scroll() {
 
     editor.scroll_to_show(5, 10, 20, 80);
 
-    assert_eq!(editor.scroll(), Scroll { top: 0, left: 0 });
+    assert_eq!(
+        editor.scroll(),
+        Scroll {
+            top: 0,
+            left: 0,
+            top_column: 0
+        }
+    );
 }
 
 #[test]
@@ -45,7 +52,14 @@ fn zero_sized_viewport_does_not_panic_or_scroll_away() {
 
     editor.scroll_to_show(10, 10, 0, 0);
 
-    assert_eq!(editor.scroll(), Scroll { top: 0, left: 0 });
+    assert_eq!(
+        editor.scroll(),
+        Scroll {
+            top: 0,
+            left: 0,
+            top_column: 0
+        }
+    );
 }
 
 mod clamping {

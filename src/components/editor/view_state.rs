@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ratatui::layout::Rect;
 
-use crate::buffer::{Position, Selections};
+use crate::buffer::{Buffer, Position, Selections};
 use crate::git::{Alignment, Side};
 
 use super::{EditKind, IndentStyle, Scroll, TabWidth};
@@ -14,6 +14,14 @@ use super::{EditKind, IndentStyle, Scroll, TabWidth};
 pub(crate) struct ViewState {
     /// Whether typing an opening bracket or quote writes its closer too.
     pub(super) auto_close: super::pairs::AutoClose,
+    /// Whether long lines are cut into rows that fit the width (the setting `wrap`).
+    pub(super) wrap: bool,
+    /// The width of the text area, as last drawn.
+    pub(super) wrap_width: usize,
+    /// The cuts of the lines seen.
+    pub(super) wraps: super::wrap::WrapCache,
+    /// The cursor is drawn at the end of the row before it (see `wrap::Affinity`).
+    pub(super) affinity: Option<super::wrap::Affinity>,
     pub(super) selections: Selections,
     pub(super) scroll: Scroll,
     pub(super) viewport_height: usize,
@@ -254,17 +262,25 @@ impl ViewState {
     pub(crate) fn set_viewport(&mut self, text_area: Rect) {
         self.text_area = Some(text_area);
         self.viewport_height = usize::from(text_area.height);
+        self.wrap_width = usize::from(text_area.width);
     }
 
     /// The line whose marker (the last column of the gutter, where the marks of git, the
     /// lightbulb and the breakpoints are) is at a screen cell, when `lines` is how many
     /// lines the text has.
-    pub(crate) fn marker_line_at(&self, column: u16, row: u16, lines: usize) -> Option<usize> {
+    pub(crate) fn marker_line_at(&self, buffer: &Buffer, column: u16, row: u16) -> Option<usize> {
+        let lines = buffer.len_lines();
         let (gutter, text) = (self.gutter?, self.text_area?);
         let marker = gutter.right().checked_sub(1)?;
         let on_marker =
             gutter.width >= 2 && column == marker && row >= text.y && row < text.bottom();
         let offset = usize::from(row.checked_sub(text.y)?);
+        if self.is_wrapping() {
+            // Only the first row of a line has a marker.
+            let slots = super::wrap::Layout::new(buffer, self).slots(offset + 1);
+            let slot = slots.get(offset)?;
+            return (on_marker && slot.row == 0).then_some(slot.line);
+        }
         match self.row_at(offset, lines) {
             Row::Line(line) if on_marker => Some(line),
             _ => None,

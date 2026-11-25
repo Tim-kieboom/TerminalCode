@@ -62,6 +62,13 @@
     // (Rust has no ', Markdown has `). false types only what you type.
     "auto_close_pairs": true,
 
+    // true cuts long lines into rows at the width of the editor (at a space when there
+    // is one, the rows after the first indented like the line); false shows each line on
+    // one row and scrolls sideways. alt+z ("View: Toggle Word Wrap") changes it until the
+    // settings are read again. A line over 100 KB is never cut, and a side of a diff
+    // is not wrapped.
+    "wrap": false,
+
     // What happens to the open files and the panes when you start trcode in a
     // project folder without naming a file: "always" brings the tabs of the last
     // run back (each with its cursor and scroll, pinned tabs, the split panes),

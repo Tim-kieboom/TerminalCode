@@ -73,6 +73,8 @@ pub(crate) struct Settings {
     pub(crate) hide_ignored: bool,
     /// Whether typing an opening bracket or quote writes its closer too.
     pub(crate) auto_close_pairs: bool,
+    /// Whether long lines are cut into rows at the width of the editor.
+    pub(crate) wrap: bool,
     /// Whether the tabs and panes of the last run in a project folder come back.
     pub(crate) restore_session: RestoreSession,
     /// Extra plugin indexes, by URL (an `index.json` like the official one). Their
@@ -100,6 +102,7 @@ impl Default for Settings {
             mouse: true,
             hide_ignored: false,
             auto_close_pairs: true,
+            wrap: false,
             restore_session: RestoreSession::default(),
             detect_indent: true,
             plugin_sources: Vec::new(),
@@ -221,6 +224,7 @@ impl Settings {
             hide_ignored: take(&mut map, "hide_ignored")?.unwrap_or(defaults.hide_ignored),
             auto_close_pairs: take(&mut map, "auto_close_pairs")?
                 .unwrap_or(defaults.auto_close_pairs),
+            wrap: take(&mut map, "wrap")?.unwrap_or(defaults.wrap),
             restore_session: take(&mut map, "restore_session")?.unwrap_or(defaults.restore_session),
             plugin_sources: plugin_sources(take::<Vec<String>>(&mut map, "plugin_sources")?),
             plugin_file_types: plugin_file_types(take(&mut map, "plugin_file_types")?),

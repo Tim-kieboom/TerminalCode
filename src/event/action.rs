@@ -24,6 +24,8 @@ pub(crate) enum Action {
     /// Shows the explorer if it is hidden, hides it if it is shown.
     ToggleExplorer,
     ToggleStatusBar,
+    /// Wraps long lines at the width of the editor, or stops doing so.
+    ToggleWordWrap,
     /// Shows the terminal pane (starting the shell the first time), or hides it.
     ToggleTerminal,
     /// Opens another shell in a new tab of the terminal pane.
@@ -379,6 +381,7 @@ impl Action {
                 | Self::TogglePlugin(_)
                 | Self::ToggleExplorer
                 | Self::ToggleStatusBar
+                | Self::ToggleWordWrap
                 | Self::TogglePluginView(_)
                 | Self::FindFile
                 | Self::FindInProject
@@ -466,6 +469,7 @@ impl Action {
             Self::TrustFolder => "Plugins: Trust This Folder",
             Self::ToggleExplorer => "View: Toggle Explorer",
             Self::ToggleStatusBar => "View: Toggle Status Bar",
+            Self::ToggleWordWrap => "View: Toggle Word Wrap",
             Self::ToggleTerminal => "View: Toggle Terminal",
             Self::TerminalNewTab => "Terminal: New Tab",
             Self::TerminalCopy => "Terminal: Copy Selection",
@@ -662,6 +666,7 @@ impl Action {
             Self::TrustFolder,
             Self::ToggleExplorer,
             Self::ToggleStatusBar,
+            Self::ToggleWordWrap,
             Self::ToggleTerminal,
             Self::TerminalNewTab,
             Self::TerminalCopy,

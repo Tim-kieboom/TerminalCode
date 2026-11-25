@@ -38,8 +38,8 @@ impl Workspace {
     pub(crate) fn gutter_marker_at(&self, column: u16, row: u16) -> Option<(DocumentId, usize)> {
         let pane = self.panes.get(self.pane_at(column, row)?)?;
         let tab = pane.tabs.get(pane.active)?;
-        let lines = self.documents.get(&tab.document)?.buffer.len_lines();
-        let line = tab.view.marker_line_at(column, row, lines)?;
+        let buffer = &self.documents.get(&tab.document)?.buffer;
+        let line = tab.view.marker_line_at(buffer, column, row)?;
         Some((tab.document, line))
     }
 

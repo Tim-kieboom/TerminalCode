@@ -12,7 +12,8 @@ use ratatui::widgets::Paragraph;
 
 use crate::buffer::{Buffer, Position, Selection};
 use crate::components::editor::matching;
-use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
+use crate::components::editor::text_layout::{self, Cell, digits, display_column, visible_cells};
+use crate::components::editor::wrap::{self as wraps, Layout, Slot};
 use crate::components::editor::{EditorRef, Row, ViewState, display_name};
 use crate::components::popups::find::Find;
 use crate::components::text::fit;
@@ -52,6 +53,7 @@ pub(crate) fn prepare(buffer: &Buffer, view: &mut ViewState, area: Rect, frame: 
     if view.take_view_change(buffer.version()) {
         keep_cursor_visible(buffer, view, &geometry);
     }
+    view.normalize_top(buffer);
     view.sync_aligned_start();
 }
 
@@ -147,7 +149,7 @@ pub(crate) fn draw(
         if std::ptr::eq(selection, view.selections().primary()) {
             continue;
         }
-        if let Some(cell) = cell_of(buffer, view, &geometry, selection.head()) {
+        if let Some(cell) = cell_of(buffer, view, &geometry, selection.head(), false) {
             extra_cursor_cell(frame, theme, cell);
         }
     }
@@ -160,6 +162,18 @@ pub(crate) fn draw(
 
 fn keep_cursor_visible(buffer: &Buffer, view: &mut ViewState, geometry: &Geometry) {
     let head = view.selections().primary().head();
+    if view.is_wrapping() {
+        let end_of_previous = view.affinity_at(head);
+        wraps::scroll_to_show(
+            buffer,
+            view,
+            head,
+            end_of_previous,
+            usize::from(geometry.text.height),
+            usize::from(geometry.text.width),
+        );
+        return;
+    }
     let Ok(text) = buffer.line_content(head.line) else {
         return;
     };
@@ -229,6 +243,26 @@ fn draw_lines(
         Some(crate::git::Side::Old) => "diff.removed",
         _ => "diff.added",
     };
+    if view.is_wrapping() {
+        let layout = Layout::new(buffer, view);
+        for slot in layout.slots(usize::from(geometry.text.height)) {
+            let (number, text) = match slot.rows.is_wrapped() {
+                true => (
+                    drawer.gutter_row(&slot),
+                    drawer.wrapped_row(&slot).unwrap_or_default(),
+                ),
+                false => (
+                    drawer.gutter(slot.line),
+                    drawer.text(slot.line).unwrap_or_default(),
+                ),
+            };
+            numbers.push(number);
+            texts.push(text);
+        }
+        frame.render_widget(Paragraph::new(numbers), geometry.gutter);
+        frame.render_widget(Paragraph::new(texts), geometry.text);
+        return;
+    }
     for offset in 0..usize::from(geometry.text.height) {
         let (number, text) = match view.row_at(offset, buffer.len_lines()) {
             Row::End => break,
@@ -321,7 +355,13 @@ impl LineDrawer<'_> {
             .collect();
 
         let selected = self.selected_columns_on(line);
-        let mut spans = self.code_spans(line, &content, &here, &selected);
+        let cells = visible_cells(
+            &content,
+            scroll.left,
+            usize::from(self.geometry.text.width),
+            self.view.tab_width(),
+        );
+        let mut spans = self.code_spans(line, &content, &here, &selected, cells);
         let spacer = selected.iter().any(|(_, continues)| *continues);
         if spacer {
             spans.push(Span::styled(" ", self.theme.style("editor.selection")));
@@ -336,6 +376,63 @@ impl LineDrawer<'_> {
         ));
         let row = Line::from(spans);
         Some(match self.overlays.stop_line == Some(line) {
+            true => row.style(self.theme.style("debug.stopped")),
+            false => row,
+        })
+    }
+
+    /// The gutter of a row of a wrapped line: the whole gutter for its first row; for the
+    /// rows after it no number, only the bar of git, so the bar spans all the rows.
+    fn gutter_row(&self, slot: &Slot) -> Line<'static> {
+        if slot.row == 0 {
+            return self.gutter(slot.line);
+        }
+        let width = usize::from(self.geometry.gutter.width).saturating_sub(1);
+        let number_style = self.theme.style("editor.line_number");
+        let mark = match self.overlays.git.mark_at(slot.line) {
+            Some(kind) => Span::styled(change_bar(kind), self.theme.style(change_slot(kind))),
+            None => Span::styled(" ", number_style),
+        };
+        Line::from(vec![Span::styled(" ".repeat(width), number_style), mark])
+    }
+
+    /// One row of a wrapped line: its cells after the indentation of the rows that continue
+    /// a line, and, on the last row, the selection's line break and what the server says.
+    fn wrapped_row(&self, slot: &Slot) -> Option<Line<'static>> {
+        let buffer = self.buffer;
+        let line_start = buffer.line_start_byte(slot.line);
+        let next_start = buffer.line_start_byte(slot.line + 1);
+        let content = buffer.line_content(slot.line).ok()?;
+        let here: Vec<&Diagnostic> = self
+            .overlays
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| touches_line(diagnostic, line_start, next_start))
+            .collect();
+        let selected = self.selected_columns_on(slot.line);
+        let tab_width = self.view.tab_width();
+        let cells = wraps::row_cells(&content, &slot.rows, slot.row, tab_width);
+        let mut spans = Vec::new();
+        let indent = slot.rows.indent_of(slot.row);
+        if indent > 0 {
+            spans.push(Span::raw(" ".repeat(indent)));
+        }
+        spans.extend(self.code_spans(slot.line, &content, &here, &selected, cells));
+        if slot.rows.is_last(slot.row) {
+            let spacer = selected.iter().any(|(_, continues)| *continues);
+            if spacer {
+                spans.push(Span::styled(" ", self.theme.style("editor.selection")));
+            }
+            let end = wraps::display_in_row(&content, &slot.rows, slot.row, slot.end(), tab_width);
+            spans.extend(self.inline_diagnostic(
+                &here,
+                line_start..next_start,
+                Some(end),
+                usize::from(spacer),
+            ));
+        }
+        let row = Line::from(spans);
+        Some(match self.overlays.stop_line == Some(slot.line) {
             true => row.style(self.theme.style("debug.stopped")),
             false => row,
         })
@@ -359,17 +456,12 @@ impl LineDrawer<'_> {
         content: &str,
         here: &[&Diagnostic],
         selected: &[(Range<usize>, bool)],
+        cells: Vec<Cell>,
     ) -> Vec<Span<'static>> {
         let theme = self.theme;
         let line_start = self.buffer.line_start_byte(line);
         let underlines = Underlines::new(theme, here, line_start, content);
         let colors = LineColors::new(self.overlays.syntax, line_start, content);
-        let cells = visible_cells(
-            content,
-            self.view.scroll().left,
-            usize::from(self.geometry.text.width),
-            self.view.tab_width(),
-        );
         let selection_style = theme.style("editor.selection");
         let match_style = theme.style("editor.match");
         let bracket_style = theme.style("editor.bracket");
@@ -479,7 +571,8 @@ fn selected_columns(
 
 /// The screen cell of the primary cursor, when it is in view.
 fn cursor_cell(buffer: &Buffer, view: &ViewState, geometry: &Geometry) -> Option<ScreenPosition> {
-    cell_of(buffer, view, geometry, view.selections().primary().head())
+    let head = view.selections().primary().head();
+    cell_of(buffer, view, geometry, head, view.affinity_at(head))
 }
 
 /// The screen cell of `head`, when it is in view.
@@ -488,7 +581,19 @@ fn cell_of(
     view: &ViewState,
     geometry: &Geometry,
     head: Position,
+    end_of_previous: bool,
 ) -> Option<ScreenPosition> {
+    if view.is_wrapping() {
+        let height = usize::from(geometry.text.height);
+        let (row, col) = Layout::new(buffer, view).cell_of(head, end_of_previous, height)?;
+        if col >= usize::from(geometry.text.width) {
+            return None;
+        }
+        return Some(ScreenPosition::new(
+            geometry.text.x + col as u16,
+            geometry.text.y + row as u16,
+        ));
+    }
     let scroll = view.scroll();
     let Ok(content) = buffer.line_content(head.line) else {
         return None;

@@ -351,6 +351,7 @@ impl App {
             Action::FocusExplorer => self.toggle_explorer_focus(),
             Action::ToggleExplorer => self.toggle_explorer(),
             Action::ToggleStatusBar => self.state.toggle_status_bar(),
+            Action::ToggleWordWrap => self.toggle_word_wrap(),
             Action::ToggleTerminal => self.toggle_terminal(),
             Action::TerminalNewTab => self.new_terminal_tab(),
             Action::TerminalNextTab => self.step_terminal_tab(1),

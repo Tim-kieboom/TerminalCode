@@ -345,6 +345,7 @@ impl App {
                     item("Toggle Terminal", Action::ToggleTerminal),
                     item("Toggle Side Pane", Action::ToggleSidePane),
                     item("Toggle Status Bar", Action::ToggleStatusBar),
+                    item("Toggle Word Wrap", Action::ToggleWordWrap),
                     item("Toggle Menu Bar", Action::ToggleMenuBar),
                     item("Show Errors", Action::ShowErrors),
                     item("Toggle Mouse", Action::ToggleMouse),
