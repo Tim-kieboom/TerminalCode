@@ -252,6 +252,10 @@ text = "@text"
 text = "@warning"
 modifiers = ["bold"]
 
+["editor.bracket"]
+background = "@accent_bg"
+modifiers = ["bold"]
+
 ["editor.match"]
 text = "black"
 background = "@warning"

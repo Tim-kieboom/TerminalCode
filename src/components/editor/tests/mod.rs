@@ -3,6 +3,7 @@ mod comment_tests;
 mod editing_tests;
 mod editor_view_tests;
 mod indent_tests;
+mod matching_tests;
 mod motion_tests;
 mod mouse_tests;
 mod move_line_tests;

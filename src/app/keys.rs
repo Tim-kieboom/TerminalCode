@@ -338,6 +338,7 @@ impl App {
             Action::ShowHover => self.show_hover(),
             Action::JumpBack => self.jump_back(),
             Action::JumpForward => self.jump_forward(),
+            Action::GoToMatchingBracket => self.go_to_matching_bracket(),
             Action::GoToDefinition => self.go_to_definition(),
             Action::RenameSymbol => self.rename_symbol(),
             Action::CodeActions => self.code_action(),

@@ -456,3 +456,19 @@ fn code_actions_are_reachable_on_both_keyboards() {
         Some(Action::CodeActions)
     );
 }
+
+#[test]
+fn the_matching_bracket_is_reachable_on_both_keyboards() {
+    let enhanced = defaults(KeyboardSupport::Enhanced);
+    assert_eq!(
+        action(&enhanced, &BOTH, "ctrl+shift+\\"),
+        Some(Action::GoToMatchingBracket)
+    );
+    // ctrl+shift+\ arrives as byte 0x1c, which is ctrl+4.
+    let legacy = defaults(KeyboardSupport::Legacy);
+    assert_eq!(
+        action(&legacy, &BOTH, "ctrl+4"),
+        Some(Action::GoToMatchingBracket)
+    );
+    assert_eq!(action(&enhanced, &BOTH, "ctrl+4"), None);
+}

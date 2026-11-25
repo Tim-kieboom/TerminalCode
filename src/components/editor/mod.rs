@@ -17,6 +17,7 @@ pub(crate) use view_state::{Row, ViewState};
 mod clipboard_ops;
 mod comment;
 mod indent;
+pub(crate) mod matching;
 mod motion;
 mod mouse_ops;
 mod move_line;

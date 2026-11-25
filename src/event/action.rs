@@ -75,6 +75,8 @@ pub(crate) enum Action {
     JumpBack,
     /// Goes forward again after going back.
     JumpForward,
+    /// Moves the cursor to the bracket that matches the one next to it.
+    GoToMatchingBracket,
     /// Goes to where the word at the cursor is defined.
     GoToDefinition,
     RenameSymbol,
@@ -480,6 +482,7 @@ impl Action {
             Self::ShowHover => "Hover: Show Documentation at Cursor",
             Self::JumpBack => "Navigate: Back",
             Self::JumpForward => "Navigate: Forward",
+            Self::GoToMatchingBracket => "Navigate: Go to Matching Bracket",
             Self::GoToDefinition => "Navigate: Go to Definition",
             Self::RenameSymbol => "Language: Rename Symbol",
             Self::CodeActions => "Language: Code Action",
@@ -642,6 +645,7 @@ impl Action {
             Self::ShowHover,
             Self::JumpBack,
             Self::JumpForward,
+            Self::GoToMatchingBracket,
             Self::GoToDefinition,
             Self::RenameSymbol,
             Self::CodeActions,

@@ -24,6 +24,12 @@ keys = "alt+\\"
 action = "outdent_line"
 context = "editor"
 
+# ctrl+shift+\ arrives as byte 0x1c, which is ctrl+4 (ctrl+\ as well).
+[[binding]]
+keys = "ctrl+4"
+action = "go_to_matching_bracket"
+context = "editor"
+
 # ctrl+/ arrives as byte 0x1f, which is ctrl+7 (and ctrl+_ on the same key).
 [[binding]]
 keys = "ctrl+7"

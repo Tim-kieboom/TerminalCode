@@ -11,6 +11,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::buffer::{Buffer, Position, Selection};
+use crate::components::editor::matching;
 use crate::components::editor::text_layout::{self, digits, display_column, visible_cells};
 use crate::components::editor::{EditorRef, Row, ViewState, display_name};
 use crate::components::popups::find::Find;
@@ -134,6 +135,9 @@ pub(crate) fn draw(
         action_line,
         breakpoints,
         stop_line,
+        brackets: cursor
+            .then(|| matching::at_cursor(buffer, view, usize::from(geometry.text.height)))
+            .flatten(),
     };
     draw_lines(frame, theme, buffer, view, &overlays, &geometry);
     if !cursor {
@@ -200,6 +204,8 @@ struct Overlays<'a> {
     action_line: Option<usize>,
     breakpoints: &'a [crate::breakpoints::Shown],
     stop_line: Option<usize>,
+    /// The bracket next to the cursor and its match, drawn in a style of their own.
+    brackets: Option<matching::Matched>,
 }
 
 fn draw_lines(
@@ -366,6 +372,15 @@ impl LineDrawer<'_> {
         );
         let selection_style = theme.style("editor.selection");
         let match_style = theme.style("editor.match");
+        let bracket_style = theme.style("editor.bracket");
+        let bracket_columns: Vec<usize> = self
+            .overlays
+            .brackets
+            .iter()
+            .flat_map(|matched| [matched.bracket, matched.other])
+            .filter(|position| position.line == line)
+            .map(|position| position.column)
+            .collect();
         let found = self
             .overlays
             .find
@@ -380,7 +395,9 @@ impl LineDrawer<'_> {
                 let is_match = found
                     .iter()
                     .any(|m| (m.start..m.end).contains(&cell.grapheme));
-                let style = if is_selected {
+                let style = if bracket_columns.contains(&cell.grapheme) {
+                    base.patch(bracket_style)
+                } else if is_selected {
                     base.patch(selection_style)
                 } else if is_match {
                     base.patch(match_style)

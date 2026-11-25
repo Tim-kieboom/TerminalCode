@@ -55,6 +55,21 @@ impl App {
         self.jumps.list.record(place);
     }
 
+    /// "Navigate: Go to Matching Bracket": the cursor goes to the match of the bracket next to
+    /// it. A match on another line is a jump (it can be taken back); without one, a message.
+    pub(super) fn go_to_matching_bracket(&mut self) {
+        let from = self.state.editor().selections().primary().head();
+        match self.state.edit(|editor| editor.jump_to_matching_bracket()) {
+            Ok(Some(to)) => {
+                if to.line != from.line {
+                    self.mark_jump();
+                }
+            }
+            Ok(None) => self.state.notify("No matching bracket"),
+            Err(error) => self.state.notify_error(error.to_string()),
+        }
+    }
+
     /// Something is about to take the cursor to another place on purpose; the
     /// place it leaves is recorded when the input has been handled.
     pub(super) fn mark_jump(&mut self) {
