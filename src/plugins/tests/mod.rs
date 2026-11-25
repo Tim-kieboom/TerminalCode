@@ -7,6 +7,7 @@ pub mod manifest;
 pub mod menu;
 pub mod popup;
 pub mod runs;
+pub mod tags;
 pub mod trust;
 
 use std::sync::mpsc;

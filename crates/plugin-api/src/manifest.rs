@@ -13,6 +13,7 @@
 //! run = ["cargo nextest *"]    # with "process.run": the commands it may run
 //! view = false                 # no pane (a plugin that works for other plugins)
 //! thread = "own"               # a thread of its own, for heavy work (optional)
+//! tags = ["syntax", "rust"]    # to find it by in the plugin manager (optional)
 //!
 //! [[action]]
 //! id = "stage"
@@ -110,6 +111,12 @@ pub struct Manifest {
     /// on what it is sent (parsing a document) asks for `"own"`.
     #[serde(default)]
     pub thread: Thread,
+    /// What to find the plugin by in the plugin manager: what it is (`git`, `syntax`) and the
+    /// programming languages it is for (`rust`, `c++`). The editor has a closed set of them
+    /// and leaves out the names it does not know, so a plugin never fails over a tag. Nothing
+    /// depends on it, so it needs no new version of the API: an older editor ignores it.
+    #[serde(default)]
+    pub tags: Vec<String>,
     /// The actions it has, for the palette and for keys.
     #[serde(default, rename = "action")]
     pub actions: Vec<ActionDecl>,

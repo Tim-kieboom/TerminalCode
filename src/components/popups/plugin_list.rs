@@ -13,6 +13,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::popups::plain_key;
+use crate::plugins::tags::Tag;
 use crate::ui::backdrop;
 use crate::ui::theme::Theme;
 
@@ -130,6 +131,8 @@ pub(crate) struct Row {
     pub version: String,
     /// Its state, after the name.
     pub state: String,
+    /// What to find it by, after the state.
+    pub tags: Vec<Tag>,
     /// Where it comes from, at the right, when that is not the official list.
     pub source: Option<String>,
     /// What it is, or what it lacks, under the list while it is chosen.
@@ -212,7 +215,13 @@ impl PluginList {
         let wanted = self
             .rows
             .iter()
-            .map(|row| 4 + row_text_width(row) + row.state.width() + source_width(row) + 6)
+            .map(|row| {
+                4 + row_text_width(row)
+                    + row.state.width()
+                    + tags_width(row)
+                    + source_width(row)
+                    + 6
+            })
             .max()
             .unwrap_or(0)
             .max(help_width(HELP.len()) + 4);
@@ -423,6 +432,9 @@ impl PluginList {
         }
         spans.push(Span::styled(format!("{}  ", " ".repeat(name_pad)), base));
         spans.push(Span::styled(row.state.clone(), base));
+        if !row.tags.is_empty() {
+            spans.push(Span::styled(format!("  {}", tags_text(&row.tags)), faint));
+        }
         if let Some(source) = &row.source {
             let used: usize = spans.iter().map(|span| span.content.width()).sum();
             let room = width.saturating_sub(used + source.width() + 1);
@@ -440,6 +452,21 @@ fn row_text_width(row: &Row) -> usize {
             true => 0,
             false => 1 + row.version.width(),
         }
+}
+
+/// The tags as they are drawn: `#git #rust`.
+fn tags_text(tags: &[Tag]) -> String {
+    tags.iter()
+        .map(|tag| format!("#{}", tag.name()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn tags_width(row: &Row) -> usize {
+    match row.tags.is_empty() {
+        true => 0,
+        false => 2 + tags_text(&row.tags).width(),
+    }
 }
 
 fn source_width(row: &Row) -> usize {

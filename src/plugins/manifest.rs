@@ -75,6 +75,11 @@ impl Installed {
         &self.manifest.id
     }
 
+    /// The tags of its manifest that this editor knows.
+    pub(crate) fn known_tags(&self) -> Vec<super::tags::Tag> {
+        super::tags::known(&self.manifest.tags)
+    }
+
     /// The module, read from the plugin's folder.
     pub(crate) fn module(&self) -> Result<Vec<u8>, ManifestError> {
         let path = self.dir.join(self.manifest.module_file());

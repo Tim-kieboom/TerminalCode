@@ -284,6 +284,69 @@ fn the_list_shows_the_plugins_of_the_index_with_their_state() {
 }
 
 #[test]
+fn the_list_shows_the_tags_of_an_entry_and_leaves_out_the_ones_it_does_not_know() {
+    let index = server("1.0.0", "", None, r#","tags":["syntax","Rust","official"]"#);
+    let mut rig = rig(index, SavedState::default(), nothing);
+
+    rig.open_manager();
+    rig.wait_for_text("Echo 1.0.0");
+
+    let screen = rig.screen();
+    assert!(screen.contains("#syntax #rust"), "{screen}");
+    assert!(!screen.contains("official"), "{screen}");
+}
+
+#[test]
+fn an_installed_plugin_shows_the_tags_of_its_manifest_over_those_of_the_index() {
+    // The manifest on disk says git; the index of the list, which is newer, says rust.
+    let on_disk = move |config: &std::path::Path| {
+        let index_url = server("1.0.0", "tags = [\"git\"]\n", None, "");
+        let index = install::fetch_index(
+            &index_url,
+            Policy::local(&["127.0.0.1"]),
+            None,
+            &std::sync::atomic::AtomicBool::new(false),
+        )
+        .unwrap();
+        let dir = config.join("plugins");
+        fs::create_dir_all(&dir).unwrap();
+        install::install(
+            &index.entries[0],
+            &dir,
+            Host::THIS,
+            Policy::local(&["127.0.0.1"]),
+            &std::sync::atomic::AtomicBool::new(false),
+            |_| {},
+        )
+        .unwrap();
+    };
+    let listed = server("1.0.0", "", None, r#","tags":["rust"]"#);
+    let mut rig = rig(listed, SavedState::default(), on_disk);
+
+    rig.open_manager();
+    rig.wait_for_text("Echo 1.0.0");
+
+    let screen = rig.screen();
+    assert!(screen.contains("#git"), "{screen}");
+    assert!(!screen.contains("#rust"), "{screen}");
+}
+
+#[test]
+fn an_installed_plugin_whose_manifest_has_no_tags_shows_those_of_the_index() {
+    let listed = server("1.0.0", "", None, r#","tags":["rust"]"#);
+    let mut rig = rig(
+        listed,
+        SavedState::default(),
+        installed_by_the_manager("1.0.0"),
+    );
+
+    rig.open_manager();
+
+    // The installed row is there at once; the tags come with the list of the index.
+    rig.wait_for_text("#rust");
+}
+
+#[test]
 fn what_needs_a_newer_editor_is_shown_dim_with_what_it_needs_and_is_not_downloaded() {
     let index = server("1.0.0", "", None, r#","requires":"9.0.0""#);
     let mut rig = rig(index, SavedState::default(), nothing);

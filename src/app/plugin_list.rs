@@ -22,6 +22,7 @@ use crate::persist::saved_state::Place;
 use crate::plugins::index::{Availability, Entry as IndexEntry, Index};
 use crate::plugins::install::{self, InstallError, JobEvent, Policy, Stage};
 use crate::plugins::manifest::{self, Host, Installed, is_newer};
+use crate::plugins::tags::Tag;
 use crate::ui::layout::RIGHT_BAR_MIN_WIDTH;
 
 /// Where the index is fetched from and what may be downloaded.
@@ -72,6 +73,15 @@ fn described(entry: &IndexEntry) -> String {
     match entry.source_label() {
         Some(label) => format!("from {label}, not official: {}", entry.description),
         None => entry.description.clone(),
+    }
+}
+
+/// The tags of an installed plugin: its manifest's, the source of truth; the index's when
+/// the manifest has none (a plugin made before the tags).
+fn tags_of(installed: &Installed, entry: Option<&IndexEntry>) -> Vec<Tag> {
+    match installed.known_tags() {
+        tags if !tags.is_empty() => tags,
+        _ => entry.map(IndexEntry::known_tags).unwrap_or_default(),
     }
 }
 
@@ -319,6 +329,7 @@ impl App {
                     name: folder.clone(),
                     version: String::new(),
                     state: "cannot run".to_owned(),
+                    tags: Vec::new(),
                     source: None,
                     detail: error.to_string(),
                     mark: Mark::Broken,
@@ -340,6 +351,7 @@ impl App {
                         name: entry.name.clone(),
                         version: entry.version.clone(),
                         state: "cannot run".to_owned(),
+                        tags: entry.known_tags(),
                         source: entry.source_label(),
                         detail: error,
                         mark: Mark::Broken,
@@ -355,6 +367,7 @@ impl App {
                     name: entry.name.clone(),
                     version: entry.version.clone(),
                     state,
+                    tags: entry.known_tags(),
                     source: entry.source_label(),
                     detail: described(entry),
                     mark: match missing.is_some() {
@@ -402,6 +415,7 @@ impl App {
             name: installed.manifest.display_name().to_owned(),
             version: installed.manifest.version.clone(),
             state: parts.join(" · "),
+            tags: tags_of(installed, entry),
             source: install::marker(&installed.dir).and_then(|marker| marker.entry.source_label()),
             detail,
             mark,
@@ -910,11 +924,22 @@ impl App {
             (None, Some(entry)) => entry.version.clone(),
             (None, None) => String::new(),
         };
+        let tags = match &installed {
+            Some(installed) => tags_of(installed, entry.as_ref()),
+            None => entry
+                .as_ref()
+                .map(IndexEntry::known_tags)
+                .unwrap_or_default(),
+        };
         let mut head = Vec::new();
         if let Some(entry) = &entry
             && !entry.description.is_empty()
         {
             head.push(entry.description.clone());
+        }
+        if !tags.is_empty() {
+            let names: Vec<&str> = tags.iter().map(|tag| tag.name()).collect();
+            head.push(format!("Tags: {}.", names.join(", ")));
         }
         match entry.as_ref().and_then(IndexEntry::source_label) {
             Some(label) => head.push(format!("From {label}: not an official plugin.")),

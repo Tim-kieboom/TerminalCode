@@ -18,6 +18,7 @@ fn row(id: &str) -> Row {
         name: format!("Plugin {id}"),
         version: "1.0.0".to_owned(),
         state: "not installed".to_owned(),
+        tags: Vec::new(),
         source: None,
         detail: format!("what {id} does"),
         mark: Mark::NotInstalled,

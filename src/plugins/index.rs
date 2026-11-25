@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use super::manifest::{Host, at_least, is_id, is_newer};
+use super::tags::{self, Tag};
 use crate::plugin_api::{Abi, AbiError};
 
 /// The index format this editor reads. A newer major is "update TerminalCode".
@@ -53,6 +54,10 @@ pub(crate) struct Entry {
     /// The oldest TerminalCode it works with.
     #[serde(default)]
     pub requires: Option<String>,
+    /// What to find it by (see `tags`), as the index wrote them: unknown names are left out
+    /// when they are shown, not when they are read.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
     /// Where its README is (plain text or Markdown), for "d" in the manager. Optional.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub readme: Option<String>,
@@ -83,6 +88,11 @@ impl Availability {
 }
 
 impl Entry {
+    /// The tags it has that this editor knows.
+    pub(crate) fn known_tags(&self) -> Vec<Tag> {
+        tags::known(&self.tags)
+    }
+
     /// Whether `host` can run this plugin.
     pub(crate) fn availability(&self, host: Host<'_>) -> Availability {
         if let Some(required) = &self.requires
