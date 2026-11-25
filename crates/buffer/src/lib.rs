@@ -89,6 +89,11 @@ impl Buffer {
         self.title.as_deref()
     }
 
+    /// Names a buffer that has no file.
+    pub fn set_title(&mut self, title: impl Into<String>) {
+        self.title = Some(title.into());
+    }
+
     /// Locks the text against edits, or unlocks it. Undo and redo are not edits
     /// in this sense: they only take back or bring back what was typed.
     pub fn set_read_only(&mut self, read_only: bool) {

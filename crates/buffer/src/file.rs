@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use ropey::Rope;
 use thiserror::Error;
 
-use super::{Buffer, History, LineEnding};
+use super::{Buffer, BufferError, Edit, History, LineEnding, Selections};
 
 #[derive(Debug, Error)]
 pub enum FileError {
@@ -93,6 +93,27 @@ impl Buffer {
             }
             other => other,
         }
+    }
+
+    /// The hash of the file as this buffer last read or wrote it, to tell later whether
+    /// someone changed the file since. `None` for a file that did not exist and for a
+    /// buffer never tied to a file.
+    pub fn disk_fingerprint(&self) -> Option<u64> {
+        match self.disk {
+            Disk::Content(hash) => Some(hash),
+            Disk::Missing | Disk::Unknown => None,
+        }
+    }
+
+    /// Replaces the whole text as one edit that can be undone, so the buffer is modified
+    /// afterwards (for text that was saved somewhere else and is put back).
+    pub fn replace_all(&mut self, text: &str) -> Result<(), BufferError> {
+        let whole = 0..self.len_bytes();
+        let mut transaction = self.begin_transaction(Selections::default());
+        transaction.apply(&Edit::new(whole, text))?;
+        transaction.commit(Selections::default());
+        self.line_ending = LineEnding::detect(text);
+        Ok(())
     }
 
     /// Whether the file exists and is read-only, as the file system says now.

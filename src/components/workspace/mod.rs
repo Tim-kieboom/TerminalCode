@@ -28,6 +28,7 @@ pub(crate) use bulk::{CloseMany, CloseScope, SaveAll};
 pub(crate) use diff::too_large;
 pub(crate) use disk::{DiskEvent, LspDocument, SaveOutcome};
 pub(crate) use panes::neighbor_score;
+pub(crate) use recovery::Opened;
 pub(crate) use tree::Divider;
 use tree::Node;
 
@@ -40,6 +41,7 @@ mod git_lines;
 mod highlights;
 mod mouse;
 mod panes;
+mod recovery;
 mod render;
 mod tab_move;
 mod tabs;

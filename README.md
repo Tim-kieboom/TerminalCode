@@ -213,6 +213,10 @@ does the same for `state.json`.
   box) take the same keys as `[background]`, and a key left out is the screen's, so a darker terminal pane is
   `[background.terminal]` with `color = "#181818"`.
 
+## Closing the terminal without quitting
+
+If the terminal window is closed (or the process is told to end) while a file has unsaved changes, trcode keeps the text in the `recovery` folder of its config folder and exits. The next time you start it in the same project folder it asks whether to bring the text back: `y` recovers it, `n` throws it away, `esc` asks again next time. A file that changed on disk in the meantime is not overwritten: its text opens in a new tab named "recovered: ...". This covers a closed terminal and a `kill`, not a crash or a power cut.
+
 ## Known limits
 
 - A single line of plain ASCII (a minified bundle, a one-line JSON dump) is fine up to 10 MB (about 13 ms per key). A

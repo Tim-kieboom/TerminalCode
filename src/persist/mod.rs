@@ -4,4 +4,5 @@
 mod tests;
 
 pub(crate) mod recent;
+pub(crate) mod recovery;
 pub(crate) mod saved_state;

@@ -13,6 +13,9 @@ use crate::ui::view::ViewNode;
 pub(crate) enum Event {
     #[allow(unused)]
     SetPluginView { id: PluginViewId, content: ViewNode },
+    /// The terminal is gone or the process was told to end: the editor keeps what is
+    /// unsaved and stops (see `app/recovery.rs`).
+    Hangup,
     /// Files or directories changed outside the editor.
     FilesChanged(Vec<PathBuf>),
     /// Files the file finder's walk found, as paths from the project root.

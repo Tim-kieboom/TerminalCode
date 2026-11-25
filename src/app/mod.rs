@@ -54,6 +54,7 @@ mod plugin_place;
 mod plugin_trust;
 mod plugins;
 mod recent;
+mod recovery;
 mod rename;
 pub(crate) mod run;
 mod run_picker;
@@ -176,6 +177,10 @@ impl Sources {
         let (input_tx, input) = mpsc::channel(INPUT_CHANNEL_CAPACITY);
         let (events_tx, events) = mpsc::channel(EVENT_CHANNEL_CAPACITY);
         tokio::spawn(read_terminal_input(input_tx));
+        // Without it a closed window still ends the process, only without a trace.
+        if let Ok(hangup) = recovery::Hangup::listen() {
+            hangup.report_to(events_tx.clone());
+        }
         (Self { input, events }, events_tx)
     }
 }
@@ -261,6 +266,7 @@ impl App {
         self.lsp_file_shown();
         self.refresh_run_list();
         self.git_changed();
+        self.offer_recovery();
 
         loop {
             let draw_at = last_draw
@@ -302,8 +308,14 @@ impl App {
                 if self.needs_redraw() => {}
                 input = sources.input.recv() => match input {
                     Some(Ok(input)) => self.handle_input(input),
-                    Some(Err(err)) => return Err(err.into()),
-                    None => return Ok(None),
+                    Some(Err(err)) => {
+                        self.hang_up();
+                        return Err(err.into());
+                    }
+                    None => {
+                        self.hang_up();
+                        return Ok(None);
+                    }
                 },
                 Some(event) = sources.events.recv() => self.handle_event(event),
                 _ = sleep_until(sequence_deadline.unwrap_or_else(Instant::now)),
@@ -507,6 +519,7 @@ impl App {
                 self.state.set_plugin_view(id, content);
                 self.needs_redraw = true;
             }
+            Event::Hangup => self.hang_up(),
             Event::FilesChanged(paths) => self.files_changed(&paths),
             Event::FinderBatch { scan, files } => {
                 if let Some(finder) = self.state.finder_mut() {

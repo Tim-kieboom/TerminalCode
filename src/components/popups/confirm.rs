@@ -14,6 +14,7 @@ use crate::plugin_api::GitSection;
 use crate::ui::theme::Theme;
 
 const HELP: &str = "y: yes | esc, enter: cancel";
+const HELP_RECOVER: &str = "y: recover | n: discard | esc: ask again next start";
 const MIN_WIDTH: u16 = 46;
 const MAX_WIDTH: u16 = 80;
 
@@ -50,12 +51,16 @@ pub(crate) enum Purpose {
     },
     /// Stop what runs in the tab of this run configuration (its id) and run it again.
     RunAgain(Box<str>),
+    /// Bring back the text that an earlier hangup kept; `no` throws it away.
+    Recover,
 }
 
 /// What a key press answers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Answer {
     Yes,
+    /// `n`: a question with a third way out says what it does.
+    No,
     Cancel,
 }
 
@@ -73,6 +78,7 @@ impl Answer {
         }
         Some(match key.code {
             KeyCode::Char('y' | 'Y') => Self::Yes,
+            KeyCode::Char('n' | 'N') => Self::No,
             _ => Self::Cancel,
         })
     }
@@ -354,6 +360,21 @@ impl Confirm {
         }
     }
 
+    /// Asks whether to bring back the unsaved text of `names`, kept when the terminal
+    /// closed.
+    pub(crate) fn recover(names: &[String]) -> Self {
+        let mut lines = vec![
+            "The terminal closed with unsaved changes. Recover them?".to_owned(),
+            String::new(),
+        ];
+        lines.extend(names.iter().map(|name| format!("  {name}")));
+        Self {
+            title: " Unsaved changes ".to_owned(),
+            lines,
+            purpose: Purpose::Recover,
+        }
+    }
+
     pub(crate) fn purpose(&self) -> &Purpose {
         &self.purpose
     }
@@ -399,7 +420,11 @@ impl Confirm {
         };
         let lines: Vec<Line> = self.lines.iter().map(|l| Line::from(l.as_str())).collect();
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), body);
-        frame.render_widget(Paragraph::new(HELP), help);
+        let keys = match self.purpose {
+            Purpose::Recover => HELP_RECOVER,
+            _ => HELP,
+        };
+        frame.render_widget(Paragraph::new(keys), help);
     }
 }
 

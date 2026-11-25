@@ -68,6 +68,9 @@ impl App {
         };
         self.needs_redraw = true;
         if answer != Answer::Yes {
+            if answer == Answer::No && matches!(confirm.purpose(), Purpose::Recover) {
+                self.discard_recovery_files();
+            }
             // A plugin that was said no to is not asked about again until it wants
             // more; the next plugin that waits for an answer is asked.
             match confirm.purpose() {
@@ -102,6 +105,7 @@ impl App {
                 self.run_trusted();
             }
             Purpose::RunAgain(id) => self.run_confirmed(id),
+            Purpose::Recover => self.recover_files(),
             Purpose::DiscardChanges {
                 plugin,
                 request,

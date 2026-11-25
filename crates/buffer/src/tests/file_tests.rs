@@ -322,3 +322,31 @@ fn staging_refuses_a_read_only_file_and_a_missing_folder() {
         Err(FileError::FolderGone { .. })
     ));
 }
+
+#[test]
+fn disk_fingerprint_is_the_hash_of_what_was_read_and_none_without_a_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.txt");
+    fs::write(&path, "one\n").unwrap();
+    let first = Buffer::open(&path).unwrap().disk_fingerprint();
+    fs::write(&path, "two\n").unwrap();
+
+    assert!(first.is_some());
+    assert_ne!(Buffer::open(&path).unwrap().disk_fingerprint(), first);
+    assert_eq!(Buffer::from_text("x").disk_fingerprint(), None);
+    let missing = Buffer::open_or_new(dir.path().join("new.txt")).unwrap();
+    assert_eq!(missing.disk_fingerprint(), None);
+}
+
+#[test]
+fn replace_all_modifies_the_buffer_and_can_be_undone() {
+    let mut buffer = Buffer::from_text("old\n");
+
+    buffer.replace_all("new\r\ntext\r\n").unwrap();
+
+    assert_eq!(buffer.text(), "new\r\ntext\r\n");
+    assert!(buffer.is_dirty());
+    assert_eq!(buffer.line_ending(), LineEnding::Crlf);
+    assert!(buffer.undo().unwrap().is_some());
+    assert_eq!(buffer.text(), "old\n");
+}
