@@ -29,6 +29,7 @@ pub(crate) mod manifest;
 mod policy;
 mod runs;
 mod runtime;
+pub(crate) mod search;
 pub(crate) mod tags;
 #[cfg(test)]
 pub mod tests;

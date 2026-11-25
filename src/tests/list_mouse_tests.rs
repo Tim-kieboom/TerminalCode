@@ -21,6 +21,7 @@ fn row(id: &str) -> Row {
         tags: Vec::new(),
         source: None,
         detail: format!("what {id} does"),
+        description: String::new(),
         mark: Mark::NotInstalled,
         grey: false,
     }

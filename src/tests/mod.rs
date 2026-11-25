@@ -61,6 +61,7 @@ mod plugin_manager_tests;
 mod plugin_menu_tests;
 mod plugin_place_tests;
 mod plugin_rows_tests;
+mod plugin_search_tests;
 mod plugin_tests;
 mod quit_tests;
 mod real_debug_tests;

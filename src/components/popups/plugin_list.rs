@@ -4,7 +4,7 @@
 //! removes, `space` turns on or off, `p` places, `r` asks the index again, Esc closes
 //! (while something is downloading it stops that instead).
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Modifier;
@@ -13,14 +13,16 @@ use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
 use unicode_width::UnicodeWidthStr;
 
 use crate::components::popups::plain_key;
-use crate::plugins::tags::Tag;
+use crate::plugins::search::{Query, Subject, tags_to_offer};
+use crate::plugins::tags::{Kind, Tag};
 use crate::ui::backdrop;
 use crate::ui::theme::Theme;
 
 /// The keys under the list, most useful first; what does not fit is left out.
-const HELP: [(&str, &str); 10] = [
+const HELP: [(&str, &str); 11] = [
     ("enter", "do it"),
     ("i", "install"),
+    ("/", "search"),
     ("I", "update all"),
     ("d", "about"),
     ("k", "key"),
@@ -30,6 +32,10 @@ const HELP: [(&str, &str); 10] = [
     ("r", "refresh"),
     ("esc", "close"),
 ];
+/// The keys under the list while the search box has the keyboard.
+const SEARCH_HELP: [(&str, &str); 3] = [("enter", "keep"), ("esc", "clear"), ("up/down", "choose")];
+/// The lines the known tags may take under the box.
+const TAG_LINES: u16 = 2;
 const NARROWEST: u16 = 50;
 const WIDEST: u16 = 120;
 
@@ -51,6 +57,8 @@ pub(crate) enum Command {
     Toggle,
     Place,
     Refresh,
+    /// Open the search box.
+    Search,
     Cancel,
 }
 
@@ -75,6 +83,7 @@ impl Command {
             KeyCode::Char(' ') => Self::Toggle,
             KeyCode::Char('p') => Self::Place,
             KeyCode::Char('r') => Self::Refresh,
+            KeyCode::Char('/') => Self::Search,
             KeyCode::Esc => Self::Cancel,
             _ => return None,
         })
@@ -137,9 +146,22 @@ pub(crate) struct Row {
     pub source: Option<String>,
     /// What it is, or what it lacks, under the list while it is chosen.
     pub detail: String,
+    /// What the index says it is, which the search reads.
+    pub description: String,
     pub mark: Mark,
     /// Shown dim: it cannot be used here.
     pub grey: bool,
+}
+
+impl Row {
+    fn subject(&self) -> Subject<'_> {
+        Subject {
+            id: &self.id,
+            name: &self.name,
+            description: &self.description,
+            tags: &self.tags,
+        }
+    }
 }
 
 /// What the list says about the index, under the plugins.
@@ -152,8 +174,14 @@ pub(crate) struct Note {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct PluginList {
+    /// Every plugin; `rows` are the ones the search lets through.
+    all: Vec<Row>,
     rows: Vec<Row>,
     selected: usize,
+    /// What was typed in the search box.
+    query: String,
+    /// The search box has the keyboard.
+    typing: bool,
     /// What the index is: from this version, cached, fetched, or why it is not.
     note: Option<Note>,
     /// What is being downloaded now, when something is.
@@ -163,21 +191,114 @@ pub(crate) struct PluginList {
 impl PluginList {
     pub(crate) fn new(rows: Vec<Row>, note: Option<Note>) -> Self {
         Self {
+            all: rows.clone(),
             rows,
             selected: 0,
+            query: String::new(),
+            typing: false,
             note,
             busy: None,
         }
     }
 
-    /// New rows; the plugin that was chosen stays chosen when it is still there.
+    /// New rows; the plugin that was chosen stays chosen when it is still there, and the search
+    /// is still applied.
     pub(crate) fn set_rows(&mut self, rows: Vec<Row>) {
+        self.all = rows;
+        self.refilter();
+    }
+
+    /// Takes the rows the search lets through out of `all`, keeping the plugin chosen.
+    fn refilter(&mut self) {
         let chosen = self.selected_id().map(Box::<str>::from);
-        self.rows = rows;
+        let query = Query::parse(&self.query);
+        self.rows = self
+            .all
+            .iter()
+            .filter(|row| query.matches(row.subject()))
+            .cloned()
+            .collect();
         self.selected = chosen
             .and_then(|id| self.rows.iter().position(|row| row.id == id))
             .unwrap_or(0)
             .min(self.rows.len().saturating_sub(1));
+    }
+
+    /// Opens the search box: what was typed before is still in it.
+    pub(crate) fn start_search(&mut self) {
+        self.typing = true;
+    }
+
+    /// Whether the search box has the keyboard.
+    pub(crate) fn is_searching(&self) -> bool {
+        self.typing
+    }
+
+    /// Whether the list is limited by a search.
+    pub(crate) fn has_query(&self) -> bool {
+        !self.query.is_empty()
+    }
+
+    /// Forgets the search and shows every plugin.
+    pub(crate) fn clear_search(&mut self) {
+        self.query.clear();
+        self.typing = false;
+        self.refilter();
+    }
+
+    /// A key while the box has the keyboard: it types, or one of `enter` (keep what was
+    /// typed and give the keyboard to the list), `esc` (forget it), and the arrows, which
+    /// choose in the list.
+    pub(crate) fn search_key(&mut self, key: KeyEvent) {
+        if key.kind == KeyEventKind::Release {
+            return;
+        }
+        let held = KeyModifiers::CONTROL | KeyModifiers::ALT;
+        match key.code {
+            KeyCode::Esc => self.clear_search(),
+            KeyCode::Enter => self.typing = false,
+            KeyCode::Up => self.step(false),
+            KeyCode::Down => self.step(true),
+            KeyCode::Backspace => {
+                self.query.pop();
+                self.refilter();
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.query.clear();
+                self.refilter();
+            }
+            KeyCode::Char(typed) if !key.modifiers.intersects(held) => {
+                self.query.push(typed);
+                self.refilter();
+            }
+            _ => {}
+        }
+    }
+
+    /// What to say under the box: a tag that does not exist, or what the editor has of a
+    /// language that was asked for. A tag that is still being typed is not wrong yet: the tags
+    /// the box lists are the answer.
+    fn message(&self) -> Option<Note> {
+        let query = Query::parse(&self.query);
+        if let [first, ..] = query.unknown_tags() {
+            let being_typed = self.typing && !tags_to_offer(&self.query).is_empty();
+            return (!being_typed).then(|| Note {
+                text: format!("no tag `{first}`: press / to see the tags"),
+                warn: true,
+            });
+        }
+        let text = query.language_note(self.rows.is_empty())?;
+        Some(Note { text, warn: false })
+    }
+
+    /// The lines above the list that belong to the search: the box, the tags to choose from
+    /// while it is typed in, and one for what is to be said. None without a search.
+    fn header_height(&self) -> u16 {
+        match (self.typing, self.query.is_empty()) {
+            (false, true) => 0,
+            (true, _) => 2 + TAG_LINES,
+            (false, false) => 2,
+        }
     }
 
     pub(crate) fn set_note(&mut self, note: Option<Note>) {
@@ -213,7 +334,7 @@ impl PluginList {
     /// The box, centered on `screen`.
     fn area(&self, screen: Rect) -> Rect {
         let wanted = self
-            .rows
+            .all
             .iter()
             .map(|row| {
                 4 + row_text_width(row)
@@ -224,9 +345,12 @@ impl PluginList {
             })
             .max()
             .unwrap_or(0)
-            .max(help_width(HELP.len()) + 4);
+            .max(help_width(&HELP, HELP.len()) + 4);
         let width = (wanted as u16).clamp(NARROWEST, WIDEST).min(screen.width);
-        let height = (self.rows.len() as u16 + 8).max(12).min(screen.height);
+        let header = self.header_height();
+        let height = (self.all.len() as u16 + 8 + header)
+            .max(12 + header)
+            .min(screen.height);
         Rect {
             x: screen.x + (screen.width - width) / 2,
             y: screen.y + (screen.height - height) / 2,
@@ -239,8 +363,10 @@ impl PluginList {
     fn rows_area(&self, screen: Rect) -> Rect {
         let inner = Block::new().borders(Borders::ALL).inner(self.area(screen));
         let footer = 5.min(inner.height);
+        let header = self.header_height().min(inner.height - footer);
         Rect {
-            height: inner.height - footer,
+            y: inner.y + header,
+            height: inner.height - footer - header,
             ..inner
         }
     }
@@ -282,7 +408,7 @@ impl PluginList {
             .border_style(border)
             .title(Line::from(vec![
                 Span::styled(" Plugins ", theme.style("pane.title")),
-                Span::styled(format!("{} ", self.rows.len()), theme.style("tab.inactive")),
+                Span::styled(self.count_text(), theme.style("tab.inactive")),
             ]));
         let inner = block.inner(area);
         backdrop::clear(frame, theme, area);
@@ -290,16 +416,23 @@ impl PluginList {
 
         // The list, a rule, the detail (two lines), the status and the keys.
         let footer = 5.min(inner.height);
-        let rows_height = inner.height - footer;
+        let header = self.header_height().min(inner.height - footer);
+        let rows_height = inner.height - footer - header;
         let list = Rect {
+            y: inner.y + header,
             height: rows_height,
             ..inner
         };
         let at = |offset: u16, height: u16| Rect {
-            y: inner.y + rows_height + offset,
+            y: inner.y + header + rows_height + offset,
             height,
             ..inner
         };
+        let search = Rect {
+            height: header,
+            ..inner
+        };
+        self.render_search(frame, theme, search);
         let rule = at(0, 1.min(footer));
         let detail = at(1, 2.min(footer.saturating_sub(1)));
         let status = at(3, 1.min(footer.saturating_sub(3)));
@@ -326,12 +459,16 @@ impl PluginList {
                 )
             })
             .collect();
-        let lines = match lines.is_empty() {
-            true => vec![Line::styled(
+        let lines = match (lines.is_empty(), self.query.is_empty()) {
+            (true, true) => vec![Line::styled(
                 " No plugins yet. Press r to ask the list again.",
                 theme.style("tab.inactive"),
             )],
-            false => lines,
+            (true, false) => vec![Line::styled(
+                " No plugin matches. Esc clears the search.",
+                theme.style("tab.inactive"),
+            )],
+            (false, _) => lines,
         };
         frame.render_widget(Paragraph::new(lines), list);
         // There are more rows above or below what is shown.
@@ -394,9 +531,77 @@ impl PluginList {
         };
         frame.render_widget(Paragraph::new(line), status);
         frame.render_widget(
-            Paragraph::new(help_line(usize::from(help.width), theme)),
+            Paragraph::new(help_line(usize::from(help.width), theme, self.help_table())),
             help,
         );
+    }
+
+    /// How many plugins the title says: those shown, and of how many when a search limits it.
+    fn count_text(&self) -> String {
+        match self.query.is_empty() {
+            true => format!("{} ", self.rows.len()),
+            false => format!("{}/{} ", self.rows.len(), self.all.len()),
+        }
+    }
+
+    fn help_table(&self) -> &'static [(&'static str, &'static str)] {
+        match self.typing {
+            true => &SEARCH_HELP,
+            false => &HELP,
+        }
+    }
+
+    /// The search box, the tags to choose from and what there is to say, in `area`.
+    fn render_search(&self, frame: &mut Frame, theme: &Theme, area: Rect) {
+        if area.height == 0 {
+            return;
+        }
+        let faint = theme.style("tab.inactive");
+        let text = theme.style("explorer.file");
+        let line = match self.typing {
+            true => Line::from(vec![
+                Span::styled(" / ", faint),
+                Span::styled(self.query.clone(), text),
+                Span::styled("▏", text),
+            ]),
+            false => Line::from(vec![
+                Span::styled(" / ", faint),
+                Span::styled(self.query.clone(), text),
+                Span::styled("   esc clears", faint),
+            ]),
+        };
+        let row = |offset: u16, height: u16| Rect {
+            y: area.y + offset,
+            height: height.min(area.height.saturating_sub(offset)),
+            ..area
+        };
+        frame.render_widget(Paragraph::new(line), row(0, 1));
+        let mut next = 1;
+        if self.typing {
+            let offered = tags_to_offer(&self.query);
+            let tags = match offered.is_empty() {
+                true => " no tag starts with that".to_owned(),
+                false => format!(" tags: {}", tags_offered(&offered)),
+            };
+            frame.render_widget(
+                Paragraph::new(Line::styled(tags, faint)).wrap(Wrap { trim: false }),
+                row(next, TAG_LINES),
+            );
+            next += TAG_LINES;
+        }
+        if let Some(message) = self.message() {
+            let slot = match message.warn {
+                true => "git.modified",
+                false => "notification.info",
+            };
+            frame.render_widget(
+                Paragraph::new(Line::styled(
+                    format!(" {}", message.text),
+                    theme.style(slot),
+                )),
+                row(next, 1),
+            );
+        }
     }
 
     /// One row: the symbol, the name and version, the state and, at the right, the source.
@@ -473,9 +678,26 @@ fn source_width(row: &Row) -> usize {
     row.source.as_ref().map_or(0, |source| source.width() + 2)
 }
 
-/// The width of the first `count` keys of [`HELP`], with their words.
-fn help_width(count: usize) -> usize {
-    HELP.iter()
+/// The tags as the box lists them: what a plugin is, then the languages, a dot between.
+fn tags_offered(tags: &[Tag]) -> String {
+    let mut text = String::new();
+    let mut last: Option<Kind> = None;
+    for tag in tags {
+        match last {
+            Some(kind) if kind != tag.kind() => text.push_str(" · "),
+            Some(_) => text.push(' '),
+            None => {}
+        }
+        text.push_str(tag.name());
+        last = Some(tag.kind());
+    }
+    text
+}
+
+/// The width of the first `count` keys of `table`, with their words.
+fn help_width(table: &[(&str, &str)], count: usize) -> usize {
+    table
+        .iter()
         .take(count)
         .map(|(key, what)| key.width() + 1 + what.width())
         .sum::<usize>()
@@ -483,15 +705,15 @@ fn help_width(count: usize) -> usize {
 }
 
 /// The keys under the list: the key bold, what it does dim, as many as fit.
-fn help_line(width: usize, theme: &Theme) -> Line<'static> {
-    let fit = (1..=HELP.len())
+fn help_line(width: usize, theme: &Theme, table: &[(&'static str, &'static str)]) -> Line<'static> {
+    let fit = (1..=table.len())
         .rev()
-        .find(|&count| help_width(count) < width)
+        .find(|&count| help_width(table, count) < width)
         .unwrap_or(1);
     let key = theme.style("explorer.file").add_modifier(Modifier::BOLD);
     let what = theme.style("tab.inactive");
     let mut spans = vec![Span::raw(" ")];
-    for (n, (keys, does)) in HELP.iter().take(fit).enumerate() {
+    for (n, (keys, does)) in table.iter().take(fit).enumerate() {
         if n > 0 {
             spans.push(Span::styled(" · ", what));
         }

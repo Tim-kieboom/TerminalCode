@@ -332,6 +332,7 @@ impl App {
                     tags: Vec::new(),
                     source: None,
                     detail: error.to_string(),
+                    description: String::new(),
                     mark: Mark::Broken,
                     grey: true,
                 }),
@@ -354,6 +355,7 @@ impl App {
                         tags: entry.known_tags(),
                         source: entry.source_label(),
                         detail: error,
+                        description: entry.description.clone(),
                         mark: Mark::Broken,
                         grey: true,
                     };
@@ -370,6 +372,7 @@ impl App {
                     tags: entry.known_tags(),
                     source: entry.source_label(),
                     detail: described(entry),
+                    description: entry.description.clone(),
                     mark: match missing.is_some() {
                         true => Mark::Unavailable,
                         false => Mark::NotInstalled,
@@ -418,6 +421,9 @@ impl App {
             tags: tags_of(installed, entry),
             source: install::marker(&installed.dir).and_then(|marker| marker.entry.source_label()),
             detail,
+            description: entry
+                .map(|entry| entry.description.clone())
+                .unwrap_or_default(),
             mark,
             grey: false,
         }
@@ -497,6 +503,14 @@ impl App {
     }
 
     pub(super) fn handle_plugin_list_key(&mut self, key: KeyEvent) {
+        // While the search box has the keyboard it takes every key.
+        if let Some(list) = self.state.plugin_list_mut()
+            && list.is_searching()
+        {
+            list.search_key(key);
+            self.needs_redraw = true;
+            return;
+        }
         let Some(command) = Command::from_key(key) else {
             return;
         };
@@ -522,8 +536,12 @@ impl App {
             .plugin_list_mut()
             .and_then(|list| list.selected_id().map(str::to_owned))
         else {
-            if command == Command::Cancel {
-                self.state.close_plugin_list();
+            // A search can leave nothing to choose: it can still be opened and cleared.
+            match (command, self.state.plugin_list_mut()) {
+                (Command::Search, Some(list)) => list.start_search(),
+                (Command::Cancel, Some(list)) if list.has_query() => list.clear_search(),
+                (Command::Cancel, _) => self.state.close_plugin_list(),
+                _ => {}
             }
             return;
         };
@@ -533,7 +551,16 @@ impl App {
                     list.step(command == Command::Next);
                 }
             }
-            Command::Cancel => self.state.close_plugin_list(),
+            Command::Search => {
+                if let Some(list) = self.state.plugin_list_mut() {
+                    list.start_search();
+                }
+            }
+            // A search is forgotten before the list is closed.
+            Command::Cancel => match self.state.plugin_list_mut() {
+                Some(list) if list.has_query() => list.clear_search(),
+                _ => self.state.close_plugin_list(),
+            },
             Command::Refresh => {
                 self.fetch_index();
                 self.refresh_plugin_list();
