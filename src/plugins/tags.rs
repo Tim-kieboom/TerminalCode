@@ -34,6 +34,7 @@ const KNOWN: &[Tag] = &[
     Tag::new("c++", Kind::Language),
     Tag::new("c#", Kind::Language),
     Tag::new("css", Kind::Language),
+    Tag::new("dockerfile", Kind::Language),
     Tag::new("go", Kind::Language),
     Tag::new("html", Kind::Language),
     Tag::new("java", Kind::Language),
@@ -45,6 +46,7 @@ const KNOWN: &[Tag] = &[
     Tag::new("nix", Kind::Language),
     Tag::new("ocaml", Kind::Language),
     Tag::new("php", Kind::Language),
+    Tag::new("powershell", Kind::Language),
     Tag::new("python", Kind::Language),
     Tag::new("ruby", Kind::Language),
     Tag::new("rust", Kind::Language),
@@ -54,6 +56,7 @@ const KNOWN: &[Tag] = &[
     Tag::new("swift", Kind::Language),
     Tag::new("toml", Kind::Language),
     Tag::new("typescript", Kind::Language),
+    Tag::new("xml", Kind::Language),
     Tag::new("yaml", Kind::Language),
     Tag::new("zig", Kind::Language),
 ];
