@@ -287,3 +287,43 @@ fn typing_in_a_wrapped_line_keeps_the_cursor_visible_and_rewraps() {
     assert!(screen.iter().any(|row| row.contains("dddd")));
     assert!(cursor.y >= 2);
 }
+
+#[test]
+fn several_cursors_with_wrap_on_type_move_by_line_and_draw() {
+    let text = format!("{LINE}\n{LINE}\n{LINE}");
+    let mut state = state(&text, true);
+    draw_at(&mut state, WIDTH, 20);
+    state.edit(|editor| {
+        editor.add_cursor(Position::new(1, 0));
+        editor.add_cursor(Position::new(2, 0));
+    });
+    state.edit(|editor| editor.type_text("X")).unwrap();
+    let (screen, _) = draw_at(&mut state, WIDTH, 20);
+    assert_eq!(
+        screen
+            .iter()
+            .filter(|row| row.contains("Xaaaa bbbb"))
+            .count(),
+        3
+    );
+    // The end of the line, not of the row, with several cursors; moving down by line works.
+    motion(&mut state, Motion::LineEnd);
+    assert_eq!(state.editor().selections().len(), 3);
+    state.edit(|editor| editor.type_text("Y")).unwrap();
+    let (screen, _) = draw_at(&mut state, WIDTH, 20);
+    assert_eq!(screen.iter().filter(|row| row.contains("ffffY")).count(), 3);
+    motion(&mut state, Motion::Down);
+    draw_at(&mut state, WIDTH, 20);
+}
+
+#[test]
+fn several_cursors_each_on_their_own_row_of_one_wrapped_line_draw_and_edit() {
+    let mut state = state(LINE, true);
+    draw_at(&mut state, WIDTH, 20);
+    state.edit(|editor| editor.add_cursor(Position::new(0, 20)));
+    draw_at(&mut state, WIDTH, 20);
+    state.edit(|editor| editor.type_text("Z")).unwrap();
+    let (screen, _) = draw_at(&mut state, WIDTH, 20);
+    assert!(screen.iter().any(|row| row.contains("Zaaaa")));
+    assert!(screen.iter().any(|row| row.contains("dddd Zeeee")));
+}

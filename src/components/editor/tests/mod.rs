@@ -14,5 +14,6 @@ mod property_tests;
 mod scroll_tests;
 mod smart_indent_tests;
 mod text_layout_tests;
+mod wrap_perf_tests;
 mod wrap_tests;
 mod wrap_view_tests;
