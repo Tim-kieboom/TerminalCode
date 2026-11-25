@@ -509,3 +509,10 @@ Group 3, moved to the post-0.1.0 backlog: auto-scroll while dragging (needs a re
 - [x] Recovery files at a hangup and the question at the next start (`docs/design.md`, "Unsaved text when the terminal closes"); `Buffer::disk_fingerprint`, `Buffer::replace_all`, `Buffer::set_title`
 - [x] Session restore (`docs/design.md`, "Session restore"), the `restore_session` setting
 - [x] The C syntax plugin became C/C++ (`c-syntax` 0.1.0, the tree-sitter-cpp grammar, in the plugin index)
+
+## Release 0.20.0
+- [x] Version 0.20.0 (after 0.19.0: typing brackets and quotes closes them, the bracket next to the cursor and its match are highlighted with a jump to the match, and long lines can be wrapped at the width of the editor)
+- [x] Auto-close brackets and quotes (`docs/design.md`, "Auto-close brackets and quotes"): an opener writes its closer, the closer steps over one that is there (stateless), an opener over a selection wraps it, Backspace in an empty pair takes both; the pairs are data of the language (`Language::pairs`); the setting `auto_close_pairs`
+- [x] The matching bracket (`docs/design.md`, "Matching bracket"): the bracket next to the cursor and its match in the theme slot `editor.bracket` (all four themes), and "Navigate: Go to Matching Bracket" (`ctrl+shift+\`, `ctrl+4` without the kitty keyboard protocol)
+- [x] Soft word wrap, stage 1 (`docs/design.md`, "Soft word wrap"): the setting `wrap` and `alt+z` ("View: Toggle Word Wrap"), rows in the normal editor with the scroll kept as a line and a position in it, a cursor affinity at the end of a row, movement, clicks and the wheel by row, lines over 100 KB left unwrapped; the diff tab and several cursors (by line) come later
+
