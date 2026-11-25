@@ -291,7 +291,11 @@ impl App {
                 self.formatting_step();
                 self.run_step();
                 self.debug_forget_stale();
-                draw_frame(terminal, &mut self)?;
+                if let Err(error) = draw_frame(terminal, &mut self) {
+                    // A terminal that is gone fails here before anything else notices.
+                    self.hang_up();
+                    return Err(error.into());
+                }
                 last_draw = Some(Instant::now());
                 continue;
             }
@@ -344,9 +348,7 @@ impl App {
             }
 
             if self.should_quit() {
-                // The lines the breakpoints moved to while files were open.
-                self.remember_breakpoints();
-                self.save_session();
+                self.end_run();
                 return Ok(self.restart_in.take());
             }
         }

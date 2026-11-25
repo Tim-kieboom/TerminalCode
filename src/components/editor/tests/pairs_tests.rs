@@ -250,3 +250,15 @@ fn decide_covers_the_table() {
     assert_eq!(decide(rust, '(', None, None, true), Typed::Wrap(')'));
     assert_eq!(decide(rust, ')', None, None, true), Typed::Plain);
 }
+
+#[test]
+fn markdown_does_not_pair_an_asterisk() {
+    let mut editor = editor_in("notes.md", "");
+
+    type_str(&mut editor, "* item");
+    assert_eq!(text(&editor), "* item");
+
+    let mut editor = editor_in("notes.md", "2 ");
+    type_str(&mut editor, "* 3");
+    assert_eq!(text(&editor), "2 * 3");
+}

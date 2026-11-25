@@ -116,6 +116,9 @@ pub(crate) struct Search {
 /// tried; the error is the first that came up. Returns how many were written.
 pub(crate) fn write(config_dir: &Path, items: &[Recovery]) -> io::Result<usize> {
     let folder = config_dir.join(FOLDER);
+    if let Some(first) = items.first() {
+        clear_stale(config_dir, &folder, &first.project);
+    }
     let mut written = 0;
     let mut first_error = None;
     let mut untitled = 0;
@@ -140,6 +143,26 @@ pub(crate) fn write(config_dir: &Path, items: &[Recovery]) -> io::Result<usize> 
     match first_error {
         Some(error) => Err(error),
         None => Ok(written),
+    }
+}
+
+/// Removes what an earlier hangup left that this one must not bring back: the files of
+/// texts that were never saved (they have no path, so a file written now cannot say it
+/// replaces them, and two fewer unsaved buffers would leave the old ones to come back as
+/// if they were new), and files that were being written when the editor ended.
+fn clear_stale(config_dir: &Path, folder: &Path, project: &Path) {
+    for found in find(config_dir, project).found {
+        if found.recovery.file.is_none() {
+            let _ = fs::remove_file(&found.path);
+        }
+    }
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+    for path in entries.filter_map(Result::ok).map(|entry| entry.path()) {
+        if path.extension().is_some_and(|extension| extension == "tmp") {
+            let _ = fs::remove_file(path);
+        }
     }
 }
 

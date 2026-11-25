@@ -177,3 +177,34 @@ fn a_path_cannot_make_a_file_outside_the_folder() {
     assert_eq!(entries.len(), 1);
     assert!(!dir.path().join("y").exists());
 }
+
+#[test]
+fn a_later_write_does_not_leave_old_unsaved_texts_to_come_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = Path::new("/work/one");
+    let untitled = |text: &str| Recovery::new(project, None, text.to_owned());
+    recovery::write(dir.path(), &[untitled("one"), untitled("two")]).unwrap();
+
+    recovery::write(dir.path(), &[untitled("three")]).unwrap();
+
+    let search = recovery::find(dir.path(), project);
+    let texts: Vec<&str> = search
+        .found
+        .iter()
+        .map(|found| found.recovery.text.as_str())
+        .collect();
+    assert_eq!(texts, ["three"]);
+}
+
+#[test]
+fn a_file_left_half_written_is_removed_by_the_next_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let project = Path::new("/work/one");
+    recovery::write(dir.path(), &[item(project, "a.rs", "x")]).unwrap();
+    let leftover = dir.path().join(FOLDER).join("0123456789abcdef.json.tmp");
+    fs::write(&leftover, "{").unwrap();
+
+    recovery::write(dir.path(), &[item(project, "a.rs", "y")]).unwrap();
+
+    assert!(!leftover.exists());
+}

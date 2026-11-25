@@ -18,7 +18,7 @@ impl App {
     /// anything, for there is nobody to ask.
     pub(super) fn hang_up(&mut self) {
         self.flow = Flow::Quit;
-        self.save_session();
+        self.end_run();
         let Some(dir) = self.config_dir.as_deref() else {
             return;
         };
@@ -27,8 +27,22 @@ impl App {
         if unsaved.is_empty() {
             return;
         }
-        // Nobody is left to tell when it fails.
-        let _ = recovery::write(dir, &unsaved);
+        match recovery::write(dir, &unsaved) {
+            Ok(written) if written == unsaved.len() => {}
+            Ok(written) => report_lost(format!(
+                "{} of {} unsaved documents were too large to keep",
+                unsaved.len() - written,
+                unsaved.len()
+            )),
+            Err(error) => report_lost(error.to_string()),
+        }
+    }
+
+    /// What is kept when a run of the editor ends, however it ends: the lines the
+    /// breakpoints moved to while files were open, and the tabs and panes.
+    pub(super) fn end_run(&mut self) {
+        self.remember_breakpoints();
+        self.save_session();
     }
 
     /// Asks whether to bring back what an earlier hangup kept for this project folder.
@@ -100,6 +114,16 @@ impl App {
     }
 }
 
+/// Says on the standard error that unsaved text could not be kept. Nobody may be reading
+/// it (the terminal is usually gone), and writing to a closed stream must not panic.
+fn report_lost(why: String) {
+    use std::io::Write;
+    let _ = writeln!(
+        io::stderr(),
+        "trcode: unsaved text could not be kept: {why}"
+    );
+}
+
 /// Waits for the signals that say the terminal is gone or the editor is to end: the
 /// hangup of a closed window and the termination request on Unix, the closing of the
 /// console on Windows.
@@ -147,6 +171,11 @@ impl Hangup {
         tokio::spawn(async move {
             self.wait().await;
             let _ = events.send(Event::Hangup).await;
+            // The default action is replaced for good, so a second signal while the editor
+            // is still busy with the first (a stuck server, a slow disk) must end it here.
+            self.wait().await;
+            crate::terminal::restore();
+            std::process::exit(1);
         });
     }
 }

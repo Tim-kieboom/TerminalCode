@@ -76,6 +76,9 @@ impl App {
             && restore
         {
             self.state.restore_session(&session);
+            // What `run` did for the file in front before the question was asked.
+            self.lsp_file_shown();
+            self.git_changed();
             self.needs_redraw = true;
         }
         self.offer_recovery();
