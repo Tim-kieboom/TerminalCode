@@ -433,13 +433,7 @@ fn read_output(
             Ok(0) | Err(_) => break,
             Ok(read) => read,
         };
-        let replies = replier.feed(
-            &mut shared
-                .screen
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            &buffer[..read],
-        );
+        let replies = feed_screen(&mut replier, shared, &buffer[..read]);
         if !replies.is_empty() {
             // A child that does not listen loses the answer, as it would a keystroke.
             let _ = answers.push_within(Message::Input(replies), WAIT_FOR_ROOM);
@@ -450,6 +444,25 @@ fn read_output(
     shared.ended.store(true, Ordering::SeqCst);
     // The shell ended; the app wants to know.
     wake_for_the_end(shared, wake);
+}
+
+/// Puts `output` on the screen. The `vt100` crate can panic on output that leaves its
+/// cursor outside the grid; the screen is then started over at its size, so the terminal
+/// goes on instead of its reader thread dying (and its message landing on the TUI).
+fn feed_screen(replier: &mut Replier, shared: &Shared, output: &[u8]) -> Vec<u8> {
+    let mut screen = shared
+        .screen
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let fed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        replier.feed(&mut screen, output)
+    }));
+    fed.unwrap_or_else(|_| {
+        let (rows, columns) = screen.screen().size();
+        *screen = vt100::Parser::new(rows, columns, SCROLLBACK);
+        *replier = Replier::default();
+        Vec::new()
+    })
 }
 
 /// Wakes the app for the end of a session, whether or not a wake-up is still waiting for its
