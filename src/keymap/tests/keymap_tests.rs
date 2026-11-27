@@ -167,6 +167,39 @@ fn user_bindings_replace_defaults_of_the_same_context() {
 }
 
 #[test]
+fn alt_f8_goes_to_the_next_change_and_shift_alt_f8_to_the_previous() {
+    let keymap = defaults(KeyboardSupport::Enhanced);
+
+    assert_eq!(action(&keymap, &BOTH, "alt+f8"), Some(Action::NextChange));
+    assert_eq!(
+        action(&keymap, &BOTH, "shift+alt+f8"),
+        Some(Action::PreviousChange)
+    );
+    assert_eq!(action(&keymap, &BOTH, "alt+f5"), None);
+}
+
+#[test]
+fn the_old_names_of_the_change_actions_still_work_in_a_keymap() {
+    let mut keymap = defaults(KeyboardSupport::Enhanced);
+
+    keymap
+        .apply_toml(
+            r#"
+            [[binding]]
+            keys = "ctrl+alt+n"
+            context = "editor"
+            action = "diff_next_change"
+            "#,
+        )
+        .unwrap();
+
+    assert_eq!(
+        action(&keymap, &BOTH, "ctrl+alt+n"),
+        Some(Action::NextChange)
+    );
+}
+
+#[test]
 fn a_binding_without_an_action_removes_the_default() {
     let mut keymap = defaults(KeyboardSupport::Enhanced);
 

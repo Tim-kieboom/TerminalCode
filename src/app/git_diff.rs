@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use super::App;
 use super::plugins::refused;
 use super::state::Focus;
+use crate::components::workspace::ChangeJump;
 use crate::event::Event;
 use crate::git::{ActionError, GitError, HeadText};
 use crate::ids::DocumentId;
@@ -220,15 +221,17 @@ impl App {
         }
     }
 
-    /// The next (or previous) change of the diff in front.
-    pub(super) fn jump_in_diff(&mut self, forward: bool) {
-        match self.state.workspace_mut().diff_jump(forward) {
-            None => self.state.notify("this tab is not a diff"),
-            Some(false) => self.state.notify(match forward {
-                true => "no more changes below",
-                false => "no more changes above",
+    /// The next (or previous) change of the tab in front, round to the other end after the
+    /// last: in a diff the changes against `HEAD`, else the bars of the gutter.
+    pub(super) fn jump_to_change(&mut self, forward: bool) {
+        self.mark_jump();
+        match self.state.workspace_mut().change_jump(forward) {
+            ChangeJump::NoChanges => self.state.notify("no changes in this file"),
+            ChangeJump::Wrapped => self.state.notify(match forward {
+                true => "no more changes below: back at the first",
+                false => "no more changes above: back at the last",
             }),
-            Some(true) => {}
+            ChangeJump::Moved => {}
         }
     }
 }

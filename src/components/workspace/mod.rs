@@ -27,7 +27,7 @@ use crate::syntax::worker::Key as SyntaxKey;
 
 use bulk::ClosedTab;
 pub(crate) use bulk::{CloseMany, CloseScope, SaveAll};
-pub(crate) use diff::too_large;
+pub(crate) use diff::{ChangeJump, too_large};
 pub(crate) use disk::{DiskEvent, LspDocument, SaveOutcome};
 pub(crate) use panes::neighbor_score;
 pub(crate) use recovery::Opened;

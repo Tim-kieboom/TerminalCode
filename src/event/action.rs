@@ -272,9 +272,12 @@ pub(crate) enum Action {
     OpenLaunchFile,
     /// Shows the file of the active tab next to the file as it is in `HEAD`, in a tab of its own.
     GitOpenDiff,
-    /// In a diff tab: moves the cursor to the next change (or the one before).
-    DiffNextChange,
-    DiffPreviousChange,
+    /// Moves the cursor to the next change (or the one before): in a diff tab the changes against
+    /// `HEAD`, else the lines with a bar in the gutter. Goes round after the last.
+    #[serde(alias = "diff_next_change")]
+    NextChange,
+    #[serde(alias = "diff_previous_change")]
+    PreviousChange,
     /// Builds the active run configuration and runs it under the debugger.
     Debug,
     /// Goes on from where the program stopped (`F5` does it too while a program is stopped).
@@ -536,8 +539,8 @@ impl Action {
             Self::ChooseRun => "Run: Choose Configuration...",
             Self::OpenLaunchFile => "Run: Open Launch File",
             Self::GitOpenDiff => "Git: Open Diff",
-            Self::DiffNextChange => "Git: Next Change in Diff",
-            Self::DiffPreviousChange => "Git: Previous Change in Diff",
+            Self::NextChange => "Git: Next Change",
+            Self::PreviousChange => "Git: Previous Change",
             Self::Debug => "Debug: Start",
             Self::DebugContinue => "Debug: Continue",
             Self::DebugStepOver => "Debug: Step Over",
@@ -709,8 +712,8 @@ impl Action {
             Self::ChooseRun,
             Self::OpenLaunchFile,
             Self::GitOpenDiff,
-            Self::DiffNextChange,
-            Self::DiffPreviousChange,
+            Self::NextChange,
+            Self::PreviousChange,
             Self::Debug,
             Self::DebugContinue,
             Self::DebugStepOver,

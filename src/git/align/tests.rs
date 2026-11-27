@@ -132,18 +132,43 @@ fn the_next_and_previous_change_are_where_a_change_starts() {
     // Changes at line 1 (a modification) and line 5 (a removal before it).
     let alignment = align("a\nb\nc\nd\ne\nf\ng\n", "a\nB\nc\nd\ne\ng\n");
 
-    assert_eq!(alignment.next_change(0), Some(1));
-    assert_eq!(alignment.next_change(1), Some(5));
-    assert_eq!(alignment.next_change(5), None);
-    assert_eq!(alignment.previous_change(5), Some(1));
-    assert_eq!(alignment.previous_change(1), None);
-    assert_eq!(alignment.previous_change(6), Some(5));
+    assert_eq!(line_of(alignment.stop(0, true)), (1, false));
+    assert_eq!(line_of(alignment.stop(1, true)), (5, false));
+    assert_eq!(line_of(alignment.stop(5, false)), (1, false));
+    assert_eq!(line_of(alignment.stop(6, false)), (5, false));
+}
+
+#[test]
+fn a_jump_past_the_last_change_goes_round() {
+    let alignment = align("a\nb\nc\nd\ne\nf\ng\n", "a\nB\nc\nd\ne\ng\n");
+
+    assert_eq!(line_of(alignment.stop(5, true)), (1, true));
+    assert_eq!(line_of(alignment.stop(1, false)), (5, true));
+}
+
+#[test]
+fn texts_that_are_the_same_have_no_stop() {
+    assert_eq!(align("a\nb\n", "a\nb\n").stop(0, true), None);
 }
 
 #[test]
 fn a_removal_at_the_very_end_is_shown_at_the_last_line() {
     let alignment = align("a\nb\nc", "a\nb");
 
-    let next = alignment.next_change(0).unwrap();
-    assert!(next <= 1, "held to the text: {next}");
+    let (line, _) = line_of(alignment.stop(0, true));
+    assert!(line <= 1, "held to the text: {line}");
+}
+
+#[test]
+fn a_removal_at_the_very_end_is_not_a_stop_again_from_where_it_shows() {
+    // The removal is at line 2, past the text; it shows at line 1. From there the next
+    // change is not itself.
+    let alignment = align("a\nb\nc", "a\nb");
+
+    assert_eq!(line_of(alignment.stop(1, true)), (1, true));
+}
+
+fn line_of(stop: Option<super::Stop>) -> (usize, bool) {
+    let stop = stop.expect("a change");
+    (stop.line, stop.wrapped)
 }

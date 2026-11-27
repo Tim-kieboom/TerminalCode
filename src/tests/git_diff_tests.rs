@@ -224,14 +224,76 @@ fn a_commit_makes_the_left_side_the_new_head_and_leaves_no_changes() {
     assert!(screen.contains("(diff)"), "the tab stays: {screen}");
 }
 
-#[test]
-fn next_change_outside_a_diff_says_so() {
-    let mut rig = rig("alpha\n", "alpha\n");
+impl Rig {
+    fn cursor_line(&self) -> usize {
+        self.app.state().editor().selections().primary().head().line
+    }
 
-    rig.app.run_action(Action::DiffNextChange);
+    /// Takes the index text git was asked for, which the bars of the gutter are against.
+    fn take_base(&mut self) {
+        self.pump_until("the index text", |event| {
+            matches!(event, Event::GitBase { .. })
+        });
+    }
+}
+
+#[test]
+fn in_the_editor_the_jump_goes_by_the_bars_of_the_gutter_and_goes_round() {
+    let mut rig = rig("a\nb\nc\nd\ne\n", "a\nB\nc\nd\nE\n");
+    rig.take_base();
+    rig.screen();
+
+    rig.app.run_action(Action::NextChange);
+    assert_eq!(rig.cursor_line(), 1);
+    rig.app.run_action(Action::NextChange);
+    assert_eq!(rig.cursor_line(), 4);
+    rig.app.run_action(Action::NextChange);
+    assert_eq!(rig.cursor_line(), 1);
+    assert!(
+        rig.said()
+            .iter()
+            .any(|text| text.contains("back at the first")),
+        "{:?}",
+        rig.said()
+    );
+    rig.app.run_action(Action::PreviousChange);
+    assert_eq!(rig.cursor_line(), 4);
+    assert!(
+        rig.said()
+            .iter()
+            .any(|text| text.contains("back at the last")),
+        "{:?}",
+        rig.said()
+    );
+}
+
+#[test]
+fn in_the_editor_a_staged_change_is_not_a_stop() {
+    let mut rig = rig("a\nb\nc\n", "a\nB\nc\n");
+    let root = rig.root();
+    git(&root, &["add", "a.txt"]);
+    rig.app.git_changed();
+    rig.refresh_git();
+    rig.take_base();
+    rig.screen();
+
+    rig.app.run_action(Action::NextChange);
 
     assert!(
-        rig.said().iter().any(|text| text.contains("not a diff")),
+        rig.said().iter().any(|text| text.contains("no changes")),
+        "{:?}",
+        rig.said()
+    );
+}
+
+#[test]
+fn next_change_with_no_change_says_so() {
+    let mut rig = rig("alpha\n", "alpha\n");
+
+    rig.app.run_action(Action::NextChange);
+
+    assert!(
+        rig.said().iter().any(|text| text.contains("no changes")),
         "{:?}",
         rig.said()
     );

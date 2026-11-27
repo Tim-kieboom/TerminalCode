@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use super::Change;
 use super::diff::{Hunk, HunkKind, diff, hash_line};
+use super::stops::{Stop, stop_among};
 use crate::buffer::Buffer;
 
 /// What the index was asked for: the file, and how git said it differs from the
@@ -92,6 +93,14 @@ impl Lines {
             Some(base) => diff(base, &line_hashes(buffer)),
             None => Vec::new(),
         };
+    }
+
+    /// Where a jump from `line` goes: the start of the next (or the previous) change of the
+    /// bars of a text of `lines` lines, round to the other end when there is none that way.
+    /// `None` when no line has a bar.
+    pub(crate) fn stop(&self, line: usize, lines: usize, forward: bool) -> Option<Stop> {
+        let starts = self.hunks.iter().map(|hunk| hunk.lines.start);
+        stop_among(starts, lines, line, forward)
     }
 
     /// What happened to `line` (counted from 0), if anything.

@@ -304,24 +304,39 @@ impl Workspace {
         self.active_tab().is_some_and(|tab| tab.diff.is_some())
     }
 
-    /// Moves the cursor of the diff in front to the next change (or the one before). `None`
-    /// when the tab in front is no diff; else whether there was one to go to.
-    pub(crate) fn diff_jump(&mut self, forward: bool) -> Option<bool> {
+    /// Moves the cursor to the next change (or the one before) of the tab in front: in a
+    /// diff the changes against `HEAD`, else the lines with a bar in the gutter (against the
+    /// index). Both sides of a diff follow.
+    pub(crate) fn change_jump(&mut self, forward: bool) -> ChangeJump {
         let pane = self.focused_index();
         let active = self.panes[pane].active;
-        let tab = self.panes[pane].tabs.get_mut(active)?;
-        let diff = tab.diff.as_deref_mut()?;
-        diff.refresh(&self.documents[&tab.document].buffer, &mut tab.view);
+        let Some(tab) = self.panes[pane].tabs.get_mut(active) else {
+            return ChangeJump::NoChanges;
+        };
+        let document = self.documents.get_mut(&tab.document);
+        let Some(document) = document else {
+            return ChangeJump::NoChanges;
+        };
         let line = tab.view.selections().primary().head().line;
-        let target = match forward {
-            true => diff.alignment.next_change(line),
-            false => diff.alignment.previous_change(line),
+        let stop = match tab.diff.as_deref_mut() {
+            Some(diff) => {
+                diff.refresh(&document.buffer, &mut tab.view);
+                diff.alignment.stop(line, forward)
+            }
+            None => {
+                document.git.refresh(&document.buffer);
+                let lines = document.buffer.len_lines();
+                document.git.stop(line, lines, forward)
+            }
         };
-        let Some(target) = target else {
-            return Some(false);
+        let Some(stop) = stop else {
+            return ChangeJump::NoChanges;
         };
-        self.with_editor(|editor| editor.go_to(Position::new(target, 0)));
-        Some(true)
+        self.with_editor(|editor| editor.go_to(Position::new(stop.line, 0)));
+        match stop.wrapped {
+            true => ChangeJump::Wrapped,
+            false => ChangeJump::Moved,
+        }
     }
 
     /// Works out the alignment of the tab in front of pane `index` and the places of the two
@@ -413,4 +428,14 @@ impl Tab {
             heading: diff.heading(),
         })
     }
+}
+
+/// What a jump to the next or the previous change did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ChangeJump {
+    Moved,
+    /// There was none that way, so it went round to the other end.
+    Wrapped,
+    /// There is no change at all.
+    NoChanges,
 }

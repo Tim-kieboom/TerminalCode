@@ -4,7 +4,7 @@ use ratatui::backend::TestBackend;
 use crate::app::state::AppState;
 use crate::buffer::{Buffer, Position};
 use crate::components::editor::{Editor, Motion};
-use crate::components::workspace::Workspace;
+use crate::components::workspace::{ChangeJump, Workspace};
 use crate::event::mouse::Clicks;
 use crate::git::MAX_DIFF_LINES as MAX_LINES;
 use crate::ui::ComponentKind;
@@ -197,20 +197,39 @@ fn a_text_that_is_too_big_is_refused_and_says_why() {
 fn next_and_previous_change_move_the_cursor_to_where_a_change_starts() {
     let mut workspace = diff_of("a\nb\nc\nd\ne\nf\n", "a\nB\nc\nd\ne\nF\n");
 
-    assert_eq!(workspace.diff_jump(true), Some(true));
+    assert_eq!(workspace.change_jump(true), ChangeJump::Moved);
     assert_eq!(cursor_line(&workspace), 1);
-    assert_eq!(workspace.diff_jump(true), Some(true));
+    assert_eq!(workspace.change_jump(true), ChangeJump::Moved);
     assert_eq!(cursor_line(&workspace), 5);
-    assert_eq!(workspace.diff_jump(true), Some(false), "no more changes");
-    assert_eq!(workspace.diff_jump(false), Some(true));
+    assert_eq!(workspace.change_jump(false), ChangeJump::Moved);
     assert_eq!(cursor_line(&workspace), 1);
 }
 
 #[test]
-fn a_tab_that_is_no_diff_says_so_to_the_jump() {
-    let mut workspace = Workspace::new(Editor::new(Buffer::from_text("a\n")));
+fn a_jump_past_the_last_change_goes_round_to_the_first() {
+    let mut workspace = diff_of("a\nb\nc\nd\ne\nf\n", "a\nB\nc\nd\ne\nF\n");
+    workspace.change_jump(true);
+    workspace.change_jump(true);
 
-    assert_eq!(workspace.diff_jump(true), None);
+    assert_eq!(workspace.change_jump(true), ChangeJump::Wrapped);
+    assert_eq!(cursor_line(&workspace), 1);
+    assert_eq!(workspace.change_jump(false), ChangeJump::Wrapped);
+    assert_eq!(cursor_line(&workspace), 5);
+}
+
+#[test]
+fn a_diff_without_changes_has_nothing_to_jump_to() {
+    let mut workspace = diff_of("a\nb\n", "a\nb\n");
+
+    assert_eq!(workspace.change_jump(true), ChangeJump::NoChanges);
+}
+
+#[test]
+fn a_removal_is_a_stop_at_the_line_after_the_removed_text() {
+    let mut workspace = diff_of("a\nb\nc\nd\n", "a\nd\n");
+
+    assert_eq!(workspace.change_jump(true), ChangeJump::Moved);
+    assert_eq!(cursor_line(&workspace), 1);
 }
 
 fn cursor_line(workspace: &Workspace) -> usize {

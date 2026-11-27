@@ -37,6 +37,7 @@ mod parse;
 mod remote;
 mod run;
 mod schedule;
+mod stops;
 #[cfg(test)]
 mod tests;
 

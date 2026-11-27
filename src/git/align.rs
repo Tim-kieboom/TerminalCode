@@ -5,6 +5,7 @@
 use std::ops::Range;
 
 use super::diff::{Block, blocks};
+use super::stops::{Stop, stop_among};
 
 /// Which of the two texts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,29 +139,12 @@ impl Alignment {
             .is_some_and(|stretch| row < stretch.row + stretch.height())
     }
 
-    /// The line of the new text the first change after `line` is at: where a removal
-    /// is, it is the line that follows what was removed.
-    pub(crate) fn next_change(&self, line: usize) -> Option<usize> {
-        let found = self
-            .placed
-            .iter()
-            .find(|stretch| stretch.new.start > line)?;
-        Some(self.anchor(found))
-    }
-
-    /// The line the last change before `line` starts at.
-    pub(crate) fn previous_change(&self, line: usize) -> Option<usize> {
-        let found = self
-            .placed
-            .iter()
-            .rev()
-            .find(|stretch| stretch.new.start < line)?;
-        Some(self.anchor(found))
-    }
-
-    /// The line of the new text a change is shown at, held to the text.
-    fn anchor(&self, stretch: &Placed) -> usize {
-        stretch.new.start.min(self.new_len.saturating_sub(1))
+    /// Where a jump from `line` of the new text goes: the line the next change (or the
+    /// previous one) starts at, where a removal is the line that follows what was removed;
+    /// round to the other end when there is none that way.
+    pub(crate) fn stop(&self, line: usize, forward: bool) -> Option<Stop> {
+        let starts = self.placed.iter().map(|stretch| stretch.new.start);
+        stop_among(starts, self.new_len, line, forward)
     }
 }
 
