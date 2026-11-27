@@ -1,8 +1,9 @@
 use ratatui::Frame;
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use super::{ErrorRow, ErrorsView};
+use super::{COPY_BUTTON, ErrorRow, ErrorsView};
 use crate::app::state::{AppState, Focus};
 use crate::components::editor::render::slot_of;
 use crate::ui::layout::Placement;
@@ -24,6 +25,16 @@ impl ErrorsView {
         let block = placement.frame.block(theme, title, focused);
         let inner = block.inner(placement.area);
         frame.render_widget(block, placement.area);
+
+        // Like the button of a message, but dimmed while no problem is selected.
+        if let Some(button) = self.copy_button() {
+            let style = theme.style(placement.frame.title_slot());
+            let style = match self.selected_row(rows) {
+                Some(_) => style.add_modifier(Modifier::BOLD),
+                None => style.add_modifier(Modifier::DIM),
+            };
+            frame.render_widget(Paragraph::new(COPY_BUTTON).style(style), button);
+        }
 
         if rows.is_empty() {
             frame.render_widget(
@@ -50,7 +61,7 @@ impl ErrorsView {
                     Span::styled(place, theme.style("errors.place")),
                     Span::styled(row.message.clone(), theme.style(slot_of(row.severity))),
                 ]);
-                if index != self.selected() {
+                if !self.is_selected(index) {
                     return line;
                 }
                 let slot = match live {

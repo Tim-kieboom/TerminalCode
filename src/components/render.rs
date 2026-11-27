@@ -129,9 +129,12 @@ fn prepare_component(state: &mut AppState, placement: &Placement) {
         ComponentKind::StatusBar => state.status_bar_mut().prepare(placement),
         ComponentKind::Terminal => state.terminal_mut().prepare(placement),
         ComponentKind::Errors => {
-            let count = state.error_rows().len();
+            let rows = state.error_rows();
             let body = placement.frame.inner(placement.area);
-            state.errors_mut().prepare(placement.area, body, count);
+            let errors = state.errors_mut();
+            errors.reconcile(&rows);
+            errors.prepare(placement.area, body, rows.len());
+            errors.set_copy_button(crate::components::errors::copy_button_rect(placement));
         }
         ComponentKind::Debug => {
             let data = state.debug();

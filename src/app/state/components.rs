@@ -195,18 +195,21 @@ impl AppState {
                 continue;
             }
             for diagnostic in diagnostics {
-                rows.push(ErrorRow::new(
-                    ErrorTarget::File(path.to_path_buf()),
-                    Some(path),
-                    "",
-                    project,
-                    Position::new(
-                        diagnostic.start.line as usize,
-                        diagnostic.start.character as usize,
-                    ),
-                    diagnostic.severity,
-                    &diagnostic.message,
-                ));
+                rows.push(
+                    ErrorRow::new(
+                        ErrorTarget::File(path.to_path_buf()),
+                        Some(path),
+                        "",
+                        project,
+                        Position::new(
+                            diagnostic.start.line as usize,
+                            diagnostic.start.character as usize,
+                        ),
+                        diagnostic.severity,
+                        &diagnostic.message,
+                    )
+                    .with_origin(diagnostic.code.as_deref(), None),
+                );
             }
         }
         for (document, diagnostics) in self.lsp_diagnostics.documents() {
@@ -217,15 +220,18 @@ impl AppState {
                 let Ok(position) = buffer.byte_to_position(diagnostic.range.start) else {
                     continue;
                 };
-                rows.push(ErrorRow::new(
-                    ErrorTarget::Document(document),
-                    path,
-                    &name,
-                    project,
-                    position,
-                    diagnostic.severity,
-                    &diagnostic.message,
-                ));
+                rows.push(
+                    ErrorRow::new(
+                        ErrorTarget::Document(document),
+                        path,
+                        &name,
+                        project,
+                        position,
+                        diagnostic.severity,
+                        &diagnostic.message,
+                    )
+                    .with_origin(diagnostic.code.as_deref(), Some(buffer.version())),
+                );
             }
         }
         crate::components::errors::sort(&mut rows);

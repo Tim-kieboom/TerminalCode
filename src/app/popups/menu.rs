@@ -10,6 +10,7 @@ use ratatui::layout::Position;
 use crate::app::App;
 use crate::app::keys::{EDITOR_CONTEXTS, EXPLORER_CONTEXTS};
 use crate::app::state::Focus;
+use crate::components::errors::ErrorsCommand;
 use crate::components::menu_bar::MenuBar;
 use crate::components::popups::menu::{self, Entry, Menu};
 use crate::config::ConfigFile;
@@ -282,6 +283,29 @@ impl App {
         self.state
             .open_menu(Menu::on_editor(entries, Position::new(column, row)));
         true
+    }
+}
+
+/// What the menu on a problem of the Errors view offers.
+impl App {
+    /// A right click on a problem, which is selected by now: a menu to copy it. The keyboard
+    /// stays in the view.
+    pub(in crate::app) fn open_errors_menu(&mut self, column: u16, row: u16) {
+        let item = |label: &'static str, command: ErrorsCommand| Entry::Item {
+            label: label.into(),
+            action: Action::Errors(command),
+            keys: self
+                .keyboard
+                .keys_for(&Action::Errors(command), &EDITOR_CONTEXTS),
+        };
+        let entries = vec![
+            item("Copy Full", ErrorsCommand::CopyFull),
+            item("Copy Message", ErrorsCommand::CopyMessage),
+            item("Copy Path and Place", ErrorsCommand::CopyPlace),
+        ];
+        self.state
+            .open_menu(Menu::on_app(entries, Position::new(column, row)));
+        self.needs_redraw = true;
     }
 }
 

@@ -13,7 +13,11 @@ use crate::components::text::short_path;
 use crate::ids::DocumentId;
 use crate::lsp::Severity;
 
+use selection::{Pin, Selection};
+pub(crate) use selection::{ProblemId, identify};
+
 mod render;
+mod selection;
 #[cfg(test)]
 mod tests;
 
@@ -31,6 +35,32 @@ pub(crate) enum ErrorsCommand {
     Open,
     /// Gives the keyboard back to the editor.
     Leave,
+    /// Copies the selected problem as `file:line:column message`.
+    CopyFull,
+    /// Copies what the server said about the selected problem.
+    CopyMessage,
+    /// Copies where the selected problem is, `file:line:column`.
+    CopyPlace,
+}
+
+/// What of a problem is copied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CopyKind {
+    Full,
+    Message,
+    Place,
+}
+
+impl ErrorsCommand {
+    /// What the command copies, when it is one that copies.
+    pub(crate) fn copy_kind(self) -> Option<CopyKind> {
+        match self {
+            Self::CopyFull => Some(CopyKind::Full),
+            Self::CopyMessage => Some(CopyKind::Message),
+            Self::CopyPlace => Some(CopyKind::Place),
+            _ => None,
+        }
+    }
 }
 
 /// What a row opens: a document that is open, or a file that is not (the server said something
@@ -52,6 +82,12 @@ pub(crate) struct ErrorRow {
     pub(crate) severity: Severity,
     /// The first line of what the server said.
     pub(crate) message: String,
+    /// The server's code for it (`E0308`).
+    pub(crate) code: Option<String>,
+    /// The version of the text of the file when it is open.
+    pub(crate) version: Option<u64>,
+    /// What tells it from the others (set by [`identify`], once the list is in order).
+    pub(crate) id: ProblemId,
 }
 
 impl ErrorRow {
@@ -75,6 +111,26 @@ impl ErrorRow {
             position,
             severity,
             message: message.lines().next().unwrap_or_default().to_owned(),
+            code: None,
+            version: None,
+            id: ProblemId::default(),
+        }
+    }
+
+    /// The row with the server's code for the problem and the version of the open file.
+    pub(crate) fn with_origin(mut self, code: Option<&str>, version: Option<u64>) -> Self {
+        self.code = code.map(str::to_owned);
+        self.version = version;
+        self
+    }
+
+    /// What is put on the clipboard: `file:line:column message` (what `[copy]` copies), the
+    /// message, or the place.
+    pub(crate) fn copy_text(&self, kind: CopyKind) -> String {
+        match kind {
+            CopyKind::Full => format!("{} {}", self.place(), self.message),
+            CopyKind::Message => self.message.clone(),
+            CopyKind::Place => self.place(),
         }
     }
 
@@ -90,9 +146,32 @@ impl ErrorRow {
 }
 
 /// Orders the rows: errors first, then warnings and the rest, each group by file
-/// and then by place in it.
+/// and then by place in it. Each gets its id.
 pub(crate) fn sort(rows: &mut [ErrorRow]) {
     rows.sort_by(|a, b| (a.severity, &a.file, a.position).cmp(&(b.severity, &b.file, b.position)));
+    identify(rows);
+}
+
+/// What the button on the title row says.
+pub(crate) const COPY_BUTTON: &str = " [copy] ";
+
+/// Where `[copy]` goes on the title row of the view `placement`: at the right end, when the
+/// title or the tabs leave room for it.
+pub(crate) fn copy_button_rect(placement: &crate::ui::layout::Placement) -> Option<Rect> {
+    if !placement.frame.shows_title() {
+        return None;
+    }
+    let (row, from, to) = placement.frame.tab_row(placement.area);
+    let width = COPY_BUTTON.len() as u16;
+    let x = to.checked_sub(width)?;
+    let used = match crate::ui::bar::tab_rects(placement).last() {
+        Some((rect, _)) => rect.right(),
+        None => {
+            let title = placement.frame.title_text(placement.kind.title());
+            from + title.map_or(0, |title| title.chars().count() as u16 + 2)
+        }
+    };
+    (x > used).then_some(Rect::new(x, row, width, 1))
 }
 
 /// The move of the selection a command asks for, when it is one.
@@ -104,7 +183,11 @@ fn step_of(command: ErrorsCommand) -> Option<Step> {
         ErrorsCommand::PageDown => Step::PageDown,
         ErrorsCommand::First => Step::First,
         ErrorsCommand::Last => Step::Last,
-        ErrorsCommand::Open | ErrorsCommand::Leave => return None,
+        ErrorsCommand::Open
+        | ErrorsCommand::Leave
+        | ErrorsCommand::CopyFull
+        | ErrorsCommand::CopyMessage
+        | ErrorsCommand::CopyPlace => return None,
     })
 }
 
@@ -118,9 +201,14 @@ pub(crate) struct ErrorsView {
     follow_selection: bool,
     area: Rect,
     body: Rect,
+    /// The problem that is selected: the cursor is its row while it is in the list.
+    selection: Selection,
+    /// Where `[copy]` is on the title row, as of the last draw.
+    copy_button: Option<Rect>,
 }
 
 impl ErrorsView {
+    #[cfg(test)]
     pub(crate) fn selected(&self) -> usize {
         self.cursor.selected()
     }
@@ -143,6 +231,69 @@ impl ErrorsView {
     pub(crate) fn contains(&self, column: u16, row: u16) -> bool {
         self.area
             .contains(ratatui::layout::Position::new(column, row))
+    }
+
+    /// Whether the row at `index` is the selected problem.
+    pub(crate) fn is_selected(&self, index: usize) -> bool {
+        matches!(self.selection, Selection::Pinned(_)) && index == self.cursor.selected()
+    }
+
+    /// Makes the selection the problem of `rows` that it is: follows it to where it is now,
+    /// and lets go of it when it is gone or was replaced (see `Pin::replaced_by`). Run when
+    /// the rows were made.
+    pub(crate) fn reconcile(&mut self, rows: &[ErrorRow]) {
+        self.selection = match self.selection {
+            Selection::Start if rows.is_empty() => Selection::Start,
+            Selection::Start => self.pin_cursor(rows),
+            Selection::Nothing => Selection::Nothing,
+            Selection::Pinned(pin) => {
+                let found = rows.iter().enumerate().find(|(_, row)| row.id == pin.id());
+                match found {
+                    Some((index, row)) if !pin.replaced_by(row) => {
+                        self.cursor.select(index, rows.len());
+                        Selection::Pinned(Pin::of(row))
+                    }
+                    _ => Selection::Nothing,
+                }
+            }
+        };
+    }
+
+    /// Selects the problem the cursor is on (after it was moved by a key or a click).
+    pub(crate) fn pin(&mut self, rows: &[ErrorRow]) {
+        self.selection = self.pin_cursor(rows);
+    }
+
+    fn pin_cursor(&mut self, rows: &[ErrorRow]) -> Selection {
+        // The list may have got shorter than the cursor's row since.
+        self.cursor.select(self.cursor.selected(), rows.len());
+        match rows.get(self.cursor.selected()) {
+            Some(row) => Selection::Pinned(Pin::of(row)),
+            None => Selection::Nothing,
+        }
+    }
+
+    /// The selected problem, if there is one in `rows`.
+    pub(crate) fn selected_row<'a>(&self, rows: &'a [ErrorRow]) -> Option<&'a ErrorRow> {
+        let Selection::Pinned(pin) = self.selection else {
+            return None;
+        };
+        rows.iter().find(|row| row.id == pin.id())
+    }
+
+    /// Where `[copy]` is, to be drawn and clicked; set when the view is laid out.
+    pub(crate) fn set_copy_button(&mut self, button: Option<Rect>) {
+        self.copy_button = button;
+    }
+
+    pub(crate) fn copy_button(&self) -> Option<Rect> {
+        self.copy_button
+    }
+
+    /// Whether a screen cell is on `[copy]`.
+    pub(crate) fn on_copy_button(&self, column: u16, row: u16) -> bool {
+        self.copy_button
+            .is_some_and(|button| button.contains(ratatui::layout::Position::new(column, row)))
     }
 
     /// Moves the selection, keeping it among `count` rows.

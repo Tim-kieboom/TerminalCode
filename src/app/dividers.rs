@@ -71,10 +71,12 @@ impl App {
                 .unwrap_or_else(|| placement.kind.clone());
             // The bar's own last column or first row, which its border is on in the default
             // layout: not the editor's side, whose first cell can be text. A tab of the bar,
-            // in its top row, is a tab and not a line.
+            // in its top row, is a tab and not a line, and so is the copy button of the Errors view.
             let on_tab = crate::ui::bar::tab_rects(placement)
                 .iter()
-                .any(|(rect, _)| rect.contains(ratatui::layout::Position::new(column, row)));
+                .any(|(rect, _)| rect.contains(ratatui::layout::Position::new(column, row)))
+                || (placement.kind == ComponentKind::Errors
+                    && self.state.errors().on_copy_button(column, row));
             let held = match edge {
                 ResizeEdge::Right => {
                     column + 1 == area.right() && row >= area.y && row < area.bottom()

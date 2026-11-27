@@ -59,6 +59,9 @@ fn rig() -> Rig {
     );
     let (events, receiver) = tokio::sync::mpsc::channel(64);
     let app = App::new(state)
+        .with_clipboard(crate::clipboard::Clipboard::new(
+            crate::clipboard::System::Memory(crate::clipboard::Memory::default()),
+        ))
         .with_events(events)
         .with_terminal_shell(crate::pty::Shell::script("sleep 30"));
     let mut rig = Rig {
@@ -313,4 +316,202 @@ fn a_ctrl_click_on_a_row_opens_it_and_asks_where_the_word_is_defined() {
     // No language server runs here, so nothing answers; the row was opened.
     assert_eq!(rig.open_file(), "b.rs");
     assert_eq!(rig.app.state().focus(), Focus::Editor);
+}
+
+impl Rig {
+    /// A press on the `[copy]` button of the view.
+    fn click_copy(&mut self) {
+        let button = self
+            .app
+            .state()
+            .errors()
+            .copy_button()
+            .expect("the button is on the title row");
+        self.mouse(
+            MouseEventKind::Down(MouseButton::Left),
+            button.x + 1,
+            button.y,
+        );
+    }
+
+    /// What `ctrl+v` puts into the file in front, with the keyboard in the editor.
+    fn pasted(&mut self) -> String {
+        self.key(KeyCode::Esc, KeyModifiers::NONE);
+        self.key(KeyCode::Char('v'), KeyModifiers::CONTROL);
+        self.app.state().editor().buffer().text()
+    }
+}
+
+#[test]
+fn the_copy_button_puts_the_selected_problem_on_the_clipboard() {
+    let mut rig = rig();
+    rig.show();
+
+    rig.click_copy();
+
+    assert!(
+        rig.app
+            .state()
+            .notifications()
+            .texts()
+            .contains(&"copied the problem")
+    );
+    let text = rig.pasted();
+    assert!(text.starts_with("a.rs:3:1 mismatched types"), "{text}");
+}
+
+#[test]
+fn the_copy_button_copies_the_problem_that_was_chosen() {
+    let mut rig = rig();
+    rig.show();
+    rig.key(KeyCode::Down, KeyModifiers::NONE);
+
+    rig.click_copy();
+
+    let text = rig.pasted();
+    assert!(text.starts_with("b.rs:1:1 cannot find value"), "{text}");
+}
+
+#[test]
+fn the_copy_button_does_nothing_while_no_problem_is_selected() {
+    let mut rig = rig();
+    rig.show();
+    let documents: Vec<_> = rig
+        .app
+        .state()
+        .error_rows()
+        .iter()
+        .filter_map(|row| match row.target {
+            crate::components::errors::ErrorTarget::Document(id) => Some(id),
+            _ => None,
+        })
+        .collect();
+    for id in documents {
+        rig.app.state_mut().diagnostics_mut().set(id, Vec::new());
+    }
+    rig.draw();
+
+    rig.click_copy();
+
+    assert!(
+        !rig.app
+            .state()
+            .notifications()
+            .texts()
+            .contains(&"copied the problem")
+    );
+}
+
+#[test]
+fn the_button_is_drawn_on_the_title_row_of_the_view() {
+    let mut rig = rig();
+    rig.show();
+
+    let screen = rig.draw();
+
+    assert!(screen.contains("[copy]"), "{screen}");
+}
+
+impl Rig {
+    fn right_click_row(&mut self, index: u16) {
+        let body = self.app.state().errors().body();
+        self.mouse(
+            MouseEventKind::Down(MouseButton::Right),
+            body.x + 3,
+            body.y + index,
+        );
+    }
+}
+
+#[test]
+fn a_right_click_on_a_problem_opens_a_menu_to_copy_it() {
+    let mut rig = rig();
+    rig.show();
+
+    rig.right_click_row(1);
+
+    let screen = rig.draw();
+    for item in ["Copy Full", "Copy Message", "Copy Path and Place"] {
+        assert!(screen.contains(item), "{item}: {screen}");
+    }
+}
+
+#[test]
+fn the_menu_copies_the_problem_that_was_clicked_in_the_way_chosen() {
+    for (down, expected) in [
+        (0, "b.rs:1:1 cannot find value"),
+        (1, "cannot find value"),
+        (2, "b.rs:1:1"),
+    ] {
+        let mut rig = rig();
+        rig.show();
+        rig.right_click_row(1);
+        for _ in 0..down {
+            rig.key(KeyCode::Down, KeyModifiers::NONE);
+        }
+        rig.key(KeyCode::Enter, KeyModifiers::NONE);
+
+        let text = rig.pasted();
+
+        assert_eq!(text, format!("{expected}one\ntwo\nthree\n"));
+    }
+}
+
+#[test]
+fn a_right_click_below_the_last_problem_opens_no_menu() {
+    let mut rig = rig();
+    rig.show();
+
+    rig.right_click_row(6);
+
+    assert!(!rig.draw().contains("Copy Full"));
+}
+
+const ASKED_FOR_DEFINITION: &str = "no language server answers for this file";
+
+#[test]
+fn a_double_click_on_a_row_opens_it_and_asks_where_the_word_is_defined() {
+    let mut rig = rig();
+    rig.show();
+    let body = rig.app.state().errors().body();
+
+    for _ in 0..2 {
+        rig.mouse(
+            MouseEventKind::Down(MouseButton::Left),
+            body.x + 3,
+            body.y + 1,
+        );
+    }
+
+    assert_eq!(rig.open_file(), "b.rs");
+    assert!(
+        rig.app
+            .state()
+            .notifications()
+            .texts()
+            .contains(&ASKED_FOR_DEFINITION),
+        "{:?}",
+        rig.app.state().notifications().texts()
+    );
+}
+
+#[test]
+fn a_single_click_on_a_row_only_opens_it() {
+    let mut rig = rig();
+    rig.show();
+    let body = rig.app.state().errors().body();
+
+    rig.mouse(
+        MouseEventKind::Down(MouseButton::Left),
+        body.x + 3,
+        body.y + 1,
+    );
+
+    assert!(
+        !rig.app
+            .state()
+            .notifications()
+            .texts()
+            .contains(&ASKED_FOR_DEFINITION)
+    );
 }
